@@ -192,71 +192,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const normalizedEmail = email.trim().toLowerCase();
 
-      // If Firebase is configured and password is provided, use Firebase Auth
+      // If Firebase is configured and password is provided, authenticate directly via Firebase Auth
       if (isFirebaseConfigured && auth && password) {
         try {
           const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
           const fbUser = userCredential.user;
 
-          // Check if super admin
-          if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
-            const adminUser: User = {
-              uid: fbUser.uid,
-              name: 'André Zefanias Júnior',
-              email: normalizedEmail,
-              role: 'super_admin',
-              adminSubRole: 'super_admin',
-              status: 'active',
-              createdAt: new Date().toISOString()
-            };
-            setCurrentUser(adminUser);
-            return { success: true };
-          }
-
-          // Retrieve role from Firestore or local
-          let userRole: UserRole = 'client';
+          // Retrieve role & user data from Firestore or fallback
+          let foundUser: User | null = null;
           if (db) {
             try {
               const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
               if (userDoc.exists()) {
-                const data = userDoc.data() as User;
-                if (data.status === 'suspended') {
-                  return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
-                }
-                if (data.status === 'blocked') {
-                  return { success: false, error: 'Acesso bloqueado por violação de políticas da plataforma.' };
-                }
-                setCurrentUser(data);
-                return { success: true };
+                foundUser = userDoc.data() as User;
               }
             } catch (err) {
               console.warn('Firestore lookup error in login:', err);
             }
           }
 
-          const localMatch = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
-          if (localMatch) {
-            if (localMatch.status === 'suspended') {
-              return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
+          if (!foundUser) {
+            const localMatch = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
+            if (localMatch) {
+              foundUser = { ...localMatch, uid: fbUser.uid };
+            } else {
+              const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
+              foundUser = {
+                uid: fbUser.uid,
+                name: isSuper ? 'André Zefanias Júnior' : (fbUser.displayName || normalizedEmail.split('@')[0]),
+                email: normalizedEmail,
+                phone: isSuper ? '+258 84 999 0001' : '',
+                role: isSuper ? 'super_admin' : 'client',
+                adminSubRole: isSuper ? 'super_admin' : undefined,
+                status: 'active',
+                createdAt: new Date().toISOString()
+              };
+              if (db) {
+                try {
+                  await setDoc(doc(db, 'users', fbUser.uid), foundUser);
+                } catch (e) {
+                  console.warn('Auto create user doc in Firestore:', e);
+                }
+              }
             }
-            if (localMatch.status === 'blocked') {
-              return { success: false, error: 'Acesso bloqueado por violação de políticas da plataforma.' };
-            }
-            setCurrentUser({ ...localMatch, uid: fbUser.uid });
-            return { success: true };
           }
+
+          if (foundUser.status === 'suspended') {
+            return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
+          }
+          if (foundUser.status === 'blocked') {
+            return { success: false, error: 'Acesso bloqueado por violação de políticas da plataforma.' };
+          }
+
+          setCurrentUser(foundUser);
+          setUsersList(prev => {
+            const idx = prev.findIndex(u => u.uid === foundUser!.uid || u.email.toLowerCase() === normalizedEmail);
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = foundUser!;
+              return updated;
+            }
+            return [foundUser!, ...prev];
+          });
+
+          return { success: true };
         } catch (fbErr: any) {
           console.warn('Firebase Auth sign in failed:', fbErr);
-          if (fbErr.code === 'auth/user-not-found' || fbErr.code === 'auth/wrong-password' || fbErr.code === 'auth/invalid-credential') {
+          if (
+            fbErr.code === 'auth/user-not-found' ||
+            fbErr.code === 'auth/wrong-password' ||
+            fbErr.code === 'auth/invalid-credential' ||
+            fbErr.code === 'auth/invalid-login-credentials'
+          ) {
             return { success: false, error: 'E-mail ou palavra-passe incorretos.' };
+          }
+          if (fbErr.code === 'auth/invalid-email') {
+            return { success: false, error: 'Endereço de e-mail inválido.' };
+          }
+          if (fbErr.code === 'auth/user-disabled') {
+            return { success: false, error: 'Esta conta de utilizador foi desativada.' };
           }
           if (fbErr.code === 'auth/too-many-requests') {
             return { success: false, error: 'Muitas tentativas falhadas. Tente novamente mais tarde.' };
           }
+          return { success: false, error: fbErr.message || 'Falha na autenticação via Firebase.' };
         }
       }
 
-      // Check registered users list (for quick sign in or when Firebase is syncing)
+      // Check registered users list (for demo/fallback when password is not provided)
       const match = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
       if (match) {
         if (match.status === 'suspended') {
@@ -323,19 +346,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       let generatedUid = `user_${Date.now()}`;
 
-      // If Firebase Auth is configured and password is provided
+      // If Firebase Auth is configured and password is provided, create Firebase User
       if (isFirebaseConfigured && auth && data.password) {
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, data.password);
           generatedUid = userCredential.user.uid;
         } catch (fbErr: any) {
+          console.error('Firebase user creation failed:', fbErr);
           if (fbErr.code === 'auth/email-already-in-use') {
             return { success: false, error: 'Este e-mail já está em uso na plataforma.' };
           }
           if (fbErr.code === 'auth/weak-password') {
             return { success: false, error: 'A palavra-passe deve ter pelo menos 6 caracteres.' };
           }
-          console.warn('Firebase user creation failed, proceeding with application profile:', fbErr);
+          if (fbErr.code === 'auth/invalid-email') {
+            return { success: false, error: 'Endereço de e-mail inválido.' };
+          }
+          return { success: false, error: fbErr.message || 'Falha ao criar conta no Firebase.' };
         }
       } else {
         if (usersList.some(u => u.email.toLowerCase() === normalizedEmail)) {

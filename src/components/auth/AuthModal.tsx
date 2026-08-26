@@ -303,7 +303,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onChange={e => setPassword(e.target.value)}
                     placeholder="Sua palavra-passe de acesso"
                     className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    required={mode === 'register'}
+                    required
                   />
                   <button
                     type="button"
