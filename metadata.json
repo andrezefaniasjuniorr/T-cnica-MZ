@@ -1,0 +1,6 @@
+{
+  "name": "TécnicaMZ",
+  "description": "Comunidade Técnica de Moçambique — Conectamos profissionais técnicos, clientes e oportunidades.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

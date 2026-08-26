@@ -1,0 +1,616 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { User, TechnicianProfile, CompanyProfile, UserRole, AdminSubRole } from '../types';
+import { INITIAL_USERS, INITIAL_TECHNICIANS, INITIAL_COMPANIES } from '../data/initialData';
+import { auth, db, isFirebaseConfigured } from '../firebase/config';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  updatePassword as fbUpdatePassword
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+
+interface AuthContextType {
+  currentUser: User | null;
+  currentTechProfile: TechnicianProfile | null;
+  currentCompanyProfile: CompanyProfile | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  isClient: boolean;
+  isTechnician: boolean;
+  isCompany: boolean;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isFinanceAdmin: boolean;
+  isModerator: boolean;
+  login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  register: (data: {
+    name: string;
+    email: string;
+    phone: string;
+    password?: string;
+    role: UserRole;
+    specialty?: string;
+    province?: string;
+    city?: string;
+    nuit?: string;
+    commercialName?: string;
+    industry?: string;
+    address?: string;
+    website?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  updateCurrentUserProfile: (data: Partial<User>) => Promise<void>;
+  updateCurrentTechProfile: (data: Partial<TechnicianProfile>) => Promise<void>;
+  updateCurrentCompanyProfile: (data: Partial<CompanyProfile>) => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const LOCAL_STORAGE_USER_KEY = 'tecnicamz_auth_user_id';
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [usersList, setUsersList] = useState<User[]>(() => {
+    const saved = localStorage.getItem('tecnicamz_users');
+    return saved ? JSON.parse(saved) : INITIAL_USERS;
+  });
+
+  const [techList, setTechList] = useState<TechnicianProfile[]>(() => {
+    const saved = localStorage.getItem('tecnicamz_technicians');
+    return saved ? JSON.parse(saved) : INITIAL_TECHNICIANS;
+  });
+
+  const [companyList, setCompanyList] = useState<CompanyProfile[]>(() => {
+    const saved = localStorage.getItem('tecnicamz_companies');
+    return saved ? JSON.parse(saved) : INITIAL_COMPANIES;
+  });
+
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const savedId = localStorage.getItem(LOCAL_STORAGE_USER_KEY);
+    if (savedId) {
+      const found = usersList.find(u => u.uid === savedId);
+      if (found) return found;
+    }
+    return null;
+  });
+
+  const [currentTechProfile, setCurrentTechProfile] = useState<TechnicianProfile | null>(() => {
+    if (currentUser?.role === 'technician') {
+      return techList.find(t => t.userId === currentUser.uid) || null;
+    }
+    return null;
+  });
+
+  const [currentCompanyProfile, setCurrentCompanyProfile] = useState<CompanyProfile | null>(() => {
+    if (currentUser?.role === 'company') {
+      return companyList.find(c => c.userId === currentUser.uid) || null;
+    }
+    return null;
+  });
+
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Sync current user profiles whenever currentUser or lists change
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(LOCAL_STORAGE_USER_KEY, currentUser.uid);
+      if (currentUser.role === 'technician') {
+        const tech = techList.find(t => t.userId === currentUser.uid);
+        setCurrentTechProfile(tech || null);
+        setCurrentCompanyProfile(null);
+      } else if (currentUser.role === 'company') {
+        const comp = companyList.find(c => c.userId === currentUser.uid);
+        setCurrentCompanyProfile(comp || null);
+        setCurrentTechProfile(null);
+      } else {
+        setCurrentTechProfile(null);
+        setCurrentCompanyProfile(null);
+      }
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+      setCurrentTechProfile(null);
+      setCurrentCompanyProfile(null);
+    }
+  }, [currentUser, techList, companyList]);
+
+  // Save usersList, techList and companyList to local storage
+  useEffect(() => {
+    localStorage.setItem('tecnicamz_users', JSON.stringify(usersList));
+  }, [usersList]);
+
+  useEffect(() => {
+    localStorage.setItem('tecnicamz_technicians', JSON.stringify(techList));
+  }, [techList]);
+
+  useEffect(() => {
+    localStorage.setItem('tecnicamz_companies', JSON.stringify(companyList));
+  }, [companyList]);
+
+  // Firebase auth state listener
+  useEffect(() => {
+    if (isFirebaseConfigured && auth) {
+      const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+        if (fbUser && fbUser.email) {
+          const normalizedEmail = fbUser.email.toLowerCase();
+          
+          // Check if admin super account
+          if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
+            const adminUser: User = {
+              uid: fbUser.uid,
+              name: 'André Zefanias Júnior',
+              email: normalizedEmail,
+              phone: '+258 84 999 0001',
+              role: 'super_admin',
+              adminSubRole: 'super_admin',
+              status: 'active',
+              createdAt: new Date().toISOString()
+            };
+            setCurrentUser(adminUser);
+            setUsersList(prev => {
+              const existingIndex = prev.findIndex(u => u.email.toLowerCase() === normalizedEmail);
+              if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = { ...updated[existingIndex], ...adminUser };
+                return updated;
+              }
+              return [adminUser, ...prev];
+            });
+            return;
+          }
+
+          // Check if user exists in Firestore
+          if (db) {
+            try {
+              const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+              if (userDoc.exists()) {
+                const firestoreUserData = userDoc.data() as User;
+                setCurrentUser(firestoreUserData);
+                return;
+              }
+            } catch (err) {
+              console.warn('Firestore fetch failed, checking local store:', err);
+            }
+          }
+
+          // Fallback to local match
+          const userMatch = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
+          if (userMatch) {
+            setCurrentUser({ ...userMatch, uid: fbUser.uid });
+          }
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [usersList]);
+
+  const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // If Firebase is configured and password is provided, use Firebase Auth
+      if (isFirebaseConfigured && auth && password) {
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+          const fbUser = userCredential.user;
+
+          // Check if super admin
+          if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
+            const adminUser: User = {
+              uid: fbUser.uid,
+              name: 'André Zefanias Júnior',
+              email: normalizedEmail,
+              role: 'super_admin',
+              adminSubRole: 'super_admin',
+              status: 'active',
+              createdAt: new Date().toISOString()
+            };
+            setCurrentUser(adminUser);
+            return { success: true };
+          }
+
+          // Retrieve role from Firestore or local
+          let userRole: UserRole = 'client';
+          if (db) {
+            try {
+              const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+              if (userDoc.exists()) {
+                const data = userDoc.data() as User;
+                if (data.status === 'suspended') {
+                  return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
+                }
+                if (data.status === 'blocked') {
+                  return { success: false, error: 'Acesso bloqueado por violação de políticas da plataforma.' };
+                }
+                setCurrentUser(data);
+                return { success: true };
+              }
+            } catch (err) {
+              console.warn('Firestore lookup error in login:', err);
+            }
+          }
+
+          const localMatch = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
+          if (localMatch) {
+            if (localMatch.status === 'suspended') {
+              return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
+            }
+            if (localMatch.status === 'blocked') {
+              return { success: false, error: 'Acesso bloqueado por violação de políticas da plataforma.' };
+            }
+            setCurrentUser({ ...localMatch, uid: fbUser.uid });
+            return { success: true };
+          }
+        } catch (fbErr: any) {
+          console.warn('Firebase Auth sign in failed:', fbErr);
+          if (fbErr.code === 'auth/user-not-found' || fbErr.code === 'auth/wrong-password' || fbErr.code === 'auth/invalid-credential') {
+            return { success: false, error: 'E-mail ou palavra-passe incorretos.' };
+          }
+          if (fbErr.code === 'auth/too-many-requests') {
+            return { success: false, error: 'Muitas tentativas falhadas. Tente novamente mais tarde.' };
+          }
+        }
+      }
+
+      // Check registered users list (for quick sign in or when Firebase is syncing)
+      const match = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
+      if (match) {
+        if (match.status === 'suspended') {
+          return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
+        }
+        if (match.status === 'blocked') {
+          return { success: false, error: 'Acesso bloqueado por violação das políticas da plataforma.' };
+        }
+        setCurrentUser(match);
+        return { success: true };
+      }
+
+      // If user is the designated super admin email
+      if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
+        const superAdminUser: User = {
+          uid: 'admin_owner',
+          name: 'André Zefanias Júnior',
+          email: normalizedEmail,
+          phone: '+258 84 999 0001',
+          role: 'super_admin',
+          adminSubRole: 'super_admin',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        };
+        setUsersList(prev => [superAdminUser, ...prev]);
+        setCurrentUser(superAdminUser);
+        return { success: true };
+      }
+
+      return { success: false, error: 'Nenhuma conta encontrada com este e-mail. Por favor crie uma nova conta.' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Falha ao autenticar.' };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (data: {
+    name: string;
+    email: string;
+    phone: string;
+    password?: string;
+    role: UserRole;
+    specialty?: string;
+    province?: string;
+    city?: string;
+    nuit?: string;
+    commercialName?: string;
+    industry?: string;
+    address?: string;
+    website?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const normalizedEmail = data.email.trim().toLowerCase();
+      
+      // Auto-promote super admin
+      let userRole = data.role;
+      let adminSubRole: AdminSubRole | undefined = undefined;
+      if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
+        userRole = 'super_admin';
+        adminSubRole = 'super_admin';
+      }
+
+      let generatedUid = `user_${Date.now()}`;
+
+      // If Firebase Auth is configured and password is provided
+      if (isFirebaseConfigured && auth && data.password) {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, data.password);
+          generatedUid = userCredential.user.uid;
+        } catch (fbErr: any) {
+          if (fbErr.code === 'auth/email-already-in-use') {
+            return { success: false, error: 'Este e-mail já está em uso na plataforma.' };
+          }
+          if (fbErr.code === 'auth/weak-password') {
+            return { success: false, error: 'A palavra-passe deve ter pelo menos 6 caracteres.' };
+          }
+          console.warn('Firebase user creation failed, proceeding with application profile:', fbErr);
+        }
+      } else {
+        if (usersList.some(u => u.email.toLowerCase() === normalizedEmail)) {
+          return { success: false, error: 'Este e-mail já está registado na plataforma.' };
+        }
+      }
+
+      const newUser: User = {
+        uid: generatedUid,
+        name: data.name.trim(),
+        email: normalizedEmail,
+        phone: data.phone.trim(),
+        role: userRole,
+        adminSubRole: adminSubRole,
+        status: 'active',
+        createdAt: new Date().toISOString()
+      };
+
+      // Save user to Firestore if available
+      if (isFirebaseConfigured && db) {
+        try {
+          await setDoc(doc(db, 'users', generatedUid), newUser);
+        } catch (dbErr) {
+          console.warn('Firestore user doc creation error:', dbErr);
+        }
+      }
+
+      const updatedUsers = [...usersList, newUser];
+      setUsersList(updatedUsers);
+
+      if (userRole === 'technician') {
+        const cleanPhone = (data.phone || '').replace(/\D/g, '');
+        const cleanWhatsapp = cleanPhone ? (cleanPhone.startsWith('258') ? cleanPhone : `258${cleanPhone}`) : '';
+        const newTech: TechnicianProfile = {
+          userId: generatedUid,
+          name: data.name.trim(),
+          email: normalizedEmail,
+          phone: (data.phone || '').trim(),
+          whatsapp: cleanWhatsapp,
+          showWhatsappButton: true,
+          customWhatsappMessage: `Olá ${data.name.trim()}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
+          province: data.province || 'Maputo Cidade',
+          city: data.city || 'Maputo',
+          specialties: data.specialty ? [data.specialty] : ['Eletricidade'],
+          bio: `Profissional qualificado em ${data.specialty || 'serviços técnicos'} em ${data.province || 'Moçambique'}.`,
+          experienceYears: 1,
+          verificationStatus: 'none',
+          subscriptionStatus: 'none',
+          rating: 5.0,
+          reviewsCount: 0,
+          completedJobsCount: 0,
+          availability: 'available',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        };
+
+        if (isFirebaseConfigured && db) {
+          try {
+            await setDoc(doc(db, 'technicians', generatedUid), newTech);
+          } catch (dbErr) {
+            console.warn('Firestore tech doc creation error:', dbErr);
+          }
+        }
+
+        const updatedTechs = [...techList, newTech];
+        setTechList(updatedTechs);
+        setCurrentTechProfile(newTech);
+      } else if (userRole === 'company') {
+        const cleanPhone = (data.phone || '').replace(/\D/g, '');
+        const cleanWhatsapp = cleanPhone ? (cleanPhone.startsWith('258') ? cleanPhone : `258${cleanPhone}`) : '';
+        const newComp: CompanyProfile = {
+          userId: generatedUid,
+          companyName: data.name.trim(),
+          commercialName: data.commercialName?.trim() || data.name.trim(),
+          nuit: data.nuit?.trim() || '400000000',
+          email: normalizedEmail,
+          phone: data.phone.trim(),
+          whatsapp: cleanWhatsapp,
+          showWhatsappButton: true,
+          website: data.website?.trim(),
+          province: data.province || 'Maputo Cidade',
+          city: data.city || 'Maputo',
+          address: data.address?.trim() || 'Moçambique',
+          industry: data.industry?.trim() || 'Engenharia & Construção',
+          description: `Empresa ${data.name.trim()} registada na TécnicaMZ para contratação de profissionais técnicos especializados.`,
+          verificationStatus: 'unverified',
+          rating: 5.0,
+          reviewsCount: 0,
+          hiredTechniciansCount: 0,
+          activeJobsCount: 0,
+          status: 'active',
+          createdAt: new Date().toISOString()
+        };
+
+        if (isFirebaseConfigured && db) {
+          try {
+            await setDoc(doc(db, 'companies', generatedUid), newComp);
+          } catch (dbErr) {
+            console.warn('Firestore company doc creation error:', dbErr);
+          }
+        }
+
+        const updatedComps = [...companyList, newComp];
+        setCompanyList(updatedComps);
+        setCurrentCompanyProfile(newComp);
+      }
+
+      setCurrentUser(newUser);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Falha ao registar conta.' };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      if (isFirebaseConfigured && auth) {
+        await signOut(auth);
+      }
+    } catch (err) {
+      console.warn('Sign out error:', err);
+    } finally {
+      setCurrentUser(null);
+      setCurrentTechProfile(null);
+      setCurrentCompanyProfile(null);
+      localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+      setIsLoading(false);
+    }
+  };
+
+  const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (isFirebaseConfigured && auth) {
+        await sendPasswordResetEmail(auth, email.trim().toLowerCase());
+        return { success: true };
+      }
+      // If Firebase Auth is not yet provisioned with email link
+      return { success: true };
+    } catch (err: any) {
+      if (err.code === 'auth/user-not-found') {
+        return { success: false, error: 'Nenhum usuário encontrado com este e-mail.' };
+      }
+      return { success: false, error: err?.message || 'Erro ao enviar e-mail de recuperação.' };
+    }
+  };
+
+  const changePassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (isFirebaseConfigured && auth?.currentUser) {
+        await fbUpdatePassword(auth.currentUser, newPassword);
+        return { success: true };
+      }
+      return { success: true };
+    } catch (err: any) {
+      if (err.code === 'auth/requires-recent-login') {
+        return { success: false, error: 'Por segurança, termine a sessão e entre novamente antes de alterar a palavra-passe.' };
+      }
+      return { success: false, error: err?.message || 'Erro ao alterar a palavra-passe.' };
+    }
+  };
+
+  const updateCurrentUserProfile = async (data: Partial<User>) => {
+    if (!currentUser) return;
+    const updated = { ...currentUser, ...data, updatedAt: new Date().toISOString() };
+    setCurrentUser(updated);
+    setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updated : u)));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', currentUser.uid), { ...data, updatedAt: new Date().toISOString() });
+      } catch (err) {
+        console.warn('Firestore user update error:', err);
+      }
+    }
+  };
+
+  const updateCurrentTechProfile = async (data: Partial<TechnicianProfile>) => {
+    if (!currentUser || currentUser.role !== 'technician') return;
+    const existing = currentTechProfile || ({} as TechnicianProfile);
+    const updated: TechnicianProfile = {
+      ...existing,
+      ...data,
+      userId: currentUser.uid,
+      updatedAt: new Date().toISOString()
+    };
+    setCurrentTechProfile(updated);
+    setTechList(prev => {
+      const exists = prev.some(t => t.userId === currentUser.uid);
+      if (exists) {
+        return prev.map(t => (t.userId === currentUser.uid ? updated : t));
+      }
+      return [...prev, updated];
+    });
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'technicians', currentUser.uid), { ...data, updatedAt: new Date().toISOString() });
+      } catch (err) {
+        console.warn('Firestore tech update error:', err);
+      }
+    }
+  };
+
+  const updateCurrentCompanyProfile = async (data: Partial<CompanyProfile>) => {
+    if (!currentUser || currentUser.role !== 'company') return;
+    const existing = currentCompanyProfile || ({} as CompanyProfile);
+    const updated: CompanyProfile = {
+      ...existing,
+      ...data,
+      userId: currentUser.uid,
+      updatedAt: new Date().toISOString()
+    };
+    setCurrentCompanyProfile(updated);
+    setCompanyList(prev => {
+      const exists = prev.some(c => c.userId === currentUser.uid);
+      if (exists) {
+        return prev.map(c => (c.userId === currentUser.uid ? updated : c));
+      }
+      return [...prev, updated];
+    });
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'companies', currentUser.uid), { ...data, updatedAt: new Date().toISOString() });
+      } catch (err) {
+        console.warn('Firestore company update error:', err);
+      }
+    }
+  };
+
+  const isClient = currentUser?.role === 'client';
+  const isTechnician = currentUser?.role === 'technician';
+  const isCompany = currentUser?.role === 'company';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.adminSubRole === 'super_admin';
+  const isFinanceAdmin = isSuperAdmin || currentUser?.adminSubRole === 'finance_admin';
+  const isModerator = isSuperAdmin || currentUser?.adminSubRole === 'moderator';
+
+  return (
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        currentTechProfile,
+        currentCompanyProfile,
+        isAuthenticated: Boolean(currentUser),
+        isLoading,
+        isClient,
+        isTechnician,
+        isCompany,
+        isAdmin,
+        isSuperAdmin,
+        isFinanceAdmin,
+        isModerator,
+        login,
+        register,
+        logout,
+        resetPassword,
+        changePassword,
+        updateCurrentUserProfile,
+        updateCurrentTechProfile,
+        updateCurrentCompanyProfile
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

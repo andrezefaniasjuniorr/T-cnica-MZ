@@ -1,0 +1,540 @@
+export type UserRole = 'client' | 'technician' | 'company' | 'admin' | 'super_admin';
+
+export type AdminSubRole = 'super_admin' | 'finance_admin' | 'moderator' | 'support';
+
+export type UserStatus = 'active' | 'suspended' | 'blocked' | 'pending_approval';
+
+export type VerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
+
+export type CompanyVerificationStatus = 'unverified' | 'in_review' | 'verified' | 'rejected';
+
+export type SubscriptionStatus = 'none' | 'active' | 'expired';
+
+export type AvailabilityStatus = 'available' | 'busy' | 'unavailable';
+
+export type PaymentMethod = 'mpesa' | 'emola' | 'bank_transfer';
+
+export type PaymentStatus = 'pending' | 'approved' | 'rejected';
+
+export type RequestStatus = 'open' | 'receiving_proposals' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
+
+export type RequestUrgency = 'low' | 'normal' | 'urgent';
+
+export type ProposalStatus = 'pending' | 'accepted' | 'rejected';
+
+export type JobContractType = 
+  | 'Tempo Inteiro'
+  | 'Tempo Parcial'
+  | 'Freelancer'
+  | 'Estágio'
+  | 'Contrato'
+  | 'Temporário'
+  | 'Prestação de Serviços';
+
+export type JobWorkplaceType = 'Presencial' | 'Híbrido' | 'Remoto';
+
+export type ApplicationStatus = 
+  | 'Recebida'
+  | 'Em análise'
+  | 'Selecionada'
+  | 'Entrevista'
+  | 'Aprovada'
+  | 'Rejeitada';
+
+export type ServiceProposal = Proposal;
+export type ServiceCategory = string;
+export type MozambiqueProvince = string;
+export type ServiceUrgency = RequestUrgency;
+
+export interface User {
+  uid: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: UserRole;
+  adminSubRole?: AdminSubRole;
+  status: UserStatus;
+  avatarUrl?: string;
+  suspensionReason?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface VerificationDocument {
+  id: string;
+  name: string;
+  type: 'id_card' | 'certificate' | 'license' | 'nuit' | 'commercial_reg' | 'other';
+  url: string;
+  uploadedAt: string;
+}
+
+export interface PortfolioItem {
+  id: string;
+  technicianId: string;
+  title: string;
+  description: string;
+  category: string;
+  province: string;
+  city?: string;
+  photos: string[];
+  date: string;
+  createdAt: string;
+}
+
+export interface Review {
+  id: string;
+  technicianId?: string;
+  companyId?: string;
+  clientId: string;
+  clientName: string;
+  clientAvatar?: string;
+  requestId?: string;
+  rating: number; // 1-5
+  comment: string;
+  createdAt: string;
+}
+
+export interface TechnicianPrivacySettings {
+  showPhone: boolean;
+  showWhatsapp: boolean;
+  showEmail: boolean;
+  allowDirectMessages: boolean;
+  customWhatsappMessage?: string;
+}
+
+export interface TechnicianProfile {
+  userId: string;
+  name: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  showWhatsappButton?: boolean;
+  customWhatsappMessage?: string;
+  privacy?: TechnicianPrivacySettings;
+  province: string;
+  city: string;
+  district?: string;
+  specialties: string[];
+  bio: string;
+  experienceYears: number;
+  avatarUrl?: string;
+  coverUrl?: string;
+  verificationStatus: VerificationStatus;
+  verificationDocuments?: VerificationDocument[];
+  verificationRejectionReason?: string;
+  subscriptionStatus: SubscriptionStatus;
+  activePlanId?: string;
+  subscriptionExpiresAt?: string; // ISO date string
+  rating: number;
+  reviewsCount: number;
+  completedJobsCount: number;
+  availability: AvailabilityStatus;
+  featured?: boolean;
+  status: UserStatus;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CompanyPrivacySettings {
+  showPhone: boolean;
+  showWhatsapp: boolean;
+  showEmail: boolean;
+  showAddress: boolean;
+}
+
+export interface CompanyProfile {
+  userId: string; // matches user uid
+  companyName: string;
+  commercialName: string;
+  nuit: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  showWhatsappButton?: boolean;
+  website?: string;
+  province: string;
+  city: string;
+  district?: string;
+  address: string;
+  industry: string; // Área de atuação principal
+  description: string;
+  slogan?: string;
+  logoUrl?: string;
+  coverUrl?: string;
+  socialLinks?: {
+    linkedin?: string;
+    facebook?: string;
+    instagram?: string;
+  };
+  verificationStatus: CompanyVerificationStatus;
+  verificationDocuments?: VerificationDocument[];
+  verificationRejectionReason?: string;
+  privacy?: CompanyPrivacySettings;
+  rating: number;
+  reviewsCount: number;
+  hiredTechniciansCount: number;
+  activeJobsCount: number;
+  featured?: boolean;
+  status: UserStatus;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface JobOpening {
+  id: string;
+  companyId: string;
+  companyName: string;
+  companyLogo?: string;
+  companyVerified: boolean;
+  companyNuit?: string;
+  title: string;
+  category: string; // Área profissional
+  description: string;
+  requirements: string[];
+  minExperienceYears: number;
+  educationLevel: string;
+  workplaceType: JobWorkplaceType;
+  contractType: JobContractType;
+  province: string;
+  city: string;
+  salaryMinMZN?: number;
+  salaryMaxMZN?: number;
+  salaryDisplay: string; // e.g. "25.000 - 35.000 MZN" ou "A Combinar"
+  benefits: string[];
+  deadlineDate: string; // YYYY-MM-DD
+  contactEmail: string;
+  contactWhatsapp: string;
+  applicationsCount: number;
+  status: 'active' | 'paused' | 'closed';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface JobApplication {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  companyId: string;
+  companyName: string;
+  technicianId: string;
+  technicianName: string;
+  technicianEmail: string;
+  technicianPhone: string;
+  technicianWhatsapp: string;
+  technicianAvatar?: string;
+  technicianSpecialties: string[];
+  technicianExperienceYears: number;
+  technicianProvince: string;
+  technicianRating: number;
+  technicianVerified: boolean;
+  coverLetter: string;
+  resumeUrl?: string;
+  portfolioSummary?: string;
+  status: ApplicationStatus;
+  statusNotes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  priceMZN: number;
+  durationDays: number;
+  active: boolean;
+  benefits: string[];
+  priority: number;
+  isPopular?: boolean;
+  targetRole?: 'technician' | 'company';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: UserRole;
+  userPhone?: string;
+  planId: string;
+  planName: string;
+  amountMZN: number;
+  method: PaymentMethod;
+  transactionCode: string;
+  receiptUrl?: string;
+  message?: string;
+  status: PaymentStatus;
+  rejectionReason?: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  submittedAt: string;
+}
+
+export interface ServiceRequest {
+  id: string;
+  clientId: string;
+  clientName: string;
+  clientPhone?: string;
+  clientAvatar?: string;
+  title: string;
+  category: string;
+  description: string;
+  province: string;
+  city: string;
+  urgency: RequestUrgency;
+  budgetMZN?: number;
+  preferredDate?: string;
+  status: RequestStatus;
+  acceptedTechnicianId?: string;
+  acceptedTechnicianName?: string;
+  acceptedProposalId?: string;
+  proposalsCount?: number;
+  hasClientReviewed?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface Proposal {
+  id: string;
+  requestId: string;
+  requestTitle?: string;
+  clientId: string;
+  technicianId: string;
+  technicianName: string;
+  technicianPhone: string;
+  technicianAvatar?: string;
+  technicianRating: number;
+  technicianVerified: boolean;
+  laborCostMZN: number;
+  materialsCostMZN: number;
+  totalCostMZN: number;
+  validityDays: number;
+  description: string;
+  materialsList?: { name: string; quantity: number; unitPriceMZN: number }[];
+  status: ProposalStatus;
+  createdAt: string;
+}
+
+export interface BudgetEstimate {
+  id: string;
+  technicianId: string;
+  technicianName: string;
+  technicianPhone: string;
+  clientName: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  serviceTitle: string;
+  serviceDescription: string;
+  items: { description: string; quantity: number; unitPriceMZN: number; totalMZN: number }[];
+  laborCostMZN: number;
+  discountMZN: number;
+  totalMZN: number;
+  validityDays: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface MessageItem {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: UserRole;
+  text: string;
+  createdAt: string;
+}
+
+export interface ConversationItem {
+  id: string;
+  participantIds: string[];
+  participants: {
+    id: string;
+    name: string;
+    role: UserRole;
+    avatarUrl?: string;
+  }[];
+  lastMessage: string;
+  lastMessageAt: string;
+  contextType?: 'job' | 'request' | 'direct';
+  contextTitle?: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'alert';
+  read: boolean;
+  linkTab?: string;
+  deeplink?: string;
+  createdAt: string;
+}
+
+export interface ReportItem {
+  id: string;
+  reporterId: string;
+  reporterName: string;
+  reporterRole: UserRole;
+  targetId: string;
+  targetName: string;
+  targetType: 'technician' | 'client' | 'company' | 'request' | 'job' | 'market';
+  reason: string;
+  details: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  resolutionNotes?: string;
+  createdAt: string;
+}
+
+export interface AdminLogItem {
+  id: string;
+  adminId: string;
+  adminName: string;
+  adminRole: string;
+  action: string;
+  targetId?: string;
+  targetName?: string;
+  details?: string;
+  timestamp: string;
+}
+
+export interface MarketItem {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  sellerRole: UserRole;
+  sellerPhone: string;
+  sellerWhatsapp: string;
+  showWhatsapp: boolean;
+  title: string;
+  category: string;
+  priceMZN: number;
+  priceDisplay: string;
+  province: string;
+  city: string;
+  location: string;
+  condition: 'Novo' | 'Como Novo' | 'Usado - Excelente' | 'Usado - Bom' | 'Para Peças';
+  brand?: string;
+  model?: string;
+  quantity: number;
+  description: string;
+  images: string[];
+  status: 'active' | 'sold' | 'paused' | 'moderated';
+  createdAt: string;
+}
+
+export interface CommunityComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: UserRole;
+  authorAvatar?: string;
+  authorSpecialty?: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface CommunityPost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: UserRole;
+  authorAvatar?: string;
+  authorSpecialty?: string;
+  authorProvince: string;
+  authorWhatsapp?: string;
+  title: string;
+  content: string;
+  category: string;
+  tags?: string[];
+  images?: string[];
+  reactions: {
+    useful: string[];      // user IDs
+    insightful: string[];  // user IDs
+    applause: string[];    // user IDs
+    question: string[];    // user IDs
+  };
+  commentsCount: number;
+  comments: CommunityComment[];
+  pinned?: boolean;
+  createdAt: string;
+}
+
+export interface AcademyArticle {
+  id: string;
+  title: string;
+  category: string;
+  readTime: string;
+  author: string;
+  source: string;
+  sourceUrl?: string;
+  verifiedDate: string;
+  description: string;
+  content?: string;
+  tags: string[];
+  downloadable: boolean;
+  verifiedByAdmin: boolean;
+}
+
+export interface PaymentMethodConfig {
+  mpesaNumber: string;
+  mpesaName: string;
+  emolaNumber: string;
+  emolaName: string;
+  bankName: string;
+  bankAccount: string;
+  bankHolder: string;
+  bankNIB: string;
+  instructions: string;
+}
+
+export interface PlatformSettings {
+  platformName: string;
+  slogan: string;
+  supportPhone: string;
+  supportEmail: string;
+  whatsappSupport: string;
+  paymentMethods: PaymentMethodConfig;
+  categories: string[];
+  provinces: string[];
+  maintenanceMode: boolean;
+  saraAiEnabled: boolean;
+  registrationOpen: boolean;
+}
+
+export const MOZAMBIQUE_PROVINCES = [
+  'Maputo Cidade',
+  'Maputo Província',
+  'Gaza',
+  'Inhambane',
+  'Sofala',
+  'Manica',
+  'Tete',
+  'Zambézia',
+  'Nampula',
+  'Niassa',
+  'Cabo Delgado'
+] as const;
+
+export const TECHNICAL_CATEGORIES = [
+  'Eletricidade',
+  'Energia Solar',
+  'Eletrônica',
+  'Informática',
+  'Redes',
+  'CCTV e Segurança',
+  'Frio e Climatização',
+  'Mecânica',
+  'Automação',
+  'PLC',
+  'Construção Civil',
+  'Canalização',
+  'Serralharia',
+  'Refrigeração',
+  'Telecomunicações',
+  'Manutenção Industrial',
+  'Eletrodomésticos',
+  'Outros'
+] as const;

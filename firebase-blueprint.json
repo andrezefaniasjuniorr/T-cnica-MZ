@@ -1,0 +1,141 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Base user account profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "role": { "type": "string", "enum": ["client", "technician", "admin", "super_admin"] },
+        "adminSubRole": { "type": "string", "enum": ["super_admin", "admin", "finance_admin", "moderator", "support"] },
+        "status": { "type": "string", "enum": ["active", "suspended", "blocked"] },
+        "avatarUrl": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "role", "status", "createdAt"]
+    },
+    "TechnicianProfile": {
+      "title": "TechnicianProfile",
+      "description": "Detailed technician professional profile",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "whatsapp": { "type": "string", "maxLength": 30 },
+        "province": { "type": "string", "maxLength": 50 },
+        "city": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 80 },
+        "specialties": { "type": "array" },
+        "bio": { "type": "string", "maxLength": 1000 },
+        "experienceYears": { "type": "number" },
+        "avatarUrl": { "type": "string", "maxLength": 500 },
+        "verificationStatus": { "type": "string", "enum": ["none", "pending", "approved", "rejected"] },
+        "verificationDocuments": { "type": "array" },
+        "verificationRejectionReason": { "type": "string", "maxLength": 500 },
+        "subscriptionStatus": { "type": "string", "enum": ["none", "active", "expired"] },
+        "activePlanId": { "type": "string", "maxLength": 50 },
+        "subscriptionExpiresAt": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "completedJobsCount": { "type": "number" },
+        "availability": { "type": "string", "enum": ["available", "busy", "unavailable"] },
+        "featured": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "name", "province", "specialties", "verificationStatus", "subscriptionStatus"]
+    },
+    "Plan": {
+      "title": "Plan",
+      "description": "Technician subscription plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 50 },
+        "name": { "type": "string", "maxLength": 80 },
+        "priceMZN": { "type": "number" },
+        "durationDays": { "type": "number" },
+        "active": { "type": "boolean" },
+        "benefits": { "type": "array" },
+        "priority": { "type": "number" },
+        "isPopular": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "priceMZN", "durationDays", "active"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Manual subscription payment record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "technicianId": { "type": "string", "maxLength": 128 },
+        "technicianName": { "type": "string", "maxLength": 100 },
+        "planId": { "type": "string", "maxLength": 50 },
+        "planName": { "type": "string", "maxLength": 80 },
+        "amountMZN": { "type": "number" },
+        "method": { "type": "string", "enum": ["mpesa", "emola", "bank_transfer"] },
+        "transactionCode": { "type": "string", "maxLength": 100 },
+        "receiptUrl": { "type": "string", "maxLength": 500 },
+        "message": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "rejectionReason": { "type": "string", "maxLength": 500 },
+        "reviewedBy": { "type": "string", "maxLength": 128 },
+        "reviewedAt": { "type": "string" },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["id", "technicianId", "planId", "amountMZN", "method", "transactionCode", "status", "submittedAt"]
+    },
+    "ServiceRequest": {
+      "title": "ServiceRequest",
+      "description": "Service request posted by client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "clientName": { "type": "string", "maxLength": 100 },
+        "clientPhone": { "type": "string", "maxLength": 30 },
+        "title": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "province": { "type": "string", "maxLength": 50 },
+        "city": { "type": "string", "maxLength": 80 },
+        "urgency": { "type": "string", "enum": ["low", "normal", "urgent"] },
+        "budgetMZN": { "type": "number" },
+        "status": { "type": "string", "enum": ["open", "receiving_proposals", "accepted", "in_progress", "completed", "cancelled"] },
+        "acceptedTechnicianId": { "type": "string", "maxLength": 128 },
+        "acceptedProposalId": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "clientId", "title", "category", "description", "province", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User accounts"
+    },
+    "/technicians/{technicianId}": {
+      "schema": { "$ref": "#/entities/TechnicianProfile" },
+      "description": "Public and detailed technician profiles"
+    },
+    "/plans/{planId}": {
+      "schema": { "$ref": "#/entities/Plan" },
+      "description": "Subscription plans configured by Admin"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment records and receipts"
+    },
+    "/serviceRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/ServiceRequest" },
+      "description": "Client job postings"
+    }
+  }
+}
