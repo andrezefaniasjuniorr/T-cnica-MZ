@@ -23,6 +23,20 @@ function getGenAI(): GoogleGenAI {
   return genAIClient;
 }
 
+// Helper to strip markdown and asterisks from AI responses
+function toPlainText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/^#+\s+/gm, '')
+    .replace(/`{1,3}(.*?)`{1,3}/gs, '$1')
+    .replace(/\*/g, '')
+    .trim();
+}
+
 // Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
@@ -38,31 +52,32 @@ app.post('/api/sara/chat', async (req: Request, res: Response) => {
 
     const ai = getGenAI();
 
-    const systemInstruction = `Você é a "Sara IA", a inteligência artificial oficial da plataforma TécnicaMZ (Comunidade Técnica de Moçambique).
+    const systemInstruction = `Você é a Sara IA, a inteligência artificial oficial da plataforma TécnicaMZ (Comunidade Técnica de Moçambique).
 Seu objetivo é ser extremamente precisa, prestativa, didática e prática no contexto técnico de Moçambique.
-Você atende quatro tipos de usuários:
-- Clientes: ajuda a identificar que tipo de serviço técnico precisam (eletricidade, ar condicionado, canalização, energia solar, mecânica, CCTV), estimativas de mercado em Meticais (MZN) e cuidados de segurança.
-- Técnicos: ajuda com dimensionamento elétrico e solar, normas da EDM (Electricidade de Moçambique), cálculos de cabos, disjuntores, quedas de tensão, códigos de erro de ar condicionado/refrigeração, redação de orçamentos e listas de materiais.
-- Empresas: ajuda na elaboração de descrições de vagas técnicas, requisitos de contratação e boas práticas de engenharia.
+
+REGRAS DE FORMATAÇÃO OBRIGATÓRIAS:
+- Responda SEMPRE em texto puro, limpo e simples.
+- NUNCA use negrito, NUNCA use itálico e NUNCA use asteriscos (*) sob nenhuma hipótese.
+- NUNCA use caracteres de marcação Markdown (como #, ##, **, *, _, etc).
+- Escreva em português claro e direto com parágrafos legíveis.
+- Nunca repita mensagens anteriores nem entre em loop.
+
+Você atende os seguintes públicos em Moçambique:
+- Clientes: identificação de serviços técnicos necessários (eletricidade, ar condicionado, canalização, energia solar, mecânica, CCTV), estimativas de custos em Meticais (MZN) e dicas de segurança.
+- Técnicos: dimensionamento elétrico e solar, normas da EDM (Electricidade de Moçambique: 220V monofásico, 380V trifásico a 50Hz), cabos, disjuntores, quedas de tensão, códigos de erro de ar condicionado e refrigeração, elaboração de orçamentos e listas de materiais.
+- Empresas: requisitos técnicos para vagas de trabalho e contratações.
 - Administradores: suporte em auditoria e relatórios.
 
-Normas e Contexto Moçambicano:
-- Moeda: Metical (MZN).
-- Concessionária Elétrica: EDM (Electricidade de Moçambique), tensão 220V/230V monofásica e 380V/400V trifásica a 50Hz.
-- Clima tropical úmido/árido conforme a província (Maputo, Beira, Nampula, Tete, Pemba, etc.).
-- Pagamentos comuns: M-Pesa, e-Mola, Transferência bancária (BCI, Millennium BIM, Standard Bank, Moza Banco).
-
-Estruture suas respostas com clareza usando títulos, bullet points e emojis quando apropriado.
 O usuário atual é: ${userName || 'Usuário'} (${userRole || 'visitante'}).`;
 
     // Format chat contents
     const contents: any[] = [];
     if (Array.isArray(history)) {
       for (const item of history) {
-        if (item.text) {
+        if (item.text && item.sender) {
           contents.push({
             role: item.sender === 'user' ? 'user' : 'model',
-            parts: [{ text: item.text }]
+            parts: [{ text: toPlainText(item.text) }]
           });
         }
       }
@@ -78,17 +93,18 @@ O usuário atual é: ${userName || 'Usuário'} (${userRole || 'visitante'}).`;
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
-        temperature: 0.7,
+        temperature: 0.5,
       }
     });
 
-    const replyText = response.text || 'Não consegui formular uma resposta técnica no momento.';
+    const rawReply = response.text || 'Não consegui formular uma resposta técnica no momento.';
+    const replyText = toPlainText(rawReply);
     return res.json({ reply: replyText });
   } catch (error: any) {
     console.error('Error in /api/sara/chat:', error);
     return res.status(500).json({
       error: error?.message || 'Falha ao processar solicitação com a Sara IA.',
-      fallback: 'Desculpe, houve uma instabilidade momentânea na conexão da Sara IA. Por favor tente novamente.'
+      fallback: 'Desculpe, houve uma instabilidade temporária na conexão da Sara IA. Por favor tente novamente.'
     });
   }
 });
@@ -107,13 +123,14 @@ app.post('/api/sara/analyze-image', async (req: Request, res: Response) => {
     const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
 
     const userPrompt = prompt || `Analise esta foto técnica detalhadamente para um técnico ou cliente em Moçambique.
-Estruture a resposta nos seguintes tópicos obrigatórios:
-1. 🔎 **O que vejo**: Descrição visual do equipamento, circuito, placa, cabeamento ou anomalia.
-2. ⚙️ **Identificação Técnica Provável**: Componentes visíveis (ex: disjuntor, inversor, capacitor, relé, tubulação, fiação, código de erro).
-3. 📚 **Diagnóstico / Explicação**: O que pode estar acontecendo ou especificação do padrão técnico (conforme normas EDM / IEC / ABNT).
-4. 🔧 **Testes e Procedimentos Recomendados**: Passo a passo com multímetro, alicate amperímetro ou inspeção física.
-5. ⚠️ **Cuidados de Segurança**: EPIs necessários, risco de choque elétrico, corte de energia prévio.
-6. 💡 **Próximos Passos & Estimativa**: Solução recomendada e materiais necessários.`;
+ATENÇÃO: Responda em texto simples e limpo, SEM usar asteriscos (*), SEM negrito e SEM caracteres de formatação especial Markdown.
+Estruture em tópicos numerados:
+1. O que vejo na foto: descrição visual dos equipamentos ou circuitos.
+2. Identificação Técnica: componentes visíveis e conformidade técnica.
+3. Diagnóstico e normas: explicação técnica (normas EDM / IEC).
+4. Procedimentos e testes recomendados: medições com multímetro ou passos práticos.
+5. Cuidados de segurança: desligamento da rede e equipamentos de proteção.
+6. Solução e próximos passos: materiais necessários e estimativa em Meticais.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.6-flash',
@@ -129,17 +146,19 @@ Estruture a resposta nos seguintes tópicos obrigatórios:
         }
       ],
       config: {
-        temperature: 0.4
+        systemInstruction: 'Responda rigorosamente em texto puro e simples, sem asteriscos (*) e sem formatação Markdown.',
+        temperature: 0.3
       }
     });
 
-    const analysis = response.text || 'Não foi possível extrair a análise da imagem.';
+    const rawAnalysis = response.text || 'Não foi possível extrair a análise da imagem.';
+    const analysis = toPlainText(rawAnalysis);
     return res.json({ analysis });
   } catch (error: any) {
     console.error('Error in /api/sara/analyze-image:', error);
     return res.status(500).json({
       error: error?.message || 'Falha ao analisar a imagem.',
-      fallback: 'Houve um erro ao processar a imagem com a visão computacional da Sara IA. Verifique a iluminação e resolução da foto e tente novamente.'
+      fallback: 'Houve um erro ao processar a imagem com a visão computacional da Sara IA. Verifique a resolução e iluminação da foto e tente novamente.'
     });
   }
 });

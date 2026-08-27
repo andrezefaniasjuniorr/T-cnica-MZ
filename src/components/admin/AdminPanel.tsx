@@ -55,7 +55,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
-  const { currentUser, isAdmin, isSuperAdmin, isFinanceAdmin, isModerator } = useAuth();
+  const { currentUser, isAdmin, isSuperAdmin, isFinanceAdmin, isModerator, usersList, updateUserStatus, deleteUserAccount } = useAuth();
   const {
     technicians,
     companies,
@@ -86,10 +86,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
   } = useData();
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'charts' | 'finance' | 'techs' | 'companies' | 'jobs' | 'market' | 'community' | 'reports' | 'logs' | 'settings'
+    'overview' | 'users' | 'charts' | 'finance' | 'techs' | 'companies' | 'jobs' | 'market' | 'community' | 'reports' | 'logs' | 'settings'
   >('overview');
 
   // Search & Filter states
+  const [userSearch, setUserSearch] = useState('');
   const [techSearch, setTechSearch] = useState('');
   const [companySearch, setCompanySearch] = useState('');
   const [jobSearch, setJobSearch] = useState('');
@@ -243,6 +244,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
           {[
             { id: 'overview', label: 'Visão Geral', icon: Activity, count: null },
+            { id: 'users', label: 'Todos os Usuários', icon: Users, count: usersList.length },
             { id: 'charts', label: 'Gráficos & Métricas', icon: BarChart3, count: null },
             { id: 'finance', label: 'Financeiro M-Pesa/E-Mola', icon: DollarSign, count: pendingPayments.length },
             { id: 'techs', label: 'Técnicos & Contas', icon: Users, count: pendingTechVerifications.length },
@@ -277,6 +279,141 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
             );
           })}
         </div>
+
+        {/* ========================================================================= */}
+        {/* TAB: ALL USERS (REAL-TIME FIRESTORE LIST) */}
+        {/* ========================================================================= */}
+        {activeTab === 'users' && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Base de Usuários em Tempo Real (Firebase)</h2>
+                <p className="text-xs text-slate-500">
+                  Lista sincronizada com o Firebase Authentication e Cloud Firestore ({usersList.length} usuários cadastrados).
+                </p>
+              </div>
+
+              <div className="relative min-w-[260px]">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                  placeholder="Buscar por nome, email, telefone ou papel..."
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
+                    <th className="pb-3">Usuário</th>
+                    <th className="pb-3">Email & Telefone</th>
+                    <th className="pb-3">Perfil / Papel</th>
+                    <th className="pb-3">Status</th>
+                    <th className="pb-3">Criado em</th>
+                    <th className="pb-3 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {usersList
+                    .filter(u =>
+                      u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      u.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      u.phone?.includes(userSearch) ||
+                      u.role?.toLowerCase().includes(userSearch.toLowerCase())
+                    )
+                    .map(u => (
+                      <tr key={u.uid} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3.5 font-bold text-slate-900 flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 overflow-hidden shrink-0">
+                            {u.avatarUrl ? (
+                              <img src={u.avatarUrl} alt={u.name} className="w-full h-full object-cover" />
+                            ) : (
+                              u.name?.charAt(0).toUpperCase() || 'U'
+                            )}
+                          </div>
+                          <div>
+                            <span>{u.name}</span>
+                            <span className="block text-[10px] font-mono text-slate-400 font-normal truncate max-w-[120px]">
+                              {u.uid}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3.5">
+                          <span className="font-mono text-slate-700 block">{u.email}</span>
+                          <span className="text-[11px] text-slate-500 font-mono">{u.phone || 'Sem telefone'}</span>
+                        </td>
+                        <td className="py-3.5">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            u.role === 'admin' || u.role === 'super_admin'
+                              ? 'bg-purple-100 text-purple-800'
+                              : u.role === 'technician'
+                              ? 'bg-indigo-100 text-indigo-800'
+                              : u.role === 'company'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {u.role === 'technician'
+                              ? 'Técnico'
+                              : u.role === 'company'
+                              ? 'Empresa'
+                              : u.role === 'client'
+                              ? 'Cliente'
+                              : 'Administrador'}
+                          </span>
+                        </td>
+                        <td className="py-3.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            u.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : u.status === 'suspended'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {u.status === 'active' ? 'Ativo' : u.status === 'suspended' ? 'Suspenso' : 'Pendente'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 text-slate-500 text-[11px]">
+                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-MZ') : 'Recente'}
+                        </td>
+                        <td className="py-3.5 text-right space-x-2">
+                          {u.status === 'active' ? (
+                            <button
+                              onClick={() => updateUserStatus(u.uid, 'suspended')}
+                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg font-bold text-[11px] transition"
+                            >
+                              Suspender
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => updateUserStatus(u.uid, 'active')}
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold text-[11px] transition"
+                            >
+                              Ativar
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              if (confirm(`Tem certeza que deseja excluir o usuário "${u.name}" (${u.email})?`)) {
+                                deleteUserAccount(u.uid);
+                              }
+                            }}
+                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition"
+                            title="Remover Usuário"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* TAB 1: OVERVIEW */}

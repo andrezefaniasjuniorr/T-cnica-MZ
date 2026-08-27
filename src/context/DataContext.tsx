@@ -49,6 +49,8 @@ import {
   INITIAL_COMMUNITY_POSTS
 } from '../data/initialData';
 import { useAuth } from './AuthContext';
+import { auth, db, isFirebaseConfigured } from '../firebase/config';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 interface DataContextType {
   technicians: TechnicianProfile[];
@@ -182,22 +184,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [technicians, setTechnicians] = useState<TechnicianProfile[]>(() => {
     const saved = localStorage.getItem('tecnicamz_technicians');
-    return saved ? JSON.parse(saved) : INITIAL_TECHNICIANS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [companies, setCompanies] = useState<CompanyProfile[]>(() => {
     const saved = localStorage.getItem('tecnicamz_companies');
-    return saved ? JSON.parse(saved) : INITIAL_COMPANIES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [jobs, setJobs] = useState<JobOpening[]>(() => {
     const saved = localStorage.getItem('tecnicamz_jobs');
-    return saved ? JSON.parse(saved) : INITIAL_JOBS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [applications, setApplications] = useState<JobApplication[]>(() => {
     const saved = localStorage.getItem('tecnicamz_job_applications');
-    return saved ? JSON.parse(saved) : INITIAL_JOB_APPLICATIONS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>(() => {
@@ -207,37 +209,37 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [payments, setPayments] = useState<PaymentRecord[]>(() => {
     const saved = localStorage.getItem('tecnicamz_payments');
-    return saved ? JSON.parse(saved) : INITIAL_PAYMENTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(() => {
     const saved = localStorage.getItem('tecnicamz_requests');
-    return saved ? JSON.parse(saved) : INITIAL_SERVICE_REQUESTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [proposals, setProposals] = useState<Proposal[]>(() => {
     const saved = localStorage.getItem('tecnicamz_proposals');
-    return saved ? JSON.parse(saved) : INITIAL_PROPOSALS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [reviews, setReviews] = useState<Review[]>(() => {
     const saved = localStorage.getItem('tecnicamz_reviews');
-    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>(() => {
     const saved = localStorage.getItem('tecnicamz_portfolio');
-    return saved ? JSON.parse(saved) : INITIAL_PORTFOLIO;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [marketItems, setMarketItems] = useState<MarketItem[]>(() => {
     const saved = localStorage.getItem('tecnicamz_market');
-    return saved ? JSON.parse(saved) : INITIAL_MARKET_ITEMS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(() => {
     const saved = localStorage.getItem('tecnicamz_community_posts');
-    return saved ? JSON.parse(saved) : INITIAL_COMMUNITY_POSTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [academyArticles, setAcademyArticles] = useState<AcademyArticle[]>(() => {
@@ -247,27 +249,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [conversations, setConversations] = useState<ConversationItem[]>(() => {
     const saved = localStorage.getItem('tecnicamz_conversations');
-    return saved ? JSON.parse(saved) : INITIAL_CONVERSATIONS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [messages, setMessages] = useState<MessageItem[]>(() => {
     const saved = localStorage.getItem('tecnicamz_messages');
-    return saved ? JSON.parse(saved) : INITIAL_MESSAGES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     const saved = localStorage.getItem('tecnicamz_notifications');
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [reports, setReports] = useState<ReportItem[]>(() => {
     const saved = localStorage.getItem('tecnicamz_reports');
-    return saved ? JSON.parse(saved) : INITIAL_REPORTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [adminLogs, setAdminLogs] = useState<AdminLogItem[]>(() => {
     const saved = localStorage.getItem('tecnicamz_admin_logs');
-    return saved ? JSON.parse(saved) : INITIAL_ADMIN_LOGS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [settings, setSettings] = useState<PlatformSettings>(() => {
@@ -277,13 +279,140 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [favorites, setFavorites] = useState<string[]>(() => {
     const saved = localStorage.getItem('tecnicamz_favorites');
-    return saved ? JSON.parse(saved) : ['tech_mateus'];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [budgetEstimates, setBudgetEstimates] = useState<BudgetEstimate[]>(() => {
     const saved = localStorage.getItem('tecnicamz_budget_estimates');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Real-time Firestore Listeners
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db) return;
+
+    const unsubPosts = onSnapshot(
+      collection(db, 'community_posts'),
+      (snapshot) => {
+        const posts: CommunityPost[] = [];
+        snapshot.forEach((docSnap) => {
+          posts.push({ ...docSnap.data(), id: docSnap.id } as CommunityPost);
+        });
+        posts.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setCommunityPosts(posts);
+      },
+      (err) => console.warn('Realtime community_posts notice:', err)
+    );
+
+    const unsubMarket = onSnapshot(
+      collection(db, 'market_items'),
+      (snapshot) => {
+        const items: MarketItem[] = [];
+        snapshot.forEach((docSnap) => {
+          items.push({ ...docSnap.data(), id: docSnap.id } as MarketItem);
+        });
+        items.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setMarketItems(items);
+      },
+      (err) => console.warn('Realtime market_items notice:', err)
+    );
+
+    const unsubTechs = onSnapshot(
+      collection(db, 'technicians'),
+      (snapshot) => {
+        const list: TechnicianProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), userId: docSnap.id } as TechnicianProfile);
+        });
+        setTechnicians(list);
+      },
+      (err) => console.warn('Realtime technicians notice:', err)
+    );
+
+    const unsubComps = onSnapshot(
+      collection(db, 'companies'),
+      (snapshot) => {
+        const list: CompanyProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), userId: docSnap.id } as CompanyProfile);
+        });
+        setCompanies(list);
+      },
+      (err) => console.warn('Realtime companies notice:', err)
+    );
+
+    const unsubJobs = onSnapshot(
+      collection(db, 'jobs'),
+      (snapshot) => {
+        const list: JobOpening[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as JobOpening);
+        });
+        setJobs(list);
+      },
+      (err) => console.warn('Realtime jobs notice:', err)
+    );
+
+    const unsubRequests = onSnapshot(
+      collection(db, 'serviceRequests'),
+      (snapshot) => {
+        const list: ServiceRequest[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as ServiceRequest);
+        });
+        setServiceRequests(list);
+      },
+      (err) => console.warn('Realtime serviceRequests notice:', err)
+    );
+
+    const unsubProposals = onSnapshot(
+      collection(db, 'proposals'),
+      (snapshot) => {
+        const list: Proposal[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as Proposal);
+        });
+        setProposals(list);
+      },
+      (err) => console.warn('Realtime proposals notice:', err)
+    );
+
+    const unsubReviews = onSnapshot(
+      collection(db, 'reviews'),
+      (snapshot) => {
+        const list: Review[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as Review);
+        });
+        setReviews(list);
+      },
+      (err) => console.warn('Realtime reviews notice:', err)
+    );
+
+    const unsubPayments = onSnapshot(
+      collection(db, 'payments'),
+      (snapshot) => {
+        const list: PaymentRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as PaymentRecord);
+        });
+        setPayments(list);
+      },
+      (err) => console.warn('Realtime payments notice:', err)
+    );
+
+    return () => {
+      unsubPosts();
+      unsubMarket();
+      unsubTechs();
+      unsubComps();
+      unsubJobs();
+      unsubRequests();
+      unsubProposals();
+      unsubReviews();
+      unsubPayments();
+    };
+  }, []);
 
   // Sync to localStorage
   useEffect(() => {
@@ -932,7 +1061,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Market
-  const addMarketItem = (itemData: Omit<MarketItem, 'id' | 'createdAt' | 'status'>) => {
+  const addMarketItem = async (itemData: Omit<MarketItem, 'id' | 'createdAt' | 'status'>) => {
     const newItem: MarketItem = {
       ...itemData,
       id: `market_${Date.now()}`,
@@ -940,22 +1069,54 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString()
     };
     setMarketItems(prev => [newItem, ...prev]);
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'market_items', newItem.id), newItem);
+      } catch (err) {
+        console.warn('Firestore add market item error:', err);
+      }
+    }
   };
 
-  const updateMarketItemStatus = (itemId: string, status: MarketItem['status']) => {
+  const updateMarketItemStatus = async (itemId: string, status: MarketItem['status']) => {
     setMarketItems(prev => prev.map(m => (m.id === itemId ? { ...m, status } : m)));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'market_items', itemId), { status });
+      } catch (err) {
+        console.warn('Firestore update market item status error:', err);
+      }
+    }
   };
 
-  const deleteMarketItem = (itemId: string) => {
+  const deleteMarketItem = async (itemId: string) => {
     setMarketItems(prev => prev.filter(m => m.id !== itemId));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await deleteDoc(doc(db, 'market_items', itemId));
+      } catch (err) {
+        console.warn('Firestore delete market item error:', err);
+      }
+    }
   };
 
-  const editMarketItem = (itemId: string, data: Partial<MarketItem>) => {
+  const editMarketItem = async (itemId: string, data: Partial<MarketItem>) => {
     setMarketItems(prev => prev.map(m => (m.id === itemId ? { ...m, ...data } : m)));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'market_items', itemId), data);
+      } catch (err) {
+        console.warn('Firestore edit market item error:', err);
+      }
+    }
   };
 
   // Technical Community Feed
-  const addCommunityPost = (postData: {
+  const addCommunityPost = async (postData: {
     title: string;
     content: string;
     category: string;
@@ -994,11 +1155,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setCommunityPosts(prev => [newPost, ...prev]);
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'community_posts', newPost.id), newPost);
+      } catch (err) {
+        console.warn('Firestore add community post error:', err);
+      }
+    }
   };
 
-  const togglePostReaction = (postId: string, reactionType: 'useful' | 'insightful' | 'applause' | 'question') => {
+  const togglePostReaction = async (postId: string, reactionType: 'useful' | 'insightful' | 'applause' | 'question') => {
     if (!currentUser) return;
     const userId = currentUser.uid;
+
+    let updatedPost: CommunityPost | undefined;
 
     setCommunityPosts(prev =>
       prev.map(p => {
@@ -1010,18 +1181,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? currentList.filter(id => id !== userId)
           : [...currentList, userId];
 
-        return {
+        const postUpdated = {
           ...p,
           reactions: {
             ...p.reactions,
             [reactionType]: updatedList
           }
         };
+        updatedPost = postUpdated;
+        return postUpdated;
       })
     );
+
+    if (isFirebaseConfigured && db && updatedPost) {
+      try {
+        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+      } catch (err) {
+        console.warn('Firestore update reaction error:', err);
+      }
+    }
   };
 
-  const addPostComment = (postId: string, text: string) => {
+  const addPostComment = async (postId: string, text: string) => {
     if (!currentUser || !text.trim()) return;
 
     const techProfile = technicians.find(t => t.userId === currentUser.uid);
@@ -1038,20 +1219,40 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString()
     };
 
+    let updatedPost: CommunityPost | undefined;
+
     setCommunityPosts(prev =>
       prev.map(p => {
         if (p.id !== postId) return p;
-        return {
+        const postUpdated = {
           ...p,
           commentsCount: p.commentsCount + 1,
           comments: [...p.comments, newComment]
         };
+        updatedPost = postUpdated;
+        return postUpdated;
       })
     );
+
+    if (isFirebaseConfigured && db && updatedPost) {
+      try {
+        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+      } catch (err) {
+        console.warn('Firestore add comment error:', err);
+      }
+    }
   };
 
-  const deleteCommunityPost = (postId: string) => {
+  const deleteCommunityPost = async (postId: string) => {
     setCommunityPosts(prev => prev.filter(p => p.id !== postId));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await deleteDoc(doc(db, 'community_posts', postId));
+      } catch (err) {
+        console.warn('Firestore delete community post error:', err);
+      }
+    }
   };
 
   // Academy

@@ -36,15 +36,15 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose }) => 
 
   const getInitialGreeting = () => {
     if (isCompany) {
-      return `Olá! Sou a **Sara IA**, assistente de engenharia e recrutamento da TécnicaMZ. Posso ajudar a sua empresa a elaborar descrições de vagas técnicas, analisar perfis de candidatos ou estimar custos de contratação técnica em Moçambique. Como posso ajudar hoje?`;
+      return `Olá! Sou a Sara IA, assistente de engenharia e recrutamento da TécnicaMZ. Posso ajudar a sua empresa a elaborar descrições de vagas técnicas, analisar perfis de candidatos ou estimar custos de contratação técnica em Moçambique. Como posso ajudar hoje?`;
     }
     if (isTechnician) {
-      return `Olá colega técnico! Sou a **Sara IA** da TécnicaMZ. Posso auxiliar com dimensionamento solar fotovoltaico, tabelas de cabos e disjuntores da EDM, códigos de erro de ar condicionado ou analisar fotos de placas, esquemas e quadros elétricos pela câmara/galeria. O que você gostaria de calcular ou analisar?`;
+      return `Olá colega técnico! Sou a Sara IA da TécnicaMZ. Posso auxiliar com dimensionamento solar fotovoltaico, tabelas de cabos e disjuntores da EDM, códigos de erro de ar condicionado ou analisar fotos de placas, esquemas e quadros elétricos pela câmara ou galeria. O que você gostaria de calcular ou analisar?`;
     }
     if (isAdmin) {
-      return `Olá Administrador! Sou a **Sara IA**. Estou pronta para auxiliar na auditoria de comprovativos M-Pesa / e-Mola, conformidade de NUITs e relatórios de métricas do sistema.`;
+      return `Olá Administrador! Sou a Sara IA. Estou pronta para auxiliar na auditoria de comprovativos M-Pesa / e-Mola, conformidade de NUITs e relatórios de métricas do sistema.`;
     }
-    return `Olá! Sou a **Sara IA**, assistente inteligente da TécnicaMZ. Posso ajudar você a entender que tipo de profissional técnico contratar (eletricidade, climatização, energia solar, canalização, CCTV), tirar dúvidas sobre normas moçambicanas e estimar orçamentos médios em Meticais (MZN). Como posso ajudar?`;
+    return `Olá! Sou a Sara IA, assistente inteligente da TécnicaMZ. Posso ajudar você a entender que tipo de profissional técnico contratar (eletricidade, climatização, energia solar, canalização, CCTV), tirar dúvidas sobre normas moçambicanas e estimar orçamentos médios em Meticais (MZN). Como posso ajudar?`;
   };
 
   const [messages, setMessages] = useState<Message[]>([
@@ -167,7 +167,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose }) => 
         {
           id: `sara_${Date.now()}`,
           sender: 'sara',
-          text: `⚙️ **Sara IA (Resposta Técnica de Apoio):**\n\nIdentifiquei a sua consulta técnica. Para dimensionamentos em Moçambique, siga sempre as recomendações da norma EDM e verifique aterramentos inferiores a 10 Ohms e disjuntores de curva C para motores e compressores. Como posso detalhar o seu cálculo?`,
+          text: `Sara IA (Resposta Técnica de Apoio): Para dimensionamentos em Moçambique, siga sempre as recomendações da norma EDM e verifique aterramentos inferiores a 10 Ohms e disjuntores de curva C para motores e compressores. Como posso detalhar o seu cálculo?`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);

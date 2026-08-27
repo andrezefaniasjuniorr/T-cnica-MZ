@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, TechnicianProfile, CompanyProfile, UserRole, AdminSubRole } from '../types';
-import { INITIAL_USERS, INITIAL_TECHNICIANS, INITIAL_COMPANIES } from '../data/initialData';
+import { User, TechnicianProfile, CompanyProfile, UserRole, AdminSubRole, UserStatus } from '../types';
 import { auth, db, isFirebaseConfigured } from '../firebase/config';
 import {
   onAuthStateChanged,
@@ -10,12 +9,15 @@ import {
   sendPasswordResetEmail,
   updatePassword as fbUpdatePassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 interface AuthContextType {
   currentUser: User | null;
   currentTechProfile: TechnicianProfile | null;
   currentCompanyProfile: CompanyProfile | null;
+  usersList: User[];
+  techList: TechnicianProfile[];
+  companyList: CompanyProfile[];
   isAuthenticated: boolean;
   isLoading: boolean;
   isClient: boolean;
@@ -47,6 +49,8 @@ interface AuthContextType {
   updateCurrentUserProfile: (data: Partial<User>) => Promise<void>;
   updateCurrentTechProfile: (data: Partial<TechnicianProfile>) => Promise<void>;
   updateCurrentCompanyProfile: (data: Partial<CompanyProfile>) => Promise<void>;
+  updateUserStatus: (userId: string, status: UserStatus) => Promise<void>;
+  deleteUserAccount: (userId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,17 +60,17 @@ const LOCAL_STORAGE_USER_KEY = 'tecnicamz_auth_user_id';
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [usersList, setUsersList] = useState<User[]>(() => {
     const saved = localStorage.getItem('tecnicamz_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [techList, setTechList] = useState<TechnicianProfile[]>(() => {
     const saved = localStorage.getItem('tecnicamz_technicians');
-    return saved ? JSON.parse(saved) : INITIAL_TECHNICIANS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [companyList, setCompanyList] = useState<CompanyProfile[]>(() => {
     const saved = localStorage.getItem('tecnicamz_companies');
-    return saved ? JSON.parse(saved) : INITIAL_COMPANIES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -78,33 +82,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   });
 
-  const [currentTechProfile, setCurrentTechProfile] = useState<TechnicianProfile | null>(() => {
-    if (currentUser?.role === 'technician') {
-      return techList.find(t => t.userId === currentUser.uid) || null;
-    }
-    return null;
-  });
-
-  const [currentCompanyProfile, setCurrentCompanyProfile] = useState<CompanyProfile | null>(() => {
-    if (currentUser?.role === 'company') {
-      return companyList.find(c => c.userId === currentUser.uid) || null;
-    }
-    return null;
-  });
-
+  const [currentTechProfile, setCurrentTechProfile] = useState<TechnicianProfile | null>(null);
+  const [currentCompanyProfile, setCurrentCompanyProfile] = useState<CompanyProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Sync current user profiles whenever currentUser or lists change
+  // Sync real-time Firestore listeners for users, technicians, and companies
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db) return;
+
+    const unsubUsers = onSnapshot(
+      collection(db, 'users'),
+      (snapshot) => {
+        const users: User[] = [];
+        snapshot.forEach((docSnap) => {
+          users.push({ ...docSnap.data(), uid: docSnap.id } as User);
+        });
+        setUsersList(users);
+      },
+      (err) => {
+        console.warn('Real-time users listener notice:', err);
+      }
+    );
+
+    const unsubTechs = onSnapshot(
+      collection(db, 'technicians'),
+      (snapshot) => {
+        const techs: TechnicianProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          techs.push({ ...docSnap.data(), userId: docSnap.id } as TechnicianProfile);
+        });
+        setTechList(techs);
+      },
+      (err) => {
+        console.warn('Real-time technicians listener notice:', err);
+      }
+    );
+
+    const unsubComps = onSnapshot(
+      collection(db, 'companies'),
+      (snapshot) => {
+        const comps: CompanyProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          comps.push({ ...docSnap.data(), userId: docSnap.id } as CompanyProfile);
+        });
+        setCompanyList(comps);
+      },
+      (err) => {
+        console.warn('Real-time companies listener notice:', err);
+      }
+    );
+
+    return () => {
+      unsubUsers();
+      unsubTechs();
+      unsubComps();
+    };
+  }, []);
+
+  // Sync current user profiles whenever currentUser, techList or companyList change
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem(LOCAL_STORAGE_USER_KEY, currentUser.uid);
       if (currentUser.role === 'technician') {
-        const tech = techList.find(t => t.userId === currentUser.uid);
-        setCurrentTechProfile(tech || null);
+        const tech = techList.find(t => t.userId === currentUser.uid) || null;
+        setCurrentTechProfile(tech);
         setCurrentCompanyProfile(null);
       } else if (currentUser.role === 'company') {
-        const comp = companyList.find(c => c.userId === currentUser.uid);
-        setCurrentCompanyProfile(comp || null);
+        const comp = companyList.find(c => c.userId === currentUser.uid) || null;
+        setCurrentCompanyProfile(comp);
         setCurrentTechProfile(null);
       } else {
         setCurrentTechProfile(null);
@@ -115,9 +160,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentTechProfile(null);
       setCurrentCompanyProfile(null);
     }
-  }, [currentUser, techList, companyList]);
+  }, [currentUser?.uid, currentUser?.role, techList, companyList]);
 
-  // Save usersList, techList and companyList to local storage
+  // Keep local storage synchronized with current lists
   useEffect(() => {
     localStorage.setItem('tecnicamz_users', JSON.stringify(usersList));
   }, [usersList]);
@@ -130,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('tecnicamz_companies', JSON.stringify(companyList));
   }, [companyList]);
 
-  // Firebase auth state listener
+  // Firebase auth state listener - runs once on mount
   useEffect(() => {
     if (isFirebaseConfigured && auth) {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -149,10 +194,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               status: 'active',
               createdAt: new Date().toISOString()
             };
-            setCurrentUser(adminUser);
+            setCurrentUser(prev => (prev?.uid === fbUser.uid && prev?.role === 'super_admin' ? prev : adminUser));
             setUsersList(prev => {
               const existingIndex = prev.findIndex(u => u.email.toLowerCase() === normalizedEmail);
               if (existingIndex >= 0) {
+                if (prev[existingIndex].uid === fbUser.uid && prev[existingIndex].role === 'super_admin') {
+                  return prev;
+                }
                 const updated = [...prev];
                 updated[existingIndex] = { ...updated[existingIndex], ...adminUser };
                 return updated;
@@ -168,7 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
               if (userDoc.exists()) {
                 const firestoreUserData = userDoc.data() as User;
-                setCurrentUser(firestoreUserData);
+                setCurrentUser(prev => (prev?.uid === firestoreUserData.uid && prev?.role === firestoreUserData.role ? prev : firestoreUserData));
                 return;
               }
             } catch (err) {
@@ -177,15 +225,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           // Fallback to local match
-          const userMatch = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
-          if (userMatch) {
-            setCurrentUser({ ...userMatch, uid: fbUser.uid });
-          }
+          setUsersList(prev => {
+            const userMatch = prev.find(u => u.email.toLowerCase() === normalizedEmail);
+            if (userMatch) {
+              setCurrentUser(curr => (curr?.uid === fbUser.uid && curr?.email === userMatch.email ? curr : { ...userMatch, uid: fbUser.uid }));
+            }
+            return prev;
+          });
         }
       });
       return () => unsubscribe();
     }
-  }, [usersList]);
+  }, []);
 
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
@@ -596,6 +647,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateUserStatus = async (userId: string, status: UserStatus) => {
+    setUsersList(prev => prev.map(u => (u.uid === userId ? { ...u, status } : u)));
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', userId), { status, updatedAt: new Date().toISOString() });
+      } catch (err) {
+        console.warn('Firestore update user status error:', err);
+      }
+    }
+  };
+
+  const deleteUserAccount = async (userId: string) => {
+    setUsersList(prev => prev.filter(u => u.uid !== userId));
+    setTechList(prev => prev.filter(t => t.userId !== userId));
+    setCompanyList(prev => prev.filter(c => c.userId !== userId));
+    if (isFirebaseConfigured && db) {
+      try {
+        await deleteDoc(doc(db, 'users', userId));
+        await deleteDoc(doc(db, 'technicians', userId));
+        await deleteDoc(doc(db, 'companies', userId));
+      } catch (err) {
+        console.warn('Firestore delete user error:', err);
+      }
+    }
+  };
+
   const isClient = currentUser?.role === 'client';
   const isTechnician = currentUser?.role === 'technician';
   const isCompany = currentUser?.role === 'company';
@@ -610,6 +687,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         currentTechProfile,
         currentCompanyProfile,
+        usersList,
+        techList,
+        companyList,
         isAuthenticated: Boolean(currentUser),
         isLoading,
         isClient,
@@ -626,7 +706,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         changePassword,
         updateCurrentUserProfile,
         updateCurrentTechProfile,
-        updateCurrentCompanyProfile
+        updateCurrentCompanyProfile,
+        updateUserStatus,
+        deleteUserAccount
       }}
     >
       {children}

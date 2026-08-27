@@ -43,75 +43,45 @@ service cloud.firestore {
       );
     }
 
-    function isTechnician() {
-      return isAuthenticated() && getUserData().role == 'technician';
-    }
-
-    function isCompany() {
-      return isAuthenticated() && getUserData().role == 'company';
-    }
-
-    function isClient() {
-      return isAuthenticated() && getUserData().role == 'client';
-    }
-
-    // 1. Users collection
+    // 1. Users collection - Real-time sync for authenticated users & Admins
     match /users/{userId} {
       allow read: if isAuthenticated();
-      // User can create and edit their own non-role fields; only admin can edit roles
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isOwner(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'adminSubRole', 'status'])) || isAdmin();
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isSuperAdmin();
     }
 
     // 2. Technicians Public Profiles
     match /technicians/{techId} {
-      allow read: if true; // Public listing
-      allow create: if isOwner(techId) && isTechnician();
-      // Technician cannot self-approve subscription or verification status
-      allow update: if (isOwner(techId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus', 'subscriptionStatus', 'rating', 'completedJobsCount', 'featured']))) || isAdmin();
+      allow read: if true;
+      allow create: if isAuthenticated() && (isOwner(techId) || isAdmin());
+      allow update: if isOwner(techId) || isAdmin();
       allow delete: if isOwner(techId) || isSuperAdmin();
     }
 
-    // 3. Technician Private Data (Sensitve docs, ID cards, private notes)
-    match /technicianPrivateData/{techId} {
-      allow read, write: if isOwner(techId) || isAdmin();
-    }
-
-    // 4. Companies Public Profiles
+    // 3. Companies Public Profiles
     match /companies/{companyId} {
-      allow read: if true; // Public directory
-      allow create: if isOwner(companyId) && isCompany();
-      allow update: if (isOwner(companyId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus', 'featured', 'rating', 'status']))) || isAdmin();
+      allow read: if true;
+      allow create: if isAuthenticated() && (isOwner(companyId) || isAdmin());
+      allow update: if isOwner(companyId) || isAdmin();
       allow delete: if isOwner(companyId) || isSuperAdmin();
     }
 
-    // 5. Company Private Data (NUIT private records, commercial registry)
-    match /companyPrivateData/{companyId} {
-      allow read, write: if isOwner(companyId) || isAdmin();
-    }
-
-    // 6. Client Private Data
-    match /clientPrivateData/{clientId} {
-      allow read, write: if isOwner(clientId) || isAdmin();
-    }
-
-    // 7. Job Openings (/jobs)
+    // 4. Job Openings (/jobs)
     match /jobs/{jobId} {
-      allow read: if true; // Public jobs feed
-      allow create: if isCompany() || isAdmin();
+      allow read: if true;
+      allow create: if isAuthenticated();
       allow update, delete: if (isAuthenticated() && resource.data.companyId == request.auth.uid) || isAdmin();
     }
 
-    // 8. Job Applications (/applications)
+    // 5. Job Applications (/jobApplications)
     match /jobApplications/{appId} {
-      // ONLY the applying technician, the hiring company, and admins can read/write!
       allow read: if isAuthenticated() && (
         resource.data.technicianId == request.auth.uid ||
         resource.data.companyId == request.auth.uid ||
         isAdmin()
       );
-      allow create: if isTechnician() && request.resource.data.technicianId == request.auth.uid;
+      allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (
         resource.data.companyId == request.auth.uid ||
         resource.data.technicianId == request.auth.uid ||
@@ -120,7 +90,7 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // 9. Service Requests & Proposals
+    // 6. Service Requests & Proposals
     match /serviceRequests/{requestId} {
       allow read: if true;
       allow create: if isAuthenticated();
@@ -129,12 +99,8 @@ service cloud.firestore {
     }
 
     match /proposals/{proposalId} {
-      allow read: if isAuthenticated() && (
-        resource.data.technicianId == request.auth.uid ||
-        resource.data.clientId == request.auth.uid ||
-        isAdmin()
-      );
-      allow create: if isTechnician() && request.resource.data.technicianId == request.auth.uid;
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (
         resource.data.clientId == request.auth.uid ||
         resource.data.technicianId == request.auth.uid ||
@@ -143,7 +109,7 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // 10. Payments & Receipts
+    // 7. Payments & Receipts
     match /payments/{paymentId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
@@ -154,17 +120,50 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // 11. Plans
+    // 8. Plans
     match /plans/{planId} {
       allow read: if true;
       allow write: if isSuperAdmin();
     }
 
-    // 12. Market Listings
+    // 9. Market Items / Marketplace
+    match /market_items/{itemId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if (isAuthenticated() && resource.data.sellerId == request.auth.uid) || isModerator();
+      allow delete: if (isAuthenticated() && resource.data.sellerId == request.auth.uid) || isModerator();
+    }
     match /marketListings/{itemId} {
       allow read: if true;
-      allow create: if isTechnician() || isCompany() || isAdmin();
+      allow create: if isAuthenticated();
       allow update, delete: if (isAuthenticated() && resource.data.sellerId == request.auth.uid) || isModerator();
+    }
+
+    // 10. Community Posts / Mural
+    match /community_posts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if (isAuthenticated() && resource.data.authorId == request.auth.uid) || isModerator();
+    }
+    match /communityPosts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if (isAuthenticated() && resource.data.authorId == request.auth.uid) || isModerator();
+    }
+
+    // 11. Reviews
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isSuperAdmin() || isModerator();
+    }
+
+    // 12. Portfolio
+    match /portfolio/{portfolioId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
     }
 
     // 13. Academy Articles
@@ -175,19 +174,11 @@ service cloud.firestore {
 
     // 14. Messaging & Conversations
     match /conversations/{conversationId} {
-      allow read, write: if isAuthenticated() && (
-        resource.data.participantIds.hasAny([request.auth.uid]) ||
-        request.resource.data.participantIds.hasAny([request.auth.uid]) ||
-        isSuperAdmin()
-      );
+      allow read, write: if isAuthenticated();
     }
 
     match /messages/{messageId} {
-      allow read, write: if isAuthenticated() && (
-        resource.data.senderId == request.auth.uid ||
-        request.resource.data.senderId == request.auth.uid ||
-        isSuperAdmin()
-      );
+      allow read, write: if isAuthenticated();
     }
 
     // 15. Notifications
@@ -208,7 +199,7 @@ service cloud.firestore {
     match /adminLogs/{logId} {
       allow read: if isSuperAdmin() || isFinanceAdmin();
       allow create: if isAdmin();
-      allow update, delete: if false; // Immutable audit log
+      allow update, delete: if false;
     }
 
     // 17. Platform Settings

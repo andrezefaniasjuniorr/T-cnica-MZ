@@ -1,6 +1,6 @@
 {
-  "name": "TécnicaMZ",
-  "description": "Comunidade Técnica de Moçambique — Conectamos profissionais técnicos, clientes e oportunidades.",
+  "name": "TécnicaMZ Pro",
+  "description": "TécnicaMZ Pro — Conectamos profissionais técnicos, clientes e oportunidades em Moçambique.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
