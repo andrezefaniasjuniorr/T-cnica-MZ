@@ -9,7 +9,7 @@ import {
   sendPasswordResetEmail,
   updatePassword as fbUpdatePassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -27,6 +27,20 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isFinanceAdmin: boolean;
   isModerator: boolean;
+
+  // Paywall & Subscription State
+  isSubscriptionActive: boolean;
+  activePlanTier: 'basico' | 'profissional' | 'empresa_vip' | null;
+  activePlanId: string | null;
+  subscriptionExpirationDate: string | null;
+  daysRemainingOnSubscription: number;
+  canAccessSaraAi: boolean;
+  canAccessOSGenerator: boolean;
+  canPublishMarket: boolean;
+  hasTopMuralHighlight: boolean;
+
+  activateUserSubscription: (planId: string, durationDays?: number, transactionCode?: string) => Promise<boolean>;
+
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
   register: (data: {
     name: string;
@@ -49,6 +63,7 @@ interface AuthContextType {
   updateCurrentUserProfile: (data: Partial<User>) => Promise<void>;
   updateCurrentTechProfile: (data: Partial<TechnicianProfile>) => Promise<void>;
   updateCurrentCompanyProfile: (data: Partial<CompanyProfile>) => Promise<void>;
+  switchUserRole: (newRole: UserRole) => Promise<void>;
   updateUserStatus: (userId: string, status: UserStatus) => Promise<void>;
   deleteUserAccount: (userId: string) => Promise<void>;
 }
@@ -386,6 +401,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const normalizedEmail = data.email.trim().toLowerCase();
+      const rawPhone = (data.phone || '').trim();
+      const cleanPhoneDigits = rawPhone.replace(/\D/g, '');
+
+      // ANTI-DUPLICITY VALIDATION: Check local cache first
+      const emailExistsLocal = usersList.some(u => u.email.toLowerCase() === normalizedEmail);
+      const phoneExistsLocal = cleanPhoneDigits && usersList.some(u => {
+        const uPhoneDigits = (u.phone || '').replace(/\D/g, '');
+        return uPhoneDigits && (uPhoneDigits === cleanPhoneDigits || uPhoneDigits.endsWith(cleanPhoneDigits) || cleanPhoneDigits.endsWith(uPhoneDigits));
+      });
+
+      if (emailExistsLocal || phoneExistsLocal) {
+        return { success: false, error: 'Este e-mail ou número de celular já existe.' };
+      }
+
+      // ANTI-DUPLICITY VALIDATION: Query Firestore database
+      if (isFirebaseConfigured && db) {
+        try {
+          const emailQuery = query(collection(db, 'users'), where('email', '==', normalizedEmail));
+          const emailSnap = await getDocs(emailQuery);
+          if (!emailSnap.empty) {
+            return { success: false, error: 'Este e-mail ou número de celular já existe.' };
+          }
+
+          if (rawPhone) {
+            const phoneQuery = query(collection(db, 'users'), where('phone', '==', rawPhone));
+            const phoneSnap = await getDocs(phoneQuery);
+            if (!phoneSnap.empty) {
+              return { success: false, error: 'Este e-mail ou número de celular já existe.' };
+            }
+          }
+        } catch (queryErr) {
+          console.warn('Firestore duplicity check warning:', queryErr);
+        }
+      }
       
       // Auto-promote super admin
       let userRole = data.role;
@@ -403,29 +452,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, data.password);
           generatedUid = userCredential.user.uid;
         } catch (fbErr: any) {
-          console.error('Firebase user creation failed:', fbErr);
           if (fbErr.code === 'auth/email-already-in-use') {
-            return { success: false, error: 'Este e-mail já está em uso na plataforma.' };
+            // Attempt to authenticate if the user already has an account with this password
+            try {
+              const loginCred = await signInWithEmailAndPassword(auth, normalizedEmail, data.password);
+              generatedUid = loginCred.user.uid;
+            } catch {
+              return {
+                success: false,
+                error: 'Este endereço de e-mail já está registado. Por favor, inicie sessão com a sua palavra-passe ou recupere o seu acesso.'
+              };
+            }
+          } else {
+            console.warn('Firebase user creation notice:', fbErr?.code || fbErr?.message);
+            if (fbErr.code === 'auth/weak-password') {
+              return { success: false, error: 'A palavra-passe deve ter pelo menos 6 caracteres.' };
+            }
+            if (fbErr.code === 'auth/invalid-email') {
+              return { success: false, error: 'Endereço de e-mail inválido.' };
+            }
+            return { success: false, error: fbErr.message || 'Falha ao criar conta no Firebase.' };
           }
-          if (fbErr.code === 'auth/weak-password') {
-            return { success: false, error: 'A palavra-passe deve ter pelo menos 6 caracteres.' };
-          }
-          if (fbErr.code === 'auth/invalid-email') {
-            return { success: false, error: 'Endereço de e-mail inválido.' };
-          }
-          return { success: false, error: fbErr.message || 'Falha ao criar conta no Firebase.' };
-        }
-      } else {
-        if (usersList.some(u => u.email.toLowerCase() === normalizedEmail)) {
-          return { success: false, error: 'Este e-mail já está registado na plataforma.' };
         }
       }
 
+      const defaultName = data.name.trim() || normalizedEmail.split('@')[0];
+
       const newUser: User = {
         uid: generatedUid,
-        name: data.name.trim(),
+        name: defaultName,
         email: normalizedEmail,
-        phone: data.phone.trim(),
+        phone: rawPhone,
         role: userRole,
         adminSubRole: adminSubRole,
         status: 'active',
@@ -445,16 +502,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUsersList(updatedUsers);
 
       if (userRole === 'technician') {
-        const cleanPhone = (data.phone || '').replace(/\D/g, '');
-        const cleanWhatsapp = cleanPhone ? (cleanPhone.startsWith('258') ? cleanPhone : `258${cleanPhone}`) : '';
+        const cleanWhatsapp = cleanPhoneDigits ? (cleanPhoneDigits.startsWith('258') ? cleanPhoneDigits : `258${cleanPhoneDigits}`) : '';
         const newTech: TechnicianProfile = {
           userId: generatedUid,
-          name: data.name.trim(),
+          name: defaultName,
           email: normalizedEmail,
-          phone: (data.phone || '').trim(),
+          phone: rawPhone,
           whatsapp: cleanWhatsapp,
           showWhatsappButton: true,
-          customWhatsappMessage: `Olá ${data.name.trim()}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
+          customWhatsappMessage: `Olá ${defaultName}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
           province: data.province || 'Maputo Cidade',
           city: data.city || 'Maputo',
           specialties: data.specialty ? [data.specialty] : ['Eletricidade'],
@@ -482,15 +538,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setTechList(updatedTechs);
         setCurrentTechProfile(newTech);
       } else if (userRole === 'company') {
-        const cleanPhone = (data.phone || '').replace(/\D/g, '');
-        const cleanWhatsapp = cleanPhone ? (cleanPhone.startsWith('258') ? cleanPhone : `258${cleanPhone}`) : '';
+        const cleanWhatsapp = cleanPhoneDigits ? (cleanPhoneDigits.startsWith('258') ? cleanPhoneDigits : `258${cleanPhoneDigits}`) : '';
         const newComp: CompanyProfile = {
           userId: generatedUid,
-          companyName: data.name.trim(),
-          commercialName: data.commercialName?.trim() || data.name.trim(),
+          companyName: defaultName,
+          commercialName: data.commercialName?.trim() || defaultName,
           nuit: data.nuit?.trim() || '400000000',
           email: normalizedEmail,
-          phone: data.phone.trim(),
+          phone: rawPhone,
           whatsapp: cleanWhatsapp,
           showWhatsappButton: true,
           website: data.website?.trim(),
@@ -498,7 +553,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           city: data.city || 'Maputo',
           address: data.address?.trim() || 'Moçambique',
           industry: data.industry?.trim() || 'Engenharia & Construção',
-          description: `Empresa ${data.name.trim()} registada na TécnicaMZ para contratação de profissionais técnicos especializados.`,
+          description: `Empresa ${defaultName} registada na TécnicaMZ para contratação de profissionais técnicos especializados.`,
           verificationStatus: 'unverified',
           rating: 5.0,
           reviewsCount: 0,
@@ -647,6 +702,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const switchUserRole = async (newRole: UserRole) => {
+    if (!currentUser) return;
+    const updatedUser = { ...currentUser, role: newRole, updatedAt: new Date().toISOString() };
+    setCurrentUser(updatedUser);
+    setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updatedUser : u)));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', currentUser.uid), { role: newRole, updatedAt: new Date().toISOString() });
+      } catch (err) {
+        console.warn('Firestore role update error:', err);
+      }
+    }
+
+    if (newRole === 'technician' && !currentTechProfile) {
+      const cleanPhone = (currentUser.phone || '').replace(/\D/g, '');
+      const cleanWhatsapp = cleanPhone ? (cleanPhone.startsWith('258') ? cleanPhone : `258${cleanPhone}`) : '';
+      const newTech: TechnicianProfile = {
+        userId: currentUser.uid,
+        name: currentUser.name,
+        email: currentUser.email,
+        phone: currentUser.phone || '',
+        whatsapp: cleanWhatsapp,
+        showWhatsappButton: true,
+        customWhatsappMessage: `Olá ${currentUser.name}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
+        province: 'Maputo Cidade',
+        city: 'Maputo',
+        specialties: ['Eletricidade Geral'],
+        bio: `Técnico credenciado na plataforma TécnicaMZ.`,
+        experienceYears: 1,
+        verificationStatus: 'none',
+        subscriptionStatus: 'none',
+        rating: 5.0,
+        reviewsCount: 0,
+        completedJobsCount: 0,
+        availability: 'available',
+        status: 'active',
+        createdAt: new Date().toISOString()
+      };
+      setCurrentTechProfile(newTech);
+      setTechList(prev => [...prev.filter(t => t.userId !== currentUser.uid), newTech]);
+      if (isFirebaseConfigured && db) {
+        try {
+          await setDoc(doc(db, 'technicians', currentUser.uid), newTech);
+        } catch (e) {
+          console.warn('Firestore set tech doc error:', e);
+        }
+      }
+    }
+  };
+
   const updateUserStatus = async (userId: string, status: UserStatus) => {
     setUsersList(prev => prev.map(u => (u.uid === userId ? { ...u, status } : u)));
     if (isFirebaseConfigured && db) {
@@ -671,6 +777,163 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Firestore delete user error:', err);
       }
     }
+  };
+
+  // =========================================================================
+  // PAYWALL & SUBSCRIPTION STRICT COMPUTATIONS
+  // =========================================================================
+  const isSubscriptionActive = React.useMemo(() => {
+    if (!currentUser) return false;
+    // Super Admins and Admins bypass paywall
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return true;
+    }
+    if (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com') {
+      return true;
+    }
+
+    // Check statusAssinatura or subscriptionStatus
+    const status = (currentUser.statusAssinatura || currentUser.subscriptionStatus || '').toLowerCase();
+    if (status !== 'ativa' && status !== 'active') {
+      return false;
+    }
+
+    const expStr = currentUser.dataExpiracao || currentUser.subscriptionExpiresAt;
+    if (!expStr) return false;
+
+    const expTime = new Date(expStr).getTime();
+    if (isNaN(expTime)) return false;
+
+    return expTime > Date.now();
+  }, [currentUser]);
+
+  const activePlanTier = React.useMemo<'basico' | 'profissional' | 'empresa_vip' | null>(() => {
+    if (!currentUser) return null;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
+    ) {
+      return 'empresa_vip';
+    }
+    if (!isSubscriptionActive) return null;
+
+    const planKey = (currentUser.planoAssinatura || currentUser.activePlanId || '').toLowerCase();
+    if (planKey.includes('vip') || planKey.includes('empresa') || planKey === 'plano_empresa_vip') {
+      return 'empresa_vip';
+    }
+    if (planKey.includes('prof') || planKey === 'plano_profissional') {
+      return 'profissional';
+    }
+    return 'basico';
+  }, [currentUser, isSubscriptionActive]);
+
+  const activePlanId = React.useMemo(() => {
+    if (!currentUser) return null;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
+    ) {
+      return 'plano_empresa_vip';
+    }
+    return currentUser.planoAssinatura || currentUser.activePlanId || null;
+  }, [currentUser]);
+
+  const subscriptionExpirationDate = React.useMemo(() => {
+    if (!currentUser) return null;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
+    ) {
+      return '2099-12-31T23:59:59.000Z';
+    }
+    return currentUser.dataExpiracao || currentUser.subscriptionExpiresAt || null;
+  }, [currentUser]);
+
+  const daysRemainingOnSubscription = React.useMemo(() => {
+    if (!subscriptionExpirationDate) return 0;
+    const diffMs = new Date(subscriptionExpirationDate).getTime() - Date.now();
+    if (diffMs <= 0) return 0;
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  }, [subscriptionExpirationDate]);
+
+  const canAccessSaraAi = Boolean(isSubscriptionActive && (activePlanTier === 'profissional' || activePlanTier === 'empresa_vip'));
+  const canAccessOSGenerator = Boolean(isSubscriptionActive && (activePlanTier === 'profissional' || activePlanTier === 'empresa_vip'));
+  const canPublishMarket = Boolean(isSubscriptionActive && activePlanTier === 'empresa_vip');
+  const hasTopMuralHighlight = Boolean(isSubscriptionActive && activePlanTier === 'empresa_vip');
+
+  const activateUserSubscription = async (
+    planId: string,
+    durationDays = 30,
+    transactionCode?: string
+  ): Promise<boolean> => {
+    if (!currentUser) return false;
+
+    const now = new Date();
+    const expDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const dataExpiracao = expDate.toISOString();
+
+    let tier: 'basico' | 'profissional' | 'empresa_vip' = 'basico';
+    if (planId.includes('vip') || planId.includes('empresa') || planId === 'plano_empresa_vip') {
+      tier = 'empresa_vip';
+    } else if (planId.includes('prof') || planId === 'plano_profissional') {
+      tier = 'profissional';
+    }
+
+    const updatedUser: User = {
+      ...currentUser,
+      statusAssinatura: 'ativa',
+      subscriptionStatus: 'active',
+      planoAssinatura: planId,
+      activePlanId: planId,
+      dataExpiracao: dataExpiracao,
+      subscriptionExpiresAt: dataExpiracao,
+      updatedAt: now.toISOString()
+    };
+
+    setCurrentUser(updatedUser);
+    setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updatedUser : u)));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', currentUser.uid), {
+          statusAssinatura: 'ativa',
+          subscriptionStatus: 'active',
+          planoAssinatura: planId,
+          activePlanId: planId,
+          dataExpiracao: dataExpiracao,
+          subscriptionExpiresAt: dataExpiracao,
+          updatedAt: now.toISOString()
+        });
+      } catch (err) {
+        console.warn('Firestore user subscription update error:', err);
+      }
+
+      if (currentUser.role === 'technician') {
+        try {
+          await updateDoc(doc(db, 'technicians', currentUser.uid), {
+            subscriptionStatus: 'active',
+            activePlanId: planId,
+            subscriptionExpiresAt: dataExpiracao,
+            verificationStatus: tier === 'profissional' || tier === 'empresa_vip' ? 'approved' : 'none',
+            updatedAt: now.toISOString()
+          });
+        } catch (err) {
+          console.warn('Firestore tech sub update error:', err);
+        }
+      }
+    }
+
+    return true;
   };
 
   const isClient = currentUser?.role === 'client';
@@ -699,6 +962,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSuperAdmin,
         isFinanceAdmin,
         isModerator,
+
+        isSubscriptionActive,
+        activePlanTier,
+        activePlanId,
+        subscriptionExpirationDate,
+        daysRemainingOnSubscription,
+        canAccessSaraAi,
+        canAccessOSGenerator,
+        canPublishMarket,
+        hasTopMuralHighlight,
+        activateUserSubscription,
+
         login,
         register,
         logout,
@@ -707,6 +982,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateCurrentUserProfile,
         updateCurrentTechProfile,
         updateCurrentCompanyProfile,
+        switchUserRole,
         updateUserStatus,
         deleteUserAccount
       }}

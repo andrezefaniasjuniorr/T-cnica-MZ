@@ -19,6 +19,7 @@ import {
   CompanyVerificationStatus,
   PaymentMethod,
   MarketItem,
+  MarketComment,
   AcademyArticle,
   ConversationItem,
   MessageItem,
@@ -135,6 +136,10 @@ interface DataContextType {
   updateMarketItemStatus: (itemId: string, status: MarketItem['status']) => void;
   deleteMarketItem: (itemId: string) => void;
   editMarketItem: (itemId: string, data: Partial<MarketItem>) => void;
+  toggleMarketItemLike: (itemId: string) => void;
+  addMarketItemComment: (itemId: string, text: string, replyToId?: string, replyToName?: string) => void;
+  toggleMarketCommentLike: (itemId: string, commentId: string) => void;
+  deleteMarketItemComment: (itemId: string, commentId: string) => void;
 
   // Technical Community Feed
   communityPosts: CommunityPost[];
@@ -146,7 +151,8 @@ interface DataContextType {
     images?: string[];
   }) => void;
   togglePostReaction: (postId: string, reactionType: 'useful' | 'insightful' | 'applause' | 'question') => void;
-  addPostComment: (postId: string, text: string) => void;
+  addPostComment: (postId: string, text: string, replyToId?: string, replyToName?: string) => void;
+  toggleCommunityCommentLike: (postId: string, commentId: string) => void;
   deleteCommunityPost: (postId: string) => void;
 
   // Academy
@@ -787,37 +793,49 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     transactionCode: string;
     receiptUrl?: string;
     message?: string;
-  }): Promise<{ success: boolean; error?: string }> => {
+    status?: 'pending' | 'approved' | 'rejected';
+  }): Promise<{ success: boolean; paymentId?: string; error?: string }> => {
     try {
+      const paymentId = `pay_${Date.now()}`;
       const newPayment: PaymentRecord = {
-        id: `pay_${Date.now()}`,
+        id: paymentId,
         ...data,
-        status: 'pending',
+        status: data.status || 'pending',
         submittedAt: new Date().toISOString()
       };
 
       setPayments(prev => [newPayment, ...prev]);
 
+      // Save to Firestore collections 'pagamentos' and 'payments'
+      if (isFirebaseConfigured && db) {
+        try {
+          await setDoc(doc(db, 'pagamentos', paymentId), newPayment);
+          await setDoc(doc(db, 'payments', paymentId), newPayment);
+        } catch (dbErr) {
+          console.warn('Firestore payment record save notice:', dbErr);
+        }
+      }
+
       // Notify Admins
       createNotification(
         'admin_owner',
-        'Novo Pagamento para Aprovação',
-        `${data.userName} enviou comprovativo de ${data.amountMZN} MZN (${data.method.toUpperCase()}).`,
-        'warning',
+        'Novo Pagamento Registado',
+        `${data.userName} efetuou pagamento de ${data.amountMZN} MZN (${data.method.toUpperCase()}) para ${data.planName}.`,
+        'success',
         'admin',
         'payments'
       );
 
       createNotification(
         data.userId,
-        'Comprovativo em Análise',
-        'Recebemos seu comprovativo de pagamento. Nossa equipa ativará seu plano após conferência.',
-        'info',
+        'Pagamento Confirmado',
+        `O seu pagamento de ${data.amountMZN} MZN para o plano ${data.planName} foi processado com sucesso.`,
+        'success',
         data.userRole === 'technician' ? 'technician' : 'company',
         'payments'
       );
 
-      return { success: true };
+      return { success: true, paymentId };
     } catch (err: any) {
       return { success: false, error: err.message || 'Falha ao registrar pagamento.' };
     }
@@ -1115,6 +1133,152 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const toggleMarketItemLike = async (itemId: string) => {
+    if (!currentUser) return;
+    const userId = currentUser.uid;
+
+    let updatedItem: MarketItem | undefined;
+
+    setMarketItems(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        const currentLikes = item.likes || [];
+        const hasLiked = currentLikes.includes(userId);
+        const updatedLikes = hasLiked
+          ? currentLikes.filter(id => id !== userId)
+          : [...currentLikes, userId];
+
+        const itemUpdated = {
+          ...item,
+          likes: updatedLikes
+        };
+        updatedItem = itemUpdated;
+        return itemUpdated;
+      })
+    );
+
+    if (isFirebaseConfigured && db && updatedItem) {
+      try {
+        await setDoc(doc(db, 'market_items', itemId), updatedItem, { merge: true });
+      } catch (err) {
+        console.warn('Firestore update market item like error:', err);
+      }
+    }
+  };
+
+  const addMarketItemComment = async (
+    itemId: string,
+    text: string,
+    replyToId?: string,
+    replyToName?: string
+  ) => {
+    if (!currentUser || !text.trim()) return;
+
+    const techProfile = technicians.find(t => t.userId === currentUser.uid);
+
+    const newComment: MarketComment = {
+      id: `mcomm_${Date.now()}`,
+      itemId,
+      authorId: currentUser.uid,
+      authorName: currentUser.name,
+      authorRole: currentUser.role,
+      authorAvatar: currentUser.avatarUrl,
+      authorSpecialty: techProfile?.specialties[0],
+      text: text.trim(),
+      replyToId,
+      replyToName,
+      likes: [],
+      createdAt: new Date().toISOString()
+    };
+
+    let updatedItem: MarketItem | undefined;
+
+    setMarketItems(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        const existingComments = item.comments || [];
+        const itemUpdated = {
+          ...item,
+          commentsCount: (item.commentsCount || existingComments.length) + 1,
+          comments: [...existingComments, newComment]
+        };
+        updatedItem = itemUpdated;
+        return itemUpdated;
+      })
+    );
+
+    if (isFirebaseConfigured && db && updatedItem) {
+      try {
+        await setDoc(doc(db, 'market_items', itemId), updatedItem, { merge: true });
+      } catch (err) {
+        console.warn('Firestore add market comment error:', err);
+      }
+    }
+  };
+
+  const toggleMarketCommentLike = async (itemId: string, commentId: string) => {
+    if (!currentUser) return;
+    const userId = currentUser.uid;
+
+    let updatedItem: MarketItem | undefined;
+
+    setMarketItems(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        const comments = (item.comments || []).map(comm => {
+          if (comm.id !== commentId) return comm;
+          const currentLikes = comm.likes || [];
+          const hasLiked = currentLikes.includes(userId);
+          const updatedLikes = hasLiked
+            ? currentLikes.filter(id => id !== userId)
+            : [...currentLikes, userId];
+          return { ...comm, likes: updatedLikes };
+        });
+
+        const itemUpdated = {
+          ...item,
+          comments
+        };
+        updatedItem = itemUpdated;
+        return itemUpdated;
+      })
+    );
+
+    if (isFirebaseConfigured && db && updatedItem) {
+      try {
+        await setDoc(doc(db, 'market_items', itemId), updatedItem, { merge: true });
+      } catch (err) {
+        console.warn('Firestore toggle market comment like error:', err);
+      }
+    }
+  };
+
+  const deleteMarketItemComment = async (itemId: string, commentId: string) => {
+    let updatedItem: MarketItem | undefined;
+
+    setMarketItems(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        const filteredComments = (item.comments || []).filter(c => c.id !== commentId);
+        const itemUpdated = {
+          ...item,
+          commentsCount: Math.max(0, filteredComments.length),
+          comments: filteredComments
+        };
+        updatedItem = itemUpdated;
+        return itemUpdated;
+      })
+    );
+
+    if (isFirebaseConfigured && db && updatedItem) {
+      try {
+        await setDoc(doc(db, 'market_items', itemId), updatedItem, { merge: true });
+      } catch (err) {
+        console.warn('Firestore delete market comment error:', err);
+      }
+    }
+  };
+
   // Technical Community Feed
   const addCommunityPost = async (postData: {
     title: string;
@@ -1202,7 +1366,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const addPostComment = async (postId: string, text: string) => {
+  const addPostComment = async (
+    postId: string,
+    text: string,
+    replyToId?: string,
+    replyToName?: string
+  ) => {
     if (!currentUser || !text.trim()) return;
 
     const techProfile = technicians.find(t => t.userId === currentUser.uid);
@@ -1216,6 +1385,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authorAvatar: currentUser.avatarUrl,
       authorSpecialty: techProfile?.specialties[0],
       text: text.trim(),
+      replyToId,
+      replyToName,
+      likes: [],
       createdAt: new Date().toISOString()
     };
 
@@ -1239,6 +1411,43 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
       } catch (err) {
         console.warn('Firestore add comment error:', err);
+      }
+    }
+  };
+
+  const toggleCommunityCommentLike = async (postId: string, commentId: string) => {
+    if (!currentUser) return;
+    const userId = currentUser.uid;
+
+    let updatedPost: CommunityPost | undefined;
+
+    setCommunityPosts(prev =>
+      prev.map(p => {
+        if (p.id !== postId) return p;
+        const comments = p.comments.map(comm => {
+          if (comm.id !== commentId) return comm;
+          const currentLikes = comm.likes || [];
+          const hasLiked = currentLikes.includes(userId);
+          const updatedLikes = hasLiked
+            ? currentLikes.filter(id => id !== userId)
+            : [...currentLikes, userId];
+          return { ...comm, likes: updatedLikes };
+        });
+
+        const postUpdated = {
+          ...p,
+          comments
+        };
+        updatedPost = postUpdated;
+        return postUpdated;
+      })
+    );
+
+    if (isFirebaseConfigured && db && updatedPost) {
+      try {
+        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+      } catch (err) {
+        console.warn('Firestore toggle comment like error:', err);
       }
     }
   };
@@ -1473,9 +1682,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateMarketItemStatus,
         deleteMarketItem,
         editMarketItem,
+        toggleMarketItemLike,
+        addMarketItemComment,
+        toggleMarketCommentLike,
+        deleteMarketItemComment,
         addCommunityPost,
         togglePostReaction,
         addPostComment,
+        toggleCommunityCommentLike,
         deleteCommunityPost,
         addAcademyArticle,
         verifyAcademyArticle,

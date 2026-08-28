@@ -9,6 +9,7 @@ import {
 } from '../../types';
 import {
   X,
+  ArrowLeft,
   Briefcase,
   Building,
   MapPin,
@@ -165,14 +166,22 @@ export const NewCompanyJobModal: React.FC<NewCompanyJobModalProps> = ({ isOpen, 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-6 sm:p-7 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-600/30 text-purple-400 border border-purple-500/30 flex items-center justify-center">
+        <div className="bg-slate-900 text-white p-4 sm:p-7 flex items-center justify-between border-b border-slate-800">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition"
+              title="Voltar / Sair"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Voltar</span>
+            </button>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-600/30 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
               <Briefcase className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-black">Publicar Nova Vaga Técnica</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-sm sm:text-xl font-black">Publicar Nova Vaga Técnica</h2>
+              <p className="text-[10px] sm:text-xs text-slate-400 line-clamp-1">
                 Divulgue oportunidades para milhares de técnicos qualificados na TécnicaMZ.
               </p>
             </div>
@@ -180,6 +189,7 @@ export const NewCompanyJobModal: React.FC<NewCompanyJobModalProps> = ({ isOpen, 
           <button
             onClick={onClose}
             className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+            title="Fechar (X)"
           >
             <X className="w-5 h-5" />
           </button>

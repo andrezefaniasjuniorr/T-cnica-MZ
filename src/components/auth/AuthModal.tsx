@@ -230,9 +230,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Body Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
           {error && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span className="font-semibold">{error}</span>
+              </div>
+              {mode === 'register' && (error.toLowerCase().includes('registado') || error.toLowerCase().includes('cadastrado') || error.toLowerCase().includes('já existe')) && (
+                <div className="pt-1 border-t border-rose-200/60 flex items-center justify-between">
+                  <span className="text-[11px] text-rose-700">Deseja entrar com a sua conta existente?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('login');
+                      setError(null);
+                    }}
+                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold transition shadow-2xs"
+                  >
+                    Fazer Login Agora
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

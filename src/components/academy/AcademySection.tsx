@@ -10,10 +10,12 @@ import {
   ShieldCheck,
   Sparkles,
   ArrowRight,
+  ArrowLeft,
   FileText,
   Video,
   X
 } from 'lucide-react';
+import { TopBackNav } from '../common/TopBackNav';
 
 interface AcademySectionProps {
   onNavigateTab: (tab: string) => void;
@@ -35,8 +37,16 @@ export const AcademySection: React.FC<AcademySectionProps> = ({ onNavigateTab })
   });
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        <TopBackNav
+          title="Academia & Normas Técnicas MZ"
+          category="Academia"
+          onBack={() => onNavigateTab('community')}
+          backLabel="Voltar ao Mural"
+        />
+
         {/* Header Hero */}
         <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-blue-900/40 relative overflow-hidden">
           <div className="max-w-3xl space-y-3">
@@ -121,13 +131,24 @@ export const AcademySection: React.FC<AcademySectionProps> = ({ onNavigateTab })
       {selectedArticle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
           <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white p-6 relative">
-              <button
-                onClick={() => setSelectedArticle(null)}
-                className="absolute top-5 right-5 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
+            <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white p-5 sm:p-6 relative">
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => setSelectedArticle(null)}
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 text-xs font-bold"
+                  title="Voltar à lista de artigos"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Voltar</span>
+                </button>
+                <button
+                  onClick={() => setSelectedArticle(null)}
+                  className="p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition"
+                  title="Fechar (X)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
               <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-400 text-blue-950">
                 {selectedArticle.category}
               </span>

@@ -4,6 +4,7 @@ import { useData } from '../../context/DataContext';
 import { ConversationItem, MessageItem } from '../../types';
 import {
   X,
+  ArrowLeft,
   MessageSquare,
   Send,
   Search,
@@ -95,20 +96,40 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs">
-      <div className="relative w-full max-w-4xl h-[85vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col md:flex-row animate-in fade-in zoom-in-95 duration-150">
-        {/* Left Sidebar: Conversations List */}
-        <div className="w-full md:w-80 bg-slate-50 border-r border-slate-200 flex flex-col h-full shrink-0">
-          {/* Header */}
+      <div className="relative w-full max-w-4xl h-[90vh] sm:h-[85vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col md:flex-row animate-in fade-in zoom-in-95 duration-150">
+        
+        {/* Left Sidebar: Conversations List (Hidden on mobile if a conversation is open) */}
+        <div className={`w-full md:w-80 bg-slate-50 border-r border-slate-200 flex flex-col h-full shrink-0 ${
+          activeConvId ? 'hidden md:flex' : 'flex'
+        }`}>
+          {/* Header with Exit button */}
           <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
             <div className="flex items-center gap-2">
+              <button
+                onClick={onClose}
+                className="p-1.5 -ml-1 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition"
+                title="Voltar / Sair do Chat"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
               <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
                 <MessageSquare className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-black text-slate-900">Mensagens & Chat</h3>
+              <h3 className="text-sm font-black text-slate-900">Mensagens</h3>
             </div>
-            <span className="text-[11px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-              {userConversations.length}
-            </span>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                {userConversations.length}
+              </span>
+              <button
+                onClick={onClose}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                title="Fechar Chat"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -171,35 +192,49 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
           </div>
         </div>
 
-        {/* Right Chat Area */}
-        <div className="flex-1 flex flex-col h-full bg-white">
+        {/* Right Chat Area (Visible on mobile if active conversation exists or on desktop) */}
+        <div className={`flex-1 flex flex-col h-full bg-white ${
+          !activeConvId ? 'hidden md:flex' : 'flex'
+        }`}>
           {activeConversation && otherParticipant ? (
             <>
               {/* Chat Header */}
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm">
+              <div className="p-3 sm:p-4 border-b border-slate-200 flex items-center justify-between bg-white gap-2">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  {/* Mobile Back Button to conversation list */}
+                  <button
+                    onClick={() => setActiveConvId(null)}
+                    className="p-1.5 md:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition flex items-center gap-1 text-xs font-bold shrink-0"
+                    title="Voltar para Lista de Conversas"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Conversas</span>
+                  </button>
+
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm shrink-0">
                     {otherParticipant.name.charAt(0)}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-black text-slate-900">{otherParticipant.name}</h4>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-sm font-black text-slate-900 truncate">{otherParticipant.name}</h4>
                       {getRoleBadge(otherParticipant.role)}
                     </div>
                     {activeConversation.contextTitle && (
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-slate-500 truncate">
                         Contexto: <strong className="text-slate-700">{activeConversation.contextTitle}</strong>
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={onClose}
-                    className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition flex items-center gap-1 text-xs font-bold"
+                    title="Fechar Janela de Chat"
                   >
-                    <X className="w-5 h-5" />
+                    <span className="hidden sm:inline">Sair</span>
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
@@ -215,7 +250,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                       className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[78%] p-3.5 rounded-2xl text-xs space-y-1 shadow-xs ${
+                        className={`max-w-[85%] sm:max-w-[78%] p-3.5 rounded-2xl text-xs sm:text-sm space-y-1 shadow-xs ${
                           isMe
                             ? 'bg-blue-600 text-white rounded-br-none'
                             : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
@@ -247,24 +282,26 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 <button
                   type="submit"
                   disabled={!inputText.trim()}
-                  className="p-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl transition shadow-xs"
+                  className="p-2.5 sm:px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl transition shadow-xs flex items-center gap-1 font-bold text-xs"
                 >
                   <Send className="w-4 h-4" />
+                  <span className="hidden sm:inline">Enviar</span>
                 </button>
               </form>
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-2">
               <MessageSquare className="w-12 h-12 text-slate-300" />
-              <p className="text-sm font-bold text-slate-700">Selecione uma conversa ao lado</p>
+              <p className="text-sm font-bold text-slate-700">Selecione uma conversa</p>
               <p className="text-xs text-slate-400 max-w-xs">
                 Inicie contato com técnicos certificados, clientes ou empresas moçambicanas.
               </p>
               <button
                 onClick={onClose}
-                className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5"
               >
-                Fechar
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Voltar ao Mural</span>
               </button>
             </div>
           )}
@@ -273,3 +310,4 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
     </div>
   );
 };
+

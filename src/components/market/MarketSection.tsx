@@ -16,21 +16,41 @@ import {
   Check,
   Eye,
   MessageCircle,
+  MessageSquare,
+  Heart,
+  ThumbsUp,
+  Send,
   Clock,
   Sparkles,
   ShieldCheck,
   X,
+  ArrowLeft,
   Upload,
   Image as ImageIcon
 } from 'lucide-react';
+import { TopBackNav } from '../common/TopBackNav';
+import { CheckoutModal } from '../subscription/CheckoutModal';
+import { Lock, Crown, ArrowRight } from 'lucide-react';
 
 interface MarketSectionProps {
   onNavigateTab: (tab: string) => void;
 }
 
 export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) => {
-  const { marketItems, addMarketItem, deleteMarketItem, editMarketItem, startOrGetConversation } = useData();
-  const { currentUser, isTechnician, isCompany, isAdmin } = useAuth();
+  const {
+    marketItems,
+    addMarketItem,
+    deleteMarketItem,
+    editMarketItem,
+    toggleMarketItemLike,
+    addMarketItemComment,
+    toggleMarketCommentLike,
+    deleteMarketItemComment,
+    startOrGetConversation,
+    plans
+  } = useData();
+  const { currentUser, isTechnician, isCompany, isAdmin, canPublishMarket } = useAuth();
+  const [showVipUpgradeModal, setShowVipUpgradeModal] = useState(false);
 
   const [activeView, setActiveView] = useState<'all' | 'my_items'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +59,11 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
   const [selectedCondition, setSelectedCondition] = useState('all');
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
   const [selectedItemDetail, setSelectedItemDetail] = useState<MarketItem | null>(null);
+
+  // Comments interaction state per item
+  const [openCommentsItemId, setOpenCommentsItemId] = useState<string | null>(null);
+  const [itemCommentInput, setItemCommentInput] = useState<{ [itemId: string]: string }>({});
+  const [replyingToComment, setReplyingToComment] = useState<{ [itemId: string]: { id: string; authorName: string } | null }>({});
 
   // New Item State
   const [title, setTitle] = useState('');
@@ -97,6 +122,14 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
     }
   };
 
+  const handleOpenSellModal = () => {
+    if (!canPublishMarket && !isAdmin) {
+      setShowVipUpgradeModal(true);
+      return;
+    }
+    setIsSellModalOpen(true);
+  };
+
   const handleCreateItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
@@ -129,6 +162,25 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
     setUploadedPreview(null);
     alert('Equipamento anunciado com sucesso no Mercado TécnicaMZ!');
   };
+
+  const handleSendItemComment = (itemId: string) => {
+    const text = itemCommentInput[itemId];
+    if (!currentUser) {
+      alert('Faça login para deixar uma pergunta ou comentário.');
+      return;
+    }
+    if (!text || !text.trim()) return;
+
+    const reply = replyingToComment[itemId];
+    addMarketItemComment(itemId, text, reply?.id);
+    setItemCommentInput(prev => ({ ...prev, [itemId]: '' }));
+    setReplyingToComment(prev => ({ ...prev, [itemId]: null }));
+  };
+
+  // Keep selected item synced with context
+  const activeDetailItem = selectedItemDetail
+    ? marketItems.find(i => i.id === selectedItemDetail.id) || selectedItemDetail
+    : null;
 
   // Filter items
   const filteredItems = marketItems.filter(item => {
@@ -170,8 +222,25 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
   };
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        <TopBackNav
+          title="Mercado de Ferramentas & Equipamentos"
+          category="Mercado"
+          onBack={() => onNavigateTab('community')}
+          backLabel="Voltar ao Mural"
+          rightAction={
+            <button
+              onClick={handleOpenSellModal}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Anunciar</span>
+            </button>
+          }
+        />
+
         {/* Header Hero */}
         <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-amber-500/20 relative overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
@@ -190,7 +259,7 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
 
             <div className="flex flex-wrap items-center gap-3">
               <button
-                onClick={() => setIsSellModalOpen(true)}
+                onClick={handleOpenSellModal}
                 className="px-6 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 shrink-0"
               >
                 <Plus className="w-4 h-4" />
@@ -308,6 +377,8 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
             {filteredItems.map(item => {
               const isOwner = currentUser && currentUser.uid === item.sellerId;
               const isSold = item.status === 'sold';
+              const hasLikedItem = currentUser && item.likes?.includes(currentUser.uid);
+              const isCommentsOpen = openCommentsItemId === item.id;
 
               return (
                 <div
@@ -329,6 +400,27 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
                       <span className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-black border backdrop-blur-md shadow-xs ${getConditionColor(item.condition)}`}>
                         {getConditionLabel(item.condition)}
                       </span>
+
+                      {/* Like Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!currentUser) {
+                            alert('Faça login para curtir o produto.');
+                            return;
+                          }
+                          toggleMarketItemLike(item.id);
+                        }}
+                        className={`absolute top-3 right-3 px-2.5 py-1 rounded-full backdrop-blur-md transition shadow-xs flex items-center gap-1 text-xs font-black ${
+                          hasLikedItem
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-slate-900/60 hover:bg-slate-900/80 text-white'
+                        }`}
+                        title={hasLikedItem ? 'Descurtir' : 'Curtir'}
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${hasLikedItem ? 'fill-white' : ''}`} />
+                        <span>{item.likes?.length || 0}</span>
+                      </button>
 
                       {/* Sold Stamp */}
                       {isSold && (
@@ -358,62 +450,208 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
                         {item.description}
                       </p>
 
-                      <div className="pt-2">
-                        <span className="text-[10px] text-slate-400 font-semibold block">Preço</span>
-                        <span className="text-lg sm:text-xl font-black text-slate-900 font-mono">
-                          {item.priceMZN.toLocaleString()} MZN
+                      <div className="pt-2 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-400 font-semibold block">Preço</span>
+                          <span className="text-lg sm:text-xl font-black text-slate-900 font-mono">
+                            {item.priceMZN.toLocaleString()} MZN
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400">
+                          {item.comments?.length || 0} perguntas
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Actions Bar */}
-                  <div className="p-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => setSelectedItemDetail(item)}
-                      className="px-3 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Detalhes</span>
-                    </button>
-
-                    {isOwner ? (
-                      <div className="flex items-center gap-1">
+                  {/* Actions Bar & Inline Comments */}
+                  <div>
+                    <div className="p-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => {
-                            editMarketItem(item.id, {
-                              status: item.status === 'active' ? 'sold' : 'active'
-                            });
-                          }}
-                          className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs transition"
-                          title={item.status === 'active' ? 'Marcar como Vendido' : 'Reativar Anúncio'}
+                          onClick={() => setSelectedItemDetail(item)}
+                          className="px-3 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
                         >
-                          <Check className="w-3.5 h-3.5" />
+                          <Eye className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Detalhes</span>
                         </button>
+
                         <button
-                          onClick={() => {
-                            if (confirm('Deseja excluir este anúncio do mercado?')) {
-                              deleteMarketItem(item.id);
-                            }
-                          }}
-                          className="p-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs transition"
-                          title="Excluir Anúncio"
+                          onClick={() => setOpenCommentsItemId(isCommentsOpen ? null : item.id)}
+                          className={`px-3 py-2 border rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                            isCommentsOpen
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700'
+                          }`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Dúvidas ({item.comments?.length || 0})</span>
                         </button>
                       </div>
-                    ) : (
-                      <a
-                        href={`https://wa.me/${(item.whatsapp || item.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(
-                          `Olá ${item.sellerName}, vi o seu anúncio na TécnicaMZ: "${item.title}" por ${item.priceMZN.toLocaleString()} MZN. Ainda está disponível?`
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-                      >
-                        <Phone className="w-3.5 h-3.5" />
-                        <span>Comprar / WhatsApp</span>
-                      </a>
+
+                      {isOwner ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              editMarketItem(item.id, {
+                                status: item.status === 'active' ? 'sold' : 'active'
+                              });
+                            }}
+                            className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs transition"
+                            title={item.status === 'active' ? 'Marcar como Vendido' : 'Reativar Anúncio'}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Deseja excluir este anúncio do mercado?')) {
+                                deleteMarketItem(item.id);
+                              }
+                            }}
+                            className="p-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs transition"
+                            title="Excluir Anúncio"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <a
+                          href={`https://wa.me/${(item.whatsapp || item.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(
+                            `Olá ${item.sellerName}, vi o seu anúncio na TécnicaMZ: "${item.title}" por ${item.priceMZN.toLocaleString()} MZN. Ainda está disponível?`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>WhatsApp</span>
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Inline Comments / Q&A Box - Spacious & Open */}
+                    {isCommentsOpen && (
+                      <div className="p-4 sm:p-5 bg-slate-100/90 border-t border-slate-200 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Perguntas ao Vendedor ({item.comments?.length || 0})</span>
+                          </span>
+                          {replyingToComment[item.id] && (
+                            <span className="text-[11px] bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                              Respondendo @{replyingToComment[item.id]?.authorName}
+                              <button
+                                onClick={() => setReplyingToComment(prev => ({ ...prev, [item.id]: null }))}
+                                className="text-amber-700 hover:text-black font-black"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* List */}
+                        {item.comments && item.comments.length > 0 ? (
+                          <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                            {item.comments.map(comment => {
+                              const isCommentOwner = currentUser && currentUser.uid === comment.authorId;
+                              const isItemSeller = comment.authorId === item.sellerId;
+                              const hasLiked = currentUser && comment.likes?.includes(currentUser.uid);
+                              const canDelete = isCommentOwner || isOwner || isAdmin;
+
+                              return (
+                                <div key={comment.id} className="bg-white p-3 rounded-xl border border-slate-200 text-xs sm:text-sm space-y-1.5 shadow-2xs">
+                                  <div className="flex items-center justify-between flex-wrap gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-black text-slate-900">{comment.authorName}</span>
+                                      {isItemSeller && (
+                                        <span className="text-[10px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-black border border-amber-200">
+                                          ★ Vendedor
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-slate-400">
+                                      {new Date(comment.createdAt).toLocaleDateString('pt-MZ', { day: '2-digit', month: 'short' })}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-slate-800 leading-relaxed whitespace-pre-line text-xs sm:text-sm">{comment.text}</p>
+
+                                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        onClick={() => toggleMarketCommentLike(item.id, comment.id)}
+                                        className={`flex items-center gap-1 font-bold ${
+                                          hasLiked ? 'text-rose-600' : 'text-slate-500 hover:text-rose-600'
+                                        }`}
+                                      >
+                                        <ThumbsUp className="w-3 h-3" />
+                                        <span>{comment.likes?.length || 0}</span>
+                                      </button>
+
+                                      <button
+                                        onClick={() => {
+                                          setReplyingToComment(prev => ({
+                                            ...prev,
+                                            [item.id]: { id: comment.id, authorName: comment.authorName }
+                                          }));
+                                          setItemCommentInput(prev => ({
+                                            ...prev,
+                                            [item.id]: `@${comment.authorName} `
+                                          }));
+                                        }}
+                                        className="text-slate-500 hover:text-amber-700 font-bold"
+                                      >
+                                        ↩ Responder
+                                      </button>
+                                    </div>
+
+                                    {canDelete && (
+                                      <button
+                                        onClick={() => {
+                                          if (confirm('Excluir pergunta/comentário?')) {
+                                            deleteMarketItemComment(item.id, comment.id);
+                                          }
+                                        }}
+                                        className="text-slate-400 hover:text-red-600"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 italic">
+                            Nenhuma pergunta ainda. Pergunte sobre garantia, voltagem ou entrega.
+                          </p>
+                        )}
+
+                        {/* Add comment input */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <input
+                            type="text"
+                            value={itemCommentInput[item.id] || ''}
+                            onChange={e => setItemCommentInput({ ...itemCommentInput, [item.id]: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSendItemComment(item.id);
+                            }}
+                            placeholder={currentUser ? (replyingToComment[item.id] ? `Respondendo a @${replyingToComment[item.id]?.authorName}...` : 'Perguntar ao vendedor...') : 'Faça login para perguntar'}
+                            disabled={!currentUser}
+                            className="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-amber-500 shadow-2xs"
+                          />
+                          <button
+                            onClick={() => handleSendItemComment(item.id)}
+                            disabled={!currentUser || !itemCommentInput[item.id]?.trim()}
+                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-xs"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Enviar</span>
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -427,14 +665,27 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
       {isSellModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
           <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
-            <div className="bg-slate-900 text-white p-5 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-amber-400" />
-                <h3 className="text-sm font-black">Anunciar Equipamento no Mercado TécnicaMZ</h3>
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsSellModalOpen(false)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition"
+                  title="Voltar ao Mercado"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Voltar</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-sm font-black">Anunciar Equipamento no Mercado TécnicaMZ</h3>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsSellModalOpen(false)}
                 className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition"
+                title="Fechar (X)"
               >
                 ✕
               </button>
@@ -605,82 +856,262 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
       )}
 
       {/* Modal: Detalhes do Item */}
-      {selectedItemDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
-          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="relative aspect-16/9 bg-slate-100">
-              <img
-                src={selectedItemDetail.images[0]}
-                alt={selectedItemDetail.title}
-                className="w-full h-full object-cover"
-              />
+      {activeDetailItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs">
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
+            {/* Top Modal Navigation Header */}
+            <div className="bg-slate-900 text-white px-4 py-3.5 flex items-center justify-between shrink-0 border-b border-slate-800">
               <button
+                type="button"
                 onClick={() => setSelectedItemDetail(null)}
-                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-950/80 hover:bg-slate-900 text-white flex items-center justify-center text-sm font-bold transition"
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5 text-xs font-bold transition shadow-xs"
+                title="Voltar ao Mercado"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar</span>
+              </button>
+
+              <span className="text-xs font-bold text-slate-300 truncate max-w-[200px] sm:max-w-xs">
+                {activeDetailItem.title}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setSelectedItemDetail(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition"
+                title="Fechar (X)"
               >
                 ✕
               </button>
-              <span className={`absolute bottom-3 left-3 px-3 py-1 rounded-full text-xs font-black border backdrop-blur-md shadow-xs ${getConditionColor(selectedItemDetail.condition)}`}>
-                {getConditionLabel(selectedItemDetail.condition)}
-              </span>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="relative aspect-16/9 bg-slate-100 shrink-0">
+              <img
+                src={activeDetailItem.images[0]}
+                alt={activeDetailItem.title}
+                className="w-full h-full object-cover"
+              />
+              <span className={`absolute bottom-3 left-3 px-3 py-1 rounded-full text-xs font-black border backdrop-blur-md shadow-xs ${getConditionColor(activeDetailItem.condition)}`}>
+                {getConditionLabel(activeDetailItem.condition)}
+              </span>
+
+              {/* Like Button on Modal */}
+              <button
+                onClick={() => {
+                  if (!currentUser) {
+                    alert('Faça login para curtir o equipamento.');
+                    return;
+                  }
+                  toggleMarketItemLike(activeDetailItem.id);
+                }}
+                className={`absolute bottom-3 right-3 px-3 py-1.5 rounded-full backdrop-blur-md transition shadow-md flex items-center gap-1.5 text-xs font-black ${
+                  currentUser && activeDetailItem.likes?.includes(currentUser.uid)
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-slate-950/70 hover:bg-slate-950/90 text-white'
+                }`}
+              >
+                <Heart className={`w-3.5 h-3.5 ${currentUser && activeDetailItem.likes?.includes(currentUser.uid) ? 'fill-white' : ''}`} />
+                <span>{activeDetailItem.likes?.length || 0} Curtidas</span>
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
               <div>
                 <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
-                  {selectedItemDetail.category}
+                  {activeDetailItem.category}
                 </span>
-                <h2 className="text-xl font-black text-slate-900 mt-0.5">{selectedItemDetail.title}</h2>
-                <p className="text-2xl font-black text-slate-900 font-mono mt-2">
-                  {selectedItemDetail.priceMZN.toLocaleString()} MZN
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">{activeDetailItem.title}</h2>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-mono mt-2 text-emerald-700">
+                  {activeDetailItem.priceMZN.toLocaleString()} MZN
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                {selectedItemDetail.description}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                {activeDetailItem.description}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 block font-semibold">Vendedor</span>
-                  <span className="font-bold text-slate-900">{selectedItemDetail.sellerName}</span>
+              <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                  <span className="text-slate-400 block font-semibold text-xs">Vendedor</span>
+                  <span className="font-bold text-slate-900">{activeDetailItem.sellerName}</span>
                 </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 block font-semibold">Localização</span>
-                  <span className="font-bold text-slate-900">{selectedItemDetail.city}, {selectedItemDetail.province}</span>
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                  <span className="text-slate-400 block font-semibold text-xs">Localização</span>
+                  <span className="font-bold text-slate-900">{activeDetailItem.city}, {activeDetailItem.province}</span>
                 </div>
               </div>
 
+              {/* Action Buttons */}
               <div className="pt-2 flex items-center gap-3">
                 <a
-                  href={`https://wa.me/${(selectedItemDetail.whatsapp || selectedItemDetail.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(
-                    `Olá ${selectedItemDetail.sellerName}, vi o anúncio "${selectedItemDetail.title}" na TécnicaMZ. Gostaria de comprar.`
+                  href={`https://wa.me/${(activeDetailItem.whatsapp || activeDetailItem.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(
+                    `Olá ${activeDetailItem.sellerName}, vi o anúncio "${activeDetailItem.title}" na TécnicaMZ. Gostaria de comprar.`
                   )}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20"
+                  className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20"
                 >
                   <Phone className="w-4 h-4" />
                   <span>Conversar no WhatsApp</span>
                 </a>
 
-                {currentUser && currentUser.uid !== selectedItemDetail.sellerId && (
+                {currentUser && currentUser.uid !== activeDetailItem.sellerId && (
                   <button
                     onClick={() => {
-                      startOrGetConversation(selectedItemDetail.sellerId, selectedItemDetail.sellerName, 'technician');
+                      startOrGetConversation(activeDetailItem.sellerId, activeDetailItem.sellerName, 'technician');
                       setSelectedItemDetail(null);
                       onNavigateTab('messages');
                     }}
-                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                    className="px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5"
                   >
                     <MessageCircle className="w-4 h-4" />
                     <span>Chat Interno</span>
                   </button>
                 )}
               </div>
+
+              {/* Interactive Q&A Discussion in Modal - Open and Spacious */}
+              <div className="pt-5 border-t border-slate-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-amber-600" />
+                    <span>Perguntas & Respostas ({activeDetailItem.comments?.length || 0})</span>
+                  </h4>
+                  {replyingToComment[activeDetailItem.id] && (
+                    <span className="text-xs bg-amber-200 text-amber-900 px-3 py-1 rounded-full font-bold flex items-center gap-1.5">
+                      Respondendo a @{replyingToComment[activeDetailItem.id]?.authorName}
+                      <button
+                        onClick={() => setReplyingToComment(prev => ({ ...prev, [activeDetailItem.id]: null }))}
+                        className="text-amber-800 hover:text-black font-black"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                {/* List of comments */}
+                {activeDetailItem.comments && activeDetailItem.comments.length > 0 ? (
+                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                    {activeDetailItem.comments.map(comment => {
+                      const isCommentAuthor = currentUser && currentUser.uid === comment.authorId;
+                      const isProductSeller = comment.authorId === activeDetailItem.sellerId;
+                      const hasLiked = currentUser && comment.likes?.includes(currentUser.uid);
+                      const canDelete = isCommentAuthor || (currentUser && currentUser.uid === activeDetailItem.sellerId) || isAdmin;
+
+                      return (
+                        <div key={comment.id} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs sm:text-sm space-y-2 shadow-2xs">
+                          <div className="flex items-center justify-between flex-wrap gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-slate-900">{comment.authorName}</span>
+                              {isProductSeller && (
+                                <span className="text-[10px] px-2 py-0.5 bg-amber-200 text-amber-950 rounded-full font-black border border-amber-300 flex items-center gap-1">
+                                  ★ Vendedor
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-slate-400">
+                              {new Date(comment.createdAt).toLocaleDateString('pt-MZ', { day: '2-digit', month: 'short' })}
+                            </span>
+                          </div>
+
+                          <p className="text-slate-800 leading-relaxed whitespace-pre-line text-xs sm:text-sm">{comment.text}</p>
+
+                          <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 text-xs">
+                            <div className="flex items-center gap-4">
+                              <button
+                                onClick={() => toggleMarketCommentLike(activeDetailItem.id, comment.id)}
+                                className={`flex items-center gap-1.5 font-bold ${
+                                  hasLiked ? 'text-rose-600' : 'text-slate-500 hover:text-rose-600'
+                                }`}
+                              >
+                                <ThumbsUp className="w-3.5 h-3.5" />
+                                <span>{comment.likes?.length || 0}</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setReplyingToComment(prev => ({
+                                    ...prev,
+                                    [activeDetailItem.id]: { id: comment.id, authorName: comment.authorName }
+                                  }));
+                                  setItemCommentInput(prev => ({
+                                    ...prev,
+                                    [activeDetailItem.id]: `@${comment.authorName} `
+                                  }));
+                                }}
+                                className="text-slate-500 hover:text-amber-700 font-bold"
+                              >
+                                ↩ Responder
+                              </button>
+                            </div>
+
+                            {canDelete && (
+                              <button
+                                onClick={() => {
+                                  if (confirm('Excluir este comentário?')) {
+                                    deleteMarketItemComment(activeDetailItem.id, comment.id);
+                                  }
+                                }}
+                                className="text-slate-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs sm:text-sm text-slate-400 italic">
+                    Nenhuma pergunta ainda. Tire suas dúvidas sobre este equipamento diretamente com o vendedor!
+                  </p>
+                )}
+
+                {/* Input in modal */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={itemCommentInput[activeDetailItem.id] || ''}
+                    onChange={e => setItemCommentInput({ ...itemCommentInput, [activeDetailItem.id]: e.target.value })}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSendItemComment(activeDetailItem.id);
+                    }}
+                    placeholder={currentUser ? (replyingToComment[activeDetailItem.id] ? `Respondendo a @${replyingToComment[activeDetailItem.id]?.authorName}...` : 'Pergunte sobre voltagem, garantia, entrega...') : 'Faça login para perguntar'}
+                    disabled={!currentUser}
+                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                  />
+                  <button
+                    onClick={() => handleSendItemComment(activeDetailItem.id)}
+                    disabled={!currentUser || !itemCommentInput[activeDetailItem.id]?.trim()}
+                    className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Enviar</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* VIP Upgrade Modal */}
+      {showVipUpgradeModal && (
+        <CheckoutModal
+          plan={plans.find(p => p.id === 'plano_empresa_vip') || {
+            id: 'plano_empresa_vip',
+            name: 'Pacote Empresa / VIP',
+            priceMZN: 499,
+            durationDays: 30,
+            active: true,
+            priority: 3,
+            benefits: ['Anúncios Ilimitados no Mercado', 'Selo Empresa VIP', 'Destaque no Topo do Mural', 'Sara IA & Gerador de OS Ilimitados']
+          }}
+          onClose={() => setShowVipUpgradeModal(false)}
+          onSuccess={() => setShowVipUpgradeModal(false)}
+        />
       )}
     </div>
   );

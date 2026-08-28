@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TechnicianProfile, CompanyProfile } from '../../types';
 import {
   X,
+  ArrowLeft,
   Share2,
   Download,
   CheckCircle2,
@@ -55,16 +56,25 @@ export const DigitalBusinessCard: React.FC<DigitalBusinessCardProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
       <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header Bar */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition"
+              title="Voltar / Fechar"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Voltar</span>
+            </button>
             <QrCode className="w-4 h-4 text-blue-400" />
-            <h3 className="text-xs font-black">Cartão Digital de Visita MZ</h3>
+            <h3 className="text-xs font-black">Cartão Digital MZ</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-slate-400 hover:text-white transition"
+            className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold transition"
+            title="Fechar (X)"
           >
-            <X className="w-4 h-4" />
+            ✕
           </button>
         </div>
 

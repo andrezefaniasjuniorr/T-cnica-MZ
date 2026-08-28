@@ -33,7 +33,16 @@ interface CommunityFeedProps {
 }
 
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) => {
-  const { communityPosts, addCommunityPost, togglePostReaction, addPostComment, deleteCommunityPost, startOrGetConversation } = useData();
+  const {
+    communityPosts,
+    addCommunityPost,
+    togglePostReaction,
+    addPostComment,
+    deleteCommunityPost,
+    toggleCommunityCommentLike,
+    deleteCommunityComment,
+    startOrGetConversation
+  } = useData();
   const { currentUser, isTechnician, isCompany, isAdmin } = useAuth();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -41,6 +50,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<{ [postId: string]: string }>({});
+  const [replyingTo, setReplyingTo] = useState<{ [postId: string]: { id: string; authorName: string } | null }>({});
 
   // New Post Form State
   const [newTitle, setNewTitle] = useState('');
@@ -125,8 +135,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     }
     if (!text || !text.trim()) return;
 
-    addPostComment(postId, text);
+    const reply = replyingTo[postId];
+    addPostComment(postId, text, reply?.id);
     setCommentText(prev => ({ ...prev, [postId]: '' }));
+    setReplyingTo(prev => ({ ...prev, [postId]: null }));
   };
 
   // Filter posts
@@ -151,97 +163,94 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   };
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header Hero */}
-        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-indigo-500/20 relative overflow-hidden">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-            <div className="max-w-2xl space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold">
-                <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Mural Técnico Global • Comunidade de Engenharia & Técnicos MZ</span>
-              </div>
-              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white">
-                Mural dos Técnicos de Moçambique
-              </h1>
-              <p className="text-xs sm:text-base text-slate-300">
-                Compartilhe experiências de campo, esquemas unifilares, dicas de instalação EDM, dúvidas sobre inversores e casos reais em todas as províncias.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="px-6 py-3.5 bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black rounded-2xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Publicar no Mural</span>
-              </button>
-            </div>
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Header Hero / Slogan Banner - Image Occupies Entire Banner without Obstruction */}
+        <div className="relative rounded-3xl overflow-hidden shadow-xl border border-indigo-500/20 bg-slate-950 group">
+          <img
+            src="/tecnica_mz_slogan.jpg"
+            alt="Técnica MZ - Comunidade Técnica de Moçambique"
+            className="w-full h-40 sm:h-52 md:h-64 object-cover object-center"
+            referrerPolicy="no-referrer"
+          />
+          {/* Subtle gradient only at bottom-right corner for high-contrast compact action */}
+          <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-2">
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-blue-600/90 hover:bg-blue-600 text-white font-bold rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-900/40 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
+              title="Criar nova publicação no mural"
+            >
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+              <span>Publicar no Mural</span>
+            </button>
           </div>
         </div>
 
-        {/* Filters and Search Bar */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Pesquisar por assunto, técnica, esquema, inversor ou autor..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-indigo-500 focus:bg-white transition"
-              />
-            </div>
+        {/* Responsive Desktop Grid (Feed + Side Widgets) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
+          {/* Main Feed Column */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* Filters and Search Bar */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    placeholder="Pesquisar por assunto, técnica, esquema, inversor ou autor..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                  />
+                </div>
 
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedCategory}
-                onChange={e => setSelectedCategory(e.target.value)}
-                className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="all">Todas as Áreas Técnicas</option>
-                {TECHNICAL_CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedCategory}
+                    onChange={e => setSelectedCategory(e.target.value)}
+                    className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="all">Todas as Áreas Técnicas</option>
+                    {TECHNICAL_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          {/* Quick Category Chips */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition ${
-                selectedCategory === 'all'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Todos ({communityPosts.length})
-            </button>
-            {TECHNICAL_CATEGORIES.slice(0, 6).map(cat => {
-              const count = communityPosts.filter(p => p.category === cat).length;
-              return (
+              {/* Quick Category Chips */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
+                  onClick={() => setSelectedCategory('all')}
                   className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition ${
-                    selectedCategory === cat
+                    selectedCategory === 'all'
                       ? 'bg-indigo-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  {cat} {count > 0 && `(${count})`}
+                  Todos ({communityPosts.length})
                 </button>
-              );
-            })}
-          </div>
-        </div>
+                {TECHNICAL_CATEGORIES.slice(0, 6).map(cat => {
+                  const count = communityPosts.filter(p => p.category === cat).length;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition ${
+                        selectedCategory === cat
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {cat} {count > 0 && `(${count})`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        {/* Posts List */}
-        <div className="space-y-6">
+            {/* Posts List */}
+            <div className="space-y-6">
           {filteredPosts.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-xs space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
@@ -514,35 +523,111 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                     {/* Expandable Comments Section */}
                     {isCommentOpen && (
                       <div className="pt-4 border-t border-slate-100 space-y-4 bg-slate-50/70 p-4 rounded-2xl">
-                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">
-                          Discussão Técnica & Respostas ({post.comments?.length || 0})
-                        </h4>
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <MessageCircle className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Discussão Técnica & Respostas ({post.comments?.length || 0})</span>
+                          </h4>
+                          {replyingTo[post.id] && (
+                            <span className="text-[11px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                              Respondendo a @{replyingTo[post.id]?.authorName}
+                              <button
+                                onClick={() => setReplyingTo(prev => ({ ...prev, [post.id]: null }))}
+                                className="ml-1 text-indigo-500 hover:text-indigo-900 font-black"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          )}
+                        </div>
 
                         {/* Comments list */}
                         {post.comments && post.comments.length > 0 ? (
                           <div className="space-y-3">
-                            {post.comments.map(comment => (
-                              <div key={comment.id} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
-                                <div className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-black text-slate-900">{comment.authorName}</span>
-                                    {comment.authorSpecialty && (
-                                      <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md font-semibold">
-                                        {comment.authorSpecialty}
-                                      </span>
+                            {post.comments.map(comment => {
+                              const isCommentAuthor = currentUser && currentUser.uid === comment.authorId;
+                              const isPostOwner = comment.authorId === post.authorId;
+                              const hasLikedComment = currentUser && comment.likes?.includes(currentUser.uid);
+                              const canDeleteComment = isCommentAuthor || isPostAuthor || isAdmin;
+
+                              return (
+                                <div key={comment.id} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                                  <div className="flex items-center justify-between text-xs flex-wrap gap-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-black text-slate-900">{comment.authorName}</span>
+                                      {isPostOwner && (
+                                        <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-900 rounded-full font-black border border-amber-200 flex items-center gap-1">
+                                          ★ Autor da Publicação
+                                        </span>
+                                      )}
+                                      {comment.authorSpecialty && !isPostOwner && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md font-semibold">
+                                          {comment.authorSpecialty}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-slate-400">{formatDate(comment.createdAt)}</span>
+                                  </div>
+
+                                  <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                                    {comment.text}
+                                  </p>
+
+                                  {/* Comment Footer: Like, Reply, Delete */}
+                                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                                    <div className="flex items-center gap-3">
+                                      {/* Like comment */}
+                                      <button
+                                        onClick={() => toggleCommunityCommentLike(post.id, comment.id)}
+                                        className={`flex items-center gap-1 font-bold transition px-2 py-0.5 rounded-lg ${
+                                          hasLikedComment
+                                            ? 'text-rose-600 bg-rose-50'
+                                            : 'text-slate-500 hover:text-rose-600 hover:bg-slate-50'
+                                        }`}
+                                      >
+                                        <ThumbsUp className="w-3 h-3" />
+                                        <span>{comment.likes?.length || 0}</span>
+                                      </button>
+
+                                      {/* Reply */}
+                                      <button
+                                        onClick={() => {
+                                          setReplyingTo(prev => ({
+                                            ...prev,
+                                            [post.id]: { id: comment.id, authorName: comment.authorName }
+                                          }));
+                                          setCommentText(prev => ({
+                                            ...prev,
+                                            [post.id]: `@${comment.authorName} `
+                                          }));
+                                        }}
+                                        className="text-slate-500 hover:text-indigo-600 font-bold transition flex items-center gap-1"
+                                      >
+                                        <span>↩ Responder</span>
+                                      </button>
+                                    </div>
+
+                                    {canDeleteComment && (
+                                      <button
+                                        onClick={() => {
+                                          if (confirm('Excluir este comentário?')) {
+                                            deleteCommunityComment(post.id, comment.id);
+                                          }
+                                        }}
+                                        className="text-slate-400 hover:text-red-600 p-1 rounded transition"
+                                        title="Excluir comentário"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
                                     )}
                                   </div>
-                                  <span className="text-[10px] text-slate-400">{formatDate(comment.createdAt)}</span>
                                 </div>
-                                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                                  {comment.text}
-                                </p>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <p className="text-xs text-slate-400 italic">
-                            Nenhum comentário ainda. Partilhe sua opinião técnica!
+                            Nenhum comentário ainda. Seja o primeiro a comentar ou esclarecer uma dúvida técnica!
                           </p>
                         )}
 
@@ -555,7 +640,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                             onKeyDown={e => {
                               if (e.key === 'Enter') handleSendComment(post.id);
                             }}
-                            placeholder={currentUser ? 'Escreva uma resposta técnica ou dica...' : 'Faça login para comentar'}
+                            placeholder={currentUser ? (replyingTo[post.id] ? `Respondendo a @${replyingTo[post.id]?.authorName}...` : 'Escreva uma resposta técnica ou dica...') : 'Faça login para comentar'}
                             disabled={!currentUser}
                             className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500"
                           />
@@ -565,7 +650,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                             className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0"
                           >
                             <Send className="w-3.5 h-3.5" />
-                            <span>Responder</span>
+                            <span>{replyingTo[post.id] ? 'Enviar Resposta' : 'Comentar'}</span>
                           </button>
                         </div>
                       </div>
@@ -575,6 +660,93 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
               );
             })
           )}
+            </div>
+          </div>
+
+          {/* Desktop Right Sidebar Column (Hidden on mobile, visible on lg) */}
+          <aside className="hidden lg:block lg:col-span-4 space-y-5 sticky top-20">
+            {/* Widget 1: Official Emergency & EDM Contacts */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
+                <AlertCircle className="w-4 h-4 text-amber-500" />
+                <span>Piquetes & Emergências MZ</span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Linhas diretas para corte de corrente e segurança no trabalho:
+              </p>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2.5 bg-amber-50 rounded-xl border border-amber-200">
+                  <span className="font-bold text-amber-900">⚡ Piquete EDM (Linha Verde)</span>
+                  <span className="font-black text-amber-950 font-mono">1455</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-red-50 rounded-xl border border-red-200">
+                  <span className="font-bold text-red-900">🚒 Bombeiros Moçambique</span>
+                  <span className="font-black text-red-950 font-mono">198</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-blue-50 rounded-xl border border-blue-200">
+                  <span className="font-bold text-blue-900">💧 FIPAG / Águas</span>
+                  <span className="font-black text-blue-950 font-mono">800 240 240</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Widget 2: Quick Engineering Calculators */}
+            <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-5 shadow-sm space-y-3">
+              <div className="flex items-center gap-2 font-black text-sm text-indigo-300">
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <span>Ferramentas Rápidas</span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Acesse o prumo giroscópico, dimensionamento solar e cálculo de condutores EDM.
+              </p>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => onNavigateTab('tools')}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition"
+                >
+                  📐 Nível de Parede
+                </button>
+                <button
+                  onClick={() => onNavigateTab('tools')}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition"
+                >
+                  ☀️ Solar PV
+                </button>
+                <button
+                  onClick={() => onNavigateTab('tools')}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition"
+                >
+                  ⚡ Queda Tensão
+                </button>
+                <button
+                  onClick={() => onNavigateTab('market')}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition"
+                >
+                  🛍️ Mercado MZ
+                </button>
+              </div>
+            </div>
+
+            {/* Widget 3: WhatsApp Support & Community */}
+            <div className="bg-emerald-50 rounded-3xl p-5 border border-emerald-200 space-y-3">
+              <div className="flex items-center gap-2 text-emerald-950 font-black text-sm">
+                <Phone className="w-4 h-4 text-emerald-600" />
+                <span>Suporte Técnico Oficial MZ</span>
+              </div>
+              <p className="text-xs text-emerald-800 leading-relaxed">
+                Dúvidas técnicas, credenciação e auditoria de perfis:
+              </p>
+              <a
+                href="https://wa.me/258851949159"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>WhatsApp: 851949159</span>
+              </a>
+            </div>
+          </aside>
         </div>
       </div>
 

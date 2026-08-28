@@ -22,6 +22,7 @@ import {
 import { JobDetailModal } from './JobDetailModal';
 import { ApplyJobModal } from './ApplyJobModal';
 import { NewCompanyJobModal } from '../company/NewCompanyJobModal';
+import { TopBackNav } from '../common/TopBackNav';
 
 interface JobsSectionProps {
   onNavigateTab: (tab: string) => void;
@@ -61,8 +62,27 @@ export const JobsSection: React.FC<JobsSectionProps> = ({ onNavigateTab, onOpenM
   });
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        <TopBackNav
+          title="Oportunidades de Emprego Técnico"
+          category="Vagas"
+          onBack={() => onNavigateTab('community')}
+          backLabel="Voltar ao Mural"
+          rightAction={
+            isCompany ? (
+              <button
+                onClick={() => setIsNewJobModalOpen(true)}
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Publicar Vaga</span>
+              </button>
+            ) : undefined
+          }
+        />
+
         {/* Header Hero */}
         <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-purple-900/40 relative overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">

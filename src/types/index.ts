@@ -46,6 +46,8 @@ export type ServiceCategory = string;
 export type MozambiqueProvince = string;
 export type ServiceUrgency = RequestUrgency;
 
+export type PlanTier = 'basico' | 'profissional' | 'empresa_vip';
+
 export interface User {
   uid: string;
   name: string;
@@ -54,6 +56,13 @@ export interface User {
   role: UserRole;
   adminSubRole?: AdminSubRole;
   status: UserStatus;
+  statusAssinatura?: 'ativa' | 'inativa' | 'expirada' | 'pendente' | string;
+  dataExpiracao?: string; // ISO date string e.g. "2026-09-28T00:00:00.000Z"
+  planoAtivo?: '50mt' | '199mt' | '499mt' | string;
+  planoAssinatura?: 'basico' | 'profissional' | 'empresa_vip' | string;
+  activePlanId?: string;
+  subscriptionExpiresAt?: string;
+  subscriptionStatus?: 'none' | 'active' | 'expired' | 'ativa';
   avatarUrl?: string;
   suspensionReason?: string;
   createdAt: string;
@@ -242,10 +251,14 @@ export interface SubscriptionPlan {
   priceMZN: number;
   durationDays: number;
   active: boolean;
+  tier?: PlanTier;
   benefits: string[];
+  permissions?: string[];
+  restrictions?: string[];
   priority: number;
   isPopular?: boolean;
-  targetRole?: 'technician' | 'company';
+  badge?: string;
+  targetRole?: 'technician' | 'company' | 'all';
   createdAt: string;
   updatedAt?: string;
 }
@@ -399,6 +412,21 @@ export interface AdminLogItem {
   timestamp: string;
 }
 
+export interface MarketComment {
+  id: string;
+  itemId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: UserRole;
+  authorAvatar?: string;
+  authorSpecialty?: string;
+  text: string;
+  replyToId?: string;
+  replyToName?: string;
+  likes?: string[];
+  createdAt: string;
+}
+
 export interface MarketItem {
   id: string;
   sellerId: string;
@@ -414,13 +442,16 @@ export interface MarketItem {
   province: string;
   city: string;
   location: string;
-  condition: 'Novo' | 'Como Novo' | 'Usado - Excelente' | 'Usado - Bom' | 'Para Peças';
+  condition: 'Novo' | 'Como Novo' | 'Usado - Excelente' | 'Usado - Bom' | 'Para Peças' | string;
   brand?: string;
   model?: string;
   quantity: number;
   description: string;
   images: string[];
   status: 'active' | 'sold' | 'paused' | 'moderated';
+  likes?: string[];
+  commentsCount?: number;
+  comments?: MarketComment[];
   createdAt: string;
 }
 
@@ -433,6 +464,9 @@ export interface CommunityComment {
   authorAvatar?: string;
   authorSpecialty?: string;
   text: string;
+  replyToId?: string;
+  replyToName?: string;
+  likes?: string[];
   createdAt: string;
 }
 

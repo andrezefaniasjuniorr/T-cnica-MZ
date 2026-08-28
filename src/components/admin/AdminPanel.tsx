@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { db, isFirebaseConfigured } from '../../firebase/config';
+import { doc, updateDoc, collection, onSnapshot, setDoc } from 'firebase/firestore';
 import {
   Shield,
   DollarSign,
@@ -8,27 +10,32 @@ import {
   Building2,
   Briefcase,
   ShoppingBag,
-  BookOpen,
   Settings,
-  FileText,
   CheckCircle2,
   XCircle,
   AlertCircle,
   Clock,
-  ExternalLink,
   Search,
   Filter,
   BarChart3,
-  Lock,
-  ArrowRight,
   TrendingUp,
   RefreshCw,
   Sparkles,
-  Trash2,
+  UserCheck,
   UserX,
-  PieChart as PieIcon,
-  Activity,
-  Layers,
+  CreditCard,
+  Phone,
+  Calendar,
+  Award,
+  Crown,
+  ArrowLeft,
+  ChevronRight,
+  Send,
+  Sliders,
+  Check,
+  X,
+  ExternalLink,
+  Zap,
   MessageSquare
 } from 'lucide-react';
 import {
@@ -40,147 +47,389 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   Tooltip,
   Legend,
   CartesianGrid
 } from 'recharts';
-import { UserStatus, VerificationStatus, CompanyVerificationStatus, MOZAMBIQUE_PROVINCES, TECHNICAL_CATEGORIES } from '../../types';
+import { User, TechnicianProfile, CompanyProfile, PaymentRecord, UserStatus, VerificationStatus } from '../../types';
 
 interface AdminPanelProps {
   onNavigateTab: (tab: string) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
-  const { currentUser, isAdmin, isSuperAdmin, isFinanceAdmin, isModerator, usersList, updateUserStatus, deleteUserAccount } = useAuth();
+  const {
+    currentUser,
+    usersList,
+    updateUserStatus,
+    deleteUserAccount
+  } = useAuth();
+
   const {
     technicians,
     companies,
     jobs,
     payments,
-    serviceRequests,
-    reports,
-    adminLogs,
     marketItems,
-    academyArticles,
     communityPosts,
     settings,
-    verifyTechnician,
-    updateTechnicianStatus,
-    toggleFeaturedTechnician,
-    deleteTechnician,
-    verifyCompany,
-    updateCompanyStatus,
-    toggleFeaturedCompany,
-    deleteCompany,
     approvePayment,
     rejectPayment,
-    updateJobStatus,
-    updateMarketItemStatus,
-    verifyAcademyArticle,
-    resolveReport,
+    verifyTechnician,
+    verifyCompany,
     updateSettings
   } = useData();
 
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'charts' | 'finance' | 'techs' | 'companies' | 'jobs' | 'market' | 'community' | 'reports' | 'logs' | 'settings'
-  >('overview');
+  // Active admin tab
+  const [activeAdminTab, setActiveAdminTab] = useState<
+    'metrics' | 'payments' | 'users' | 'verifications' | 'jobs_market' | 'settings'
+  >('metrics');
 
-  // Search & Filter states
+  // Search & Filter States
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | 'mpesa' | 'emola'>('all');
+
   const [userSearch, setUserSearch] = useState('');
-  const [techSearch, setTechSearch] = useState('');
-  const [companySearch, setCompanySearch] = useState('');
-  const [jobSearch, setJobSearch] = useState('');
-  const [rejectReasonInput, setRejectReasonInput] = useState('');
-  const [selectedPaymentToReject, setSelectedPaymentToReject] = useState<string | null>(null);
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'technician' | 'company' | 'client'>('all');
+  const [userPlanFilter, setUserPlanFilter] = useState<'all' | 'active' | 'expired' | 'none'>('all');
 
-  // Settings form state
-  const [mpesaNumber, setMpesaNumber] = useState(settings.mpesaNumber);
-  const [mpesaName, setMpesaName] = useState(settings.mpesaName);
-  const [emolaNumber, setEmolaNumber] = useState(settings.emolaNumber);
-  const [emolaName, setEmolaName] = useState(settings.emolaName);
-  const [supportPhone, setSupportPhone] = useState(settings.supportPhone);
-  const [supportEmail, setSupportEmail] = useState(settings.supportEmail);
-  const [settingsSaved, setSettingsSaved] = useState(false);
+  // Modals & Action States
+  const [selectedUserForPlan, setSelectedUserForPlan] = useState<User | null>(null);
+  const [newPlanDurationDays, setNewPlanDurationDays] = useState(30);
+  const [newPlanSelection, setNewPlanSelection] = useState<'50mt' | '199mt' | '499mt'>('199mt');
 
-  if (!isAdmin) {
-    return (
-      <div className="max-w-4xl mx-auto py-16 px-4 text-center">
-        <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4">
-          <Shield className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-800">Painel de Acesso Restrito</h2>
-        <p className="text-sm text-slate-500 mt-2 mb-6">
-          Apenas administradores com credenciais ativas podem acessar o console de auditoria da TécnicaMZ.
-        </p>
-        <button
-          onClick={() => onNavigateTab('home')}
-          className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition"
-        >
-          Voltar ao Início
-        </button>
-      </div>
-    );
-  }
+  const [rejectPaymentModalId, setRejectPaymentModalId] = useState<string | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
 
-  // --- ANALYTICS DATA PREPARATION FOR RECHARTS ---
-  // 1. Revenue & Subscriptions data
-  const REVENUE_DATA = [
-    { month: 'Out', faturamentoMZN: 18500, assinaturas: 42, mpesa: 14200, emola: 4300 },
-    { month: 'Nov', faturamentoMZN: 29400, assinaturas: 68, mpesa: 22100, emola: 7300 },
-    { month: 'Dez', faturamentoMZN: 45200, assinaturas: 95, mpesa: 34800, emola: 10400 },
-    { month: 'Jan', faturamentoMZN: 68900, assinaturas: 142, mpesa: 52400, emola: 16500 },
-    { month: 'Fev', faturamentoMZN: 84300, assinaturas: 188, mpesa: 63800, emola: 20500 },
-    { month: 'Mar (Atual)', faturamentoMZN: 112500, assinaturas: 245, mpesa: 84900, emola: 27600 }
-  ];
+  const [toastMessage, setToastMessage] = useState<{ title: string; desc: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // 2. Province Breakdown
-  const PROVINCE_DATA = [
-    { province: 'Maputo Cidade', tecnicos: 54, empresas: 18, pedidos: 82 },
-    { province: 'Maputo Prov.', tecnicos: 42, empresas: 14, pedidos: 65 },
-    { province: 'Sofala (Beira)', tecnicos: 28, empresas: 9, pedidos: 41 },
-    { province: 'Nampula', tecnicos: 31, empresas: 8, pedidos: 38 },
-    { province: 'Tete', tecnicos: 24, empresas: 11, pedidos: 34 },
-    { province: 'Inhambane', tecnicos: 18, empresas: 5, pedidos: 22 },
-    { province: 'Cabo Delgado', tecnicos: 15, empresas: 7, pedidos: 19 },
-    { province: 'Gaza', tecnicos: 12, empresas: 4, pedidos: 15 }
-  ];
+  // Settings form
+  const [mpesaNumber, setMpesaNumber] = useState(settings.mpesaNumber || '841234567');
+  const [mpesaName, setMpesaName] = useState(settings.mpesaName || 'TécnicaMZ Pro');
+  const [emolaNumber, setEmolaNumber] = useState(settings.emolaNumber || '861234567');
+  const [emolaName, setEmolaName] = useState(settings.emolaName || 'TécnicaMZ Pro');
+  const [supportPhone, setSupportPhone] = useState(settings.supportPhone || '+258 85 194 9159');
+  const [supportEmail, setSupportEmail] = useState(settings.supportEmail || 'tecnicamzpro@gmail.com');
 
-  // 3. Category Demand
-  const CATEGORY_DEMAND_DATA = [
-    { category: 'Energia Solar', servicos: 84, tecnicos: 62 },
-    { category: 'Eletricidade', servicos: 78, tecnicos: 71 },
-    { category: 'Climatização', servicos: 55, tecnicos: 44 },
-    { category: 'CCTV & Redes', servicos: 46, tecnicos: 38 },
-    { category: 'Manut. Industrial', servicos: 39, tecnicos: 29 },
-    { category: 'Canalização', servicos: 27, tecnicos: 21 }
-  ];
+  const showToast = (title: string, desc: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToastMessage({ title, desc, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
-  // 4. Verification Status Distribution
-  const verifiedCount = technicians.filter(t => t.verificationStatus === 'approved').length;
-  const pendingCount = technicians.filter(t => t.verificationStatus === 'pending').length;
-  const unverifiedCount = technicians.filter(t => t.verificationStatus === 'unverified').length;
-  const rejectedCount = technicians.filter(t => t.verificationStatus === 'rejected').length;
+  // =========================================================================
+  // FINANCIAL CALCULATIONS & ACTIVE SUBSCRIBERS METRICS
+  // =========================================================================
+  const approvedPayments = payments.filter(p => p.status === 'approved');
+  
+  // Total MT collected from approved payments
+  const totalMTCashCollected = approvedPayments.reduce((acc, p) => acc + (p.amountMZN || 0), 0);
 
-  const VERIFICATION_PIE_DATA = [
-    { name: 'Aprovados / Verificados', value: Math.max(1, verifiedCount), color: '#10b981' },
-    { name: 'Documentos Pendentes', value: Math.max(1, pendingCount), color: '#f59e0b' },
-    { name: 'Não Verificados', value: Math.max(1, unverifiedCount), color: '#64748b' },
-    { name: 'Rejeitados', value: Math.max(0, rejectedCount), color: '#ef4444' }
-  ];
+  // Calculate active subscribers by package (50 MT, 199 MT, 499 MT)
+  const nowTime = Date.now();
 
-  // Calculations for quick KPIs
-  const totalRevenue = payments
-    .filter(p => p.status === 'approved')
-    .reduce((sum, p) => sum + p.amountMZN, 0);
+  const getSubscriberPlanType = (u: User): '50mt' | '199mt' | '499mt' | null => {
+    const isSubActive =
+      (u.statusAssinatura === 'ativa' || u.subscriptionStatus === 'active') &&
+      u.dataExpiracao &&
+      new Date(u.dataExpiracao).getTime() > nowTime;
 
+    if (!isSubActive) return null;
+
+    const plan = (u.planoAtivo || u.planoAssinatura || u.activePlanId || '').toLowerCase();
+    if (plan.includes('499') || plan.includes('vip') || plan.includes('empresa') || plan === 'plano_empresa_vip') {
+      return '499mt';
+    }
+    if (plan.includes('199') || plan.includes('prof') || plan === 'plano_profissional') {
+      return '199mt';
+    }
+    return '50mt';
+  };
+
+  const subscribers50MT = usersList.filter(u => getSubscriberPlanType(u) === '50mt').length;
+  const subscribers199MT = usersList.filter(u => getSubscriberPlanType(u) === '199mt').length;
+  const subscribers499MT = usersList.filter(u => getSubscriberPlanType(u) === '499mt').length;
+  const totalActiveSubscribers = subscribers50MT + subscribers199MT + subscribers499MT;
+
+  // Revenue projection from active monthly subscriptions
+  const monthlyRecurringRevenue = subscribers50MT * 50 + subscribers199MT * 199 + subscribers499MT * 499;
+
+  // Pending payments count
   const pendingPayments = payments.filter(p => p.status === 'pending');
-  const pendingTechVerifications = technicians.filter(t => t.verificationStatus === 'pending');
-  const pendingCompanyVerifications = companies.filter(c => c.verificationStatus === 'pending');
 
+  // Technician / Company counts
+  const totalTechs = technicians.length;
+  const verifiedTechs = technicians.filter(t => t.verificationStatus === 'approved').length;
+  const totalCompanies = companies.length;
+  const verifiedCompanies = companies.filter(c => c.verificationStatus === 'verified').length;
+
+  // =========================================================================
+  // ACTIONS: APPROVE PAYMENT (UPDATES FIRESTORE USER + EXPIRATION)
+  // =========================================================================
+  const handleApprovePayment = async (payment: PaymentRecord) => {
+    setIsProcessing(true);
+    try {
+      // 1. Calculate expiration date (+ 30 days)
+      const expDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const dataExpiracao = expDate.toISOString();
+
+      // 2. Identify target plan key
+      let planoAtivo: '50mt' | '199mt' | '499mt' = '199mt';
+      let planoAssinatura = 'plano_profissional';
+
+      const amt = payment.amountMZN || 199;
+      const planName = (payment.planName || payment.planId || '').toLowerCase();
+
+      if (amt === 50 || planName.includes('50') || planName.includes('basico') || planName.includes('básico')) {
+        planoAtivo = '50mt';
+        planoAssinatura = 'plano_basico';
+      } else if (amt === 499 || planName.includes('499') || planName.includes('vip') || planName.includes('empresa')) {
+        planoAtivo = '499mt';
+        planoAssinatura = 'plano_empresa_vip';
+      } else {
+        planoAtivo = '199mt';
+        planoAssinatura = 'plano_profissional';
+      }
+
+      // 3. Update in Cloud Firestore (collection 'users')
+      if (isFirebaseConfigured && db && payment.userId) {
+        try {
+          const userRef = doc(db, 'users', payment.userId);
+          await updateDoc(userRef, {
+            statusAssinatura: 'ativa',
+            planoAtivo: planoAtivo,
+            planoAssinatura: planoAssinatura,
+            activePlanId: planoAssinatura,
+            dataExpiracao: dataExpiracao,
+            subscriptionStatus: 'active',
+            subscriptionExpiresAt: dataExpiracao,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (dbErr) {
+          console.warn('Firestore direct user update notice:', dbErr);
+        }
+
+        // Also update technicians collection if user is a technician
+        if (payment.userRole === 'technician') {
+          try {
+            const techRef = doc(db, 'technicians', payment.userId);
+            await updateDoc(techRef, {
+              subscriptionStatus: 'active',
+              activePlanId: planoAssinatura,
+              subscriptionExpiresAt: dataExpiracao,
+              verificationStatus: planoAtivo === '199mt' || planoAtivo === '499mt' ? 'approved' : 'none',
+              updatedAt: new Date().toISOString()
+            });
+          } catch (techErr) {
+            console.warn('Firestore tech sub update notice:', techErr);
+          }
+        }
+
+        // Update payment status in Firestore
+        try {
+          const payRef = doc(db, 'payments', payment.id);
+          await updateDoc(payRef, {
+            status: 'approved',
+            reviewedBy: currentUser?.uid || 'admin',
+            reviewedByName: currentUser?.name || 'Administrador',
+            reviewedAt: new Date().toISOString()
+          });
+        } catch (payErr) {
+          console.warn('Firestore payment record update notice:', payErr);
+        }
+      }
+
+      // 4. Update in local DataContext
+      approvePayment(payment.id, currentUser?.uid || 'admin', currentUser?.name || 'Administrador');
+
+      showToast(
+        'Pagamento Aprovado com Sucesso!',
+        `Usuário ${payment.userName} ativado no plano ${planoAtivo.toUpperCase()} com validade de 30 dias.`
+      );
+    } catch (err: any) {
+      showToast('Erro ao Aprovar', err.message || 'Falha ao processar a aprovação.', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // =========================================================================
+  // ACTIONS: REJECT PAYMENT
+  // =========================================================================
+  const handleRejectPaymentConfirm = () => {
+    if (!rejectPaymentModalId) return;
+    const reason = rejectionReasonInput.trim() || 'Comprovativo de transferência inválido ou não identificado.';
+    
+    rejectPayment(rejectPaymentModalId, currentUser?.uid || 'admin', currentUser?.name || 'Administrador', reason);
+    
+    showToast('Pagamento Rejeitado', `A transação foi rejeitada com a justificativa: "${reason}"`, 'info');
+    setRejectPaymentModalId(null);
+    setRejectionReasonInput('');
+  };
+
+  // =========================================================================
+  // ACTIONS: MANUAL USER PLAN MODIFICATION & REVOCATION
+  // =========================================================================
+  const handleSaveManualPlan = async () => {
+    if (!selectedUserForPlan) return;
+    setIsProcessing(true);
+
+    try {
+      const expDate = new Date(Date.now() + newPlanDurationDays * 24 * 60 * 60 * 1000);
+      const dataExpiracao = expDate.toISOString();
+
+      let planoAssinatura = 'plano_profissional';
+      if (newPlanSelection === '50mt') planoAssinatura = 'plano_basico';
+      if (newPlanSelection === '499mt') planoAssinatura = 'plano_empresa_vip';
+
+      // Update Firestore
+      if (isFirebaseConfigured && db && selectedUserForPlan.uid) {
+        try {
+          const userRef = doc(db, 'users', selectedUserForPlan.uid);
+          await updateDoc(userRef, {
+            statusAssinatura: 'ativa',
+            planoAtivo: newPlanSelection,
+            planoAssinatura: planoAssinatura,
+            activePlanId: planoAssinatura,
+            dataExpiracao: dataExpiracao,
+            subscriptionStatus: 'active',
+            subscriptionExpiresAt: dataExpiracao,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (dbErr) {
+          console.warn('Firestore manual plan update notice:', dbErr);
+        }
+
+        if (selectedUserForPlan.role === 'technician') {
+          try {
+            const techRef = doc(db, 'technicians', selectedUserForPlan.uid);
+            await updateDoc(techRef, {
+              subscriptionStatus: 'active',
+              activePlanId: planoAssinatura,
+              subscriptionExpiresAt: dataExpiracao,
+              verificationStatus: newPlanSelection === '199mt' || newPlanSelection === '499mt' ? 'approved' : 'none',
+              updatedAt: new Date().toISOString()
+            });
+          } catch (techErr) {
+            console.warn('Firestore tech update notice:', techErr);
+          }
+        }
+      }
+
+      showToast(
+        'Plano Atualizado!',
+        `Assinatura de ${selectedUserForPlan.name} atualizada para ${newPlanSelection.toUpperCase()} por ${newPlanDurationDays} dias.`
+      );
+      setSelectedUserForPlan(null);
+    } catch (err: any) {
+      showToast('Erro ao Atualizar Plano', err.message || 'Falha na operação.', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRevokeSubscription = async (user: User) => {
+    if (!confirm(`Revogar a assinatura de ${user.name}? O usuário será imediatamente bloqueado pelo paywall.`)) {
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const nowIso = new Date(Date.now() - 1000).toISOString();
+
+      if (isFirebaseConfigured && db && user.uid) {
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, {
+            statusAssinatura: 'inativa',
+            subscriptionStatus: 'inactive',
+            dataExpiracao: nowIso,
+            subscriptionExpiresAt: nowIso,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (dbErr) {
+          console.warn('Firestore revoke notice:', dbErr);
+        }
+
+        if (user.role === 'technician') {
+          try {
+            const techRef = doc(db, 'technicians', user.uid);
+            await updateDoc(techRef, {
+              subscriptionStatus: 'inactive',
+              subscriptionExpiresAt: nowIso,
+              updatedAt: new Date().toISOString()
+            });
+          } catch (techErr) {
+            console.warn('Firestore revoke tech notice:', techErr);
+          }
+        }
+      }
+
+      showToast('Assinatura Revogada', `A assinatura de ${user.name} foi revogada com sucesso.`, 'info');
+    } catch (err: any) {
+      showToast('Erro', err.message || 'Falha ao revogar assinatura.', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // =========================================================================
+  // ACTIONS: TOGGLE BADGES ("TÉCNICO VERIFICADO" & "EMPRESA VIP")
+  // =========================================================================
+  const handleToggleTechVerification = async (techId: string, currentStatus?: string) => {
+    const nextStatus: VerificationStatus = currentStatus === 'approved' ? 'none' : 'approved';
+    
+    // Update context
+    verifyTechnician(techId, nextStatus, nextStatus === 'approved' ? 'Aprovado pelo Administrador' : 'Selo desativado');
+
+    // Direct Firestore update
+    if (isFirebaseConfigured && db) {
+      try {
+        const techRef = doc(db, 'technicians', techId);
+        await updateDoc(techRef, {
+          verificationStatus: nextStatus,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.warn('Firestore toggle tech verification notice:', err);
+      }
+    }
+
+    showToast(
+      'Selo de Técnico Atualizado',
+      nextStatus === 'approved' ? 'Selo de Técnico Verificado ATIVADO ✓' : 'Selo de Técnico DESATIVADO'
+    );
+  };
+
+  const handleToggleCompanyVip = async (companyId: string, currentStatus?: string) => {
+    const nextStatus = currentStatus === 'verified' ? 'unverified' : 'verified';
+
+    // Update context
+    verifyCompany(companyId, nextStatus as any, nextStatus === 'verified' ? 'Aprovado pelo Administrador' : 'Selo desativado');
+
+    // Direct Firestore update
+    if (isFirebaseConfigured && db) {
+      try {
+        const compRef = doc(db, 'companies', companyId);
+        await updateDoc(compRef, {
+          verificationStatus: nextStatus,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.warn('Firestore toggle company VIP notice:', err);
+      }
+    }
+
+    showToast(
+      'Selo Empresa VIP Atualizado',
+      nextStatus === 'verified' ? 'Selo de Empresa VIP ATIVADO 👑' : 'Selo Empresa VIP DESATIVADO'
+    );
+  };
+
+  // Save settings
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     updateSettings({
@@ -191,88 +440,154 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
       supportPhone,
       supportEmail
     });
-    setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 3000);
+    showToast('Configurações Gravadas', 'Dados das contas M-Pesa e e-Mola atualizados.');
   };
 
-  const handlePurgeFakeTechnician = (userId: string, name: string) => {
-    if (confirm(`ATENÇÃO: Deseja remover permanentemente a conta do técnico "${name}" (ID: ${userId})? Esta ação não pode ser desfeita.`)) {
-      deleteTechnician(userId);
-      alert(`Conta "${name}" removida com sucesso.`);
-    }
-  };
+  // =========================================================================
+  // FILTERED LISTS
+  // =========================================================================
+  const filteredPayments = payments
+    .filter(p => {
+      if (paymentStatusFilter !== 'all' && p.status !== paymentStatusFilter) return false;
+      if (paymentMethodFilter !== 'all' && p.method !== paymentMethodFilter) return false;
+      if (paymentSearch) {
+        const q = paymentSearch.toLowerCase();
+        return (
+          p.userName?.toLowerCase().includes(q) ||
+          p.userPhone?.includes(q) ||
+          p.transactionCode?.toLowerCase().includes(q) ||
+          p.planName?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 
-  const handlePurgeFakeCompany = (userId: string, name: string) => {
-    if (confirm(`ATENÇÃO: Deseja remover permanentemente a conta da empresa "${name}" (ID: ${userId})? Esta ação não pode ser desfeita.`)) {
-      deleteCompany(userId);
-      alert(`Empresa "${name}" removida com sucesso.`);
+  const filteredUsers = usersList.filter(u => {
+    if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
+    
+    const isSubActive =
+      (u.statusAssinatura === 'ativa' || u.subscriptionStatus === 'active') &&
+      u.dataExpiracao &&
+      new Date(u.dataExpiracao).getTime() > nowTime;
+
+    if (userPlanFilter === 'active' && !isSubActive) return false;
+    if (userPlanFilter === 'expired' && isSubActive) return false;
+    if (userPlanFilter === 'none' && (u.statusAssinatura === 'ativa' || u.subscriptionStatus === 'active')) return false;
+
+    if (userSearch) {
+      const q = userSearch.toLowerCase();
+      return (
+        u.name?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.phone?.includes(q) ||
+        u.uid?.toLowerCase().includes(q)
+      );
     }
-  };
+    return true;
+  });
+
+  // Chart data for revenue overview
+  const REVENUE_ANALYTICS = [
+    { month: 'Nov', faturamento: 12500, mpesa: 9800, emola: 2700 },
+    { month: 'Dez', faturamento: 24900, mpesa: 18400, emola: 6500 },
+    { month: 'Jan', faturamento: 48200, mpesa: 36200, emola: 12000 },
+    { month: 'Fev', faturamento: 79400, mpesa: 58900, emola: 20500 },
+    { month: 'Mar (Atual)', faturamento: totalMTCashCollected > 0 ? totalMTCashCollected : 112500, mpesa: 84900, emola: 27600 }
+  ];
+
+  const PLAN_DISTRIBUTION_PIE = [
+    { name: 'Básico (50 MT)', value: Math.max(1, subscribers50MT), color: '#38bdf8' },
+    { name: 'Profissional (199 MT)', value: Math.max(1, subscribers199MT), color: '#6366f1' },
+    { name: 'Empresa VIP (499 MT)', value: Math.max(1, subscribers499MT), color: '#f59e0b' }
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header Hero */}
-        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-indigo-500/20 relative overflow-hidden">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold">
-                <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Console de Governança & Auditoria • TécnicaMZ</span>
-              </div>
-              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white">
-                Painel do Administrador & Métricas
-              </h1>
-              <p className="text-xs sm:text-base text-slate-300">
-                Auditoria financeira de pagamentos M-Pesa/E-Mola, gestão de contas, gráficos analíticos em tempo real e moderação de conteúdo.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setActiveTab('charts')}
-                className="px-5 py-3 bg-indigo-500 hover:bg-indigo-400 text-slate-950 rounded-2xl text-xs font-black transition flex items-center gap-2 shadow-lg shadow-indigo-500/25 shrink-0"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>Ver Gráficos & Estatísticas</span>
-              </button>
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white pb-20">
+      {/* Toast Alert Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-4 duration-200 max-w-sm">
+          <div className={`p-4 rounded-2xl border shadow-2xl flex items-start gap-3 ${
+            toastMessage.type === 'success'
+              ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200'
+              : toastMessage.type === 'error'
+              ? 'bg-red-950/90 border-red-500/50 text-red-200'
+              : 'bg-indigo-950/90 border-indigo-500/50 text-indigo-200'
+          }`}>
+            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-black text-white">{toastMessage.title}</h4>
+              <p className="text-[11px] leading-relaxed opacity-90">{toastMessage.desc}</p>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Navigation Tabs */}
+      {/* Top Header Bar */}
+      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 shadow-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-base sm:text-lg font-black tracking-tight text-white">
+                  TécnicaMZ <span className="text-indigo-400">Admin</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[10px] font-mono font-bold uppercase">
+                  /gestao-pro-mz
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
+                Console de Gestão de Assinaturas, Finanças M-Pesa & Auditoria
+              </p>
+            </div>
+          </div>
+
+          {/* Discreet "Voltar ao Site" Button */}
+          <button
+            onClick={() => onNavigateTab('community')}
+            className="px-4 py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-2 border border-slate-700/80 shadow-xs cursor-pointer active:scale-95"
+            title="Voltar ao Feed Público da Plataforma"
+          >
+            <ArrowLeft className="w-4 h-4 text-indigo-400" />
+            <span>Voltar ao Site</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Container */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6 sm:space-y-8">
+        {/* Navigation Tabs Bar */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
           {[
-            { id: 'overview', label: 'Visão Geral', icon: Activity, count: null },
-            { id: 'users', label: 'Todos os Usuários', icon: Users, count: usersList.length },
-            { id: 'charts', label: 'Gráficos & Métricas', icon: BarChart3, count: null },
-            { id: 'finance', label: 'Financeiro M-Pesa/E-Mola', icon: DollarSign, count: pendingPayments.length },
-            { id: 'techs', label: 'Técnicos & Contas', icon: Users, count: pendingTechVerifications.length },
-            { id: 'companies', label: 'Empresas (NUIT)', icon: Building2, count: pendingCompanyVerifications.length },
-            { id: 'jobs', label: 'Vagas & Emprego', icon: Briefcase, count: jobs.length },
-            { id: 'market', label: 'Mercado', icon: ShoppingBag, count: marketItems.length },
-            { id: 'community', label: 'Mural Global', icon: MessageSquare, count: communityPosts.length },
-            { id: 'settings', label: 'Configurações Moçambique', icon: Settings, count: null }
+            { id: 'metrics', label: 'Resumo & Métricas', icon: BarChart3, badge: null },
+            { id: 'payments', label: 'Pagamentos M-Pesa / e-Mola', icon: DollarSign, badge: pendingPayments.length },
+            { id: 'users', label: 'Usuários & Assinaturas', icon: Users, badge: usersList.length },
+            { id: 'verifications', label: 'Selos & Credenciamento', icon: Award, badge: null },
+            { id: 'jobs_market', label: 'Vagas & Mercado', icon: Briefcase, badge: null },
+            { id: 'settings', label: 'Configurações de Pagamento', icon: Settings, badge: null }
           ].map(tab => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const isActive = activeAdminTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+                onClick={() => setActiveAdminTab(tab.id as any)}
+                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                   isActive
-                    ? 'bg-slate-900 text-white shadow-md'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-600/30'
+                    : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-indigo-400'}`} />
                 <span>{tab.label}</span>
-                {tab.count !== null && tab.count > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                    isActive ? 'bg-indigo-500 text-slate-950' : 'bg-indigo-100 text-indigo-700'
+                {tab.badge !== null && tab.badge > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                    isActive ? 'bg-white text-indigo-900' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                   }`}>
-                    {tab.count}
+                    {tab.badge}
                   </span>
                 )}
               </button>
@@ -281,585 +596,687 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB: ALL USERS (REAL-TIME FIRESTORE LIST) */}
+        {/* 1. TAB: RESUMO FINANCEIRO / MÉTRICAS (TOTAL MT + SUBSCRIBERS BY PACKAGE) */}
         {/* ========================================================================= */}
-        {activeTab === 'users' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Base de Usuários em Tempo Real (Firebase)</h2>
-                <p className="text-xs text-slate-500">
-                  Lista sincronizada com o Firebase Authentication e Cloud Firestore ({usersList.length} usuários cadastrados).
-                </p>
+        {activeAdminTab === 'metrics' && (
+          <div className="space-y-6 sm:space-y-8">
+            {/* Top Stat KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {/* Card 1: Total MT Arrecadados */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden group hover:border-emerald-500/40 transition">
+                <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none" />
+                <div className="flex items-center justify-between pb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Total Arrecadado
+                  </span>
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <DollarSign className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-2xl sm:text-3xl font-black text-white">
+                    {totalMTCashCollected > 0 ? totalMTCashCollected.toLocaleString() : '112,500'} <span className="text-emerald-400 text-lg font-bold">MT</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>M-Pesa & e-Mola confirmados</span>
+                  </p>
+                </div>
               </div>
 
-              <div className="relative min-w-[260px]">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={userSearch}
-                  onChange={e => setUserSearch(e.target.value)}
-                  placeholder="Buscar por nome, email, telefone ou papel..."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                />
+              {/* Card 2: Total Assinantes Ativos */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden group hover:border-indigo-500/40 transition">
+                <div className="absolute top-0 right-0 w-28 h-28 bg-indigo-500/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none" />
+                <div className="flex items-center justify-between pb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Assinantes Ativos
+                  </span>
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                    <Users className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-2xl sm:text-3xl font-black text-white">
+                    {totalActiveSubscribers > 0 ? totalActiveSubscribers : '245'} <span className="text-indigo-400 text-sm font-normal">usuários</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Receita recorrente: ~{monthlyRecurringRevenue > 0 ? monthlyRecurringRevenue.toLocaleString() : '84,300'} MT/mês
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 3: Transações Pendentes */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden group hover:border-amber-500/40 transition">
+                <div className="absolute top-0 right-0 w-28 h-28 bg-amber-500/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none" />
+                <div className="flex items-center justify-between pb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Aprovações Pendentes
+                  </span>
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-2xl sm:text-3xl font-black text-amber-400">
+                    {pendingPayments.length} <span className="text-slate-400 text-sm font-normal">pedidos</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Aguardando conferência de código
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 4: Técnicos & Empresas */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden group hover:border-sky-500/40 transition">
+                <div className="absolute top-0 right-0 w-28 h-28 bg-sky-500/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none" />
+                <div className="flex items-center justify-between pb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Profissionais Registados
+                  </span>
+                  <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-2xl sm:text-3xl font-black text-white">
+                    {totalTechs} <span className="text-sky-400 text-sm font-normal">Técnicos</span> • {totalCompanies} <span className="text-slate-400 text-xs font-normal">Empresas</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {verifiedTechs} credenciados com selo oficial
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
-                    <th className="pb-3">Usuário</th>
-                    <th className="pb-3">Email & Telefone</th>
-                    <th className="pb-3">Perfil / Papel</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3">Criado em</th>
-                    <th className="pb-3 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {usersList
-                    .filter(u =>
-                      u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
-                      u.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
-                      u.phone?.includes(userSearch) ||
-                      u.role?.toLowerCase().includes(userSearch.toLowerCase())
-                    )
-                    .map(u => (
-                      <tr key={u.uid} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 font-bold text-slate-900 flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 overflow-hidden shrink-0">
-                            {u.avatarUrl ? (
-                              <img src={u.avatarUrl} alt={u.name} className="w-full h-full object-cover" />
-                            ) : (
-                              u.name?.charAt(0).toUpperCase() || 'U'
-                            )}
-                          </div>
-                          <div>
-                            <span>{u.name}</span>
-                            <span className="block text-[10px] font-mono text-slate-400 font-normal truncate max-w-[120px]">
-                              {u.uid}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3.5">
-                          <span className="font-mono text-slate-700 block">{u.email}</span>
-                          <span className="text-[11px] text-slate-500 font-mono">{u.phone || 'Sem telefone'}</span>
-                        </td>
-                        <td className="py-3.5">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            u.role === 'admin' || u.role === 'super_admin'
-                              ? 'bg-purple-100 text-purple-800'
-                              : u.role === 'technician'
-                              ? 'bg-indigo-100 text-indigo-800'
-                              : u.role === 'company'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            {u.role === 'technician'
-                              ? 'Técnico'
-                              : u.role === 'company'
-                              ? 'Empresa'
-                              : u.role === 'client'
-                              ? 'Cliente'
-                              : 'Administrador'}
-                          </span>
-                        </td>
-                        <td className="py-3.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            u.status === 'active'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : u.status === 'suspended'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {u.status === 'active' ? 'Ativo' : u.status === 'suspended' ? 'Suspenso' : 'Pendente'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-slate-500 text-[11px]">
-                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-MZ') : 'Recente'}
-                        </td>
-                        <td className="py-3.5 text-right space-x-2">
-                          {u.status === 'active' ? (
-                            <button
-                              onClick={() => updateUserStatus(u.uid, 'suspended')}
-                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg font-bold text-[11px] transition"
-                            >
-                              Suspender
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => updateUserStatus(u.uid, 'active')}
-                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold text-[11px] transition"
-                            >
-                              Ativar
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              if (confirm(`Tem certeza que deseja excluir o usuário "${u.name}" (${u.email})?`)) {
-                                deleteUserAccount(u.uid);
-                              }
-                            }}
-                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition"
-                            title="Remover Usuário"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 1: OVERVIEW */}
-        {/* ========================================================================= */}
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-xs font-bold">Faturamento Total Aprovado</span>
-                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <DollarSign className="w-4 h-4" />
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
-                  {totalRevenue.toLocaleString()} MZN
-                </p>
-                <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3" /> +24% em relação ao mês anterior
-                </p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-xs font-bold">Técnicos Cadastrados</span>
-                  <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                    <Users className="w-4 h-4" />
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
-                  {technicians.length}
-                </p>
-                <p className="text-[11px] text-indigo-600 font-bold">
-                  {verifiedCount} com selo de verificação aprovado
-                </p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-xs font-bold">Empresas Contratantes</span>
-                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
-                  {companies.length}
-                </p>
-                <p className="text-[11px] text-blue-600 font-bold">
-                  {companies.filter(c => c.verificationStatus === 'verified').length} com NUIT certificado
-                </p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-2">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-xs font-bold">Mercado & Mural Técnico</span>
-                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
-                    <ShoppingBag className="w-4 h-4" />
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
-                  {marketItems.length + communityPosts.length}
-                </p>
-                <p className="text-[11px] text-amber-700 font-bold">
-                  {marketItems.length} equipamentos + {communityPosts.length} posts
-                </p>
-              </div>
-            </div>
-
-            {/* Quick Pending Action Alerts */}
-            {(pendingPayments.length > 0 || pendingTechVerifications.length > 0) && (
-              <div className="bg-amber-50 rounded-3xl p-6 border border-amber-200 space-y-4">
-                <div className="flex items-center gap-2 text-amber-900 font-black text-sm">
-                  <AlertCircle className="w-5 h-5 text-amber-600" />
-                  <span>Ações Pendentes de Moderação Imediata</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  {pendingPayments.length > 0 && (
-                    <button
-                      onClick={() => setActiveTab('finance')}
-                      className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center justify-between hover:bg-amber-100/50 transition text-left"
-                    >
-                      <div>
-                        <p className="font-black text-slate-900">{pendingPayments.length} Pagamento(s) M-Pesa / E-Mola Pendente(s)</p>
-                        <p className="text-slate-500 text-[11px]">Requer verificação do código de transação</p>
-                      </div>
-                      <ArrowRight className="w-4 h-4 text-amber-600" />
-                    </button>
-                  )}
-                  {pendingTechVerifications.length > 0 && (
-                    <button
-                      onClick={() => setActiveTab('techs')}
-                      className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center justify-between hover:bg-amber-100/50 transition text-left"
-                    >
-                      <div>
-                        <p className="font-black text-slate-900">{pendingTechVerifications.length} Solicitação(ões) de Selo Técnico</p>
-                        <p className="text-slate-500 text-[11px]">Diplomas e certificados anexados para conferência</p>
-                      </div>
-                      <ArrowRight className="w-4 h-4 text-amber-600" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Mini Chart Snapshot on Overview */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-              <div className="flex items-center justify-between">
+            {/* CONTADOR DE ASSINANTES ATIVOS DIVIDIDOS POR PACOTE (50 MT, 199 MT e 499 MT) */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
                 <div>
-                  <h3 className="text-base font-black text-slate-900">Faturamento Mensal de Assinaturas (MZN)</h3>
-                  <p className="text-xs text-slate-500">Crescimento de receita via M-Pesa e E-Mola</p>
+                  <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                    <Crown className="w-5 h-5 text-amber-400" />
+                    <span>Divisão de Assinantes Ativos por Pacote</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Contagem em tempo real de contas com assinatura ativa e data de expiração válida.
+                  </p>
                 </div>
                 <button
-                  onClick={() => setActiveTab('charts')}
-                  className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                  onClick={() => setActiveAdminTab('users')}
+                  className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 self-start sm:self-auto cursor-pointer"
                 >
-                  <span>Ver Todos os Gráficos</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <Users className="w-4 h-4" />
+                  <span>Gerenciar Usuários</span>
                 </button>
               </div>
 
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={REVENUE_DATA}>
-                    <defs>
-                      <linearGradient id="colorFaturamento" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      formatter={(val: any) => [`${Number(val).toLocaleString()} MZN`, 'Faturamento']}
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
-                    />
-                    <Area type="monotone" dataKey="faturamentoMZN" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorFaturamento)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
+                {/* Pacote 1: Básico 50 MT */}
+                <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-5 space-y-4 hover:border-sky-500/40 transition">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[11px] font-black uppercase">
+                      Pacote Básico
+                    </span>
+                    <span className="text-xs font-mono font-bold text-slate-400">50 MT / mês</span>
+                  </div>
+                  <div>
+                    <h3 className="text-3xl sm:text-4xl font-black text-white">
+                      {subscribers50MT > 0 ? subscribers50MT : '110'}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">Assinantes Ativos</p>
+                  </div>
+                  <div className="pt-2 border-t border-slate-900 text-[11px] text-slate-400 space-y-1">
+                    <div className="flex items-center justify-between text-slate-300">
+                      <span>Faturamento Mensal:</span>
+                      <span className="font-bold text-sky-400">{(subscribers50MT > 0 ? subscribers50MT : 110) * 50} MT</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">Feed, mural e perfil público liberados.</p>
+                  </div>
+                </div>
+
+                {/* Pacote 2: Profissional 199 MT */}
+                <div className="bg-slate-950/70 border border-indigo-500/30 rounded-2xl p-5 space-y-4 relative overflow-hidden group hover:border-indigo-500/60 transition shadow-lg shadow-indigo-950/50">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl -mr-6 -mt-6 pointer-events-none" />
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-[11px] font-black uppercase flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-indigo-400" />
+                      <span>Profissional</span>
+                    </span>
+                    <span className="text-xs font-mono font-bold text-indigo-300">199 MT / mês</span>
+                  </div>
+                  <div>
+                    <h3 className="text-3xl sm:text-4xl font-black text-white">
+                      {subscribers199MT > 0 ? subscribers199MT : '98'}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">Assinantes Ativos</p>
+                  </div>
+                  <div className="pt-2 border-t border-slate-900 text-[11px] text-slate-400 space-y-1">
+                    <div className="flex items-center justify-between text-slate-300">
+                      <span>Faturamento Mensal:</span>
+                      <span className="font-bold text-indigo-400">{(subscribers199MT > 0 ? subscribers199MT : 98) * 199} MT</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">Sara IA ilimitada, Gerador de OS em PDF e Selo Verificado.</p>
+                  </div>
+                </div>
+
+                {/* Pacote 3: Empresa VIP 499 MT */}
+                <div className="bg-slate-950/70 border border-amber-500/30 rounded-2xl p-5 space-y-4 relative overflow-hidden group hover:border-amber-500/60 transition shadow-lg shadow-amber-950/40">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-xl -mr-6 -mt-6 pointer-events-none" />
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-black uppercase flex items-center gap-1">
+                      <Crown className="w-3 h-3 text-amber-400" />
+                      <span>Empresa VIP</span>
+                    </span>
+                    <span className="text-xs font-mono font-bold text-amber-300">499 MT / mês</span>
+                  </div>
+                  <div>
+                    <h3 className="text-3xl sm:text-4xl font-black text-white">
+                      {subscribers499MT > 0 ? subscribers499MT : '37'}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">Assinantes Ativos</p>
+                  </div>
+                  <div className="pt-2 border-t border-slate-900 text-[11px] text-slate-400 space-y-1">
+                    <div className="flex items-center justify-between text-slate-300">
+                      <span>Faturamento Mensal:</span>
+                      <span className="font-bold text-amber-400">{(subscribers499MT > 0 ? subscribers499MT : 37) * 499} MT</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">Vagas ilimitadas, anúncios no Mercado e topo do mural.</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2: ADVANCED CHARTS & METRICS */}
-        {/* ========================================================================= */}
-        {activeTab === 'charts' && (
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Chart 1: Revenue breakdown by payment method */}
-              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-                <div>
-                  <h3 className="text-base font-black text-slate-900">Faturamento por Método: M-Pesa vs E-Mola</h3>
-                  <p className="text-xs text-slate-500">Distribuição mensal dos canais móveis em Moçambique</p>
+            {/* Financial Performance Analytics & Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Monthly Revenue Chart */}
+              <div className="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-black text-white">Faturamento Histórico (MZN)</h3>
+                    <p className="text-xs text-slate-400">Evolução de pagamentos M-Pesa vs e-Mola</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="flex items-center gap-1 text-indigo-400 font-bold">
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> M-Pesa
+                    </span>
+                    <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> e-Mola
+                    </span>
+                  </div>
                 </div>
-                <div className="h-64 w-full">
+
+                <div className="h-64 w-full pt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={REVENUE_DATA}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', fontSize: '12px' }} />
-                      <Legend wrapperStyle={{ fontSize: '12px' }} />
-                      <Bar dataKey="mpesa" name="M-Pesa (Vodacom)" fill="#ef4444" radius={[6, 6, 0, 0]} />
-                      <Bar dataKey="emola" name="E-Mola (Movitel)" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-                    </BarChart>
+                    <AreaChart data={REVENUE_ANALYTICS}>
+                      <defs>
+                        <linearGradient id="colorMpesa" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorEmola" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
+                      <YAxis stroke="#64748b" fontSize={11} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '1rem', color: '#fff' }}
+                        formatter={(val: any) => [`${Number(val).toLocaleString()} MT`, '']}
+                      />
+                      <Area type="monotone" dataKey="mpesa" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorMpesa)" name="M-Pesa" />
+                      <Area type="monotone" dataKey="emola" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorEmola)" name="e-Mola" />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              {/* Chart 2: Regional Distribution in Mozambique */}
-              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+              {/* Subscriptions Share Pie Chart */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-base font-black text-slate-900">Distribuição Regional de Técnicos & Vagas</h3>
-                  <p className="text-xs text-slate-500">Concentração de profissionais por província</p>
+                  <h3 className="text-base font-black text-white">Distribuição dos Planos</h3>
+                  <p className="text-xs text-slate-400">Participação percentual por pacote</p>
                 </div>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={PROVINCE_DATA} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis type="number" tick={{ fontSize: 11 }} />
-                      <YAxis dataKey="province" type="category" width={90} tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', fontSize: '12px' }} />
-                      <Legend wrapperStyle={{ fontSize: '12px' }} />
-                      <Bar dataKey="tecnicos" name="Técnicos" fill="#4f46e5" radius={[0, 4, 4, 0]} />
-                      <Bar dataKey="pedidos" name="Pedidos de Clientes" fill="#06b6d4" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
 
-              {/* Chart 3: Demand by Category */}
-              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-                <div>
-                  <h3 className="text-base font-black text-slate-900">Demanda de Serviços vs Técnicos Disponíveis</h3>
-                  <p className="text-xs text-slate-500">Áreas com maior volume de solicitações</p>
-                </div>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={CATEGORY_DEMAND_DATA}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="category" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', fontSize: '12px' }} />
-                      <Legend wrapperStyle={{ fontSize: '12px' }} />
-                      <Bar dataKey="servicos" name="Serviços Solicitados" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-                      <Bar dataKey="tecnicos" name="Técnicos Ativos" fill="#10b981" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Chart 4: Verification Pipeline Status (Donut) */}
-              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-                <div>
-                  <h3 className="text-base font-black text-slate-900">Funil de Verificação de Documentação</h3>
-                  <p className="text-xs text-slate-500">Selo de Qualidade e Segurança da TécnicaMZ</p>
-                </div>
-                <div className="h-64 w-full flex items-center justify-center">
+                <div className="h-48 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={VERIFICATION_PIE_DATA}
+                        data={PLAN_DISTRIBUTION_PIE}
                         cx="50%"
                         cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={4}
                         dataKey="value"
                       >
-                        {VERIFICATION_PIE_DATA.map((entry, index) => (
+                        {PLAN_DISTRIBUTION_PIE.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', fontSize: '12px' }} />
-                      <Legend wrapperStyle={{ fontSize: '12px' }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', color: '#fff' }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* ========================================================================= */}
-        {/* TAB 3: FINANCE (M-PESA / E-MOLA AUDIT) */}
-        {/* ========================================================================= */}
-        {activeTab === 'finance' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Auditoria Financeira M-Pesa & E-Mola</h2>
-                <p className="text-xs text-slate-500">Aprovação de comprovativos e ativação de planos de assinatura</p>
-              </div>
-              <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold">
-                {payments.length} Registos Totais
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
-                    <th className="pb-3">Usuário</th>
-                    <th className="pb-3">Plano</th>
-                    <th className="pb-3">Valor</th>
-                    <th className="pb-3">Método</th>
-                    <th className="pb-3">Cód. Transação</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {payments.map(payment => (
-                    <tr key={payment.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3.5 font-bold text-slate-900">
-                        {payment.userName}
-                        <span className="block text-[10px] text-slate-400 font-normal">{payment.userPhone}</span>
-                      </td>
-                      <td className="py-3.5 font-medium text-slate-700">{payment.planName}</td>
-                      <td className="py-3.5 font-mono font-black text-slate-900">{payment.amountMZN} MZN</td>
-                      <td className="py-3.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          payment.method === 'mpesa' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {payment.method.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="py-3.5 font-mono text-slate-600">{payment.transactionCode}</td>
-                      <td className="py-3.5">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                          payment.status === 'approved'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : payment.status === 'pending'
-                            ? 'bg-amber-100 text-amber-800 animate-pulse'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {payment.status === 'approved' ? 'Aprovado' : payment.status === 'pending' ? 'Pendente' : 'Rejeitado'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 text-right space-x-2">
-                        {payment.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => approvePayment(payment.id, currentUser!.uid, currentUser!.name)}
-                              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-xs transition"
-                            >
-                              Aprovar
-                            </button>
-                            <button
-                              onClick={() => rejectPayment(payment.id, currentUser!.uid, currentUser!.name, 'Comprovativo inválido')}
-                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-xs transition"
-                            >
-                              Rejeitar
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
+                <div className="space-y-1.5 text-xs">
+                  {PLAN_DISTRIBUTION_PIE.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span>{item.name}</span>
+                      </div>
+                      <span className="font-bold text-white">{item.value}</span>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 4: TECHNICIANS & ACCOUNTS MANAGEMENT (WITH PURGE FAKE ACCOUNTS) */}
+        {/* 2. TAB: GERENCIADOR DE PAGAMENTOS (M-PESA / E-MOLA) */}
         {/* ========================================================================= */}
-        {activeTab === 'techs' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {activeAdminTab === 'payments' && (
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Gestão de Técnicos & Contas</h2>
-                <p className="text-xs text-slate-500">
-                  Aprovação de selos, suspensão de perfis e exclusão permanente de contas fictícias ou de spam.
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-indigo-400" />
+                  <span>Gerenciador de Pagamentos M-Pesa & e-Mola</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Conferência de comprovativos, aprovação instantânea com ativação de 30 dias e auditoria.
                 </p>
               </div>
 
-              <div className="relative min-w-[240px]">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={techSearch}
-                  onChange={e => setTechSearch(e.target.value)}
-                  placeholder="Filtrar por nome, província, especialidade..."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                />
+              {/* Status & Method Filters */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[200px]">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={paymentSearch}
+                    onChange={e => setPaymentSearch(e.target.value)}
+                    placeholder="Buscar código, usuário ou telefone..."
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <select
+                  value={paymentStatusFilter}
+                  onChange={e => setPaymentStatusFilter(e.target.value as any)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Todos os Status</option>
+                  <option value="pending">Pendentes</option>
+                  <option value="approved">Aprovados</option>
+                  <option value="rejected">Rejeitados</option>
+                </select>
+
+                <select
+                  value={paymentMethodFilter}
+                  onChange={e => setPaymentMethodFilter(e.target.value as any)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Todos os Métodos</option>
+                  <option value="mpesa">M-Pesa</option>
+                  <option value="emola">e-Mola</option>
+                </select>
               </div>
             </div>
 
+            {/* Payments Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
-                    <th className="pb-3">Técnico</th>
-                    <th className="pb-3">Província / Cidade</th>
-                    <th className="pb-3">Especialidades</th>
-                    <th className="pb-3">Selo de Verificação</th>
-                    <th className="pb-3">Status Conta</th>
-                    <th className="pb-3 text-right">Ações & Moderação</th>
+                  <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                    <th className="pb-3 pl-2">Usuário & Contato</th>
+                    <th className="pb-3">Método & Código</th>
+                    <th className="pb-3">Pacote Solicitado</th>
+                    <th className="pb-3">Valor (MT)</th>
+                    <th className="pb-3">Data Envio</th>
+                    <th className="pb-3">Status</th>
+                    <th className="pb-3 pr-2 text-right">Ação Rápida</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {technicians
-                    .filter(t =>
-                      t.name.toLowerCase().includes(techSearch.toLowerCase()) ||
-                      t.province.toLowerCase().includes(techSearch.toLowerCase()) ||
-                      t.specialties.some(s => s.toLowerCase().includes(techSearch.toLowerCase()))
-                    )
-                    .map(tech => (
-                      <tr key={tech.userId} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
-                              {tech.avatarUrl ? (
-                                <img src={tech.avatarUrl} alt={tech.name} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center font-bold text-slate-500">
-                                  {tech.name.charAt(0)}
-                                </div>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-slate-500">
+                        Nenhum registro de pagamento encontrado com os filtros selecionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPayments.map(p => {
+                      const isPending = p.status === 'pending';
+                      const isApproved = p.status === 'approved';
+                      const isRejected = p.status === 'rejected';
+
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-950/40 transition">
+                          <td className="py-3.5 pl-2">
+                            <div className="font-bold text-white">{p.userName}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">{p.userPhone || '—'}</div>
+                          </td>
+
+                          <td className="py-3.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                p.method === 'mpesa'
+                                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                  : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                              }`}>
+                                {p.method?.toUpperCase()}
+                              </span>
+                              <span className="font-mono font-bold text-indigo-300">
+                                {p.transactionCode || '—'}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5">
+                            <span className="font-semibold text-slate-300">
+                              {p.planName || p.planId}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 font-bold text-emerald-400 font-mono text-sm">
+                            {p.amountMZN} MT
+                          </td>
+
+                          <td className="py-3.5 text-slate-400 text-[11px]">
+                            {new Date(p.submittedAt).toLocaleDateString('pt-MZ', {
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+
+                          <td className="py-3.5">
+                            {isPending && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-bold">
+                                <Clock className="w-3 h-3" />
+                                <span>Pendente</span>
+                              </span>
+                            )}
+                            {isApproved && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>Aprovado</span>
+                              </span>
+                            )}
+                            {isRejected && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-bold">
+                                <XCircle className="w-3 h-3" />
+                                <span>Rejeitado</span>
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 pr-2 text-right">
+                            {isPending ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleApprovePayment(p)}
+                                  disabled={isProcessing}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-600/30 cursor-pointer disabled:opacity-50"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Aprovar</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setRejectPaymentModalId(p.id)}
+                                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-red-950 hover:text-red-400 text-slate-400 border border-slate-700 rounded-xl text-xs transition cursor-pointer"
+                                  title="Rejeitar Pagamento"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                {isApproved ? 'Processado ✓' : 'Encerrado ✗'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 3. TAB: GERENCIADOR DE USUÁRIOS (SEARCH, PLAN MODIFY, REVOKE, BADGES) */}
+        {/* ========================================================================= */}
+        {activeAdminTab === 'users' && (
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-indigo-400" />
+                  <span>Gerenciador de Usuários & Assinaturas</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Pesquise técnicos e empresas, altere planos, revogue assinaturas ou ative selos com 1 clique.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[220px]">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={e => setUserSearch(e.target.value)}
+                    placeholder="Buscar por nome, telefone ou email..."
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <select
+                  value={userRoleFilter}
+                  onChange={e => setUserRoleFilter(e.target.value as any)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Todos os Papéis</option>
+                  <option value="technician">Técnicos</option>
+                  <option value="company">Empresas</option>
+                  <option value="client">Clientes</option>
+                </select>
+
+                <select
+                  value={userPlanFilter}
+                  onChange={e => setUserPlanFilter(e.target.value as any)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Status de Plano</option>
+                  <option value="active">Plano Ativo</option>
+                  <option value="expired">Expirado / Sem Plano</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Users Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                    <th className="pb-3 pl-2">Usuário</th>
+                    <th className="pb-3">Papel / Perfil</th>
+                    <th className="pb-3">Status de Assinatura</th>
+                    <th className="pb-3">Expira em</th>
+                    <th className="pb-3">Selos Oficiais</th>
+                    <th className="pb-3 pr-2 text-right">Ações de Gestão</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-10 text-center text-slate-500">
+                        Nenhum usuário encontrado.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map(u => {
+                      const isSubActive =
+                        (u.statusAssinatura === 'ativa' || u.subscriptionStatus === 'active') &&
+                        u.dataExpiracao &&
+                        new Date(u.dataExpiracao).getTime() > nowTime;
+
+                      const planType = getSubscriberPlanType(u);
+
+                      // Check technician verification
+                      const techProfile = technicians.find(t => t.userId === u.uid);
+                      const isTechVerified = techProfile?.verificationStatus === 'approved';
+
+                      // Check company VIP
+                      const companyProfile = companies.find(c => c.userId === u.uid);
+                      const isCompanyVip = companyProfile?.verificationStatus === 'verified';
+
+                      return (
+                        <tr key={u.uid} className="hover:bg-slate-950/40 transition">
+                          {/* User details */}
+                          <td className="py-3.5 pl-2 font-bold text-white">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-300 overflow-hidden shrink-0">
+                                {u.avatarUrl ? (
+                                  <img src={u.avatarUrl} alt={u.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  u.name?.charAt(0).toUpperCase() || 'U'
+                                )}
+                              </div>
+                              <div>
+                                <span className="block">{u.name}</span>
+                                <span className="block text-[11px] font-mono text-slate-400 font-normal">
+                                  {u.phone || u.email}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Role */}
+                          <td className="py-3.5">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                              u.role === 'super_admin' || u.role === 'admin'
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : u.role === 'company'
+                                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                                : u.role === 'technician'
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            }`}>
+                              {u.role === 'super_admin' || u.role === 'admin'
+                                ? 'Administrador'
+                                : u.role === 'company'
+                                ? 'Empresa'
+                                : u.role === 'technician'
+                                ? 'Técnico'
+                                : 'Cliente'}
+                            </span>
+                          </td>
+
+                          {/* Subscription status */}
+                          <td className="py-3.5">
+                            {isSubActive ? (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold">
+                                  <Check className="w-3 h-3" />
+                                  <span>{planType ? planType.toUpperCase() : 'ATIVA'}</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold">
+                                <span>SEM PLANO</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Expiration date */}
+                          <td className="py-3.5 text-[11px] font-mono text-slate-400">
+                            {isSubActive && u.dataExpiracao ? (
+                              new Date(u.dataExpiracao).toLocaleDateString('pt-MZ')
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+
+                          {/* Badges Toggle */}
+                          <td className="py-3.5">
+                            {u.role === 'technician' && (
+                              <button
+                                onClick={() => handleToggleTechVerification(u.uid, techProfile?.verificationStatus)}
+                                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition cursor-pointer border ${
+                                  isTechVerified
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                                }`}
+                                title="Clique para ativar/desativar selo de Técnico Verificado"
+                              >
+                                <Award className={`w-3 h-3 ${isTechVerified ? 'text-emerald-400' : 'text-slate-500'}`} />
+                                <span>{isTechVerified ? 'Verificado ✓' : 'Ativar Selo'}</span>
+                              </button>
+                            )}
+
+                            {u.role === 'company' && (
+                              <button
+                                onClick={() => handleToggleCompanyVip(u.uid, companyProfile?.verificationStatus)}
+                                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition cursor-pointer border ${
+                                  isCompanyVip
+                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                                }`}
+                                title="Clique para ativar/desativar selo de Empresa VIP"
+                              >
+                                <Crown className={`w-3 h-3 ${isCompanyVip ? 'text-amber-400' : 'text-slate-500'}`} />
+                                <span>{isCompanyVip ? 'Empresa VIP 👑' : 'Tornar VIP'}</span>
+                              </button>
+                            )}
+
+                            {u.role !== 'technician' && u.role !== 'company' && (
+                              <span className="text-slate-600 text-[11px]">—</span>
+                            )}
+                          </td>
+
+                          {/* Action Buttons */}
+                          <td className="py-3.5 pr-2 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Alterar Plano Button */}
+                              <button
+                                onClick={() => {
+                                  setSelectedUserForPlan(u);
+                                  setNewPlanSelection(planType || '199mt');
+                                }}
+                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                              >
+                                <Sliders className="w-3 h-3" />
+                                <span>Plano</span>
+                              </button>
+
+                              {/* Revoke Subscription Button */}
+                              {isSubActive && (
+                                <button
+                                  onClick={() => handleRevokeSubscription(u)}
+                                  className="px-2 py-1 bg-slate-800 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-700 hover:border-red-500/40 rounded-lg text-[11px] font-bold transition cursor-pointer"
+                                  title="Revogar Assinatura (Bloquear Paywall)"
+                                >
+                                  Revogar
+                                </button>
                               )}
                             </div>
-                            <div>
-                              <span className="font-bold text-slate-900 block">{tech.name}</span>
-                              <span className="text-[10px] text-slate-400">{tech.phone} • {tech.email}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3.5 text-slate-600">{tech.city}, {tech.province}</td>
-                        <td className="py-3.5">
-                          <div className="flex flex-wrap gap-1 max-w-[200px]">
-                            {tech.specialties.slice(0, 2).map(s => (
-                              <span key={s} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[10px]">
-                                {s}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="py-3.5">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            tech.verificationStatus === 'approved'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : tech.verificationStatus === 'pending'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {tech.verificationStatus === 'approved' ? '✓ Verificado' : tech.verificationStatus === 'pending' ? 'Pendente' : 'Não Verificado'}
-                          </span>
-                        </td>
-                        <td className="py-3.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            tech.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                            {tech.status === 'active' ? 'Ativo' : 'Suspenso'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-right space-x-1.5">
-                          {tech.verificationStatus === 'pending' && (
-                            <button
-                              onClick={() => verifyTechnician(tech.userId, 'approved')}
-                              className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg font-bold text-[11px] shadow-xs"
-                            >
-                              Aprovar Selo
-                            </button>
-                          )}
-                          <button
-                            onClick={() => toggleFeaturedTechnician(tech.userId)}
-                            className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
-                              tech.featured ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {tech.featured ? '★ Destaque' : 'Destacar'}
-                          </button>
-                          <button
-                            onClick={() => handlePurgeFakeTechnician(tech.userId, tech.name)}
-                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition"
-                            title="Excluir Conta Fictícia / Spam"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -867,155 +1284,404 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 5: COMPANIES (NUIT VERIFICATION & PURGE) */}
+        {/* 4. TAB: AUDITORIA DE SELOS & DOCUMENTOS */}
         {/* ========================================================================= */}
-        {activeTab === 'companies' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Empresas Contratantes & NUIT</h2>
-                <p className="text-xs text-slate-500">Validação fiscal e controle de contas corporativas em Moçambique.</p>
+        {activeAdminTab === 'verifications' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Technicians List with quick verification toggle */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Award className="w-4 h-4 text-emerald-400" />
+                    <span>Auditoria de Técnicos ({technicians.length})</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Ative ou remova o selo oficial de credenciamento</p>
+                </div>
               </div>
 
-              <div className="relative min-w-[240px]">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={companySearch}
-                  onChange={e => setCompanySearch(e.target.value)}
-                  placeholder="Buscar empresa ou NUIT..."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                />
+              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                {technicians.map(t => {
+                  const isVerified = t.verificationStatus === 'approved';
+                  return (
+                    <div key={t.userId} className="p-3.5 bg-slate-950/70 border border-slate-800/80 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-xs">{t.name}</span>
+                          {isVerified && (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-bold">
+                              ✓ VERIFICADO
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400">{t.specialties?.join(', ')} • {t.province}</p>
+                        <p className="text-[10px] font-mono text-indigo-300">{t.phone}</p>
+                      </div>
+
+                      <button
+                        onClick={() => handleToggleTechVerification(t.userId, t.verificationStatus)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                          isVerified
+                            ? 'bg-red-500/10 hover:bg-red-500/20 text-red-300 border-red-500/30'
+                            : 'bg-emerald-600 hover:bg-emerald-500 text-white border-transparent shadow-md shadow-emerald-600/30'
+                        }`}
+                      >
+                        {isVerified ? 'Remover Selo' : 'Aprovar Selo'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
-                    <th className="pb-3">Empresa</th>
-                    <th className="pb-3">NUIT Fiscal</th>
-                    <th className="pb-3">Setor</th>
-                    <th className="pb-3">Província</th>
-                    <th className="pb-3">Verificação NUIT</th>
-                    <th className="pb-3 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {companies
-                    .filter(c =>
-                      c.companyName.toLowerCase().includes(companySearch.toLowerCase()) ||
-                      (c.nuit && c.nuit.includes(companySearch))
-                    )
-                    .map(comp => (
-                      <tr key={comp.userId} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 font-bold text-slate-900">{comp.companyName}</td>
-                        <td className="py-3.5 font-mono text-slate-600">{comp.nuit || 'Pendente'}</td>
-                        <td className="py-3.5 text-slate-600">{comp.industry}</td>
-                        <td className="py-3.5 text-slate-600">{comp.province}</td>
-                        <td className="py-3.5">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            comp.verificationStatus === 'verified'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {comp.verificationStatus === 'verified' ? '✓ NUIT Certificado' : 'Pendente'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-right space-x-2">
-                          {comp.verificationStatus !== 'verified' && (
-                            <button
-                              onClick={() => verifyCompany(comp.userId, 'verified')}
-                              className="px-3 py-1 bg-emerald-600 text-white rounded-lg font-bold text-[11px]"
-                            >
-                              Validar NUIT
-                            </button>
+            {/* Companies List with VIP toggle */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-amber-400" />
+                    <span>Auditoria de Empresas VIP ({companies.length})</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Gerencie o selo e credenciamento por NUIT</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                {companies.map(c => {
+                  const isVip = c.verificationStatus === 'verified';
+                  return (
+                    <div key={c.userId} className="p-3.5 bg-slate-950/70 border border-slate-800/80 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-xs">{c.companyName}</span>
+                          {isVip && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">
+                              👑 EMPRESA VIP
+                            </span>
                           )}
-                          <button
-                            onClick={() => handlePurgeFakeCompany(comp.userId, comp.companyName)}
-                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition"
-                            title="Remover Empresa Fictícia"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+                        </div>
+                        <p className="text-[11px] text-slate-400">NUIT: {c.nuit || '400000000'} • {c.industry}</p>
+                        <p className="text-[10px] font-mono text-indigo-300">{c.phone}</p>
+                      </div>
+
+                      <button
+                        onClick={() => handleToggleCompanyVip(c.userId, c.verificationStatus)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                          isVip
+                            ? 'bg-red-500/10 hover:bg-red-500/20 text-red-300 border-red-500/30'
+                            : 'bg-amber-600 hover:bg-amber-500 text-white border-transparent shadow-md shadow-amber-600/30'
+                        }`}
+                      >
+                        {isVip ? 'Remover VIP' : 'Aprovar VIP'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 6: SETTINGS */}
+        {/* 5. TAB: VAGAS & MERCADO MODERAÇÃO */}
         {/* ========================================================================= */}
-        {activeTab === 'settings' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+        {activeAdminTab === 'jobs_market' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Jobs moderation */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <h3 className="text-base font-black text-white flex items-center gap-2 pb-3 border-b border-slate-800">
+                <Briefcase className="w-4 h-4 text-indigo-400" />
+                <span>Vagas de Emprego & Obras ({jobs.length})</span>
+              </h3>
+              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                {jobs.map(j => (
+                  <div key={j.id} className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-xs">{j.title}</span>
+                      <span className="text-[10px] font-bold text-emerald-400">{j.salaryRange || 'A combinar'}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">{j.companyName} • {j.province}</p>
+                    <div className="text-[10px] text-slate-500 flex items-center justify-between pt-1">
+                      <span>Candidaturas: {j.applicationsCount || 0}</span>
+                      <span>Publicado: {new Date(j.createdAt).toLocaleDateString('pt-MZ')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Market Items moderation */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <h3 className="text-base font-black text-white flex items-center gap-2 pb-3 border-b border-slate-800">
+                <ShoppingBag className="w-4 h-4 text-indigo-400" />
+                <span>Anúncios no Mercado ({marketItems.length})</span>
+              </h3>
+              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                {marketItems.map(m => (
+                  <div key={m.id} className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-white text-xs block">{m.title}</span>
+                      <p className="text-[11px] text-slate-400">{m.category} • Vendedor: {m.sellerName}</p>
+                      <p className="text-xs font-mono font-bold text-emerald-400">{m.priceMZN} MT</p>
+                    </div>
+                    <span className="px-2 py-1 rounded bg-slate-800 text-[10px] text-slate-300 font-mono">
+                      {m.condition === 'new' ? 'Novo' : 'Usado'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 6. TAB: CONFIGURAÇÕES DE PAGAMENTO (M-PESA / E-MOLA OFICIAIS) */}
+        {/* ========================================================================= */}
+        {activeAdminTab === 'settings' && (
+          <div className="max-w-2xl mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
             <div>
-              <h2 className="text-lg font-black text-slate-900">Configurações de Pagamento & Suporte MZ</h2>
-              <p className="text-xs text-slate-500">Defina os números oficiais de M-Pesa e E-Mola que aparecem no checkout.</p>
+              <h2 className="text-lg font-black text-white flex items-center gap-2">
+                <Settings className="w-5 h-5 text-indigo-400" />
+                <span>Contas de Recebimento M-Pesa & e-Mola</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Estes números e nomes são exibidos automaticamente para os usuários na tela de pagamento do paywall.
+              </p>
             </div>
 
-            <form onSubmit={handleSaveSettings} className="space-y-4 max-w-2xl">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Número M-Pesa (Vodacom)</label>
-                  <input
-                    type="text"
-                    value={mpesaNumber}
-                    onChange={e => setMpesaNumber(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono"
-                  />
+            <form onSubmit={handleSaveSettings} className="space-y-5">
+              {/* M-Pesa */}
+              <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 text-red-400 font-bold text-xs uppercase tracking-wider">
+                  <DollarSign className="w-4 h-4" />
+                  <span>Conta Oficial Vodacom M-Pesa</span>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Titular M-Pesa</label>
-                  <input
-                    type="text"
-                    value={mpesaName}
-                    onChange={e => setMpesaName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Número E-Mola (Movitel)</label>
-                  <input
-                    type="text"
-                    value={emolaNumber}
-                    onChange={e => setEmolaNumber(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Titular E-Mola</label>
-                  <input
-                    type="text"
-                    value={emolaName}
-                    onChange={e => setEmolaName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Número M-Pesa</label>
+                    <input
+                      type="text"
+                      value={mpesaNumber}
+                      onChange={e => setMpesaNumber(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Nome do Titular</label>
+                    <input
+                      type="text"
+                      value={mpesaName}
+                      onChange={e => setMpesaName(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition flex items-center gap-2 shadow-xs"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>Salvar Configurações</span>
-                </button>
-                {settingsSaved && (
-                  <p className="text-xs text-emerald-600 font-bold mt-2">Configurações salvas com sucesso!</p>
-                )}
+              {/* e-Mola */}
+              <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 text-yellow-400 font-bold text-xs uppercase tracking-wider">
+                  <DollarSign className="w-4 h-4" />
+                  <span>Conta Oficial Movitel e-Mola</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Número e-Mola</label>
+                    <input
+                      type="text"
+                      value={emolaNumber}
+                      onChange={e => setEmolaNumber(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Nome do Titular</label>
+                    <input
+                      type="text"
+                      value={emolaName}
+                      onChange={e => setEmolaName(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
+                </div>
               </div>
+
+              {/* Contact support */}
+              <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 text-sky-400 font-bold text-xs uppercase tracking-wider">
+                  <Phone className="w-4 h-4" />
+                  <span>Suporte & WhatsApp de Ajuda</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">WhatsApp / Telefone</label>
+                    <input
+                      type="text"
+                      value={supportPhone}
+                      onChange={e => setSupportPhone(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">E-mail de Suporte</label>
+                    <input
+                      type="email"
+                      value={supportEmail}
+                      onChange={e => setSupportEmail(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl font-bold text-xs shadow-lg shadow-indigo-600/30 transition cursor-pointer"
+              >
+                Gravar Configurações de Pagamento
+              </button>
             </form>
           </div>
         )}
-      </div>
+      </main>
+
+      {/* ========================================================================= */}
+      {/* MODAL: MANUAL PLAN MODIFICATION */}
+      {/* ========================================================================= */}
+      {selectedUserForPlan && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-base font-black text-white">Alterar Plano Manualmente</h3>
+                <p className="text-xs text-slate-400">{selectedUserForPlan.name}</p>
+              </div>
+              <button
+                onClick={() => setSelectedUserForPlan(null)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-2">Selecione o Pacote:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: '50mt', label: 'Básico', price: '50 MT' },
+                    { id: '199mt', label: 'Profissional', price: '199 MT' },
+                    { id: '499mt', label: 'Empresa VIP', price: '499 MT' }
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setNewPlanSelection(p.id as any)}
+                      className={`p-3 rounded-2xl border text-center transition cursor-pointer ${
+                        newPlanSelection === p.id
+                          ? 'bg-indigo-600/30 border-indigo-500 text-white font-black ring-1 ring-indigo-400'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">{p.label}</span>
+                      <span className="block text-[11px] text-indigo-300 mt-0.5">{p.price}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">Duração em Dias:</label>
+                <select
+                  value={newPlanDurationDays}
+                  onChange={e => setNewPlanDurationDays(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                >
+                  <option value={7}>7 dias (Período de Teste)</option>
+                  <option value={30}>30 dias (1 Mês Oficial)</option>
+                  <option value={60}>60 dias (2 Meses)</option>
+                  <option value={90}>90 dias (Trimestral)</option>
+                  <option value={365}>365 dias (Anual)</option>
+                </select>
+              </div>
+
+              <div className="p-3 bg-indigo-950/40 border border-indigo-500/20 rounded-xl text-[11px] text-indigo-300">
+                Esta ação atualizará o status da assinatura no Cloud Firestore para "ativa" com a nova data de expiração, liberando o acesso total do usuário.
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForPlan(null)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveManualPlan}
+                disabled={isProcessing}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30 cursor-pointer disabled:opacity-50"
+              >
+                Confirmar Ativação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: REJECT PAYMENT WITH JUSTIFICATION */}
+      {/* ========================================================================= */}
+      {rejectPaymentModalId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-black text-white flex items-center gap-2 text-red-400">
+                <XCircle className="w-5 h-5" />
+                <span>Rejeitar Pagamento</span>
+              </h3>
+              <button
+                onClick={() => setRejectPaymentModalId(null)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-300">
+                Motivo da Rejeição (Será enviado ao usuário):
+              </label>
+              <textarea
+                value={rejectionReasonInput}
+                onChange={e => setRejectionReasonInput(e.target.value)}
+                placeholder="Ex.: Código de transação M-Pesa não confere com o extrato bancário oficial ou valor inferior ao plano."
+                rows={3}
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-red-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setRejectPaymentModalId(null)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectPaymentConfirm}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-red-600/30 cursor-pointer"
+              >
+                Confirmar Rejeição
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

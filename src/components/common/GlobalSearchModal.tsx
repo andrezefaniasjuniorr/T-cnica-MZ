@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import {
   X,
+  ArrowLeft,
   Search,
   Wrench,
   Building2,
@@ -82,7 +83,15 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 p-4 bg-slate-950/75 backdrop-blur-xs">
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Search Bar Input */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center gap-3 bg-slate-50">
+        <div className="p-3.5 sm:p-5 border-b border-slate-200 flex items-center gap-2.5 sm:gap-3 bg-slate-50">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 flex items-center gap-1 text-xs font-bold transition shadow-2xs"
+            title="Voltar / Fechar pesquisa"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Voltar</span>
+          </button>
           <Search className="w-5 h-5 text-blue-600 shrink-0" />
           <input
             type="text"
@@ -90,7 +99,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Pesquisar técnicos, empresas, vagas, ferramentas ou artigos..."
-            className="flex-1 bg-transparent text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none"
+            className="flex-1 bg-transparent text-xs sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none"
           />
           {query && (
             <button
@@ -102,7 +111,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
           )}
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 transition"
+            className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+            title="Fechar (X)"
           >
             <X className="w-5 h-5" />
           </button>

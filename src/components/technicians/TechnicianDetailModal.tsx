@@ -6,6 +6,7 @@ import { WhatsAppButton } from './WhatsAppButton';
 import { Badge } from '../common/Badge';
 import {
   X,
+  ArrowLeft,
   Star,
   CheckCircle2,
   MapPin,
@@ -77,19 +78,27 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
         {/* Header Cover Banner */}
         <div className="h-32 sm:h-40 bg-linear-to-r from-blue-900 via-indigo-900 to-slate-900 relative p-4 flex justify-between items-start">
           <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition flex items-center gap-1.5 text-xs font-bold shadow-sm"
+              title="Voltar aos técnicos"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Voltar</span>
+            </button>
             {technician.featured && (
               <span className="px-3 py-1 bg-amber-400 text-slate-950 rounded-full text-xs font-black tracking-wide uppercase shadow-sm">
-                ⭐ Técnico em Destaque
+                ⭐ Em Destaque
               </span>
             )}
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => toggleFavorite(technician.userId)}
-              className={`p-2.5 rounded-full backdrop-blur-md transition ${
+              className={`p-2 rounded-full backdrop-blur-md transition ${
                 isFav
                   ? 'bg-rose-500 text-white'
-                  : 'bg-white/20 hover:bg-white/30 text-white'
+                  : 'bg-black/40 hover:bg-black/60 text-white'
               }`}
               title={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             >
@@ -97,7 +106,8 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-md transition"
+              className="p-2 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition"
+              title="Fechar (X)"
             >
               <X className="w-4 h-4" />
             </button>

@@ -109,14 +109,24 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // 7. Payments & Receipts
+    // 7. Payments & Receipts (pagamentos)
     match /payments/{paymentId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
         isFinanceAdmin()
       );
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isFinanceAdmin();
+      allow update: if isFinanceAdmin() || (isAuthenticated() && request.resource.data.userId == request.auth.uid);
+      allow delete: if isSuperAdmin();
+    }
+
+    match /pagamentos/{paymentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isFinanceAdmin()
+      );
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isFinanceAdmin() || (isAuthenticated() && request.resource.data.userId == request.auth.uid);
       allow delete: if isSuperAdmin();
     }
 

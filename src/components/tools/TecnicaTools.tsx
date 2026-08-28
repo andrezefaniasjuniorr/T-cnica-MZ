@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
+import { CheckoutModal } from '../subscription/CheckoutModal';
 import {
   Calculator,
   Sun,
@@ -23,14 +26,69 @@ import {
   Droplets,
   Layers,
   Sparkles,
-  Camera
+  Camera,
+  FileText,
+  Printer,
+  Download,
+  Plus,
+  Trash2,
+  Building2,
+  User,
+  Phone,
+  Calendar,
+  DollarSign,
+  ArrowRight
 } from 'lucide-react';
 import { MOZAMBIQUE_PROVINCES } from '../../types';
+import { TopBackNav } from '../common/TopBackNav';
 
-export const TecnicaTools: React.FC = () => {
+interface TecnicaToolsProps {
+  onNavigateTab?: (tab: string) => void;
+}
+
+export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => {
+  const { currentUser, canAccessOSGenerator } = useAuth();
+  const { plans } = useData();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
   const [activeTool, setActiveTool] = useState<
-    'wall_level' | 'tape_measure' | 'solar' | 'ac' | 'cable' | 'grounding' | 'water_pump'
+    'wall_level' | 'tape_measure' | 'solar' | 'ac' | 'cable' | 'grounding' | 'water_pump' | 'service_order'
   >('wall_level');
+
+  // ==========================================
+  // TOOL 8: SERVICE ORDER (ORDEM DE SERVIÇO EM PDF)
+  // ==========================================
+  const [osNumber, setOsNumber] = useState(`OS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [osClientName, setOsClientName] = useState('');
+  const [osClientPhone, setOsClientPhone] = useState('');
+  const [osClientAddress, setOsClientAddress] = useState('Maputo');
+  const [osTechnicianName, setOsTechnicianName] = useState(currentUser?.name || 'Técnico Especialista');
+  const [osTechnicianNuit, setOsTechnicianNuit] = useState('100458921');
+  const [osServiceType, setOsServiceType] = useState('Instalação e Manutenção Técnica');
+  const [osDescription, setOsDescription] = useState('');
+  const [osWarrantyDays, setOsWarrantyDays] = useState(30);
+  const [osItems, setOsItems] = useState<Array<{ id: string; desc: string; qty: number; unitPrice: number }>>([
+    { id: '1', desc: 'Mão de Obra e Diagnóstico Técnico', qty: 1, unitPrice: 2500 },
+    { id: '2', desc: 'Disjuntor Bipolar 32A DIN Schneider', qty: 1, unitPrice: 850 }
+  ]);
+
+  const osTotalMZN = osItems.reduce((acc, item) => acc + (item.qty * item.unitPrice), 0);
+
+  const handleAddOsItem = () => {
+    setOsItems(prev => [
+      ...prev,
+      { id: String(Date.now()), desc: 'Material / Serviço adicional', qty: 1, unitPrice: 500 }
+    ]);
+  };
+
+  const handleRemoveOsItem = (id: string) => {
+    if (osItems.length <= 1) return;
+    setOsItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handlePrintOS = () => {
+    window.print();
+  };
 
   // ==========================================
   // TOOL 1: WALL & SURFACE LEVEL (NÍVEL DE PAREDE E PRUMO)
@@ -43,35 +101,82 @@ export const TecnicaTools: React.FC = () => {
   const [isHold, setIsHold] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
   const [hasDeviceMotion, setHasDeviceMotion] = useState<boolean>(false);
+  const [permissionRequired, setPermissionRequired] = useState<boolean>(false);
 
-  // Manual simulator controls for desktop testing
-  const [simulatedPitch, setSimulatedPitch] = useState<number>(0.2);
-  const [simulatedRoll, setSimulatedRoll] = useState<number>(0.1);
-  const [useSimulation, setUseSimulation] = useState<boolean>(true);
+  // Manual simulator / touch controls
+  const [simulatedPitch, setSimulatedPitch] = useState<number>(0);
+  const [simulatedRoll, setSimulatedRoll] = useState<number>(0);
+  const [useSimulation, setUseSimulation] = useState<boolean>(false);
 
-  // Device orientation listener
+  // Check if iOS requires permission
   useEffect(() => {
+    if (typeof (window as any).DeviceOrientationEvent !== 'undefined') {
+      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        setPermissionRequired(true);
+      }
+    }
+  }, []);
+
+  // Device orientation listener with smooth filtering
+  useEffect(() => {
+    let receivedEvents = 0;
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      if (e.beta !== null && e.gamma !== null) {
-        setHasDeviceMotion(true);
-        setUseSimulation(false);
+      if (e.beta !== null && e.gamma !== null && !isNaN(e.beta) && !isNaN(e.gamma)) {
+        receivedEvents++;
+        if (receivedEvents > 1) {
+          setHasDeviceMotion(true);
+          setUseSimulation(false);
+        }
         if (!isHold) {
-          setPitch(Number((e.beta - calibratedOffsetPitch).toFixed(1)));
-          setRoll(Number((e.gamma - calibratedOffsetRoll).toFixed(1)));
+          // Normalize roll (-90 to +90) and pitch (-90 to +90)
+          const rawRoll = Math.max(-90, Math.min(90, e.gamma));
+          const rawPitch = Math.max(-90, Math.min(90, e.beta));
+          setRoll(Number((rawRoll - calibratedOffsetRoll).toFixed(1)));
+          setPitch(Number((rawPitch - calibratedOffsetPitch).toFixed(1)));
         }
       }
     };
 
     if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', handleOrientation);
+      window.addEventListener('deviceorientation', handleOrientation, true);
     }
 
+    // Fallback check after 1.5s: if no motion events received, enable simulation mode gracefully
+    const timer = setTimeout(() => {
+      if (receivedEvents === 0) {
+        setUseSimulation(true);
+      }
+    }, 1500);
+
     return () => {
+      clearTimeout(timer);
       if (window.DeviceOrientationEvent) {
-        window.removeEventListener('deviceorientation', handleOrientation);
+        window.removeEventListener('deviceorientation', handleOrientation, true);
       }
     };
   }, [isHold, calibratedOffsetPitch, calibratedOffsetRoll]);
+
+  const requestOrientationPermission = async () => {
+    if (typeof (DeviceOrientationEvent as any)?.requestPermission === 'function') {
+      try {
+        const res = await (DeviceOrientationEvent as any).requestPermission();
+        if (res === 'granted') {
+          setHasDeviceMotion(true);
+          setUseSimulation(false);
+          setPermissionRequired(false);
+        } else {
+          alert('Permissão de sensor não concedida. Você pode usar os controles manuais/toque.');
+          setUseSimulation(true);
+        }
+      } catch (err) {
+        console.warn('Sensor request error:', err);
+        setUseSimulation(true);
+      }
+    } else {
+      setHasDeviceMotion(true);
+      setUseSimulation(false);
+    }
+  };
 
   // Update angles if simulation is active
   useEffect(() => {
@@ -100,12 +205,21 @@ export const TecnicaTools: React.FC = () => {
   };
 
   // Level calculations
-  const effectiveRoll = isHold ? roll : (useSimulation ? simulatedRoll - calibratedOffsetRoll : roll);
-  const effectivePitch = isHold ? pitch : (useSimulation ? simulatedPitch - calibratedOffsetPitch : pitch);
+  const effectiveRoll = isHold ? roll : (useSimulation ? Number((simulatedRoll - calibratedOffsetRoll).toFixed(1)) : roll);
+  const effectivePitch = isHold ? pitch : (useSimulation ? Number((simulatedPitch - calibratedOffsetPitch).toFixed(1)) : pitch);
 
-  const isHorizontalLevel = Math.abs(effectiveRoll) <= 0.5;
-  const isVerticalPlumb = Math.abs(effectivePitch) <= 0.5 || Math.abs(Math.abs(effectivePitch) - 90) <= 0.5;
-  const isSurfaceBullseyeLevel = Math.abs(effectiveRoll) <= 0.5 && Math.abs(effectivePitch) <= 0.5;
+  const isHorizontalLevel = Math.abs(effectiveRoll) <= 0.4;
+  const isVerticalPlumb = Math.abs(effectivePitch) <= 0.4 || Math.abs(Math.abs(effectivePitch) - 90) <= 0.4;
+  const isSurfaceBullseyeLevel = Math.abs(effectiveRoll) <= 0.4 && Math.abs(effectivePitch) <= 0.4;
+
+  // Haptic feedback on perfect 0.0°
+  useEffect(() => {
+    if (isHorizontalLevel && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(20);
+      } catch {}
+    }
+  }, [isHorizontalLevel]);
 
   // Deviation in mm per meter: tan(angle in radians) * 1000
   const rollMmPerMeter = (Math.tan((effectiveRoll * Math.PI) / 180) * 1000).toFixed(1);
@@ -253,8 +367,18 @@ export const TecnicaTools: React.FC = () => {
   const solarPanelsKwpForPump = Number((pumpPowerKw * 1.4).toFixed(2));
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        {onNavigateTab && (
+          <TopBackNav
+            title="Instrumentos & Calculadoras Técnicas"
+            category="Ferramentas"
+            onBack={() => onNavigateTab('community')}
+            backLabel="Voltar ao Mural"
+          />
+        )}
+
         {/* Header Hero */}
         <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-cyan-500/20 relative overflow-hidden">
           <div className="max-w-3xl space-y-3">
@@ -272,20 +396,20 @@ export const TecnicaTools: React.FC = () => {
         </div>
 
         {/* Tool Navigation Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           {/* 1. Nível de Parede */}
           <button
             onClick={() => setActiveTool('wall_level')}
-            className={`p-4 rounded-2xl border text-left transition flex flex-col justify-between gap-3 ${
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
               activeTool === 'wall_level'
                 ? 'bg-cyan-600 text-white border-cyan-500 shadow-md ring-2 ring-cyan-400/30'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
               activeTool === 'wall_level' ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-700'
             }`}>
-              <Compass className="w-5 h-5" />
+              <Compass className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-xs font-black">Nível de Parede</h3>
@@ -298,16 +422,16 @@ export const TecnicaTools: React.FC = () => {
           {/* 2. Fita Métrica */}
           <button
             onClick={() => setActiveTool('tape_measure')}
-            className={`p-4 rounded-2xl border text-left transition flex flex-col justify-between gap-3 ${
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
               activeTool === 'tape_measure'
                 ? 'bg-indigo-600 text-white border-indigo-500 shadow-md ring-2 ring-indigo-400/30'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
               activeTool === 'tape_measure' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
             }`}>
-              <Ruler className="w-5 h-5" />
+              <Ruler className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-xs font-black">Fita Métrica</h3>
@@ -320,19 +444,19 @@ export const TecnicaTools: React.FC = () => {
           {/* 3. Solar PV */}
           <button
             onClick={() => setActiveTool('solar')}
-            className={`p-4 rounded-2xl border text-left transition flex flex-col justify-between gap-3 ${
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
               activeTool === 'solar'
                 ? 'bg-amber-600 text-white border-amber-500 shadow-md ring-2 ring-amber-400/30'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
               activeTool === 'solar' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
             }`}>
-              <Sun className="w-5 h-5" />
+              <Sun className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-xs font-black">Solar Fotovoltaico</h3>
+              <h3 className="text-xs font-black">Solar PV</h3>
               <p className={`text-[10px] ${activeTool === 'solar' ? 'text-amber-100' : 'text-slate-400'}`}>
                 Painéis & Bateria
               </p>
@@ -342,21 +466,21 @@ export const TecnicaTools: React.FC = () => {
           {/* 4. Bitola & Queda */}
           <button
             onClick={() => setActiveTool('cable')}
-            className={`p-4 rounded-2xl border text-left transition flex flex-col justify-between gap-3 ${
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
               activeTool === 'cable'
                 ? 'bg-emerald-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-400/30'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
               activeTool === 'cable' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
             }`}>
-              <Zap className="w-5 h-5" />
+              <Zap className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-xs font-black">Bitola de Cabos</h3>
+              <h3 className="text-xs font-black">Bitola EDM</h3>
               <p className={`text-[10px] ${activeTool === 'cable' ? 'text-emerald-100' : 'text-slate-400'}`}>
-                Queda EDM 220V/DC
+                Queda 220V/DC
               </p>
             </div>
           </button>
@@ -364,21 +488,21 @@ export const TecnicaTools: React.FC = () => {
           {/* 5. Aterramento EDM */}
           <button
             onClick={() => setActiveTool('grounding')}
-            className={`p-4 rounded-2xl border text-left transition flex flex-col justify-between gap-3 ${
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
               activeTool === 'grounding'
                 ? 'bg-teal-600 text-white border-teal-500 shadow-md ring-2 ring-teal-400/30'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
               activeTool === 'grounding' ? 'bg-white/20 text-white' : 'bg-teal-100 text-teal-700'
             }`}>
-              <Shield className="w-5 h-5" />
+              <Shield className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-xs font-black">Aterramento EDM</h3>
+              <h3 className="text-xs font-black">Aterramento</h3>
               <p className={`text-[10px] ${activeTool === 'grounding' ? 'text-teal-100' : 'text-slate-400'}`}>
-                Hastes & Solo &lt;10Ω
+                Solo &lt;10Ω
               </p>
             </div>
           </button>
@@ -386,21 +510,21 @@ export const TecnicaTools: React.FC = () => {
           {/* 6. Ar Condicionado BTU */}
           <button
             onClick={() => setActiveTool('ac')}
-            className={`p-4 rounded-2xl border text-left transition flex flex-col justify-between gap-3 ${
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
               activeTool === 'ac'
                 ? 'bg-blue-600 text-white border-blue-500 shadow-md ring-2 ring-blue-400/30'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
               activeTool === 'ac' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
             }`}>
-              <Wind className="w-5 h-5" />
+              <Wind className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-xs font-black">Climatização BTU</h3>
+              <h3 className="text-xs font-black">Carga AC</h3>
               <p className={`text-[10px] ${activeTool === 'ac' ? 'text-blue-100' : 'text-slate-400'}`}>
-                Carga Térmica AC
+                BTU & Disjuntor
               </p>
             </div>
           </button>
@@ -408,21 +532,44 @@ export const TecnicaTools: React.FC = () => {
           {/* 7. Bomba de Água */}
           <button
             onClick={() => setActiveTool('water_pump')}
-            className={`p-4 rounded-2xl border text-left transition flex flex-col justify-between gap-3 ${
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
               activeTool === 'water_pump'
                 ? 'bg-sky-600 text-white border-sky-500 shadow-md ring-2 ring-sky-400/30'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
               activeTool === 'water_pump' ? 'bg-white/20 text-white' : 'bg-sky-100 text-sky-700'
             }`}>
-              <Droplets className="w-5 h-5" />
+              <Droplets className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-xs font-black">Bomba de Furo</h3>
               <p className={`text-[10px] ${activeTool === 'water_pump' ? 'text-sky-100' : 'text-slate-400'}`}>
-                Pressão & Vazão
+                HMT & Vazão
+              </p>
+            </div>
+          </button>
+
+          {/* 8. Gerador de OS (PDF) */}
+          <button
+            id="btn_tab_service_order"
+            onClick={() => setActiveTool('service_order')}
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              activeTool === 'service_order'
+                ? 'bg-purple-600 text-white border-purple-500 shadow-md ring-2 ring-purple-400/30'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+              activeTool === 'service_order' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
+            }`}>
+              <FileText className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-black">Gerador de OS</h3>
+              <p className={`text-[10px] ${activeTool === 'service_order' ? 'text-purple-100' : 'text-slate-400'}`}>
+                Ordem de Serviço PDF
               </p>
             </div>
           </button>
@@ -449,10 +596,34 @@ export const TecnicaTools: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center flex-wrap gap-2">
+                  <button
+                    onClick={requestOrientationPermission}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm ${
+                      hasDeviceMotion && !useSimulation
+                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/40'
+                        : 'bg-cyan-600 hover:bg-cyan-700 text-white animate-pulse'
+                    }`}
+                    title="Ativar sensor inercial do smartphone"
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>{hasDeviceMotion && !useSimulation ? '📱 Sensor Ativo' : '⚡ Ativar Giroscópio / Sensor'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setUseSimulation(!useSimulation)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      useSimulation ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                    title="Alternar entre modo sensor e modo ajuste manual por toque"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>{useSimulation ? 'Modo Toque/Ajuste' : 'Modo Automático'}</span>
+                  </button>
+
                   <button
                     onClick={() => setIsHold(!isHold)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                       isHold ? 'bg-amber-500 text-white font-black' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                     }`}
                   >
@@ -462,11 +633,11 @@ export const TecnicaTools: React.FC = () => {
 
                   <button
                     onClick={handleCalibrateZero}
-                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
                     title="Definir ângulo atual como 0°"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Calibrar Zero (Tara)</span>
+                    <span>Zerar (Tara 0.0°)</span>
                   </button>
                 </div>
               </div>
@@ -1371,8 +1542,371 @@ export const TecnicaTools: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* ========================================================================= */}
+          {/* TOOL 8: SERVICE ORDER GENERATOR (GERADOR DE ORDEM DE SERVIÇO EM PDF) */}
+          {/* ========================================================================= */}
+          {activeTool === 'service_order' && (
+            <div className="space-y-6">
+              {!canAccessOSGenerator ? (
+                <div className="p-8 rounded-3xl bg-slate-900 text-white border border-slate-800 text-center max-w-2xl mx-auto space-y-5 shadow-2xl">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20">
+                    <Lock className="w-8 h-8" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold uppercase border border-amber-500/30">
+                      Recurso Bloqueado no Pacote Básico
+                    </span>
+                    <h3 className="text-2xl font-black text-white">
+                      Gerador de Ordens de Serviço (OS) em PDF
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
+                      Emita ordens de serviço e orçamentos formais com cálculo automático em Meticais (MZN), NUIT, garantia e termos de aprovação prontos para impressão ou envio por WhatsApp aos seus clientes.
+                    </p>
+                  </div>
+
+                  <div className="pt-3">
+                    <button
+                      id="btn_upgrade_os_generator"
+                      type="button"
+                      onClick={() => setShowUpgradeModal(true)}
+                      className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 mx-auto active:scale-95 transition-all"
+                    >
+                      <Zap className="w-4 h-4" />
+                      <span>Fazer Upgrade para Profissional (199 MT)</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Action Bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-purple-50/70 border border-purple-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-sm">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-purple-950">Ordem de Serviço TécnicaMZ Pro</h3>
+                        <p className="text-[11px] text-purple-800">Preencha os dados e imprima ou salve como PDF profissional</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handlePrintOS}
+                        className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-purple-600/30 active:scale-95"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>Imprimir / Salvar PDF</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Form & Live Preview Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left: Input Form */}
+                    <div className="lg:col-span-5 space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
+                      <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">Dados do Orçamento / OS</h4>
+
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Número da OS:</label>
+                          <input
+                            type="text"
+                            value={osNumber}
+                            onChange={e => setOsNumber(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono text-xs font-bold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Nome do Cliente:</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Sr. Armando Macamo"
+                            value={osClientName}
+                            onChange={e => setOsClientName(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">Contacto Cliente:</label>
+                            <input
+                              type="text"
+                              placeholder="+258 84..."
+                              value={osClientPhone}
+                              onChange={e => setOsClientPhone(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">Localização:</label>
+                            <input
+                              type="text"
+                              value={osClientAddress}
+                              onChange={e => setOsClientAddress(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Tipo de Serviço:</label>
+                          <input
+                            type="text"
+                            value={osServiceType}
+                            onChange={e => setOsServiceType(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">Técnico Responsável:</label>
+                            <input
+                              type="text"
+                              value={osTechnicianName}
+                              onChange={e => setOsTechnicianName(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">NUIT / Licença:</label>
+                            <input
+                              type="text"
+                              value={osTechnicianNuit}
+                              onChange={e => setOsTechnicianNuit(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Descrição do Diagnóstico / Trabalho:</label>
+                          <textarea
+                            rows={3}
+                            placeholder="Descreva detalhadamente o serviço efetuado..."
+                            value={osDescription}
+                            onChange={e => setOsDescription(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Garantia Técnica (Dias):</label>
+                          <input
+                            type="number"
+                            value={osWarrantyDays}
+                            onChange={e => setOsWarrantyDays(Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Items & Materials table input */}
+                      <div className="pt-2 space-y-2 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold uppercase text-slate-700">Itens e Mão de Obra</span>
+                          <button
+                            type="button"
+                            onClick={handleAddOsItem}
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center gap-1 transition"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Adicionar Item
+                          </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {osItems.map((item, idx) => (
+                            <div key={item.id} className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5 text-xs">
+                              <input
+                                type="text"
+                                value={item.desc}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setOsItems(prev => prev.map(it => it.id === item.id ? { ...it, desc: val } : it));
+                                }}
+                                placeholder="Descrição do item"
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                              />
+                              <div className="flex items-center gap-2">
+                                <div className="w-20">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={item.qty}
+                                    onChange={e => {
+                                      const val = Number(e.target.value);
+                                      setOsItems(prev => prev.map(it => it.id === item.id ? { ...it, qty: val } : it));
+                                    }}
+                                    placeholder="Qtd"
+                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                                  />
+                                </div>
+                                <div className="flex-1">
+                                  <input
+                                    type="number"
+                                    value={item.unitPrice}
+                                    onChange={e => {
+                                      const val = Number(e.target.value);
+                                      setOsItems(prev => prev.map(it => it.id === item.id ? { ...it, unitPrice: val } : it));
+                                    }}
+                                    placeholder="Preço MT"
+                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveOsItem(item.id)}
+                                  className="p-1 text-rose-500 hover:bg-rose-50 rounded-lg"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Printable Sheet Document */}
+                    <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-2xl border-2 border-slate-300 shadow-md text-slate-900 font-sans space-y-5 print:p-0 print:border-none print:shadow-none">
+                      {/* Document Header */}
+                      <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl font-black tracking-tight text-blue-700">TÉCNICAMZ PRO</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-900 text-white text-[10px] font-black uppercase">
+                              OFICIAL
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 font-medium">
+                            Rede de Engenharia e Serviços Técnicos de Moçambique
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            NUIT Técnico: {osTechnicianNuit}
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-sm font-black font-mono text-purple-700 block">
+                            {osNumber}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            Data: {new Date().toLocaleDateString('pt-MZ')}
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-700 block mt-0.5">
+                            Garantia: {osWarrantyDays} Dias
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Client and Tech Info Box */}
+                      <div className="grid grid-cols-2 gap-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                        <div>
+                          <span className="text-[10px] font-black uppercase text-slate-400 block">Cliente:</span>
+                          <p className="font-bold text-slate-900">{osClientName || 'Cliente Particular'}</p>
+                          <p className="text-slate-600">{osClientPhone || 'Contacto não informado'}</p>
+                          <p className="text-slate-500">{osClientAddress}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-black uppercase text-slate-400 block">Técnico / Responsável:</span>
+                          <p className="font-bold text-slate-900">{osTechnicianName}</p>
+                          <p className="text-slate-600">{osServiceType}</p>
+                          <p className="text-slate-500">Técnico Verificado TécnicaMZ</p>
+                        </div>
+                      </div>
+
+                      {/* Service Description */}
+                      {osDescription && (
+                        <div className="text-xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-500">Diagnóstico & Parecer Técnico:</span>
+                          <p className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 leading-relaxed italic">
+                            "{osDescription}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Items Table */}
+                      <div className="space-y-2">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b-2 border-slate-800 text-[10px] font-black uppercase text-slate-700">
+                              <th className="py-2">Item / Descrição</th>
+                              <th className="py-2 text-center w-12">Qtd</th>
+                              <th className="py-2 text-right w-24">Unitário</th>
+                              <th className="py-2 text-right w-24">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 text-slate-800">
+                            {osItems.map((item, idx) => (
+                              <tr key={idx}>
+                                <td className="py-2 font-medium">{item.desc}</td>
+                                <td className="py-2 text-center font-mono">{item.qty}</td>
+                                <td className="py-2 text-right font-mono">{item.unitPrice.toLocaleString('pt-MZ')} MT</td>
+                                <td className="py-2 text-right font-bold font-mono">{(item.qty * item.unitPrice).toLocaleString('pt-MZ')} MT</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Total Amount Box */}
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-slate-900 text-white">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Geral dos Serviços</span>
+                          <p className="text-[11px] text-slate-300">Pagamento em Meticais (MZN) via M-Pesa / e-Mola / Numerário</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-2xl font-black font-mono text-emerald-400">
+                            {osTotalMZN.toLocaleString('pt-MZ')} MZN
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Signatures */}
+                      <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-200 text-center text-xs">
+                        <div>
+                          <div className="border-b border-slate-400 h-8 mb-1.5" />
+                          <p className="font-bold text-slate-800">Assinatura do Técnico</p>
+                          <p className="text-[10px] text-slate-500">{osTechnicianName}</p>
+                        </div>
+                        <div>
+                          <div className="border-b border-slate-400 h-8 mb-1.5" />
+                          <p className="font-bold text-slate-800">Aprovação do Cliente</p>
+                          <p className="text-[10px] text-slate-500">{osClientName || 'Cliente'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Upgrade Checkout Modal */}
+      {showUpgradeModal && (
+        <CheckoutModal
+          plan={plans.find(p => p.id === 'plano_profissional') || {
+            id: 'plano_profissional',
+            name: 'Pacote Profissional',
+            priceMZN: 199,
+            durationDays: 30,
+            active: true,
+            priority: 2,
+            benefits: ['Sara IA Ilimitada', 'Gerador de OS em PDF', 'Selo Técnico Verificado']
+          }}
+          onClose={() => setShowUpgradeModal(false)}
+          onSuccess={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 };

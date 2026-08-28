@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { NewCompanyJobModal } from './NewCompanyJobModal';
 import { CompanyVerificationModal } from './CompanyVerificationModal';
+import { TopBackNav } from '../common/TopBackNav';
 
 interface CompanyDashboardProps {
   onNavigateTab: (tab: string) => void;
@@ -113,8 +114,25 @@ export const CompanyDashboard: React.FC<CompanyDashboardProps> = ({ onNavigateTa
   const isPendingVerification = currentCompanyProfile?.verificationStatus === 'pending';
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        <TopBackNav
+          title="Painel Corporativo & Recrutamento"
+          category="Minha Empresa"
+          onBack={() => onNavigateTab('community')}
+          backLabel="Voltar ao Mural"
+          rightAction={
+            <button
+              onClick={() => setIsNewJobModalOpen(true)}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Publicar Vaga</span>
+            </button>
+          }
+        />
+
         {/* Top Header Card */}
         <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-purple-900/40 relative overflow-hidden">
           <div className="absolute right-0 top-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>

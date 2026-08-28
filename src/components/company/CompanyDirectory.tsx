@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { CompanyDetailModal } from './CompanyDetailModal';
 import { ApplyJobModal } from '../jobs/ApplyJobModal';
+import { TopBackNav } from '../common/TopBackNav';
 
 interface CompanyDirectoryProps {
   onNavigateTab: (tab: string) => void;
@@ -52,8 +53,16 @@ export const CompanyDirectory: React.FC<CompanyDirectoryProps> = ({ onNavigateTa
   const industries = Array.from(new Set(companies.map(c => c.industry))).filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        <TopBackNav
+          title="Empresas & Indústrias Técnicas"
+          category="Empresas"
+          onBack={() => onNavigateTab('community')}
+          backLabel="Voltar ao Mural"
+        />
+
         {/* Header Hero */}
         <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-purple-800/40 relative overflow-hidden">
           <div className="max-w-3xl space-y-3 relative z-10">

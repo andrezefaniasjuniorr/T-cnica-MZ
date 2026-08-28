@@ -18,6 +18,7 @@ import {
   Camera
 } from 'lucide-react';
 import { DigitalBusinessCard } from '../common/DigitalBusinessCard';
+import { TopBackNav } from '../common/TopBackNav';
 
 interface TechniciansDirectoryProps {
   onNavigateTab: (tab: string) => void;
@@ -53,8 +54,16 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
   });
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        <TopBackNav
+          title="Diretório de Técnicos e Especialistas"
+          category="Técnicos MZ"
+          onBack={() => onNavigateTab('community')}
+          backLabel="Voltar ao Mural"
+        />
+
         {/* Header Hero */}
         <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-blue-900/40 relative overflow-hidden">
           <div className="max-w-3xl space-y-3">

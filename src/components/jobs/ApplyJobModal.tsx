@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import {
   X,
+  ArrowLeft,
   Briefcase,
   User,
   Phone,
@@ -90,21 +91,32 @@ export const ApplyJobModal: React.FC<ApplyJobModalProps> = ({ job, isOpen, onClo
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="bg-purple-900 text-white p-6 flex items-center justify-between">
+        <div className="bg-purple-900 text-white p-5 sm:p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-800 text-purple-200 border border-purple-700 flex items-center justify-center">
-              <Briefcase className="w-5 h-5" />
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-purple-800 hover:bg-purple-700 text-purple-200 flex items-center gap-1 text-xs font-bold transition"
+              title="Voltar à vaga"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Voltar</span>
+            </button>
+            <div className="w-9 h-9 rounded-xl bg-purple-800 text-purple-200 border border-purple-700 flex items-center justify-center shrink-0">
+              <Briefcase className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-lg font-black">Candidatura à Vaga</h2>
+              <h2 className="text-base sm:text-lg font-black">Candidatura à Vaga</h2>
               <p className="text-xs text-purple-200 line-clamp-1">{job.title} • {job.companyName}</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-full bg-purple-800 text-purple-300 hover:text-white hover:bg-purple-700 transition"
+            className="w-8 h-8 rounded-full bg-purple-800 text-purple-300 hover:text-white hover:bg-purple-700 transition flex items-center justify-center text-sm font-bold"
+            title="Fechar (X)"
           >
-            <X className="w-5 h-5" />
+            ✕
           </button>
         </div>
 

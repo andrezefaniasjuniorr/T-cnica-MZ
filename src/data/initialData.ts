@@ -78,74 +78,90 @@ export const INITIAL_SETTINGS: PlatformSettings = {
 
 export const INITIAL_PLANS: SubscriptionPlan[] = [
   {
-    id: 'plan_prof',
-    name: 'Técnico Profissional',
-    priceMZN: 199,
+    id: 'plano_basico',
+    name: 'Pacote Básico',
+    priceMZN: 50,
     durationDays: 30,
+    tier: 'basico',
     active: true,
     priority: 1,
-    targetRole: 'technician',
+    targetRole: 'all',
     createdAt: '2025-01-01',
+    permissions: [
+      'Acesso de navegação ao Feed e Mural de Notícias',
+      'Perfil público de técnico básico na TécnicaMZ',
+      'Visualização do Diretório de Técnicos e Empresas',
+      'Visualização de Vagas de Emprego disponíveis'
+    ],
+    restrictions: [
+      'Bloqueia Gerador de OS em PDF',
+      'Bloqueia Acesso à Sara IA (Engenharia MZ)',
+      'Bloqueia Publicações e anúncios no Mercado'
+    ],
     benefits: [
-      'Perfil profissional verificado na TécnicaMZ',
-      'Receber e responder a pedidos de clientes',
-      'Candidatar-se a vagas de empresas (/jobs)',
-      'Portfólio com até 8 trabalhos realizados',
-      'Aparecer na lista oficial com botão WhatsApp direto',
-      'Calculadoras técnicas básicas (Solar, Cabos, BTU)'
+      'Acesso ao Feed e Mural de Notícias',
+      'Perfil público de técnico básico',
+      'Visualização de vagas e pedidos'
     ]
   },
   {
-    id: 'plan_premium',
-    name: 'Técnico Destaque Pro',
-    priceMZN: 399,
+    id: 'plano_profissional',
+    name: 'Pacote Profissional',
+    priceMZN: 199,
     durationDays: 30,
+    tier: 'profissional',
     active: true,
     priority: 2,
-    targetRole: 'technician',
+    isPopular: true,
+    badge: 'Mais Popular',
+    targetRole: 'all',
     createdAt: '2025-01-01',
+    permissions: [
+      'Tudo incluído no Pacote Básico (50 MT)',
+      'Selo oficial de "Técnico Verificado" no perfil',
+      'Gerador de Ordens de Serviço (OS) em PDF ilimitado',
+      'Acesso total e irrestrito à Sara IA (Engenharia MZ)',
+      'Calculadoras técnicas completas (Solar, Cabos, Ar Condicionado)',
+      'Envio ilimitado de propostas para clientes'
+    ],
+    restrictions: [
+      'Bloqueia anúncios na aba Mercado',
+      'Sem destaque no topo do Mural da Comunidade'
+    ],
     benefits: [
-      'Tudo do Plano Profissional',
-      'Selo Ouro de Verificação Técnica Pro',
-      'Destaque no topo da lista da sua província',
-      'Acesso prioritário a pedidos de empresas e clientes',
-      'Portfólio ilimitado com fotos em alta resolução',
-      'Acesso ilimitado à Sara IA e todas as calculadoras'
+      'Tudo do Pacote 50 MT',
+      'Selo de "Técnico Verificado" no perfil',
+      'Gerador de Ordens de Serviço (OS) em PDF ilimitado',
+      'Acesso total à Sara IA'
     ]
   },
   {
-    id: 'plan_empresa_start',
-    name: 'Empresa Standard',
-    priceMZN: 899,
+    id: 'plano_empresa_vip',
+    name: 'Pacote Empresa / VIP',
+    priceMZN: 499,
     durationDays: 30,
+    tier: 'empresa_vip',
     active: true,
     priority: 3,
-    targetRole: 'company',
+    badge: 'Acesso Total VIP',
+    targetRole: 'all',
     createdAt: '2025-01-01',
+    permissions: [
+      'Acesso total sem restrições a toda a plataforma TécnicaMZ',
+      'Selo exclusivo "Empresa VIP" ou "Técnico VIP"',
+      'Anúncios ilimitados no Mercado TécnicaMZ',
+      'Destaque automático de publicações no topo do Mural',
+      'Gerador de Ordens de Serviço (OS) em PDF ilimitado',
+      'Acesso irrestrito à Sara IA e todas as ferramentas',
+      'Publicação e gestão de vagas de emprego (/jobs)',
+      'Prioridade máxima em buscas e recomendações'
+    ],
+    restrictions: [],
     benefits: [
-      'Perfil empresarial verificado com NUIT',
-      'Publicação de até 3 vagas de emprego (/jobs)',
-      'Acesso ao banco de técnicos certificados de Moçambique',
-      'Solicitação de cotações diretas a técnicos',
-      'Suporte prioritário via WhatsApp'
-    ]
-  },
-  {
-    id: 'plan_empresa_corp',
-    name: 'Empresa Corporativa',
-    priceMZN: 1999,
-    durationDays: 30,
-    active: true,
-    priority: 4,
-    targetRole: 'company',
-    createdAt: '2025-01-01',
-    benefits: [
-      'Perfil Corporativo com Selo Diamante',
-      'Publicação ILIMITADA de vagas de emprego',
-      'Destaque na página inicial e no diretório de empresas',
-      'Acesso antecipado a técnicos com melhores avaliações',
-      'Gestor de conta dedicado TécnicaMZ',
-      'Relatórios e métricas de contratação'
+      'Acesso total sem restrições a toda a plataforma',
+      'Selo "Empresa VIP" / "Técnico VIP"',
+      'Anúncios ilimitados no Mercado',
+      'Destaque automático de publicações no topo do Mural'
     ]
   }
 ];

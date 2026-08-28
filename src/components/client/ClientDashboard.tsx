@@ -15,8 +15,11 @@ import {
   DollarSign,
   Calendar,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  ArrowLeft,
+  X
 } from 'lucide-react';
+import { TopBackNav } from '../common/TopBackNav';
 
 interface ClientDashboardProps {
   onNavigateTab: (tab: string) => void;
@@ -89,8 +92,25 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ onNavigateTab,
   };
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        <TopBackNav
+          title="Painel do Cliente & Pedidos de Obras"
+          category="Meu Painel"
+          onBack={() => onNavigateTab('community')}
+          backLabel="Voltar ao Mural"
+          rightAction={
+            <button
+              onClick={() => setIsNewRequestModalOpen(true)}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Solicitar Serviço</span>
+            </button>
+          }
+        />
+
         {/* Top Hero */}
         <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-900/40 relative overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
@@ -221,9 +241,25 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ onNavigateTab,
       {isNewRequestModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
           <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
-              <h3 className="text-sm font-black">Solicitar Serviço Técnico</h3>
-              <button onClick={() => setIsNewRequestModalOpen(false)} className="text-slate-400 hover:text-white">
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsNewRequestModalOpen(false)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition"
+                  title="Voltar ao painel"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Voltar</span>
+                </button>
+                <h3 className="text-sm font-black">Solicitar Serviço Técnico</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewRequestModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition"
+                title="Fechar (X)"
+              >
                 ✕
               </button>
             </div>

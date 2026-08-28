@@ -33,6 +33,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { DigitalBusinessCard } from '../common/DigitalBusinessCard';
+import { TopBackNav } from '../common/TopBackNav';
 
 interface TechnicianDashboardProps {
   onNavigateTab: (tab: string) => void;
@@ -220,8 +221,16 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
   };
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Top Back Navigation Bar */}
+        <TopBackNav
+          title="Painel do Profissional Técnico"
+          category="Meu Painel"
+          onBack={() => onNavigateTab('community')}
+          backLabel="Voltar ao Mural"
+        />
+
         {/* Top Profile Hero Card */}
         <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-900/40 relative overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
