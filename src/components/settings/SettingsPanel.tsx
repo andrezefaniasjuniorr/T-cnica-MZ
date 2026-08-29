@@ -304,54 +304,41 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </form>
       </div>
 
-      {/* 2. PREFERÊNCIAS: ALTERNAR PAPEL DA CONTA */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+      {/* 2. INFORMAÇÃO DE PERFIL PERMANENTE */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
         <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
-          <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
-            <RefreshCw className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+            <Shield className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-black text-slate-900">Preferências de Papel</h2>
-            <p className="text-[11px] text-slate-500">Alterne facilmente entre modo Cliente e modo Técnico</p>
+            <h2 className="text-base font-black text-slate-900">Tipo de Perfil Registado</h2>
+            <p className="text-[11px] text-slate-500">Definição permanente estabelecida na criação da conta</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => handleRoleChange('client')}
-            className={`p-4 rounded-2xl border text-left transition flex items-start gap-3 ${
-              currentUser?.role === 'client'
-                ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
-                : 'border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            <User className={`w-5 h-5 shrink-0 mt-0.5 ${currentUser?.role === 'client' ? 'text-blue-600' : 'text-slate-400'}`} />
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${
+              currentUser?.role === 'client' ? 'bg-emerald-600' : 'bg-blue-600'
+            }`}>
+              {currentUser?.role === 'client' ? <User className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
+            </div>
             <div>
-              <h3 className="text-xs font-black text-slate-900">Modo Cliente / Consumidor</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-900">
+                  {currentUser?.role === 'client' ? 'Conta de Cliente (Contratar Serviços)' : 'Conta de Técnico Profissional / Empresa'}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-700">
+                  Permanente
+                </span>
+              </div>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Ideal para pesquisar técnicos, contratar serviços e solicitar orçamentos.
+                {currentUser?.role === 'client'
+                  ? 'Acesso simplificado para orçamentos, pedidos de serviço, pesquisa no directório e mercado.'
+                  : 'Acesso a ferramentas avançadas, ordens de serviço, dimensionamentos e Sara IA.'}
               </p>
             </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleRoleChange('technician')}
-            className={`p-4 rounded-2xl border text-left transition flex items-start gap-3 ${
-              currentUser?.role === 'technician'
-                ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
-                : 'border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            <Wrench className={`w-5 h-5 shrink-0 mt-0.5 ${currentUser?.role === 'technician' ? 'text-blue-600' : 'text-slate-400'}`} />
-            <div>
-              <h3 className="text-xs font-black text-slate-900">Modo Técnico Profissional</h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Acesso a gerador de ordens de serviço (OS), cálculo de projetos e listagem no diretório.
-              </p>
-            </div>
-          </button>
+          </div>
         </div>
       </div>
 

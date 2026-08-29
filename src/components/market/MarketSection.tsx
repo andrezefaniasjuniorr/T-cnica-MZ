@@ -49,7 +49,7 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
     startOrGetConversation,
     plans
   } = useData();
-  const { currentUser, isTechnician, isCompany, isAdmin, canPublishMarket } = useAuth();
+  const { currentUser, isClient, isTechnician, isCompany, isAdmin, canPublishMarket } = useAuth();
   const [showVipUpgradeModal, setShowVipUpgradeModal] = useState(false);
 
   const [activeView, setActiveView] = useState<'all' | 'my_items'>('all');
@@ -105,6 +105,22 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
     }
   ];
 
+  const handleOpenSellModal = () => {
+    if (isClient) {
+      alert('A publicação de anúncios de venda no mercado é reservada a Técnicos e Empresas cadastrados.');
+      return;
+    }
+    if (!currentUser) {
+      alert('Inicie sessão para publicar anúncios no mercado.');
+      return;
+    }
+    if (!canPublishMarket && !isAdmin) {
+      setShowVipUpgradeModal(true);
+      return;
+    }
+    setIsSellModalOpen(true);
+  };
+
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -120,14 +136,6 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const handleOpenSellModal = () => {
-    if (!canPublishMarket && !isAdmin) {
-      setShowVipUpgradeModal(true);
-      return;
-    }
-    setIsSellModalOpen(true);
   };
 
   const handleCreateItem = (e: React.FormEvent) => {
@@ -231,13 +239,15 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
           onBack={() => onNavigateTab('community')}
           backLabel="Voltar ao Mural"
           rightAction={
-            <button
-              onClick={handleOpenSellModal}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Anunciar</span>
-            </button>
+            !isClient ? (
+              <button
+                onClick={handleOpenSellModal}
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Anunciar</span>
+              </button>
+            ) : undefined
           }
         />
 
@@ -257,15 +267,17 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleOpenSellModal}
-                className="px-6 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Anunciar Equipamento</span>
-              </button>
-            </div>
+            {!isClient && (
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleOpenSellModal}
+                  className="px-6 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Anunciar Equipamento</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -282,7 +294,7 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
             >
               Todos os Equipamentos ({marketItems.filter(i => i.status === 'active').length})
             </button>
-            {currentUser && (
+            {currentUser && !isClient && (
               <button
                 onClick={() => setActiveView('my_items')}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition ${

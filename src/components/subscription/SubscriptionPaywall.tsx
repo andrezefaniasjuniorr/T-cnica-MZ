@@ -7,10 +7,7 @@ import {
   Wrench,
   ShieldCheck,
   CheckCircle2,
-  XCircle,
-  Zap,
   Sparkles,
-  Crown,
   LogOut,
   HelpCircle,
   Phone,
@@ -21,24 +18,83 @@ import {
   ArrowRight,
   Lock,
   Flame,
-  Star
+  Zap,
+  Check
 } from 'lucide-react';
 
 export const SubscriptionPaywall: React.FC = () => {
-  const { currentUser, logout, isSubscriptionActive, subscriptionExpirationDate } = useAuth();
-  const { plans } = useData();
+  const { currentUser, logout, subscriptionExpirationDate } = useAuth();
+  const { plans, settings } = useData();
 
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<SubscriptionPlan | null>(null);
   const [showFAQ, setShowFAQ] = useState(false);
 
-  // Normalize 3 plans
-  const activePlans = plans.filter(p => p.active !== false).sort((a, b) => a.priceMZN - b.priceMZN);
+  // Single active plan (50 MT/mês)
+  const singlePlan = plans.find(p => p.active !== false) || {
+    id: 'plano_tecnico_pro',
+    name: 'Plano Técnico Pro',
+    priceMZN: 50,
+    durationDays: 30,
+    tier: 'profissional' as const,
+    active: true,
+    priority: 1,
+    badge: 'Acesso Total',
+    createdAt: '2025-01-01',
+    permissions: [
+      'Gerador de Ordens de Serviço (OS) em PDF ilimitado',
+      'Sara IA - Assistente Inteligente de Engenharia MZ',
+      'Selo Oficial de Técnico / Empresa Verificado',
+      'Publicações e anúncios livres no Mercado TécnicaMZ',
+      'Acesso ao Mural Técnico e Feed de Discussões',
+      'Visualização e candidatura a Vagas de Emprego',
+      'Calculadoras técnicas de Energia Solar e Cabos'
+    ],
+    restrictions: [],
+    benefits: [
+      'Gerador de Ordens de Serviço em PDF ilimitado',
+      'Sara IA de Engenharia Moçambicana',
+      'Selo Oficial de Verificado no Perfil',
+      'Anúncios Livres no Mercado'
+    ]
+  };
 
   const isExpired = subscriptionExpirationDate && new Date(subscriptionExpirationDate).getTime() < Date.now();
 
+  const handleStartCheckout = () => {
+    setSelectedPlanForCheckout(singlePlan);
+  };
+
+  const features = [
+    {
+      icon: <FileText className="w-5 h-5 text-blue-400" />,
+      title: 'Gerador de Ordens de Serviço em PDF',
+      desc: 'Crie orçamentos e relatórios técnicos com logotipo e download em PDF imediato.'
+    },
+    {
+      icon: <Bot className="w-5 h-5 text-indigo-400" />,
+      title: 'Sara IA - Assistente de Engenharia',
+      desc: 'Tire dúvidas sobre normas EDM, dimensionamento solar, climatização e automação.'
+    },
+    {
+      icon: <Award className="w-5 h-5 text-emerald-400" />,
+      title: 'Selo Oficial de Verificado no Perfil',
+      desc: 'Transmita confiança imediata para clientes e empresas contratantes em Moçambique.'
+    },
+    {
+      icon: <ShoppingBag className="w-5 h-5 text-amber-400" />,
+      title: 'Anúncios no Mercado TécnicaMZ',
+      desc: 'Venda peças, ferramentas usadas ou novas e equipamentos especializados.'
+    },
+    {
+      icon: <Zap className="w-5 h-5 text-sky-400" />,
+      title: 'Mural Técnico & Oportunidades',
+      desc: 'Acesso à rede de técnicos do país, postagens no mural e vagas de trabalho.'
+    }
+  ];
+
   return (
     <div id="subscription_paywall_container" className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
-      {/* Top Bar with Brand & Logout */}
+      {/* Top Bar */}
       <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30">
@@ -48,11 +104,11 @@ export const SubscriptionPaywall: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="text-base font-black tracking-tight text-white">TécnicaMZ Pro</span>
               <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-extrabold uppercase border border-blue-500/30">
-                Paywall Moçambique
+                Plano Único 50 MT
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Plataforma Oficial de Técnicos e Engenharia de Moçambique
+              Acesso Profissional Ilimitado por apenas 50 MT / Mês
             </p>
           </div>
         </div>
@@ -64,7 +120,7 @@ export const SubscriptionPaywall: React.FC = () => {
               <span className="font-semibold">{currentUser.name}</span>
               <span className="text-slate-500">|</span>
               <span className="text-amber-400 font-bold">
-                {isExpired ? 'Assinatura Expirada' : 'Sem Assinatura Ativa'}
+                {isExpired ? 'Assinatura Expirada' : 'Acesso Pendente'}
               </span>
             </div>
           )}
@@ -83,232 +139,143 @@ export const SubscriptionPaywall: React.FC = () => {
       </header>
 
       {/* Main Paywall Content */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col items-center">
-        {/* Hero Notice */}
-        <div className="text-center max-w-3xl space-y-4 mb-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-black uppercase tracking-wider">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col items-center justify-center">
+        {/* Header Notice */}
+        <div className="text-center max-w-2xl space-y-3 mb-8">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-extrabold uppercase tracking-wider">
             <Lock className="w-3.5 h-3.5" />
-            Acesso Restrito por Assinatura
+            Subscrição Profissional TécnicaMZ
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
-            Escolha o Seu Pacote e Desbloqueie a <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400">TécnicaMZ Pro</span>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+            Desbloqueie Todas as Ferramentas por Apenas <span className="text-blue-400">50 MT / Mês</span>
           </h1>
 
-          <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Olá, <strong>{currentUser?.name || 'Técnico'}</strong>. Para ter acesso total ao Feed, Comunidade Técnica, Gerador de Ordens de Serviço, Sara IA e Mercado, ative a sua subscrição mensal via <strong>M-Pesa</strong> ou <strong>e-Mola</strong>.
+          <p className="text-sm text-slate-300 leading-relaxed">
+            Sem complicações ou pacotes caros. Um valor único e simbólico para capacitar técnicos e empresas em todo Moçambique.
           </p>
 
           {isExpired && (
-            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-center gap-2 max-w-lg mx-auto">
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-              O seu período de assinatura terminou. Renove agora para continuar a receber pedidos e utilizar as ferramentas.
+              A sua assinatura expirou. Renove agora para manter o acesso ininterrupto.
             </div>
           )}
         </div>
 
-        {/* 3 Packages Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 w-full items-stretch">
-          {activePlans.map((plan) => {
-            const isPopular = plan.isPopular || plan.id === 'plano_profissional' || plan.priceMZN === 199;
-            const isVip = plan.id === 'plano_empresa_vip' || plan.priceMZN >= 400;
-            const isBasic = plan.id === 'plano_basico' || plan.priceMZN <= 50;
+        {/* Pricing Card & Capabilities Presentation */}
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          {/* Left: What's included */}
+          <div className="lg:col-span-7 bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between shadow-xl">
+            <div className="space-y-6">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Tudo Incluso</span>
+                <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
+                  O que está liberado no Plano Técnico Pro:
+                </h2>
+              </div>
 
-            return (
-              <div
-                key={plan.id}
-                id={`card_plan_${plan.id}`}
-                className={`relative rounded-3xl flex flex-col justify-between transition-all duration-300 ${
-                  isPopular
-                    ? 'bg-gradient-to-b from-blue-900/60 via-slate-900 to-slate-900 border-2 border-blue-500 shadow-2xl shadow-blue-500/20 md:-translate-y-2'
-                    : isVip
-                    ? 'bg-gradient-to-b from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/40 shadow-xl shadow-amber-500/10'
-                    : 'bg-slate-900/80 border border-slate-800 shadow-lg'
-                } p-6 sm:p-7`}
-              >
-                {/* Popular / VIP Badge */}
-                {isPopular && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-600/40">
-                    <Flame className="w-3.5 h-3.5" />
-                    Mais Popular
-                  </div>
-                )}
-                {isVip && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/30">
-                    <Crown className="w-3.5 h-3.5" />
-                    Acesso Total VIP
-                  </div>
-                )}
-                {isBasic && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-bold uppercase tracking-wider">
-                    Entrada / Navegação
-                  </div>
-                )}
-
-                <div>
-                  {/* Card Header */}
-                  <div className="text-center pt-2 pb-6 border-b border-slate-800">
-                    <h3 className="text-xl font-black text-white mb-2">
-                      {plan.name}
-                    </h3>
-                    <p className="text-xs text-slate-400 min-h-[32px]">
-                      {isBasic && 'Acesso essencial de navegação para técnicos iniciantes.'}
-                      {isPopular && 'O plano completo para técnicos verificados com OS e Sara IA.'}
-                      {isVip && 'Liberdade total e máxima visibilidade para empresas e líderes.'}
-                    </p>
-
-                    {/* Price Tag */}
-                    <div className="mt-5 flex items-baseline justify-center gap-1">
-                      <span className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-                        {plan.priceMZN}
-                      </span>
-                      <span className="text-sm font-bold text-slate-400">MT / mês</span>
+              <div className="space-y-4">
+                {features.map((feat, idx) => (
+                  <div key={idx} className="flex items-start gap-3.5 p-3 rounded-2xl bg-slate-950/40 border border-slate-800/60">
+                    <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 shrink-0">
+                      {feat.icon}
                     </div>
-                    <span className="text-[11px] text-slate-500 font-medium block mt-1">
-                      (Válido por 30 dias • Pagamento via M-Pesa / e-Mola)
-                    </span>
-                  </div>
-
-                  {/* Permissions & Benefits List */}
-                  <div className="py-6 space-y-4">
                     <div>
-                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 block mb-2.5">
-                        Permissões e Vantagens Incluídas:
-                      </span>
-                      <ul className="space-y-2.5">
-                        {(plan.permissions || plan.benefits || []).map((perm, idx) => (
-                          <li key={idx} className="flex items-start gap-2.5 text-xs text-slate-200 leading-snug">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                            <span>{perm}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <h3 className="text-sm font-bold text-white">{feat.title}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{feat.desc}</p>
                     </div>
-
-                    {/* Restrictions (if any) */}
-                    {plan.restrictions && plan.restrictions.length > 0 && (
-                      <div className="pt-2">
-                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-rose-400/90 block mb-2">
-                          Restrições deste Pacote:
-                        </span>
-                        <ul className="space-y-2">
-                          {plan.restrictions.map((rest, idx) => (
-                            <li key={idx} className="flex items-start gap-2.5 text-xs text-slate-400 leading-snug">
-                              <XCircle className="w-4 h-4 text-rose-400/80 shrink-0 mt-0.5" />
-                              <span>{rest}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </div>
-                </div>
+                ))}
+              </div>
+            </div>
 
-                {/* Card CTA Action */}
-                <div className="pt-4 border-t border-slate-800">
-                  <button
-                    id={`btn_select_plan_${plan.id}`}
-                    type="button"
-                    onClick={() => setSelectedPlanForCheckout(plan)}
-                    className={`w-full py-4 px-5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98] ${
-                      isPopular
-                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
-                        : isVip
-                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/25 font-black'
-                        : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
-                    }`}
-                  >
-                    <span>Subscrever por {plan.priceMZN} MT</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+            <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center gap-2 text-xs text-slate-400">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Pagamento rápido e seguro via M-Pesa e e-Mola em Moçambique.</span>
+            </div>
+          </div>
+
+          {/* Right: Checkout Action Card */}
+          <div className="lg:col-span-5 bg-gradient-to-b from-blue-950/40 via-slate-900 to-slate-900 border-2 border-blue-500/50 rounded-3xl p-6 sm:p-8 flex flex-col justify-between shadow-2xl relative">
+            <div className="absolute -top-3.5 right-6 px-3.5 py-1 rounded-full bg-blue-600 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-blue-600/40">
+              <Flame className="w-3.5 h-3.5 fill-current" />
+              Plano Oficial
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <span className="text-xs font-bold uppercase text-slate-400">Assinatura Mensal</span>
+                <h3 className="text-2xl font-black text-white mt-1">{singlePlan.name}</h3>
+                <p className="text-xs text-slate-400 mt-1">Acesso irrestrito durante 30 dias renováveis.</p>
+              </div>
+
+              {/* Price display */}
+              <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800 text-center">
+                <span className="text-xs text-slate-400 uppercase font-semibold">Valor da Subscrição</span>
+                <div className="flex items-baseline justify-center gap-1.5 mt-1">
+                  <span className="text-5xl font-black text-white tracking-tight">50</span>
+                  <span className="text-xl font-bold text-blue-400">MT</span>
+                  <span className="text-xs text-slate-400 font-medium">/ 30 dias</span>
+                </div>
+                <p className="text-[11px] text-emerald-400 font-semibold mt-2">
+                  ✓ Ativação imediata após confirmação M-Pesa / e-Mola
+                </p>
+              </div>
+
+              {/* Checklist highlights */}
+              <div className="space-y-2.5 text-xs text-slate-300">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Gerador de OS em PDF ilimitado</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Sara IA sem limite de mensagens</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Selo Verificado de Confiança</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Publicação livre no Mercado Técnico</span>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
 
-        {/* Feature Comparison Highlights */}
-        <div className="mt-14 w-full bg-slate-900/60 rounded-3xl border border-slate-800 p-6 sm:p-8">
-          <h3 className="text-lg font-black text-white text-center mb-6 flex items-center justify-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-blue-400" />
-            Resumo de Recursos por Pacote
-          </h3>
+            {/* CTA Button */}
+            <div className="mt-8 space-y-3">
+              <button
+                id="btn-paywall-checkout"
+                type="button"
+                onClick={handleStartCheckout}
+                className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold text-base transition-all shadow-xl shadow-blue-600/30 group"
+              >
+                <span>Pagar 50 MT e Desbloquear</span>
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="py-3 px-4">Funcionalidade</th>
-                  <th className="py-3 px-4 text-center">Básico (50 MT)</th>
-                  <th className="py-3 px-4 text-center text-blue-400">Profissional (199 MT)</th>
-                  <th className="py-3 px-4 text-center text-amber-400">Empresa / VIP (499 MT)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300 font-medium">
-                <tr>
-                  <td className="py-3 px-4 flex items-center gap-2">
-                    <Wrench className="w-4 h-4 text-slate-400" />
-                    Feed e Mural de Notícias
-                  </td>
-                  <td className="py-3 px-4 text-center text-emerald-400 font-bold">✓ Liberado</td>
-                  <td className="py-3 px-4 text-center text-emerald-400 font-bold">✓ Liberado</td>
-                  <td className="py-3 px-4 text-center text-emerald-400 font-bold">✓ Destaque no Topo</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 flex items-center gap-2">
-                    <Award className="w-4 h-4 text-blue-400" />
-                    Selo Verificado no Perfil
-                  </td>
-                  <td className="py-3 px-4 text-center text-slate-500">✗ Sem Selo</td>
-                  <td className="py-3 px-4 text-center text-blue-400 font-bold">✓ Técnico Verificado</td>
-                  <td className="py-3 px-4 text-center text-amber-400 font-bold">👑 Empresa / Técnico VIP</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-indigo-400" />
-                    Gerador de OS em PDF
-                  </td>
-                  <td className="py-3 px-4 text-center text-rose-400">✗ Bloqueado</td>
-                  <td className="py-3 px-4 text-center text-emerald-400 font-bold">✓ Ilimitado</td>
-                  <td className="py-3 px-4 text-center text-emerald-400 font-bold">✓ Ilimitado</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-emerald-400" />
-                    Sara IA (Engenharia MZ)
-                  </td>
-                  <td className="py-3 px-4 text-center text-rose-400">✗ Bloqueado</td>
-                  <td className="py-3 px-4 text-center text-emerald-400 font-bold">✓ Acesso Total</td>
-                  <td className="py-3 px-4 text-center text-emerald-400 font-bold">✓ Acesso Total</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-amber-400" />
-                    Publicações no Mercado
-                  </td>
-                  <td className="py-3 px-4 text-center text-rose-400">✗ Bloqueado</td>
-                  <td className="py-3 px-4 text-center text-slate-500">✗ Apenas Navegação</td>
-                  <td className="py-3 px-4 text-center text-amber-400 font-bold">✓ Anúncios Ilimitados</td>
-                </tr>
-              </tbody>
-            </table>
+              <p className="text-[11px] text-center text-slate-500">
+                Ao clicar, você poderá escolher M-Pesa ou e-Mola e submeter o comprovativo.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* WhatsApp Support Assistance */}
-        <div className="mt-8 text-center space-y-2">
-          <p className="text-xs text-slate-400">
-            Dúvidas sobre os pagamentos ou ativação corporativa?
+        {/* Support Section */}
+        <div className="mt-12 w-full max-w-xl text-center space-y-2 text-xs text-slate-400">
+          <p>
+            Precisa de ajuda com o pagamento? Contacte o suporte via WhatsApp:{' '}
+            <a
+              href="https://wa.me/258851949159"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 font-bold hover:underline"
+            >
+              (+258) 85 194 9159
+            </a>
           </p>
-          <a
-            href="https://wa.me/258849990001?text=Ola%20equipa%20TecnicaMZ,%20preciso%20de%20ajuda%20com%20o%20plano%20de%20subscricao"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-colors"
-          >
-            <Phone className="w-3.5 h-3.5" />
-            Falar com o Suporte Oficial via WhatsApp (+258 84 999 0001)
-          </a>
         </div>
       </main>
 
@@ -316,10 +283,8 @@ export const SubscriptionPaywall: React.FC = () => {
       {selectedPlanForCheckout && (
         <CheckoutModal
           plan={selectedPlanForCheckout}
+          isOpen={Boolean(selectedPlanForCheckout)}
           onClose={() => setSelectedPlanForCheckout(null)}
-          onSuccess={() => {
-            setSelectedPlanForCheckout(null);
-          }}
         />
       )}
     </div>

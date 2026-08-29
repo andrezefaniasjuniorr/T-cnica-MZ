@@ -41,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNotifications,
   unreadNotificationsCount
 }) => {
-  const { currentUser, isTechnician, isCompany, isAdmin, logout } = useAuth();
+  const { currentUser, isClient, isTechnician, isCompany, isAdmin, logout } = useAuth();
   const { conversations } = useData();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -68,7 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
     : 0;
 
   const getRoleBadge = () => {
-    if (isAdmin) return { label: 'Admin', color: 'bg-purple-100 text-purple-800 border-purple-200', panelTab: 'community' };
+    if (isAdmin) return { label: 'Admin', color: 'bg-purple-100 text-purple-800 border-purple-200', panelTab: 'gestao-pro-mz' };
     if (isCompany) return { label: 'Empresa', color: 'bg-indigo-100 text-indigo-800 border-indigo-200', panelTab: 'company' };
     if (isTechnician) return { label: 'Técnico', color: 'bg-blue-100 text-blue-800 border-blue-200', panelTab: 'technician' };
     return { label: 'Cliente', color: 'bg-emerald-100 text-emerald-800 border-emerald-200', panelTab: 'client' };
@@ -76,16 +76,25 @@ export const Header: React.FC<HeaderProps> = ({
 
   const roleInfo = getRoleBadge();
 
-  // Desktop primary navigation items (Strictly no admin links in public UI)
-  const primaryNavItems = [
+  // Navigation items based on role (Clients have a focused 3-4 item menu)
+  const clientNavItems = [
     { id: 'community', label: 'Mural / Feed', icon: Users },
+    { id: 'technicians_directory', label: 'Técnicos MZ', icon: Wrench },
+    { id: 'market', label: 'Mercado', icon: ShoppingBag },
+    { id: 'client', label: 'Meu Perfil', icon: User },
+  ];
+
+  const technicianNavItems = [
+    { id: 'community', label: 'Mural / Feed', icon: Users },
+    { id: 'tools', label: 'Ferramentas & OS', icon: Sliders },
     { id: 'market', label: 'Mercado', icon: ShoppingBag },
     { id: 'technicians_directory', label: 'Técnicos', icon: Wrench },
     { id: 'jobs', label: 'Vagas & Obras', icon: Briefcase },
     { id: 'company_directory', label: 'Empresas', icon: Building2 },
-    { id: 'tools', label: 'Ferramentas', icon: Sliders },
     { id: 'academy', label: 'Academia MZ', icon: GraduationCap },
   ];
+
+  const primaryNavItems = isClient ? clientNavItems : technicianNavItems;
 
   // Items for medium screens visible vs in "Mais" dropdown
   const visibleOnMedium = primaryNavItems.slice(0, 4);
@@ -221,15 +230,17 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Sara IA Button */}
-            <button
-              onClick={onOpenSaraAi}
-              className="px-2.5 sm:px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95"
-              title="Assistente Sara IA (Visão Computacional & Normas)"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
-              <span className="text-[11px] hidden sm:inline">Sara IA</span>
-            </button>
+            {/* Sara IA Button (Técnico / Empresa / Admin Only) */}
+            {!isClient && (
+              <button
+                onClick={onOpenSaraAi}
+                className="px-2.5 sm:px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
+                title="Assistente Sara IA (Visão Computacional & Normas)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                <span className="text-[11px] hidden sm:inline">Sara IA</span>
+              </button>
+            )}
 
             {/* Notifications Bell */}
             <button

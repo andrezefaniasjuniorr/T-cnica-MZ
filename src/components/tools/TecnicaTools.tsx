@@ -1582,7 +1582,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               ) : (
                 <div className="space-y-6">
                   {/* Action Bar */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-purple-50/70 border border-purple-200">
+                  <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-purple-50/70 border border-purple-200">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-sm">
                         <FileText className="w-5 h-5" />
@@ -1596,7 +1596,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handlePrintOS}
-                        className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-purple-600/30 active:scale-95"
+                        className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-purple-600/30 active:scale-95 cursor-pointer"
                       >
                         <Printer className="w-4 h-4" />
                         <span>Imprimir / Salvar PDF</span>
@@ -1607,7 +1607,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                   {/* Form & Live Preview Grid */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     {/* Left: Input Form */}
-                    <div className="lg:col-span-5 space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
+                    <div className="no-print lg:col-span-5 space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
                       <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">Dados do Orçamento / OS</h4>
 
                       <div className="space-y-3 text-xs">
@@ -1775,7 +1775,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     </div>
 
                     {/* Right: Printable Sheet Document */}
-                    <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-2xl border-2 border-slate-300 shadow-md text-slate-900 font-sans space-y-5 print:p-0 print:border-none print:shadow-none">
+                    <div className="print-only-sheet lg:col-span-7 bg-white p-6 sm:p-8 rounded-2xl border-2 border-slate-300 shadow-md text-slate-900 font-sans space-y-5 print:p-0 print:border-none print:shadow-none">
                       {/* Document Header */}
                       <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
                         <div>
@@ -1894,14 +1894,14 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
       {/* Upgrade Checkout Modal */}
       {showUpgradeModal && (
         <CheckoutModal
-          plan={plans.find(p => p.id === 'plano_profissional') || {
-            id: 'plano_profissional',
-            name: 'Pacote Profissional',
-            priceMZN: 199,
+          plan={plans.find(p => p.id === 'plano_tecnico_pro') || plans[0] || {
+            id: 'plano_tecnico_pro',
+            name: 'Plano Técnico Pro',
+            priceMZN: 50,
             durationDays: 30,
             active: true,
-            priority: 2,
-            benefits: ['Sara IA Ilimitada', 'Gerador de OS em PDF', 'Selo Técnico Verificado']
+            priority: 1,
+            benefits: ['Sara IA Ilimitada', 'Gerador de OS em PDF', 'Selo Técnico Verificado', 'Acesso Total ao Mural e Mercado']
           }}
           onClose={() => setShowUpgradeModal(false)}
           onSuccess={() => setShowUpgradeModal(false)}

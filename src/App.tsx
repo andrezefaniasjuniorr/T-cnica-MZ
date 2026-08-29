@@ -30,26 +30,86 @@ import { NotificationsModal } from './components/common/NotificationsModal';
 import { WelcomeModal } from './components/common/WelcomeModal';
 import { AccessDeniedModal } from './components/common/AccessDeniedModal';
 import { SubscriptionPaywall } from './components/subscription/SubscriptionPaywall';
+import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
 
 import { UserRole } from './types';
 import { Wrench, Phone, Mail, ShieldCheck, Heart } from 'lucide-react';
 
-const AppContent: React.FC = () => {
-  const { currentUser, isLoading, isTechnician, isCompany, isAdmin, isSubscriptionActive } = useAuth();
+// Navigation Helper to map URL path or hash to an internal tab id
+const VALID_TABS = [
+  'community',
+  'market',
+  'technicians_directory',
+  'tools',
+  'settings',
+  'jobs',
+  'company_directory',
+  'company',
+  'technician',
+  'client',
+  'academy',
+  'gestao-pro-mz',
+  'admin'
+];
 
-  // Navigation State with History API Support
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname.replace('/', '').trim();
-      if (path === 'gestao-pro-mz') return 'gestao-pro-mz';
+const resolveTabFromLocation = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const rawPath = window.location.pathname.replace(/^\//, '').trim().toLowerCase();
+  const rawHash = window.location.hash.replace(/^#/, '').trim().toLowerCase();
 
-      if (window.location.hash) {
-        const hashTab = window.location.hash.replace('#', '').trim();
-        if (hashTab === 'gestao-pro-mz' || hashTab === 'admin') return 'gestao-pro-mz';
-        if (hashTab) return hashTab;
-      }
-    }
+  // Admin routes
+  if (rawPath === 'gestao-pro-mz' || rawPath === 'admin' || rawHash === 'gestao-pro-mz' || rawHash === 'admin') {
+    return 'gestao-pro-mz';
+  }
+  // Technician aliases
+  if (rawPath === 'tecnico' || rawPath === 'painel-tecnico' || rawHash === 'tecnico' || rawHash === 'painel-tecnico' || rawHash === 'technician') {
+    return 'technician';
+  }
+  // Client & Mural / Feed aliases
+  if (rawPath === 'feed' || rawPath === 'mural' || rawHash === 'feed' || rawHash === 'mural' || rawHash === 'community') {
     return 'community';
+  }
+  // Market aliases
+  if (rawPath === 'mercado' || rawHash === 'mercado' || rawHash === 'market') {
+    return 'market';
+  }
+  // Tools aliases
+  if (rawPath === 'ferramentas' || rawHash === 'ferramentas' || rawHash === 'tools') {
+    return 'tools';
+  }
+  // Jobs aliases
+  if (rawPath === 'vagas' || rawHash === 'vagas' || rawHash === 'jobs') {
+    return 'jobs';
+  }
+  // Company aliases
+  if (rawPath === 'empresa' || rawHash === 'empresa' || rawHash === 'company') {
+    return 'company';
+  }
+  // Client profile
+  if (rawPath === 'cliente' || rawHash === 'cliente' || rawHash === 'client') {
+    return 'client';
+  }
+  // Academy
+  if (rawPath === 'academia' || rawHash === 'academia' || rawHash === 'academy') {
+    return 'academy';
+  }
+
+  if (rawHash && VALID_TABS.includes(rawHash)) {
+    return rawHash;
+  }
+  if (rawPath && VALID_TABS.includes(rawPath)) {
+    return rawPath;
+  }
+  return null;
+};
+
+const AppContent: React.FC = () => {
+  const { currentUser, isLoading, isClient, isTechnician, isCompany, isAdmin, isSubscriptionActive } = useAuth();
+
+  // Navigation State initialized from URL location
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const detected = resolveTabFromLocation();
+    return detected || 'community';
   });
 
   // Dark Mode State
@@ -70,84 +130,30 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const validTabs = [
-      'community',
-      'market',
-      'technicians_directory',
-      'tools',
-      'settings',
-      'jobs',
-      'company_directory',
-      'company',
-      'technician',
-      'client',
-      'academy',
-      'gestao-pro-mz',
-      'admin'
-    ];
+    const syncTab = () => {
+      const detected = resolveTabFromLocation();
+      if (detected) {
+        setActiveTab(detected);
+      }
+    };
 
-    const syncTabFromLocation = () => {
-      try {
-        const path = window.location.pathname.replace('/', '').trim();
-        if (path === 'gestao-pro-mz') {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && typeof event.state === 'object' && event.state.tab) {
+        const sTab = event.state.tab;
+        if (sTab === 'gestao-pro-mz' || sTab === 'admin') {
           setActiveTab('gestao-pro-mz');
           return;
         }
-
-        const hash = window.location.hash.replace('#', '').trim();
-        if (hash === 'gestao-pro-mz' || hash === 'admin') {
-          setActiveTab('gestao-pro-mz');
-        } else if (hash && validTabs.includes(hash)) {
-          setActiveTab(hash);
-        } else if (window.history.state && typeof window.history.state === 'object' && window.history.state.tab) {
-          const stateTab = window.history.state.tab;
-          if (stateTab === 'gestao-pro-mz' || stateTab === 'admin') {
-            setActiveTab('gestao-pro-mz');
-          } else if (validTabs.includes(stateTab)) {
-            setActiveTab(stateTab);
-          }
+        if (VALID_TABS.includes(sTab)) {
+          setActiveTab(sTab);
+          return;
         }
-      } catch (err) {
-        console.warn('History synchronization fallback:', err);
       }
-    };
-
-    // Initialize state in history
-    try {
-      const initialPath = window.location.pathname.replace('/', '').trim();
-      const initialHash = window.location.hash.replace('#', '').trim();
-      const initialTab = initialPath === 'gestao-pro-mz' || initialHash === 'gestao-pro-mz' || initialHash === 'admin'
-        ? 'gestao-pro-mz'
-        : initialHash && validTabs.includes(initialHash) ? initialHash : 'community';
-
-      if (!window.history.state || window.history.state.tab !== initialTab) {
-        window.history.replaceState({ tab: initialTab }, '', `#${initialTab}`);
-      }
-    } catch {
-      // Ignore if iframe blocks history state modification
-    }
-
-    const handlePopState = (event: PopStateEvent) => {
-      try {
-        if (event.state && typeof event.state === 'object' && event.state.tab) {
-          const sTab = event.state.tab;
-          if (sTab === 'gestao-pro-mz' || sTab === 'admin') {
-            setActiveTab('gestao-pro-mz');
-            return;
-          }
-          if (validTabs.includes(sTab)) {
-            setActiveTab(sTab);
-            return;
-          }
-        }
-        syncTabFromLocation();
-      } catch {
-        syncTabFromLocation();
-      }
+      syncTab();
     };
 
     const handleHashChange = () => {
-      syncTabFromLocation();
+      syncTab();
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -158,7 +164,61 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
-  // 2. First-time login onboarding check
+  // 2. Dynamic Redirection and Role Alignment upon Login and Session Refresh (F5)
+  useEffect(() => {
+    if (!currentUser || isLoading) return;
+
+    const detected = resolveTabFromLocation();
+
+    // If Admin
+    if (isAdmin) {
+      if (detected === 'gestao-pro-mz' || detected === 'admin') {
+        setActiveTab('gestao-pro-mz');
+      }
+      return;
+    }
+
+    // If Technician / Company
+    if (isTechnician || isCompany || currentUser.tipoConta === 'tecnico') {
+      // If the technician is pending approval, App will render WaitingApprovalScreen automatically
+      if (currentUser.statusAprovacao === 'pendente' || currentUser.status === 'pending_approval') {
+        return;
+      }
+
+      // If approved technician:
+      // If they were on a technician-allowed tab (e.g. tools, technician, jobs, market, community, academy), preserve it on F5!
+      if (detected && ['technician', 'tools', 'jobs', 'market', 'community', 'academy', 'technicians_directory', 'company_directory', 'settings'].includes(detected)) {
+        setActiveTab(detected);
+      } else if (!detected || detected === 'client') {
+        // If coming from login or root '/' without tab, redirect to Technician Dashboard (/tecnico or #technician)
+        setActiveTab('technician');
+        try {
+          window.history.replaceState({ tab: 'technician' }, '', '#tecnico');
+        } catch {}
+      }
+      return;
+    }
+
+    // If Client / Consumidor
+    if (isClient || currentUser.tipoConta === 'cliente') {
+      // If client attempts to access technician-restricted tabs, redirect to /feed or /mural
+      if (detected === 'tools' || detected === 'technician' || detected === 'company' || detected === 'gestao-pro-mz') {
+        setActiveTab('community');
+        try {
+          window.history.replaceState({ tab: 'community' }, '', '#feed');
+        } catch {}
+      } else if (detected && VALID_TABS.includes(detected)) {
+        setActiveTab(detected);
+      } else if (!detected) {
+        setActiveTab('community');
+        try {
+          window.history.replaceState({ tab: 'community' }, '', '#feed');
+        } catch {}
+      }
+    }
+  }, [currentUser?.uid, currentUser?.tipoConta, currentUser?.role, currentUser?.statusAprovacao, currentUser?.status, isClient, isTechnician, isCompany, isAdmin, isLoading]);
+
+  // 3. First-time login onboarding check
   useEffect(() => {
     if (currentUser?.uid) {
       const welcomeKey = `welcome_v1_${currentUser.uid}`;
@@ -175,20 +235,36 @@ const AppContent: React.FC = () => {
   }, [currentUser?.uid]);
 
   const handleNavigate = (tab: string, addToHistory = true) => {
+    let targetTab = tab;
+    // Map aliases
+    if (tab === 'tecnico' || tab === 'painel-tecnico') targetTab = 'technician';
+    if (tab === 'feed' || tab === 'mural') targetTab = 'community';
+    if (tab === 'gestao-pro-mz' || tab === 'admin') targetTab = 'gestao-pro-mz';
+
     // RBAC Route Guard Checks
-    if (tab === 'admin') {
+    if (isClient && (targetTab === 'tools' || targetTab === 'technician' || targetTab === 'company' || targetTab === 'gestao-pro-mz')) {
+      if (targetTab === 'tools') {
+        alert('As ferramentas de emissão de OS e dimensionamento técnico são exclusivas para técnicos e empresas credenciados.');
+        return;
+      }
+      setRequiredRoleForDenied(targetTab === 'company' ? 'company' : 'technician');
+      setIsAccessDeniedOpen(true);
+      return;
+    }
+
+    if (targetTab === 'gestao-pro-mz' || targetTab === 'admin') {
       if (!isAdmin) {
         setRequiredRoleForDenied('admin');
         setIsAccessDeniedOpen(true);
         return;
       }
-    } else if (tab === 'company') {
+    } else if (targetTab === 'company') {
       if (!isCompany && !isAdmin) {
         setRequiredRoleForDenied('company');
         setIsAccessDeniedOpen(true);
         return;
       }
-    } else if (tab === 'technician') {
+    } else if (targetTab === 'technician') {
       if (!isTechnician && !isAdmin) {
         setRequiredRoleForDenied('technician');
         setIsAccessDeniedOpen(true);
@@ -196,30 +272,23 @@ const AppContent: React.FC = () => {
       }
     }
 
-    setActiveTab(tab);
+    setActiveTab(targetTab);
 
     if (addToHistory && typeof window !== 'undefined' && window.history) {
       try {
-        const currentHash = window.location.hash.replace('#', '').trim();
-        if (currentHash !== tab) {
-          window.history.pushState({ tab }, '', `#${tab}`);
-        }
+        const hashName = targetTab === 'technician' ? 'tecnico' : targetTab === 'community' ? 'feed' : targetTab === 'gestao-pro-mz' ? 'gestao-pro-mz' : targetTab;
+        window.history.pushState({ tab: targetTab }, '', `#${hashName}`);
       } catch {
-        // Fallback for sandboxed frames
         try {
-          window.location.hash = `#${tab}`;
-        } catch {
-          // Ignore
-        }
+          window.location.hash = `#${targetTab}`;
+        } catch {}
       }
     }
 
     if (typeof window !== 'undefined') {
       try {
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      } catch {
-        // Fallback
-      }
+      } catch {}
     }
   };
 
@@ -261,11 +330,59 @@ const AppContent: React.FC = () => {
   }
 
   // =========================================================================
-  // STRICT PAYWALL ENFORCEMENT:
-  // Se o usuário NÃO tiver uma assinatura ativa (statusAssinatura !== "ativa")
-  // ou se dataExpiracao < data atual, BLOQUEIE O ACESSO ABSOLUTO a todas as abas.
+  // APPROVAL WORKFLOW FOR TECHNICIANS & COMPANIES:
+  // Technicians and Companies with statusAprovacao === 'pendente' remain in
+  // WaitingApprovalScreen until an Administrator approves their account.
   // =========================================================================
-  if (!isSubscriptionActive) {
+  const isPendingApproval =
+    (isTechnician || isCompany) &&
+    !isAdmin &&
+    (currentUser.statusAprovacao === 'pendente' ||
+      currentUser.status === 'pending_approval' ||
+      currentUser.statusAprovacao === 'rejeitado');
+
+  if (isPendingApproval) {
+    return <WaitingApprovalScreen />;
+  }
+
+  // Blocked account screen
+  if (currentUser.status === 'blocked' || currentUser.statusConta === 'bloqueada') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mb-4">
+          <ShieldCheck className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-bold text-white mb-2">Conta Suspensa / Bloqueada</h1>
+        <p className="text-sm text-slate-400 max-w-md mb-6 leading-relaxed">
+          Sua conta foi suspensa pela administração da TécnicaMZ. Motivo:{' '}
+          <strong className="text-rose-400">{currentUser.suspensionReason || 'Violação das diretrizes da plataforma.'}</strong>
+        </p>
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <a
+            href="https://wa.me/258851949159"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors"
+          >
+            Falar com Suporte WhatsApp
+          </a>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold"
+          >
+            Recarregar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // STRICT PAYWALL ENFORCEMENT FOR TECHNICIANS & COMPANIES:
+  // - Técnico / Empresa: Plano Único Técnico Pro (50 MT / Mês)
+  // - Cliente: Livre de cobrança de planos
+  // =========================================================================
+  if (!isClient && !isAdmin && !isSubscriptionActive) {
     return <SubscriptionPaywall />;
   }
 

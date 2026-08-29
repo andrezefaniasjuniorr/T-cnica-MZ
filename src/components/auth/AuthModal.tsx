@@ -36,6 +36,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { login, register, resetPassword, isLoading } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
+  const [accountType, setAccountType] = useState<'cliente' | 'tecnico'>(initialRole === 'client' ? 'cliente' : 'tecnico');
   const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole);
 
   // Common Fields
@@ -44,6 +45,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [techType, setTechType] = useState<'technician' | 'company'>('technician');
 
   // Technician Specific
   const [specialty, setSpecialty] = useState(TECHNICAL_CATEGORIES[0]);
@@ -99,40 +101,73 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setError(res.error || 'Erro ao iniciar sessão.');
       }
     } else {
-      // Registration
-      if (!name.trim() || !email.trim() || !phone.trim()) {
-        setError('Por favor preencha todos os campos obrigatórios.');
-        return;
-      }
+      // Registration (Rígida: Cliente vs Técnico/Empresa)
+      if (accountType === 'cliente') {
+        if (!name.trim() || !email.trim()) {
+          setError('Por favor preencha o seu nome e e-mail.');
+          return;
+        }
 
-      if (password && password.length < 6) {
-        setError('A palavra-passe deve ter no mínimo 6 caracteres.');
-        return;
-      }
+        if (password && password.length < 6) {
+          setError('A palavra-passe deve ter no mínimo 6 caracteres.');
+          return;
+        }
 
-      const res = await register({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        password: password.trim() || undefined,
-        role: selectedRole,
-        specialty,
-        province,
-        city,
-        nuit: selectedRole === 'company' ? nuit.trim() || '400000000' : undefined,
-        commercialName: selectedRole === 'company' ? commercialName.trim() || name.trim() : undefined,
-        industry: selectedRole === 'company' ? industry : undefined,
-        address: selectedRole === 'company' ? address.trim() || 'Moçambique' : undefined,
-        website: selectedRole === 'company' ? website.trim() : undefined
-      });
+        const res = await register({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          password: password.trim() || undefined,
+          role: 'client',
+          tipoConta: 'cliente'
+        });
 
-      if (res.success) {
-        setSuccess('Conta criada e autenticada com sucesso na TécnicaMZ!');
-        setTimeout(() => {
-          onClose();
-        }, 1000);
+        if (res.success) {
+          setSuccess('Conta de Cliente criada com sucesso!');
+          setTimeout(() => {
+            onClose();
+          }, 1000);
+        } else {
+          setError(res.error || 'Erro ao criar conta.');
+        }
       } else {
-        setError(res.error || 'Erro ao criar conta.');
+        // Técnico ou Empresa
+        const finalRole = techType === 'company' ? 'company' : 'technician';
+        if (!name.trim() || !email.trim() || !phone.trim()) {
+          setError('Por favor preencha todos os campos obrigatórios (*).');
+          return;
+        }
+
+        if (password && password.length < 6) {
+          setError('A palavra-passe deve ter no mínimo 6 caracteres.');
+          return;
+        }
+
+        const res = await register({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          password: password.trim() || undefined,
+          role: finalRole,
+          tipoConta: 'tecnico',
+          specialty,
+          province,
+          city,
+          nuit: finalRole === 'company' ? nuit.trim() || '400000000' : undefined,
+          commercialName: finalRole === 'company' ? commercialName.trim() || name.trim() : undefined,
+          industry: finalRole === 'company' ? industry : undefined,
+          address: finalRole === 'company' ? address.trim() || 'Moçambique' : undefined,
+          website: finalRole === 'company' ? website.trim() : undefined
+        });
+
+        if (res.success) {
+          setSuccess(`Conta de ${finalRole === 'company' ? 'Empresa' : 'Técnico'} criada com sucesso!`);
+          setTimeout(() => {
+            onClose();
+          }, 1000);
+        } else {
+          setError(res.error || 'Erro ao criar conta.');
+        }
       }
     }
   };
@@ -196,11 +231,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </div>
 
-        {/* Role Selector Tabs (Only on login or register) */}
-        {mode !== 'forgot_password' && (
+        {/* Role Selector Tabs (Only on login) */}
+        {mode === 'login' && (
           <div className="p-4 bg-slate-50 border-b border-slate-200">
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-              Selecione o seu Tipo de Acesso:
+              Selecione o seu Perfil de Acesso:
             </label>
             <div className="grid grid-cols-4 gap-1.5 bg-slate-200/70 p-1 rounded-2xl">
               {[
@@ -224,6 +259,82 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Mode Register: Rigid Profile Selection ("Quero Contratar Serviços" vs "Sou Técnico / Empresa") */}
+        {mode === 'register' && (
+          <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-2">
+            <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700">
+              Escolha seu Perfil Obrigatório (Permanente):
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountType('cliente');
+                  setSelectedRole('client');
+                }}
+                className={`p-3 rounded-2xl border text-left transition flex flex-col items-start gap-1 ${
+                  accountType === 'cliente'
+                    ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${accountType === 'cliente' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                    <User className="w-3.5 h-3.5" />
+                  </div>
+                  <span className={`text-xs font-black ${accountType === 'cliente' ? 'text-blue-900' : 'text-slate-800'}`}>
+                    Quero Contratar
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-500">Para clientes e particulares</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountType('tecnico');
+                  setSelectedRole('technician');
+                }}
+                className={`p-3 rounded-2xl border text-left transition flex flex-col items-start gap-1 ${
+                  accountType === 'tecnico'
+                    ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${accountType === 'tecnico' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                    <Wrench className="w-3.5 h-3.5" />
+                  </div>
+                  <span className={`text-xs font-black ${accountType === 'tecnico' ? 'text-blue-900' : 'text-slate-800'}`}>
+                    Sou Técnico / Empresa
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-500">Para profissionais e empresas</span>
+              </button>
+            </div>
+
+            {accountType === 'tecnico' && (
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[10px] text-slate-500 font-bold">Tipo:</span>
+                <button
+                  type="button"
+                  onClick={() => setTechType('technician')}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${techType === 'technician' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}
+                >
+                  Técnico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTechType('company')}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${techType === 'company' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}
+                >
+                  Empresa
+                </button>
+              </div>
+            )}
           </div>
         )}
 

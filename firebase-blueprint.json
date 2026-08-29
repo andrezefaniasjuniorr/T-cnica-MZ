@@ -114,6 +114,28 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "clientId", "title", "category", "description", "province", "status", "createdAt"]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "Technician 24-hour story/status post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "authorRole": { "type": "string", "enum": ["technician", "company", "admin", "super_admin"] },
+        "authorAvatar": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "text": { "type": "string", "maxLength": 500 },
+        "backgroundColor": { "type": "string", "maxLength": 50 },
+        "viewsCount": { "type": "number" },
+        "viewers": { "type": "array" },
+        "reactions": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "deleteAt": { "type": "string" }
+      },
+      "required": ["id", "authorId", "authorName", "createdAt", "expiresAt"]
     }
   },
   "firestore": {
@@ -136,6 +158,10 @@
     "/serviceRequests/{requestId}": {
       "schema": { "$ref": "#/entities/ServiceRequest" },
       "description": "Client job postings"
+    },
+    "/stories/{storyId}": {
+      "schema": { "$ref": "#/entities/Story" },
+      "description": "24-Hour Stories published by technicians and companies"
     }
   }
 }

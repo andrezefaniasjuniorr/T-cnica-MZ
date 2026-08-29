@@ -31,7 +31,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const { login, register, resetPassword, isLoading } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
-  const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole);
+  const [accountType, setAccountType] = useState<'cliente' | 'tecnico'>('cliente');
+  const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole === 'client' ? 'client' : 'technician');
 
   // Common Fields
   const [email, setEmail] = useState('');
@@ -44,6 +45,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [specialty, setSpecialty] = useState<string>(TECHNICAL_CATEGORIES[0] || 'Eletricidade');
   const [province, setProvince] = useState<string>(MOZAMBIQUE_PROVINCES[0] || 'Maputo Cidade');
   const [city, setCity] = useState('Maputo');
+  const [techType, setTechType] = useState<'technician' | 'company'>('technician');
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -84,9 +86,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       return;
     }
 
-    // 3. REGISTER FLOW
-    if (selectedRole === 'client') {
-      // Cliente / Usuário Comum: Apenas E-mail e Palavra-passe
+    // 3. REGISTER FLOW (RÍGIDO: "Quero Contratar Serviços" vs "Sou Técnico / Empresa")
+    if (accountType === 'cliente') {
+      // Cliente / Consumidor
+      if (!name.trim()) {
+        setError('Por favor insira o seu Nome Completo.');
+        return;
+      }
       if (!email.trim()) {
         setError('Por favor insira um e-mail válido.');
         return;
@@ -97,22 +103,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       }
 
       const res = await register({
-        name: email.split('@')[0],
+        name: name.trim(),
         email: email.trim(),
-        phone: '',
+        phone: phone.trim(),
         password: password.trim(),
-        role: 'client'
+        role: 'client',
+        tipoConta: 'cliente'
       });
 
       if (res.success) {
-        setSuccess('Conta de cliente criada com sucesso na TécnicaMZ Pro!');
+        setSuccess('Conta de Cliente criada com sucesso na TécnicaMZ Pro!');
       } else {
         setError(res.error || 'Este e-mail ou número de celular já existe.');
       }
     } else {
-      // Técnico ou Empresa: Nome Completo, E-mail, Celular, Palavra-passe, Especialidade, Cidade
+      // Técnico ou Empresa
+      const finalRole = techType === 'company' ? 'company' : 'technician';
+
       if (!name.trim()) {
-        setError('Por favor insira o Nome Completo.');
+        setError(techType === 'company' ? 'Por favor insira a Razão Social da Empresa.' : 'Por favor insira o Nome Completo.');
         return;
       }
       if (!email.trim()) {
@@ -120,7 +129,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         return;
       }
       if (!phone.trim()) {
-        setError('Por favor insira o seu Número de Celular.');
+        setError('Por favor insira o seu Número de Celular / WhatsApp.');
         return;
       }
       if (!password || password.length < 6) {
@@ -133,14 +142,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         email: email.trim(),
         phone: phone.trim(),
         password: password.trim(),
-        role: selectedRole,
+        role: finalRole,
+        tipoConta: 'tecnico',
         specialty,
         province,
         city: city.trim() || 'Maputo'
       });
 
       if (res.success) {
-        setSuccess(`Conta de ${selectedRole === 'technician' ? 'Técnico' : 'Empresa'} criada com sucesso!`);
+        setSuccess(`Conta Profissional (${techType === 'company' ? 'Empresa' : 'Técnico'}) criada com sucesso!`);
       } else {
         setError(res.error || 'Este e-mail ou número de celular já existe.');
       }
@@ -239,52 +249,118 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* ========================================================= */}
-          {/* REGISTRATION ROLE SELECTOR */}
+          {/* REGISTRATION ACCOUNT TYPE SELECTOR */}
           {/* ========================================================= */}
           {mode === 'register' && (
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
-                Tipo de Conta
+            <div className="space-y-3 pb-2">
+              <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block">
+                Escolha o Tipo de Perfil (Permanente) <span className="text-red-500">*</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Opção 1: Cliente */}
                 <button
                   type="button"
-                  onClick={() => setSelectedRole('client')}
-                  className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center gap-1 ${
-                    selectedRole === 'client'
-                      ? 'border-blue-600 bg-blue-50/70 text-blue-700 font-black'
-                      : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                  onClick={() => {
+                    setAccountType('cliente');
+                    setSelectedRole('client');
+                  }}
+                  className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 relative ${
+                    accountType === 'cliente'
+                      ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 shadow-xs'
+                      : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
                   }`}
                 >
-                  <UserIcon className="w-4 h-4" />
-                  <span className="text-[11px]">Cliente</span>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                    accountType === 'cliente' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    <UserIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className={`text-xs font-black leading-tight ${accountType === 'cliente' ? 'text-blue-900' : 'text-slate-800'}`}>
+                      Quero Contratar Serviços
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      Para clientes que buscam técnicos, orçamentos e obras.
+                    </p>
+                  </div>
                 </button>
 
+                {/* Opção 2: Técnico / Empresa */}
                 <button
                   type="button"
-                  onClick={() => setSelectedRole('technician')}
-                  className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center gap-1 ${
-                    selectedRole === 'technician'
-                      ? 'border-blue-600 bg-blue-50/70 text-blue-700 font-black'
-                      : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                  onClick={() => {
+                    setAccountType('tecnico');
+                    setSelectedRole('technician');
+                  }}
+                  className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 relative ${
+                    accountType === 'tecnico'
+                      ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 shadow-xs'
+                      : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
                   }`}
                 >
-                  <Wrench className="w-4 h-4" />
-                  <span className="text-[11px]">Técnico</span>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                    accountType === 'tecnico' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    <Wrench className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className={`text-xs font-black leading-tight ${accountType === 'tecnico' ? 'text-blue-900' : 'text-slate-800'}`}>
+                      Sou Técnico / Empresa
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      Para profissionais e prestadores de serviços técnicos.
+                    </p>
+                  </div>
                 </button>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('company')}
-                  className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center gap-1 ${
-                    selectedRole === 'company'
-                      ? 'border-blue-600 bg-blue-50/70 text-blue-700 font-black'
-                      : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                  }`}
-                >
-                  <Building2 className="w-4 h-4" />
-                  <span className="text-[11px]">Empresa</span>
-                </button>
+              {accountType === 'tecnico' && (
+                <div className="pt-1 flex items-center gap-2">
+                  <span className="text-[11px] text-slate-500 font-bold">Modalidade:</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTechType('technician')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                        techType === 'technician' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Técnico Autônomo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTechType('company')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                        techType === 'company' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Empresa Prestadora
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* FIELDS FOR CLIENT PROFILE */}
+          {/* ========================================================= */}
+          {mode === 'register' && accountType === 'cliente' && (
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                Nome Completo <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <UserIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Ex: Carlos Macuácua"
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                />
               </div>
             </div>
           )}
@@ -292,12 +368,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           {/* ========================================================= */}
           {/* FIELDS FOR TECHNICIAN / COMPANY */}
           {/* ========================================================= */}
-          {mode === 'register' && selectedRole !== 'client' && (
+          {mode === 'register' && accountType === 'tecnico' && (
             <>
-              {/* Full Name */}
+              {/* Full Name / Company Name */}
               <div>
                 <label className="text-[11px] font-bold text-slate-700 mb-1 block">
-                  Nome Completo <span className="text-red-500">*</span>
+                  {techType === 'company' ? 'Razão Social / Nome da Empresa' : 'Nome Completo'} <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <UserIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
@@ -306,7 +382,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     required
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    placeholder={selectedRole === 'technician' ? 'Ex: Mateus Sitoe' : 'Ex: EletroTec Moçambique Lda'}
+                    placeholder={techType === 'technician' ? 'Ex: Mateus Sitoe' : 'Ex: EletroTec Moçambique Lda'}
                     className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
                   />
                 </div>
@@ -315,7 +391,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               {/* Mobile Phone */}
               <div>
                 <label className="text-[11px] font-bold text-slate-700 mb-1 block">
-                  Número de Celular <span className="text-red-500">*</span>
+                  Número de Celular / WhatsApp <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { TECHNICAL_CATEGORIES, MOZAMBIQUE_PROVINCES } from '../../types';
+import { StoriesCarousel } from './StoriesCarousel';
 import {
   MessageSquare,
   Sparkles,
@@ -190,6 +191,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
           {/* Main Feed Column */}
           <div className="lg:col-span-8 space-y-6">
+            {/* Stories / Status 24h Carousel */}
+            <div className="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-xl">
+              <StoriesCarousel />
+            </div>
+
             {/* Filters and Search Bar */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row gap-3">

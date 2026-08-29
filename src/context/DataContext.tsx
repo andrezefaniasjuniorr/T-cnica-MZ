@@ -26,7 +26,10 @@ import {
   BudgetEstimate,
   ApplicationStatus,
   CommunityPost,
-  CommunityComment
+  CommunityComment,
+  StoryItem,
+  StoryViewer,
+  StoryReaction
 } from '../types';
 import {
   INITIAL_TECHNICIANS,
@@ -74,6 +77,18 @@ interface DataContextType {
   settings: PlatformSettings;
   favorites: string[];
   budgetEstimates: BudgetEstimate[];
+  stories: StoryItem[];
+
+  // Stories / Status Actions
+  createStory: (storyData: {
+    imageUrl?: string;
+    text?: string;
+    backgroundColor?: string;
+    textColor?: string;
+  }) => Promise<{ success: boolean; id?: string; error?: string }>;
+  viewStory: (storyId: string) => Promise<void>;
+  reactToStory: (storyId: string, emoji: string) => Promise<void>;
+  deleteStory: (storyId: string) => Promise<void>;
 
   // Technician Actions
   getTechnicianById: (userId: string) => TechnicianProfile | undefined;
@@ -170,6 +185,13 @@ interface DataContextType {
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   unreadNotificationsCount: number;
+  sendAdminNotification: (
+    target: 'all' | 'client' | 'technician' | 'company' | string,
+    title: string,
+    message: string,
+    type?: 'info' | 'success' | 'warning' | 'alert',
+    linkTab?: string
+  ) => Promise<{ success: boolean; error?: string }>;
 
   // Favorites
   toggleFavorite: (targetId: string) => void;
@@ -293,9 +315,42 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [stories, setStories] = useState<StoryItem[]>(() => {
+    const saved = localStorage.getItem('tecnicamz_stories');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // filter out expired stories (> 24h)
+        const now = Date.now();
+        return parsed.filter((s: StoryItem) => new Date(s.expiresAt || 0).getTime() > now);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
   // Real-time Firestore Listeners
   useEffect(() => {
     if (!isFirebaseConfigured || !db) return;
+
+    const unsubStories = onSnapshot(
+      collection(db, 'stories'),
+      (snapshot) => {
+        const list: StoryItem[] = [];
+        const now = Date.now();
+        snapshot.forEach((docSnap) => {
+          const item = { ...docSnap.data(), id: docSnap.id } as StoryItem;
+          // Keep stories that have not expired (within 24 hours)
+          if (!item.expiresAt || new Date(item.expiresAt).getTime() > now) {
+            list.push(item);
+          }
+        });
+        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setStories(list);
+      },
+      (err) => console.warn('Realtime stories notice:', err)
+    );
 
     const unsubPosts = onSnapshot(
       collection(db, 'community_posts'),
@@ -321,6 +376,32 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setMarketItems(items);
       },
       (err) => console.warn('Realtime market_items notice:', err)
+    );
+
+    const unsubConversations = onSnapshot(
+      collection(db, 'conversations'),
+      (snapshot) => {
+        const list: ConversationItem[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as ConversationItem);
+        });
+        list.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
+        setConversations(list);
+      },
+      (err) => console.warn('Realtime conversations notice:', err)
+    );
+
+    const unsubMessages = onSnapshot(
+      collection(db, 'messages'),
+      (snapshot) => {
+        const list: MessageItem[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as MessageItem);
+        });
+        list.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+        setMessages(list);
+      },
+      (err) => console.warn('Realtime messages notice:', err)
     );
 
     const unsubTechs = onSnapshot(
@@ -407,9 +488,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.warn('Realtime payments notice:', err)
     );
 
+    const unsubNotifications = onSnapshot(
+      collection(db, 'notifications'),
+      (snapshot) => {
+        const list: NotificationItem[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as NotificationItem);
+        });
+        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setNotifications(list);
+      },
+      (err) => console.warn('Realtime notifications notice:', err)
+    );
+
     return () => {
+      unsubStories();
       unsubPosts();
       unsubMarket();
+      unsubConversations();
+      unsubMessages();
       unsubTechs();
       unsubComps();
       unsubJobs();
@@ -417,10 +514,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubProposals();
       unsubReviews();
       unsubPayments();
+      unsubNotifications();
     };
   }, []);
 
   // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem('tecnicamz_stories', JSON.stringify(stories));
+  }, [stories]);
+
   useEffect(() => {
     localStorage.setItem('tecnicamz_technicians', JSON.stringify(technicians));
   }, [technicians]);
@@ -1464,6 +1566,173 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Stories / Status (24h) System
+  const createStory = async (storyData: {
+    imageUrl?: string;
+    text?: string;
+    backgroundColor?: string;
+    textColor?: string;
+  }): Promise<{ success: boolean; id?: string; error?: string }> => {
+    if (!currentUser) {
+      return { success: false, error: 'Faça login para publicar uma história.' };
+    }
+
+    const techProfile = technicians.find(t => t.userId === currentUser.uid);
+    const compProfile = companies.find(c => c.userId === currentUser.uid);
+
+    const now = new Date();
+    const expiresAtDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+    const deleteAtDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    const newStory: StoryItem = {
+      id: `story_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      authorId: currentUser.uid,
+      authorName: currentUser.name,
+      authorRole: currentUser.role,
+      authorAvatar: currentUser.avatarUrl || techProfile?.avatarUrl || compProfile?.logoUrl,
+      authorSpecialty: techProfile?.specialties?.[0] || (currentUser.role === 'company' ? 'Empresa Registada' : 'Técnico Especialista'),
+      authorProvince: techProfile?.province || compProfile?.province || currentUser.province || 'Maputo',
+      authorWhatsapp: techProfile?.whatsapp || compProfile?.whatsapp || currentUser.phone || '',
+      authorPhone: techProfile?.phone || compProfile?.phone || currentUser.phone || '',
+      imageUrl: storyData.imageUrl,
+      text: storyData.text,
+      backgroundColor: storyData.backgroundColor || 'from-slate-900 via-blue-950 to-indigo-950',
+      textColor: storyData.textColor || '#ffffff',
+      viewsCount: 0,
+      viewers: [],
+      reactions: [],
+      createdAt: now.toISOString(),
+      expiresAt: expiresAtDate.toISOString(),
+      deleteAt: deleteAtDate.toISOString()
+    };
+
+    setStories(prev => [newStory, ...prev]);
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'stories', newStory.id), newStory);
+      } catch (err: any) {
+        console.warn('Firestore create story error:', err);
+      }
+      try {
+        await setDoc(doc(db, 'historias', newStory.id), newStory);
+      } catch {}
+    }
+
+    return { success: true, id: newStory.id };
+  };
+
+  const viewStory = async (storyId: string) => {
+    if (!currentUser) return;
+    const userId = currentUser.uid;
+
+    const currentStory = stories.find(s => s.id === storyId);
+    if (!currentStory) return;
+
+    // Check if already viewed
+    const alreadyViewed = (currentStory.viewers || []).some(v => v.userId === userId);
+    if (alreadyViewed) return;
+
+    const newViewer: StoryViewer = {
+      userId: currentUser.uid,
+      userName: currentUser.name,
+      userRole: currentUser.role,
+      userAvatar: currentUser.avatarUrl,
+      viewedAt: new Date().toISOString()
+    };
+
+    const updatedViewers = [...(currentStory.viewers || []), newViewer];
+    const updatedViewsCount = (currentStory.viewsCount || 0) + 1;
+
+    setStories(prev =>
+      prev.map(s =>
+        s.id === storyId
+          ? {
+              ...s,
+              viewsCount: updatedViewsCount,
+              viewers: updatedViewers
+            }
+          : s
+      )
+    );
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'stories', storyId), {
+          viewsCount: updatedViewsCount,
+          viewers: updatedViewers
+        });
+      } catch (err) {
+        console.warn('Firestore view story error:', err);
+      }
+    }
+  };
+
+  const reactToStory = async (storyId: string, emoji: string) => {
+    if (!currentUser) return;
+
+    const currentStory = stories.find(s => s.id === storyId);
+    if (!currentStory) return;
+
+    const newReaction: StoryReaction = {
+      id: `react_${Date.now()}`,
+      userId: currentUser.uid,
+      userName: currentUser.name,
+      userAvatar: currentUser.avatarUrl,
+      emoji,
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedReactions = [...(currentStory.reactions || []), newReaction];
+
+    setStories(prev =>
+      prev.map(s =>
+        s.id === storyId
+          ? {
+              ...s,
+              reactions: updatedReactions
+            }
+          : s
+      )
+    );
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'stories', storyId), {
+          reactions: updatedReactions
+        });
+      } catch (err) {
+        console.warn('Firestore react to story error:', err);
+      }
+    }
+
+    // Send notification to story author if it's someone else
+    if (currentStory.authorId !== currentUser.uid) {
+      createNotification(
+        currentStory.authorId,
+        `Reação à sua História ${emoji}`,
+        `${currentUser.name} reagiu com ${emoji} ao seu status no mural.`,
+        'info',
+        'community'
+      );
+    }
+  };
+
+  const deleteStory = async (storyId: string) => {
+    setStories(prev => prev.filter(s => s.id !== storyId));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await deleteDoc(doc(db, 'stories', storyId));
+      } catch (err) {
+        console.warn('Firestore delete story error:', err);
+      }
+      try {
+        await deleteDoc(doc(db, 'historias', storyId));
+      } catch {}
+    }
+  };
+
   // Academy
   const addAcademyArticle = (articleData: Omit<AcademyArticle, 'id' | 'verifiedByAdmin'>) => {
     const newArt: AcademyArticle = {
@@ -1479,20 +1748,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Messaging System
-  const sendMessage = (conversationId: string, text: string) => {
+  const sendMessage = async (conversationId: string, text: string) => {
     if (!currentUser || !text.trim()) return;
 
+    const now = new Date();
+    const deleteAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
     const newMsg: MessageItem = {
-      id: `msg_${Date.now()}`,
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       conversationId,
       senderId: currentUser.uid,
       senderName: currentUser.name,
       senderRole: currentUser.role,
       text: text.trim(),
-      createdAt: new Date().toISOString()
+      createdAt: now.toISOString()
     };
 
     setMessages(prev => [...prev, newMsg]);
+
+    const updatedConvData = {
+      lastMessage: text.trim(),
+      lastMessageAt: now.toISOString()
+    };
 
     // Update conversation metadata
     setConversations(prev =>
@@ -1500,12 +1777,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         c.id === conversationId
           ? {
               ...c,
-              lastMessage: text.trim(),
-              lastMessageAt: new Date().toISOString()
+              ...updatedConvData
             }
           : c
       )
     );
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'messages', newMsg.id), { ...newMsg, deleteAt });
+        await setDoc(doc(db, 'conversations', conversationId), updatedConvData, { merge: true });
+      } catch (err) {
+        console.warn('Firestore send message error:', err);
+      }
+    }
 
     // Notify other participant
     const conv = conversations.find(c => c.id === conversationId);
@@ -1556,6 +1841,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setConversations(prev => [newConv, ...prev]);
+
+    if (isFirebaseConfigured && db) {
+      try {
+        setDoc(doc(db, 'conversations', newId), newConv);
+      } catch (err) {
+        console.warn('Firestore create conversation error:', err);
+      }
+    }
+
     return newId;
   };
 
@@ -1577,12 +1871,68 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const markAllNotificationsAsRead = () => {
     if (!currentUser) return;
-    setNotifications(prev => prev.map(n => (n.userId === currentUser.uid ? { ...n, read: true } : n)));
+    setNotifications(prev =>
+      prev.map(n =>
+        n.userId === currentUser.uid ||
+        n.userId === 'all' ||
+        n.userId === currentUser.role ||
+        n.userId === currentUser.tipoConta
+          ? { ...n, read: true }
+          : n
+      )
+    );
   };
 
   const unreadNotificationsCount = currentUser
-    ? notifications.filter(n => n.userId === currentUser.uid && !n.read).length
+    ? notifications.filter(
+        n =>
+          (n.userId === currentUser.uid ||
+            n.userId === 'all' ||
+            n.userId === currentUser.role ||
+            n.userId === currentUser.tipoConta) &&
+          !n.read
+      ).length
     : 0;
+
+  const sendAdminNotification = async (
+    target: 'all' | 'client' | 'technician' | 'company' | string,
+    title: string,
+    message: string,
+    type: 'info' | 'success' | 'warning' | 'alert' = 'info',
+    linkTab?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!title.trim() || !message.trim()) {
+      return { success: false, error: 'Título e mensagem são obrigatórios.' };
+    }
+
+    const newNotif: NotificationItem = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      userId: target,
+      title: title.trim(),
+      message: message.trim(),
+      type,
+      read: false,
+      linkTab,
+      createdAt: new Date().toISOString()
+    };
+
+    setNotifications(prev => [newNotif, ...prev]);
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'notifications', newNotif.id), newNotif);
+      } catch (err: any) {
+        console.warn('Firestore notification broadcast error:', err);
+      }
+      try {
+        // Also save to notificacoes if schema requires
+        await setDoc(doc(db, 'notificacoes', newNotif.id), newNotif);
+      } catch (e) {}
+    }
+
+    addAdminLog(`Envio de comunicado oficial para: ${target}`, undefined, title.trim());
+    return { success: true };
+  };
 
   // Favorites
   const toggleFavorite = (targetId: string) => {
@@ -1648,6 +1998,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         settings,
         favorites,
         budgetEstimates,
+        stories,
+        createStory,
+        viewStory,
+        reactToStory,
+        deleteStory,
         getTechnicianById,
         updateTechnicianStatus,
         verifyTechnician,
@@ -1699,6 +2054,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markNotificationAsRead,
         markAllNotificationsAsRead,
         unreadNotificationsCount,
+        sendAdminNotification,
         toggleFavorite,
         isFavorite,
         updateSettings,

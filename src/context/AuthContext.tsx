@@ -41,13 +41,14 @@ interface AuthContextType {
 
   activateUserSubscription: (planId: string, durationDays?: number, transactionCode?: string) => Promise<boolean>;
 
-  login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   register: (data: {
     name: string;
     email: string;
     phone: string;
     password?: string;
     role: UserRole;
+    tipoConta?: 'cliente' | 'tecnico';
     specialty?: string;
     province?: string;
     city?: string;
@@ -66,6 +67,10 @@ interface AuthContextType {
   switchUserRole: (newRole: UserRole) => Promise<void>;
   updateUserStatus: (userId: string, status: UserStatus) => Promise<void>;
   deleteUserAccount: (userId: string) => Promise<void>;
+  approveUserAccount: (userId: string) => Promise<void>;
+  rejectUserAccount: (userId: string, reason?: string) => Promise<void>;
+  toggleUserVerification: (userId: string) => Promise<void>;
+  grantManualSubscription30Days: (userId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -99,7 +104,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [currentTechProfile, setCurrentTechProfile] = useState<TechnicianProfile | null>(null);
   const [currentCompanyProfile, setCurrentCompanyProfile] = useState<CompanyProfile | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    return isFirebaseConfigured && !!auth;
+  });
 
   // Sync real-time Firestore listeners for users, technicians, and companies
   useEffect(() => {
@@ -194,66 +201,125 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (isFirebaseConfigured && auth) {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-        if (fbUser && fbUser.email) {
-          const normalizedEmail = fbUser.email.toLowerCase();
-          
-          // Check if admin super account
-          if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
-            const adminUser: User = {
-              uid: fbUser.uid,
-              name: 'André Zefanias Júnior',
-              email: normalizedEmail,
-              phone: '+258 84 999 0001',
-              role: 'super_admin',
-              adminSubRole: 'super_admin',
-              status: 'active',
-              createdAt: new Date().toISOString()
-            };
-            setCurrentUser(prev => (prev?.uid === fbUser.uid && prev?.role === 'super_admin' ? prev : adminUser));
-            setUsersList(prev => {
-              const existingIndex = prev.findIndex(u => u.email.toLowerCase() === normalizedEmail);
-              if (existingIndex >= 0) {
-                if (prev[existingIndex].uid === fbUser.uid && prev[existingIndex].role === 'super_admin') {
-                  return prev;
+        try {
+          if (fbUser && fbUser.email) {
+            const normalizedEmail = fbUser.email.toLowerCase();
+            
+            // Check if admin super account
+            if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
+              const adminUser: User = {
+                uid: fbUser.uid,
+                name: 'André Zefanias Júnior',
+                email: normalizedEmail,
+                phone: '+258 84 999 0001',
+                role: 'super_admin',
+                adminSubRole: 'super_admin',
+                tipoConta: 'tecnico',
+                statusAprovacao: 'aprovado',
+                statusConta: 'ativa',
+                status: 'active',
+                createdAt: new Date().toISOString()
+              };
+              setCurrentUser(prev => (prev?.uid === fbUser.uid && prev?.role === 'super_admin' ? prev : adminUser));
+              setUsersList(prev => {
+                const existingIndex = prev.findIndex(u => u.email.toLowerCase() === normalizedEmail);
+                if (existingIndex >= 0) {
+                  if (prev[existingIndex].uid === fbUser.uid && prev[existingIndex].role === 'super_admin') {
+                    return prev;
+                  }
+                  const updated = [...prev];
+                  updated[existingIndex] = { ...updated[existingIndex], ...adminUser };
+                  return updated;
                 }
-                const updated = [...prev];
-                updated[existingIndex] = { ...updated[existingIndex], ...adminUser };
-                return updated;
+                return [adminUser, ...prev];
+              });
+              if (db) {
+                try {
+                  await setDoc(doc(db, 'users', fbUser.uid), adminUser, { merge: true });
+                } catch (e) {
+                  console.warn('Sync admin doc error:', e);
+                }
               }
-              return [adminUser, ...prev];
+              return;
+            }
+
+            // 3. RECARREGAMENTO / SESSÃO ATIVA: LEITURA OBRIGATÓRIA NO FIRESTORE (doc(db, 'users', fbUser.uid))
+            if (db) {
+              try {
+                const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+                if (userDoc.exists()) {
+                  const docData = userDoc.data() as Partial<User>;
+                  const tipoConta = docData.tipoConta || (docData.role === 'client' ? 'cliente' : 'tecnico');
+                  const statusAprovacao = docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado');
+                  let role = docData.role;
+                  if (!role) {
+                    role = tipoConta === 'tecnico' ? 'technician' : 'client';
+                  }
+
+                  const firestoreUserData: User = {
+                    uid: fbUser.uid,
+                    name: docData.name || fbUser.displayName || normalizedEmail.split('@')[0],
+                    email: normalizedEmail,
+                    phone: docData.phone || '',
+                    role: role,
+                    tipoConta: tipoConta,
+                    statusAprovacao: statusAprovacao,
+                    statusConta: docData.statusConta || 'ativa',
+                    status: docData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
+                    adminSubRole: docData.adminSubRole,
+                    specialty: docData.specialty,
+                    province: docData.province,
+                    city: docData.city,
+                    avatarUrl: docData.avatarUrl,
+                    statusAssinatura: docData.statusAssinatura,
+                    dataExpiracao: docData.dataExpiracao,
+                    subscriptionStatus: docData.subscriptionStatus,
+                    activePlanId: docData.activePlanId,
+                    createdAt: docData.createdAt || new Date().toISOString(),
+                    updatedAt: docData.updatedAt
+                  };
+
+                  setCurrentUser(firestoreUserData);
+                  setUsersList(prev => {
+                    const existingIndex = prev.findIndex(u => u.uid === fbUser.uid || u.email.toLowerCase() === normalizedEmail);
+                    if (existingIndex >= 0) {
+                      const updated = [...prev];
+                      updated[existingIndex] = firestoreUserData;
+                      return updated;
+                    }
+                    return [firestoreUserData, ...prev];
+                  });
+                  return;
+                }
+              } catch (err) {
+                console.warn('Firestore fetch failed in onAuthStateChanged:', err);
+              }
+            }
+
+            // Fallback to local match if Firestore was temporarily unavailable
+            setUsersList(prev => {
+              const userMatch = prev.find(u => u.email.toLowerCase() === normalizedEmail);
+              if (userMatch) {
+                const tipoConta = userMatch.tipoConta || (userMatch.role === 'client' ? 'cliente' : 'tecnico');
+                const matchedUser: User = { ...userMatch, uid: fbUser.uid, tipoConta };
+                setCurrentUser(matchedUser);
+              }
+              return prev;
             });
-            return;
+          } else {
+            setCurrentUser(null);
           }
-
-          // Check if user exists in Firestore
-          if (db) {
-            try {
-              const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
-              if (userDoc.exists()) {
-                const firestoreUserData = userDoc.data() as User;
-                setCurrentUser(prev => (prev?.uid === firestoreUserData.uid && prev?.role === firestoreUserData.role ? prev : firestoreUserData));
-                return;
-              }
-            } catch (err) {
-              console.warn('Firestore fetch failed, checking local store:', err);
-            }
-          }
-
-          // Fallback to local match
-          setUsersList(prev => {
-            const userMatch = prev.find(u => u.email.toLowerCase() === normalizedEmail);
-            if (userMatch) {
-              setCurrentUser(curr => (curr?.uid === fbUser.uid && curr?.email === userMatch.email ? curr : { ...userMatch, uid: fbUser.uid }));
-            }
-            return prev;
-          });
+        } finally {
+          setIsLoading(false);
         }
       });
       return () => unsubscribe();
+    } else {
+      setIsLoading(false);
     }
   }, []);
 
-  const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string; user?: User }> => {
     setIsLoading(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
@@ -264,13 +330,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
           const fbUser = userCredential.user;
 
-          // Retrieve role & user data from Firestore or fallback
+          // 1. LEITURA DE PERFIL PÓS-AUTENTICAÇÃO:
+          // Busca OBRIGATÓRIA no documento do usuário no Firestore: doc(db, 'users', user.uid)
           let foundUser: User | null = null;
           if (db) {
             try {
               const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
               if (userDoc.exists()) {
-                foundUser = userDoc.data() as User;
+                const docData = userDoc.data() as Partial<User>;
+                const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
+                const tipoConta = isSuper ? 'tecnico' : (docData.tipoConta || (docData.role === 'client' ? 'cliente' : 'tecnico'));
+                const statusAprovacao = isSuper ? 'aprovado' : (docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado'));
+                let role = isSuper ? 'super_admin' : docData.role;
+                if (!role) {
+                  role = tipoConta === 'tecnico' ? 'technician' : 'client';
+                }
+
+                foundUser = {
+                  uid: fbUser.uid,
+                  name: docData.name || fbUser.displayName || normalizedEmail.split('@')[0],
+                  email: normalizedEmail,
+                  phone: docData.phone || '',
+                  role: role,
+                  tipoConta: tipoConta,
+                  statusAprovacao: statusAprovacao,
+                  statusConta: docData.statusConta || 'ativa',
+                  status: docData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
+                  adminSubRole: isSuper ? 'super_admin' : docData.adminSubRole,
+                  specialty: docData.specialty,
+                  province: docData.province,
+                  city: docData.city,
+                  avatarUrl: docData.avatarUrl,
+                  statusAssinatura: docData.statusAssinatura,
+                  dataExpiracao: docData.dataExpiracao,
+                  subscriptionStatus: docData.subscriptionStatus,
+                  activePlanId: docData.activePlanId,
+                  createdAt: docData.createdAt || new Date().toISOString(),
+                  updatedAt: docData.updatedAt
+                };
               }
             } catch (err) {
               console.warn('Firestore lookup error in login:', err);
@@ -280,7 +377,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!foundUser) {
             const localMatch = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
             if (localMatch) {
-              foundUser = { ...localMatch, uid: fbUser.uid };
+              const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
+              const tipoConta = isSuper ? 'tecnico' : (localMatch.tipoConta || (localMatch.role === 'client' ? 'cliente' : 'tecnico'));
+              foundUser = { ...localMatch, uid: fbUser.uid, tipoConta };
             } else {
               const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
               foundUser = {
@@ -289,7 +388,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 email: normalizedEmail,
                 phone: isSuper ? '+258 84 999 0001' : '',
                 role: isSuper ? 'super_admin' : 'client',
+                tipoConta: isSuper ? 'tecnico' : 'cliente',
                 adminSubRole: isSuper ? 'super_admin' : undefined,
+                statusAprovacao: 'aprovado',
+                statusConta: 'ativa',
                 status: 'active',
                 createdAt: new Date().toISOString()
               };
@@ -303,10 +405,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
-          if (foundUser.status === 'suspended') {
+          if (foundUser.status === 'suspended' || foundUser.statusConta === 'suspensa') {
             return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
           }
-          if (foundUser.status === 'blocked') {
+          if (foundUser.status === 'blocked' || foundUser.statusConta === 'bloqueada') {
             return { success: false, error: 'Acesso bloqueado por violação de políticas da plataforma.' };
           }
 
@@ -321,7 +423,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return [foundUser!, ...prev];
           });
 
-          return { success: true };
+          return { success: true, user: foundUser };
         } catch (fbErr: any) {
           console.warn('Firebase Auth sign in failed:', fbErr);
           if (
@@ -348,14 +450,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Check registered users list (for demo/fallback when password is not provided)
       const match = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
       if (match) {
-        if (match.status === 'suspended') {
+        if (match.status === 'suspended' || match.statusConta === 'suspensa') {
           return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
         }
-        if (match.status === 'blocked') {
+        if (match.status === 'blocked' || match.statusConta === 'bloqueada') {
           return { success: false, error: 'Acesso bloqueado por violação das políticas da plataforma.' };
         }
-        setCurrentUser(match);
-        return { success: true };
+        const tipoConta = match.tipoConta || (match.role === 'client' ? 'cliente' : 'tecnico');
+        const userWithTipo = { ...match, tipoConta };
+        setCurrentUser(userWithTipo);
+        return { success: true, user: userWithTipo };
       }
 
       // If user is the designated super admin email
@@ -367,12 +471,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           phone: '+258 84 999 0001',
           role: 'super_admin',
           adminSubRole: 'super_admin',
+          tipoConta: 'tecnico',
+          statusAprovacao: 'aprovado',
+          statusConta: 'ativa',
           status: 'active',
           createdAt: new Date().toISOString()
         };
         setUsersList(prev => [superAdminUser, ...prev]);
         setCurrentUser(superAdminUser);
-        return { success: true };
+        return { success: true, user: superAdminUser };
       }
 
       return { success: false, error: 'Nenhuma conta encontrada com este e-mail. Por favor crie uma nova conta.' };
@@ -389,6 +496,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phone: string;
     password?: string;
     role: UserRole;
+    tipoConta?: 'cliente' | 'tecnico';
     specialty?: string;
     province?: string;
     city?: string;
@@ -477,6 +585,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const defaultName = data.name.trim() || normalizedEmail.split('@')[0];
+      const tipoConta: 'cliente' | 'tecnico' = data.tipoConta || (userRole === 'client' ? 'cliente' : 'tecnico');
+      const isAutoApproved = userRole === 'client' || userRole === 'super_admin' || userRole === 'admin';
+      const statusAprovacao = isAutoApproved ? 'aprovado' : 'pendente';
+      const status: UserStatus = isAutoApproved ? 'active' : 'pending_approval';
 
       const newUser: User = {
         uid: generatedUid,
@@ -484,8 +596,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: normalizedEmail,
         phone: rawPhone,
         role: userRole,
+        tipoConta: tipoConta,
         adminSubRole: adminSubRole,
-        status: 'active',
+        status: status,
+        statusAprovacao: statusAprovacao,
+        statusConta: 'ativa',
+        isVerified: false,
+        specialty: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
+        province: data.province || 'Maputo Cidade',
+        city: data.city || 'Maputo',
         createdAt: new Date().toISOString()
       };
 
@@ -517,12 +636,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           bio: `Profissional qualificado em ${data.specialty || 'serviços técnicos'} em ${data.province || 'Moçambique'}.`,
           experienceYears: 1,
           verificationStatus: 'none',
+          statusAprovacao: 'pendente',
+          statusConta: 'ativa',
+          isVerified: false,
           subscriptionStatus: 'none',
           rating: 5.0,
           reviewsCount: 0,
           completedJobsCount: 0,
           availability: 'available',
-          status: 'active',
+          status: 'pending_approval',
           createdAt: new Date().toISOString()
         };
 
@@ -555,11 +677,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           industry: data.industry?.trim() || 'Engenharia & Construção',
           description: `Empresa ${defaultName} registada na TécnicaMZ para contratação de profissionais técnicos especializados.`,
           verificationStatus: 'unverified',
+          statusAprovacao: 'pendente',
+          statusConta: 'ativa',
+          isVerified: false,
           rating: 5.0,
           reviewsCount: 0,
           hiredTechniciansCount: 0,
           activeJobsCount: 0,
-          status: 'active',
+          status: 'pending_approval',
           createdAt: new Date().toISOString()
         };
 
@@ -764,6 +889,212 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const approveUserAccount = async (userId: string) => {
+    const nowIso = new Date().toISOString();
+    setUsersList(prev =>
+      prev.map(u =>
+        u.uid === userId
+          ? { ...u, statusAprovacao: 'aprovado', status: 'active', statusConta: 'ativa', updatedAt: nowIso }
+          : u
+      )
+    );
+    setTechList(prev =>
+      prev.map(t =>
+        t.userId === userId
+          ? { ...t, statusAprovacao: 'aprovado', status: 'active', statusConta: 'ativa', updatedAt: nowIso }
+          : t
+      )
+    );
+    setCompanyList(prev =>
+      prev.map(c =>
+        c.userId === userId
+          ? { ...c, statusAprovacao: 'aprovado', status: 'active', statusConta: 'ativa', updatedAt: nowIso }
+          : c
+      )
+    );
+
+    if (currentUser?.uid === userId) {
+      setCurrentUser(prev =>
+        prev ? { ...prev, statusAprovacao: 'aprovado', status: 'active', statusConta: 'ativa', updatedAt: nowIso } : null
+      );
+    }
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', userId), {
+          statusAprovacao: 'aprovado',
+          status: 'active',
+          statusConta: 'ativa',
+          updatedAt: nowIso
+        });
+      } catch (err) {
+        console.warn('Firestore approve user error:', err);
+      }
+
+      try {
+        await updateDoc(doc(db, 'technicians', userId), {
+          statusAprovacao: 'aprovado',
+          status: 'active',
+          statusConta: 'ativa',
+          updatedAt: nowIso
+        });
+      } catch (err) {
+        // May not exist if company
+      }
+
+      try {
+        await updateDoc(doc(db, 'companies', userId), {
+          statusAprovacao: 'aprovado',
+          status: 'active',
+          statusConta: 'ativa',
+          updatedAt: nowIso
+        });
+      } catch (err) {
+        // May not exist if tech
+      }
+    }
+  };
+
+  const rejectUserAccount = async (userId: string, reason = 'Cadastro não atende aos requisitos mínimos.') => {
+    const nowIso = new Date().toISOString();
+    setUsersList(prev =>
+      prev.map(u =>
+        u.uid === userId
+          ? { ...u, statusAprovacao: 'rejeitado', status: 'suspended', suspensionReason: reason, rejectionReason: reason, updatedAt: nowIso }
+          : u
+      )
+    );
+
+    if (currentUser?.uid === userId) {
+      setCurrentUser(prev =>
+        prev ? { ...prev, statusAprovacao: 'rejeitado', status: 'suspended', suspensionReason: reason, rejectionReason: reason, updatedAt: nowIso } : null
+      );
+    }
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', userId), {
+          statusAprovacao: 'rejeitado',
+          status: 'suspended',
+          suspensionReason: reason,
+          rejectionReason: reason,
+          updatedAt: nowIso
+        });
+      } catch (err) {
+        console.warn('Firestore reject user error:', err);
+      }
+    }
+  };
+
+  const toggleUserVerification = async (userId: string) => {
+    const target = usersList.find(u => u.uid === userId);
+    if (!target) return;
+    const nowIso = new Date().toISOString();
+    const newVerified = !target.isVerified;
+
+    setUsersList(prev =>
+      prev.map(u => (u.uid === userId ? { ...u, isVerified: newVerified, updatedAt: nowIso } : u))
+    );
+    setTechList(prev =>
+      prev.map(t =>
+        t.userId === userId
+          ? { ...t, isVerified: newVerified, verificationStatus: newVerified ? 'approved' : 'none', updatedAt: nowIso }
+          : t
+      )
+    );
+    setCompanyList(prev =>
+      prev.map(c =>
+        c.userId === userId
+          ? { ...c, isVerified: newVerified, verificationStatus: newVerified ? 'verified' : 'unverified', updatedAt: nowIso }
+          : c
+      )
+    );
+
+    if (currentUser?.uid === userId) {
+      setCurrentUser(prev => (prev ? { ...prev, isVerified: newVerified, updatedAt: nowIso } : null));
+    }
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', userId), { isVerified: newVerified, updatedAt: nowIso });
+      } catch (err) {
+        console.warn('Firestore toggle user verified error:', err);
+      }
+      try {
+        await updateDoc(doc(db, 'technicians', userId), {
+          isVerified: newVerified,
+          verificationStatus: newVerified ? 'approved' : 'none',
+          updatedAt: nowIso
+        });
+      } catch {}
+      try {
+        await updateDoc(doc(db, 'companies', userId), {
+          isVerified: newVerified,
+          verificationStatus: newVerified ? 'verified' : 'unverified',
+          updatedAt: nowIso
+        });
+      } catch {}
+    }
+  };
+
+  const grantManualSubscription30Days = async (userId: string) => {
+    const target = usersList.find(u => u.uid === userId);
+    if (!target) return;
+
+    const now = Date.now();
+    const currentExp = target.dataExpiracao || target.subscriptionExpiresAt;
+    const currentExpTime = currentExp ? new Date(currentExp).getTime() : 0;
+    const baseTime = currentExpTime > now ? currentExpTime : now;
+    const newExpDate = new Date(baseTime + 30 * 24 * 60 * 60 * 1000);
+    const dataExpiracao = newExpDate.toISOString();
+    const nowIso = new Date().toISOString();
+
+    const updatedUser: User = {
+      ...target,
+      statusAssinatura: 'ativa',
+      subscriptionStatus: 'active',
+      planoAtivo: '50mt',
+      planoAssinatura: 'plano_tecnico_pro',
+      activePlanId: 'plano_tecnico_pro',
+      dataExpiracao: dataExpiracao,
+      subscriptionExpiresAt: dataExpiracao,
+      updatedAt: nowIso
+    };
+
+    setUsersList(prev => prev.map(u => (u.uid === userId ? updatedUser : u)));
+    if (currentUser?.uid === userId) {
+      setCurrentUser(updatedUser);
+    }
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', userId), {
+          statusAssinatura: 'ativa',
+          subscriptionStatus: 'active',
+          planoAtivo: '50mt',
+          planoAssinatura: 'plano_tecnico_pro',
+          activePlanId: 'plano_tecnico_pro',
+          dataExpiracao: dataExpiracao,
+          subscriptionExpiresAt: dataExpiracao,
+          updatedAt: nowIso
+        });
+      } catch (err) {
+        console.warn('Firestore grant manual subscription error:', err);
+      }
+
+      if (target.role === 'technician') {
+        try {
+          await updateDoc(doc(db, 'technicians', userId), {
+            subscriptionStatus: 'active',
+            activePlanId: 'plano_tecnico_pro',
+            subscriptionExpiresAt: dataExpiracao,
+            updatedAt: nowIso
+          });
+        } catch {}
+      }
+    }
+  };
+
   const deleteUserAccount = async (userId: string) => {
     setUsersList(prev => prev.filter(u => u.uid !== userId));
     setTechList(prev => prev.filter(t => t.userId !== userId));
@@ -822,15 +1153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return 'empresa_vip';
     }
     if (!isSubscriptionActive) return null;
-
-    const planKey = (currentUser.planoAssinatura || currentUser.activePlanId || '').toLowerCase();
-    if (planKey.includes('vip') || planKey.includes('empresa') || planKey === 'plano_empresa_vip') {
-      return 'empresa_vip';
-    }
-    if (planKey.includes('prof') || planKey === 'plano_profissional') {
-      return 'profissional';
-    }
-    return 'basico';
+    return 'profissional';
   }, [currentUser, isSubscriptionActive]);
 
   const activePlanId = React.useMemo(() => {
@@ -841,9 +1164,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentUser.adminSubRole === 'super_admin' ||
       (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
     ) {
-      return 'plano_empresa_vip';
+      return 'plano_tecnico_pro';
     }
-    return currentUser.planoAssinatura || currentUser.activePlanId || null;
+    return currentUser.planoAssinatura || currentUser.activePlanId || 'plano_tecnico_pro';
   }, [currentUser]);
 
   const subscriptionExpirationDate = React.useMemo(() => {
@@ -866,10 +1189,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   }, [subscriptionExpirationDate]);
 
-  const canAccessSaraAi = Boolean(isSubscriptionActive && (activePlanTier === 'profissional' || activePlanTier === 'empresa_vip'));
-  const canAccessOSGenerator = Boolean(isSubscriptionActive && (activePlanTier === 'profissional' || activePlanTier === 'empresa_vip'));
-  const canPublishMarket = Boolean(isSubscriptionActive && activePlanTier === 'empresa_vip');
-  const hasTopMuralHighlight = Boolean(isSubscriptionActive && activePlanTier === 'empresa_vip');
+  // SINGLE PLAN 50 MT UNLOCKS ALL TOOLS UNRESTRICTED:
+  const canAccessSaraAi = Boolean(isSubscriptionActive);
+  const canAccessOSGenerator = Boolean(isSubscriptionActive);
+  const canPublishMarket = Boolean(isSubscriptionActive);
+  const hasTopMuralHighlight = Boolean(isSubscriptionActive);
 
   const activateUserSubscription = async (
     planId: string,
@@ -882,21 +1206,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const expDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
     const dataExpiracao = expDate.toISOString();
 
-    let tier: 'basico' | 'profissional' | 'empresa_vip' = 'basico';
-    if (planId.includes('vip') || planId.includes('empresa') || planId === 'plano_empresa_vip') {
-      tier = 'empresa_vip';
-    } else if (planId.includes('prof') || planId === 'plano_profissional') {
-      tier = 'profissional';
-    }
-
     const updatedUser: User = {
       ...currentUser,
       statusAssinatura: 'ativa',
       subscriptionStatus: 'active',
-      planoAssinatura: planId,
-      activePlanId: planId,
+      planoAtivo: '50mt',
+      planoAssinatura: 'plano_tecnico_pro',
+      activePlanId: 'plano_tecnico_pro',
       dataExpiracao: dataExpiracao,
       subscriptionExpiresAt: dataExpiracao,
+      isVerified: true,
       updatedAt: now.toISOString()
     };
 
@@ -908,10 +1227,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await updateDoc(doc(db, 'users', currentUser.uid), {
           statusAssinatura: 'ativa',
           subscriptionStatus: 'active',
-          planoAssinatura: planId,
-          activePlanId: planId,
+          planoAtivo: '50mt',
+          planoAssinatura: 'plano_tecnico_pro',
+          activePlanId: 'plano_tecnico_pro',
           dataExpiracao: dataExpiracao,
           subscriptionExpiresAt: dataExpiracao,
+          isVerified: true,
           updatedAt: now.toISOString()
         });
       } catch (err) {
@@ -922,9 +1243,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           await updateDoc(doc(db, 'technicians', currentUser.uid), {
             subscriptionStatus: 'active',
-            activePlanId: planId,
+            activePlanId: 'plano_tecnico_pro',
             subscriptionExpiresAt: dataExpiracao,
-            verificationStatus: tier === 'profissional' || tier === 'empresa_vip' ? 'approved' : 'none',
+            verificationStatus: 'approved',
+            isVerified: true,
             updatedAt: now.toISOString()
           });
         } catch (err) {
@@ -936,8 +1258,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const isClient = currentUser?.role === 'client';
-  const isTechnician = currentUser?.role === 'technician';
+  const isClient = currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client';
+  const isTechnician = currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician';
   const isCompany = currentUser?.role === 'company';
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.adminSubRole === 'super_admin';
@@ -984,7 +1306,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateCurrentCompanyProfile,
         switchUserRole,
         updateUserStatus,
-        deleteUserAccount
+        deleteUserAccount,
+        approveUserAccount,
+        rejectUserAccount,
+        toggleUserVerification,
+        grantManualSubscription30Days
       }}
     >
       {children}

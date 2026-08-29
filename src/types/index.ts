@@ -48,23 +48,35 @@ export type ServiceUrgency = RequestUrgency;
 
 export type PlanTier = 'basico' | 'profissional' | 'empresa_vip';
 
+export type AccountType = 'cliente' | 'tecnico';
+export type ApprovalStatus = 'pendente' | 'aprovado' | 'rejeitado';
+export type AccountStatus = 'ativa' | 'bloqueada' | 'suspensa';
+
 export interface User {
   uid: string;
   name: string;
   email: string;
   phone?: string;
   role: UserRole;
+  tipoConta?: 'cliente' | 'tecnico';
   adminSubRole?: AdminSubRole;
   status: UserStatus;
+  statusAprovacao?: ApprovalStatus;
+  statusConta?: AccountStatus;
+  isVerified?: boolean;
+  specialty?: string;
+  province?: string;
+  city?: string;
   statusAssinatura?: 'ativa' | 'inativa' | 'expirada' | 'pendente' | string;
   dataExpiracao?: string; // ISO date string e.g. "2026-09-28T00:00:00.000Z"
-  planoAtivo?: '50mt' | '199mt' | '499mt' | string;
-  planoAssinatura?: 'basico' | 'profissional' | 'empresa_vip' | string;
+  planoAtivo?: '50mt' | string;
+  planoAssinatura?: 'plano_tecnico_pro' | 'profissional' | string;
   activePlanId?: string;
   subscriptionExpiresAt?: string;
   subscriptionStatus?: 'none' | 'active' | 'expired' | 'ativa';
   avatarUrl?: string;
   suspensionReason?: string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -131,6 +143,9 @@ export interface TechnicianProfile {
   verificationStatus: VerificationStatus;
   verificationDocuments?: VerificationDocument[];
   verificationRejectionReason?: string;
+  isVerified?: boolean;
+  statusAprovacao?: ApprovalStatus;
+  statusConta?: AccountStatus;
   subscriptionStatus: SubscriptionStatus;
   activePlanId?: string;
   subscriptionExpiresAt?: string; // ISO date string
@@ -178,6 +193,9 @@ export interface CompanyProfile {
   verificationStatus: CompanyVerificationStatus;
   verificationDocuments?: VerificationDocument[];
   verificationRejectionReason?: string;
+  isVerified?: boolean;
+  statusAprovacao?: ApprovalStatus;
+  statusConta?: AccountStatus;
   privacy?: CompanyPrivacySettings;
   rating: number;
   reviewsCount: number;
@@ -494,6 +512,47 @@ export interface CommunityPost {
   comments: CommunityComment[];
   pinned?: boolean;
   createdAt: string;
+  deleteAt?: string;
+  expiresAt?: string;
+}
+
+export interface StoryReaction {
+  id?: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  emoji: string;
+  createdAt: string;
+}
+
+export interface StoryViewer {
+  userId: string;
+  userName: string;
+  userRole?: UserRole;
+  userAvatar?: string;
+  viewedAt: string;
+}
+
+export interface StoryItem {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: UserRole;
+  authorAvatar?: string;
+  authorSpecialty?: string;
+  authorProvince?: string;
+  authorWhatsapp?: string;
+  authorPhone?: string;
+  imageUrl?: string;
+  text?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  viewsCount?: number;
+  viewers?: StoryViewer[];
+  reactions?: StoryReaction[];
+  createdAt: string; // ISO string
+  expiresAt: string; // ISO string (createdAt + 24 hours)
+  deleteAt: string;  // ISO string (createdAt + 7 days)
 }
 
 export interface AcademyArticle {

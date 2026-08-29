@@ -18,7 +18,8 @@ import {
   NotificationItem,
   ReportItem,
   AdminLogItem,
-  CommunityPost
+  CommunityPost,
+  StoryItem
 } from '../types';
 
 export const INITIAL_SETTINGS: PlatformSettings = {
@@ -78,90 +79,33 @@ export const INITIAL_SETTINGS: PlatformSettings = {
 
 export const INITIAL_PLANS: SubscriptionPlan[] = [
   {
-    id: 'plano_basico',
-    name: 'Pacote Básico',
+    id: 'plano_tecnico_pro',
+    name: 'Plano Técnico Pro',
     priceMZN: 50,
-    durationDays: 30,
-    tier: 'basico',
-    active: true,
-    priority: 1,
-    targetRole: 'all',
-    createdAt: '2025-01-01',
-    permissions: [
-      'Acesso de navegação ao Feed e Mural de Notícias',
-      'Perfil público de técnico básico na TécnicaMZ',
-      'Visualização do Diretório de Técnicos e Empresas',
-      'Visualização de Vagas de Emprego disponíveis'
-    ],
-    restrictions: [
-      'Bloqueia Gerador de OS em PDF',
-      'Bloqueia Acesso à Sara IA (Engenharia MZ)',
-      'Bloqueia Publicações e anúncios no Mercado'
-    ],
-    benefits: [
-      'Acesso ao Feed e Mural de Notícias',
-      'Perfil público de técnico básico',
-      'Visualização de vagas e pedidos'
-    ]
-  },
-  {
-    id: 'plano_profissional',
-    name: 'Pacote Profissional',
-    priceMZN: 199,
     durationDays: 30,
     tier: 'profissional',
     active: true,
-    priority: 2,
+    priority: 1,
     isPopular: true,
-    badge: 'Mais Popular',
+    badge: 'Acesso Total',
     targetRole: 'all',
     createdAt: '2025-01-01',
     permissions: [
-      'Tudo incluído no Pacote Básico (50 MT)',
-      'Selo oficial de "Técnico Verificado" no perfil',
-      'Gerador de Ordens de Serviço (OS) em PDF ilimitado',
-      'Acesso total e irrestrito à Sara IA (Engenharia MZ)',
-      'Calculadoras técnicas completas (Solar, Cabos, Ar Condicionado)',
-      'Envio ilimitado de propostas para clientes'
-    ],
-    restrictions: [
-      'Bloqueia anúncios na aba Mercado',
-      'Sem destaque no topo do Mural da Comunidade'
-    ],
-    benefits: [
-      'Tudo do Pacote 50 MT',
-      'Selo de "Técnico Verificado" no perfil',
-      'Gerador de Ordens de Serviço (OS) em PDF ilimitado',
-      'Acesso total à Sara IA'
-    ]
-  },
-  {
-    id: 'plano_empresa_vip',
-    name: 'Pacote Empresa / VIP',
-    priceMZN: 499,
-    durationDays: 30,
-    tier: 'empresa_vip',
-    active: true,
-    priority: 3,
-    badge: 'Acesso Total VIP',
-    targetRole: 'all',
-    createdAt: '2025-01-01',
-    permissions: [
-      'Acesso total sem restrições a toda a plataforma TécnicaMZ',
-      'Selo exclusivo "Empresa VIP" ou "Técnico VIP"',
-      'Anúncios ilimitados no Mercado TécnicaMZ',
-      'Destaque automático de publicações no topo do Mural',
-      'Gerador de Ordens de Serviço (OS) em PDF ilimitado',
-      'Acesso irrestrito à Sara IA e todas as ferramentas',
-      'Publicação e gestão de vagas de emprego (/jobs)',
-      'Prioridade máxima em buscas e recomendações'
+      'Acesso Ilimitado ao Mural Técnico & Comunidade de Engenharia MZ',
+      'Gerador de Ordens de Serviço (OS) Profissional em PDF Ilimitado',
+      'Sara IA - Assistente Inteligente de Engenharia & Normas de Moçambique',
+      'Selo Oficial de Técnico / Empresa Verificado no Perfil e Catálogo',
+      'Publicação Ilimitada de Anúncios e Equipamentos no Mercado Técnico',
+      'Acesso a Vagas e Oportunidades de Emprego em Todo o País',
+      'Calculadoras Técnicas de Dimensionamento Solar, Cabos e Climatização'
     ],
     restrictions: [],
     benefits: [
-      'Acesso total sem restrições a toda a plataforma',
-      'Selo "Empresa VIP" / "Técnico VIP"',
-      'Anúncios ilimitados no Mercado',
-      'Destaque automático de publicações no topo do Mural'
+      'Gerador de Ordens de Serviço em PDF Ilimitado',
+      'Acesso Total à Sara IA de Engenharia',
+      'Selo Oficial de Verificado no Perfil',
+      'Anúncios Livres no Mercado TécnicaMZ',
+      'Mural Técnico e Feed da Comunidade'
     ]
   }
 ];
@@ -185,3 +129,4 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
 export const INITIAL_REPORTS: ReportItem[] = [];
 export const INITIAL_ADMIN_LOGS: AdminLogItem[] = [];
 export const INITIAL_COMMUNITY_POSTS: CommunityPost[] = [];
+export const INITIAL_STORIES: StoryItem[] = [];

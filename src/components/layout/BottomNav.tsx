@@ -1,11 +1,13 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import {
   Users,
   ShoppingBag,
   Sliders,
   Sparkles,
   Wrench,
-  Menu
+  User,
+  LayoutDashboard
 } from 'lucide-react';
 
 interface BottomNavProps {
@@ -19,22 +21,35 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   onNavigateTab,
   onOpenSaraAi
 }) => {
-  const navItems = [
-    { id: 'community', label: 'Feed', icon: Users },
+  const { isClient } = useAuth();
+
+  // Navigation specifically structured by role
+  const clientNavItems = [
+    { id: 'community', label: 'Feed / Mural', icon: Users },
     { id: 'technicians_directory', label: 'Técnicos MZ', icon: Wrench },
-    { id: 'sara', label: 'Sara IA', icon: Sparkles, isSara: true },
     { id: 'market', label: 'Mercado', icon: ShoppingBag },
-    { id: 'tools', label: 'Ferramentas', icon: Sliders }
+    { id: 'client', label: 'Meu Perfil', icon: User }
   ];
 
+  const technicianNavItems = [
+    { id: 'community', label: 'Feed', icon: Users },
+    { id: 'tools', label: 'Ferramentas', icon: Sliders },
+    { id: 'sara', label: 'Sara IA', icon: Sparkles, isSara: true },
+    { id: 'market', label: 'Mercado', icon: ShoppingBag },
+    { id: 'technician', label: 'Painel', icon: LayoutDashboard }
+  ];
+
+  const navItems = isClient ? clientNavItems : technicianNavItems;
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-1.5 px-1 md:hidden shadow-lg shadow-slate-900/5 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-1.5 px-2 md:hidden shadow-lg shadow-slate-900/5 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
       <div className="flex items-center justify-around max-w-md mx-auto">
         {navItems.map(item => {
           const Icon = item.icon;
-          const isActive = item.isSara ? false : activeTab === item.id;
+          const isSaraItem = (item as any).isSara;
+          const isActive = isSaraItem ? false : activeTab === item.id;
 
-          if (item.isSara) {
+          if (isSaraItem) {
             return (
               <button
                 key={item.id}
@@ -54,7 +69,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button
               key={item.id}
               onClick={() => onNavigateTab(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-150 min-w-[52px] active:scale-95 ${
+              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-150 min-w-[56px] active:scale-95 ${
                 isActive
                   ? 'text-blue-600 font-black'
                   : 'text-slate-500 hover:text-slate-800'
