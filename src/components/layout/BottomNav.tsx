@@ -25,18 +25,18 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   // Navigation specifically structured by role
   const clientNavItems = [
-    { id: 'community', label: 'Feed / Mural', icon: Users },
+    { id: 'community', label: 'Mural', icon: Users },
     { id: 'technicians_directory', label: 'Técnicos MZ', icon: Wrench },
     { id: 'market', label: 'Mercado', icon: ShoppingBag },
-    { id: 'client', label: 'Meu Perfil', icon: User }
+    { id: 'client', label: 'Perfil', icon: User }
   ];
 
   const technicianNavItems = [
-    { id: 'community', label: 'Feed', icon: Users },
-    { id: 'tools', label: 'Ferramentas', icon: Sliders },
+    { id: 'community', label: 'Mural', icon: Users },
+    { id: 'technicians_directory', label: 'Técnicos MZ', icon: Wrench },
     { id: 'sara', label: 'Sara IA', icon: Sparkles, isSara: true },
-    { id: 'market', label: 'Mercado', icon: ShoppingBag },
-    { id: 'technician', label: 'Painel', icon: LayoutDashboard }
+    { id: 'tools', label: 'Ferramentas', icon: Sliders },
+    { id: 'market', label: 'Mercado', icon: ShoppingBag }
   ];
 
   const navItems = isClient ? clientNavItems : technicianNavItems;

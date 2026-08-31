@@ -191,12 +191,12 @@ export const AdminApprovalsTab: React.FC<AdminApprovalsTabProps> = ({
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {pendingUsers.map(applicant => {
-            const isCompany = applicant.role === 'company' || applicant.tipoConta === 'empresa';
+            const isCompany = applicant.role === 'company' || (applicant as any).tipoConta === 'empresa';
             const isProcessing = processingId === applicant.uid;
             const whatsappNumber = (applicant.phone || '').replace(/\D/g, '');
             const whatsappLink = whatsappNumber
               ? `https://wa.me/258${whatsappNumber.startsWith('258') ? whatsappNumber.substring(3) : whatsappNumber}`
-              : `https://wa.me/258851949159`;
+              : `https://wa.me/258841234567`;
 
             return (
               <div

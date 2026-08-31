@@ -51,10 +51,13 @@ export const PaymentSubmitModal: React.FC<PaymentSubmitModalProps> = ({
     setIsSubmitting(true);
     try {
       const res = await submitPayment({
+        userId: currentUser.uid,
+        userName: currentUser.name,
+        userRole: currentUser.role,
+        userPhone: currentUser.phone || currentTechProfile?.phone,
         technicianId: currentUser.uid,
-        technicianName: currentUser.name,
-        technicianPhone: currentUser.phone || currentTechProfile?.phone,
         planId: selectedPlan.id,
+        planName: selectedPlan.name,
         amountMZN: selectedPlan.priceMZN,
         method,
         transactionCode,

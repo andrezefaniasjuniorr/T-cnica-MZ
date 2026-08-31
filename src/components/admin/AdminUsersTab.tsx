@@ -288,7 +288,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
         ) : (
           filteredUsers.map(user => {
             const isProcessing = processingId === user.uid;
-            const isCompany = user.role === 'company' || user.tipoConta === 'empresa';
+            const isCompany = user.role === 'company' || (user as any).tipoConta === 'empresa';
             const isClient = user.role === 'client' || user.tipoConta === 'cliente';
             const isAdmin = user.role === 'admin';
             const isVerified = Boolean(user.isVerified);
@@ -319,7 +319,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             const whatsappNumber = (user.phone || '').replace(/\D/g, '');
             const whatsappLink = whatsappNumber
               ? `https://wa.me/258${whatsappNumber.startsWith('258') ? whatsappNumber.substring(3) : whatsappNumber}`
-              : `https://wa.me/258851949159`;
+              : `https://wa.me/258841234567`;
 
             return (
               <div

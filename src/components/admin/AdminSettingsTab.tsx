@@ -25,15 +25,15 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   onUpdateSettings
 }) => {
   const [formData, setFormData] = useState({
-    mpesaNumber: settings.paymentMethods?.mpesa?.number || '841234567',
-    mpesaName: settings.paymentMethods?.mpesa?.name || 'TécnicaMZ Pro',
-    emolaNumber: settings.paymentMethods?.emola?.number || '861234567',
-    emolaName: settings.paymentMethods?.emola?.name || 'TécnicaMZ Pro',
-    supportPhone: settings.supportPhone || '+258851949159',
-    supportWhatsapp: settings.supportWhatsapp || '+258851949159',
+    mpesaNumber: settings.paymentMethods?.mpesaNumber || settings.paymentMethods?.mpesa?.number || settings.mpesaNumber || '841234567',
+    mpesaName: settings.paymentMethods?.mpesaName || settings.paymentMethods?.mpesa?.name || settings.mpesaName || 'TécnicaMZ Pro',
+    emolaNumber: settings.paymentMethods?.emolaNumber || settings.paymentMethods?.emola?.number || '861234567',
+    emolaName: settings.paymentMethods?.emolaName || settings.paymentMethods?.emola?.name || 'TécnicaMZ Pro',
+    supportPhone: settings.supportPhone || '+258841234567',
+    supportWhatsapp: settings.supportWhatsapp || settings.whatsappSupport || '+258841234567',
     supportEmail: settings.supportEmail || 'suporte@tecnicamz.com',
     maintenanceMode: Boolean(settings.maintenanceMode),
-    allowNewRegistrations: settings.allowNewRegistrations !== false,
+    allowNewRegistrations: settings.allowNewRegistrations !== false && settings.registrationOpen !== false,
     saraAiEnabled: settings.saraAiEnabled !== false
   });
 
@@ -45,20 +45,29 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
       onUpdateSettings({
         supportPhone: formData.supportPhone,
         supportWhatsapp: formData.supportWhatsapp,
+        whatsappSupport: formData.supportWhatsapp,
         supportEmail: formData.supportEmail,
         maintenanceMode: formData.maintenanceMode,
         allowNewRegistrations: formData.allowNewRegistrations,
+        registrationOpen: formData.allowNewRegistrations,
         saraAiEnabled: formData.saraAiEnabled,
+        mpesaNumber: formData.mpesaNumber,
+        mpesaName: formData.mpesaName,
         paymentMethods: {
+          ...settings.paymentMethods,
+          mpesaNumber: formData.mpesaNumber,
+          mpesaName: formData.mpesaName,
+          emolaNumber: formData.emolaNumber,
+          emolaName: formData.emolaName,
           mpesa: {
             number: formData.mpesaNumber,
             name: formData.mpesaName,
-            active: true
+            enabled: true
           },
           emola: {
             number: formData.emolaNumber,
             name: formData.emolaName,
-            active: true
+            enabled: true
           }
         }
       });

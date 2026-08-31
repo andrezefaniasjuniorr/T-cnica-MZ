@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { CheckoutModal } from '../subscription/CheckoutModal';
+import { SeloMZModal } from './SeloMZModal';
 import {
   X,
   ArrowLeft,
@@ -26,6 +26,7 @@ import {
 interface SaraAiModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onGoToSettings?: () => void;
 }
 
 interface Message {
@@ -36,14 +37,16 @@ interface Message {
   timestamp: string;
 }
 
-export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, isTechnician, isCompany, isAdmin, canAccessSaraAi, activePlanTier } = useAuth();
-  const { plans } = useData();
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoToSettings }) => {
+  const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
+  const [showSeloModal, setShowSeloModal] = useState(false);
+
+  // Selo MZ or Active Subscription grants access. Clients and Admins also have free access.
+  const hasAccess = isAdmin || !isTechnician && !isCompany || temSeloMZ || isSubscriptionActive;
 
   const getInitialGreeting = () => {
-    if (!canAccessSaraAi) {
-      return `Olá! Sou a Sara IA, a inteligência técnica oficial da TécnicaMZ. O seu plano atual (Pacote Básico) não tem acesso incluído à Sara IA. Faça upgrade para o Pacote Profissional (199 MT) ou Empresa VIP (499 MT) para desbloquear dimensionamento solar, esquemas elétricos EDM, ar condicionado e análise por foto!`;
+    if (!hasAccess) {
+      return `Olá! Sou a Sara IA, a inteligência técnica oficial da TécnicaMZ. Para técnicos e empresas, o acesso completo à Sara IA (dimensionamento solar, quadros elétricos EDM, ar condicionado e análise por foto) é exclusivo para membros com o Selo MZ ativo (50 MT via M-Pesa/e-Mola).`;
     }
     if (isCompany) {
       return `Olá! Sou a Sara IA, assistente de engenharia e recrutamento da TécnicaMZ. Posso ajudar a sua empresa a elaborar descrições de vagas técnicas, analisar perfis de candidatos ou estimar custos de contratação técnica em Moçambique. Como posso ajudar hoje?`;
@@ -324,25 +327,32 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose }) => 
         )}
 
         {/* Input Form or Locked Banner */}
-        {!canAccessSaraAi ? (
+        {!hasAccess ? (
           <div className="p-4 bg-slate-900 text-white border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-xs text-slate-300">
               <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
                 <Lock className="w-4 h-4" />
               </div>
               <div>
-                <p className="font-bold text-white">Sara IA Bloqueada no Pacote Básico (50 MT)</p>
-                <p className="text-[11px] text-slate-400">Faça upgrade para o Pacote Profissional (199 MT) para desbloquear.</p>
+                <p className="font-bold text-white">Sara IA Bloqueada (Selo MZ Necessário)</p>
+                <p className="text-[11px] text-slate-400">Ative o seu Selo MZ (50 MT via M-Pesa/e-Mola) para desbloquear.</p>
               </div>
             </div>
             <button
               id="btn_upgrade_sara_ai"
               type="button"
-              onClick={() => setShowUpgradeModal(true)}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 transition-all shrink-0"
+              onClick={() => {
+                if (onGoToSettings) {
+                  onClose();
+                  onGoToSettings();
+                } else {
+                  setShowSeloModal(true);
+                }
+              }}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 transition-all shrink-0 cursor-pointer"
             >
               <Zap className="w-3.5 h-3.5" />
-              Upgrade Profissional (199 MT)
+              Ativar Selo MZ (50 MT)
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -404,20 +414,17 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose }) => 
         )}
       </div>
 
-      {/* Upgrade Checkout Modal */}
-      {showUpgradeModal && (
-        <CheckoutModal
-          plan={plans.find(p => p.id === 'plano_profissional') || {
-            id: 'plano_profissional',
-            name: 'Pacote Profissional',
-            priceMZN: 199,
-            durationDays: 30,
-            active: true,
-            priority: 2,
-            benefits: ['Sara IA Ilimitada', 'Gerador de OS em PDF', 'Selo Técnico Verificado']
+      {/* Selo MZ Modal fallback */}
+      {showSeloModal && (
+        <SeloMZModal
+          isOpen={showSeloModal}
+          onClose={() => setShowSeloModal(false)}
+          onGoToSeloSettings={() => {
+            setShowSeloModal(false);
+            onClose();
+            if (onGoToSettings) onGoToSettings();
           }}
-          onClose={() => setShowUpgradeModal(false)}
-          onSuccess={() => setShowUpgradeModal(false)}
+          featureName="Sara IA & Assistência Técnica"
         />
       )}
     </div>

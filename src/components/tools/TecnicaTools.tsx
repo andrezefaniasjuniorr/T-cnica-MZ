@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { CheckoutModal } from '../subscription/CheckoutModal';
+import { SeloMZModal } from '../common/SeloMZModal';
 import {
   Calculator,
   Sun,
@@ -47,8 +47,8 @@ interface TecnicaToolsProps {
 }
 
 export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => {
-  const { currentUser, canAccessOSGenerator } = useAuth();
-  const { plans } = useData();
+  const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
+  const hasOSAccess = isAdmin || (!isTechnician && !isCompany) || temSeloMZ || isSubscriptionActive;
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const [activeTool, setActiveTool] = useState<
@@ -1548,7 +1548,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
           {/* ========================================================================= */}
           {activeTool === 'service_order' && (
             <div className="space-y-6">
-              {!canAccessOSGenerator ? (
+              {!hasOSAccess ? (
                 <div className="p-8 rounded-3xl bg-slate-900 text-white border border-slate-800 text-center max-w-2xl mx-auto space-y-5 shadow-2xl">
                   <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20">
                     <Lock className="w-8 h-8" />
@@ -1556,7 +1556,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
                   <div className="space-y-2">
                     <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold uppercase border border-amber-500/30">
-                      Recurso Bloqueado no Pacote Básico
+                      Selo MZ Necessário
                     </span>
                     <h3 className="text-2xl font-black text-white">
                       Gerador de Ordens de Serviço (OS) em PDF
@@ -1571,10 +1571,10 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                       id="btn_upgrade_os_generator"
                       type="button"
                       onClick={() => setShowUpgradeModal(true)}
-                      className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 mx-auto active:scale-95 transition-all"
+                      className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 mx-auto active:scale-95 transition-all cursor-pointer"
                     >
                       <Zap className="w-4 h-4" />
-                      <span>Fazer Upgrade para Profissional (199 MT)</span>
+                      <span>Ativar Selo MZ (50 MT via M-Pesa / e-Mola)</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -1891,20 +1891,16 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
         </div>
       </div>
 
-      {/* Upgrade Checkout Modal */}
+      {/* Selo MZ Restriction Modal */}
       {showUpgradeModal && (
-        <CheckoutModal
-          plan={plans.find(p => p.id === 'plano_tecnico_pro') || plans[0] || {
-            id: 'plano_tecnico_pro',
-            name: 'Plano Técnico Pro',
-            priceMZN: 50,
-            durationDays: 30,
-            active: true,
-            priority: 1,
-            benefits: ['Sara IA Ilimitada', 'Gerador de OS em PDF', 'Selo Técnico Verificado', 'Acesso Total ao Mural e Mercado']
-          }}
+        <SeloMZModal
+          isOpen={showUpgradeModal}
           onClose={() => setShowUpgradeModal(false)}
-          onSuccess={() => setShowUpgradeModal(false)}
+          onGoToSeloSettings={() => {
+            setShowUpgradeModal(false);
+            if (onNavigateTab) onNavigateTab('settings');
+          }}
+          featureName="Gerador de Ordens de Serviço (OS) em PDF"
         />
       )}
     </div>

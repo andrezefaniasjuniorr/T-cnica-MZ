@@ -18,6 +18,7 @@ import {
   VerificationStatus,
   CompanyVerificationStatus,
   PaymentMethod,
+  PaymentStatus,
   MarketItem,
   MarketComment,
   AcademyArticle,
@@ -54,6 +55,7 @@ import {
 } from '../data/initialData';
 import { useAuth } from './AuthContext';
 import { auth, db, isFirebaseConfigured } from '../firebase/config';
+import { safeGetStorageItem, safeSetStorageItem } from '../utils/storage';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 interface DataContextType {
@@ -117,16 +119,21 @@ interface DataContextType {
   togglePlanActive: (planId: string) => void;
   submitPayment: (data: {
     userId: string;
+    technicianId?: string;
     userName: string;
     userRole: any;
     userPhone?: string;
+    phoneNumber?: string;
     planId: string;
     planName: string;
     amountMZN: number;
     method: PaymentMethod;
     transactionCode: string;
+    transactionReference?: string;
     receiptUrl?: string;
+    proofUrl?: string;
     message?: string;
+    status?: PaymentStatus;
   }) => Promise<{ success: boolean; error?: string }>;
   approvePayment: (paymentId: string, adminId: string, adminName: string) => void;
   rejectPayment: (paymentId: string, adminId: string, adminName: string, reason: string) => void;
@@ -168,6 +175,7 @@ interface DataContextType {
   togglePostReaction: (postId: string, reactionType: 'useful' | 'insightful' | 'applause' | 'question') => void;
   addPostComment: (postId: string, text: string, replyToId?: string, replyToName?: string) => void;
   toggleCommunityCommentLike: (postId: string, commentId: string) => void;
+  deleteCommunityComment: (postId: string, commentId: string) => void;
   deleteCommunityPost: (postId: string) => void;
 
   // Academy
@@ -211,123 +219,93 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { currentUser } = useAuth();
 
   const [technicians, setTechnicians] = useState<TechnicianProfile[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_technicians');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<TechnicianProfile[]>('tecnicamz_technicians', []);
   });
 
   const [companies, setCompanies] = useState<CompanyProfile[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_companies');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<CompanyProfile[]>('tecnicamz_companies', []);
   });
 
   const [jobs, setJobs] = useState<JobOpening[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_jobs');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<JobOpening[]>('tecnicamz_jobs', []);
   });
 
   const [applications, setApplications] = useState<JobApplication[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_job_applications');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<JobApplication[]>('tecnicamz_job_applications', []);
   });
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_plans');
-    return saved ? JSON.parse(saved) : INITIAL_PLANS;
+    return safeGetStorageItem<SubscriptionPlan[]>('tecnicamz_plans', INITIAL_PLANS);
   });
 
   const [payments, setPayments] = useState<PaymentRecord[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_payments');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<PaymentRecord[]>('tecnicamz_payments', []);
   });
 
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_requests');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<ServiceRequest[]>('tecnicamz_requests', []);
   });
 
   const [proposals, setProposals] = useState<Proposal[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_proposals');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<Proposal[]>('tecnicamz_proposals', []);
   });
 
   const [reviews, setReviews] = useState<Review[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_reviews');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<Review[]>('tecnicamz_reviews', []);
   });
 
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_portfolio');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<PortfolioItem[]>('tecnicamz_portfolio', []);
   });
 
   const [marketItems, setMarketItems] = useState<MarketItem[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_market');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<MarketItem[]>('tecnicamz_market', []);
   });
 
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_community_posts');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<CommunityPost[]>('tecnicamz_community_posts', []);
   });
 
   const [academyArticles, setAcademyArticles] = useState<AcademyArticle[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_academy');
-    return saved ? JSON.parse(saved) : INITIAL_ACADEMY_ARTICLES;
+    return safeGetStorageItem<AcademyArticle[]>('tecnicamz_academy', INITIAL_ACADEMY_ARTICLES);
   });
 
   const [conversations, setConversations] = useState<ConversationItem[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_conversations');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<ConversationItem[]>('tecnicamz_conversations', []);
   });
 
   const [messages, setMessages] = useState<MessageItem[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_messages');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<MessageItem[]>('tecnicamz_messages', []);
   });
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_notifications');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<NotificationItem[]>('tecnicamz_notifications', []);
   });
 
   const [reports, setReports] = useState<ReportItem[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_reports');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<ReportItem[]>('tecnicamz_reports', []);
   });
 
   const [adminLogs, setAdminLogs] = useState<AdminLogItem[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_admin_logs');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<AdminLogItem[]>('tecnicamz_admin_logs', []);
   });
 
   const [settings, setSettings] = useState<PlatformSettings>(() => {
-    const saved = localStorage.getItem('tecnicamz_settings');
-    return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
+    return safeGetStorageItem<PlatformSettings>('tecnicamz_settings', INITIAL_SETTINGS);
   });
 
   const [favorites, setFavorites] = useState<string[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_favorites');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<string[]>('tecnicamz_favorites', []);
   });
 
   const [budgetEstimates, setBudgetEstimates] = useState<BudgetEstimate[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_budget_estimates');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<BudgetEstimate[]>('tecnicamz_budget_estimates', []);
   });
 
   const [stories, setStories] = useState<StoryItem[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_stories');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // filter out expired stories (> 24h)
-        const now = Date.now();
-        return parsed.filter((s: StoryItem) => new Date(s.expiresAt || 0).getTime() > now);
-      } catch {
-        return [];
-      }
-    }
-    return [];
+    const rawStories = safeGetStorageItem<StoryItem[]>('tecnicamz_stories', []);
+    const now = Date.now();
+    return rawStories.filter((s: StoryItem) => !s.expiresAt || new Date(s.expiresAt).getTime() > now);
   });
 
   // Real-time Firestore Listeners
@@ -410,6 +388,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const list: TechnicianProfile[] = [];
         snapshot.forEach((docSnap) => {
           list.push({ ...docSnap.data(), userId: docSnap.id } as TechnicianProfile);
+        });
+        // Sort strictly descending based on total engagement (totalLikes / scoreEngajamento)
+        list.sort((a, b) => {
+          const likesA = (a.totalLikes ?? 0);
+          const likesB = (b.totalLikes ?? 0);
+          if (likesB !== likesA) return likesB - likesA;
+          const scoreA = (a.scoreEngajamento ?? 0);
+          const scoreB = (b.scoreEngajamento ?? 0);
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return (b.rating ?? 0) - (a.rating ?? 0);
         });
         setTechnicians(list);
       },
@@ -520,91 +508,91 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Sync to localStorage
   useEffect(() => {
-    localStorage.setItem('tecnicamz_stories', JSON.stringify(stories));
+    safeSetStorageItem('tecnicamz_stories', stories);
   }, [stories]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_technicians', JSON.stringify(technicians));
+    safeSetStorageItem('tecnicamz_technicians', technicians);
   }, [technicians]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_companies', JSON.stringify(companies));
+    safeSetStorageItem('tecnicamz_companies', companies);
   }, [companies]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_jobs', JSON.stringify(jobs));
+    safeSetStorageItem('tecnicamz_jobs', jobs);
   }, [jobs]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_job_applications', JSON.stringify(applications));
+    safeSetStorageItem('tecnicamz_job_applications', applications);
   }, [applications]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_plans', JSON.stringify(plans));
+    safeSetStorageItem('tecnicamz_plans', plans);
   }, [plans]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_payments', JSON.stringify(payments));
+    safeSetStorageItem('tecnicamz_payments', payments);
   }, [payments]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_requests', JSON.stringify(serviceRequests));
+    safeSetStorageItem('tecnicamz_requests', serviceRequests);
   }, [serviceRequests]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_proposals', JSON.stringify(proposals));
+    safeSetStorageItem('tecnicamz_proposals', proposals);
   }, [proposals]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_reviews', JSON.stringify(reviews));
+    safeSetStorageItem('tecnicamz_reviews', reviews);
   }, [reviews]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_portfolio', JSON.stringify(portfolio));
+    safeSetStorageItem('tecnicamz_portfolio', portfolio);
   }, [portfolio]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_market', JSON.stringify(marketItems));
+    safeSetStorageItem('tecnicamz_market', marketItems);
   }, [marketItems]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_community_posts', JSON.stringify(communityPosts));
+    safeSetStorageItem('tecnicamz_community_posts', communityPosts);
   }, [communityPosts]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_academy', JSON.stringify(academyArticles));
+    safeSetStorageItem('tecnicamz_academy', academyArticles);
   }, [academyArticles]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_conversations', JSON.stringify(conversations));
+    safeSetStorageItem('tecnicamz_conversations', conversations);
   }, [conversations]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_messages', JSON.stringify(messages));
+    safeSetStorageItem('tecnicamz_messages', messages);
   }, [messages]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_notifications', JSON.stringify(notifications));
+    safeSetStorageItem('tecnicamz_notifications', notifications);
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_reports', JSON.stringify(reports));
+    safeSetStorageItem('tecnicamz_reports', reports);
   }, [reports]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_admin_logs', JSON.stringify(adminLogs));
+    safeSetStorageItem('tecnicamz_admin_logs', adminLogs);
   }, [adminLogs]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_settings', JSON.stringify(settings));
+    safeSetStorageItem('tecnicamz_settings', settings);
   }, [settings]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_favorites', JSON.stringify(favorites));
+    safeSetStorageItem('tecnicamz_favorites', favorites);
   }, [favorites]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_budget_estimates', JSON.stringify(budgetEstimates));
+    safeSetStorageItem('tecnicamz_budget_estimates', budgetEstimates);
   }, [budgetEstimates]);
 
   // Helper log generator
@@ -885,17 +873,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const submitPayment = async (data: {
     userId: string;
+    technicianId?: string;
     userName: string;
     userRole: any;
     userPhone?: string;
+    phoneNumber?: string;
     planId: string;
     planName: string;
     amountMZN: number;
     method: PaymentMethod;
     transactionCode: string;
+    transactionReference?: string;
     receiptUrl?: string;
+    proofUrl?: string;
     message?: string;
-    status?: 'pending' | 'approved' | 'rejected';
+    status?: PaymentStatus;
   }): Promise<{ success: boolean; paymentId?: string; error?: string }> => {
     try {
       const paymentId = `pay_${Date.now()}`;
@@ -1240,12 +1232,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userId = currentUser.uid;
 
     let updatedItem: MarketItem | undefined;
+    let sellerIdToUpdate: string | undefined;
+    let isLikeAdded = false;
 
     setMarketItems(prev =>
       prev.map(item => {
         if (item.id !== itemId) return item;
+        sellerIdToUpdate = item.sellerId;
         const currentLikes = item.likes || [];
         const hasLiked = currentLikes.includes(userId);
+        isLikeAdded = !hasLiked;
         const updatedLikes = hasLiked
           ? currentLikes.filter(id => id !== userId)
           : [...currentLikes, userId];
@@ -1262,6 +1258,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isFirebaseConfigured && db && updatedItem) {
       try {
         await setDoc(doc(db, 'market_items', itemId), updatedItem, { merge: true });
+
+        // Update seller's score & totalLikes if seller is a technician
+        if (sellerIdToUpdate && sellerIdToUpdate !== userId) {
+          const delta = isLikeAdded ? 1 : -1;
+          const targetTech = technicians.find(t => t.userId === sellerIdToUpdate);
+          const currentLikes = targetTech?.totalLikes || 0;
+          const newLikes = Math.max(0, currentLikes + delta);
+          const newScore = Math.max(0, (targetTech?.scoreEngajamento || 0) + delta);
+
+          setTechnicians(prev => prev.map(t => t.userId === sellerIdToUpdate ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t));
+          await updateDoc(doc(db, 'technicians', sellerIdToUpdate), {
+            totalLikes: newLikes,
+            scoreEngajamento: newScore,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+          await updateDoc(doc(db, 'users', sellerIdToUpdate), {
+            totalLikes: newLikes,
+            scoreEngajamento: newScore,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+        }
       } catch (err) {
         console.warn('Firestore update market item like error:', err);
       }
@@ -1436,13 +1453,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userId = currentUser.uid;
 
     let updatedPost: CommunityPost | undefined;
+    let authorIdToUpdate: string | undefined;
+    let isReactionAdded = false;
 
     setCommunityPosts(prev =>
       prev.map(p => {
         if (p.id !== postId) return p;
+        authorIdToUpdate = p.authorId;
 
         const currentList = p.reactions[reactionType] || [];
         const hasReacted = currentList.includes(userId);
+        isReactionAdded = !hasReacted;
         const updatedList = hasReacted
           ? currentList.filter(id => id !== userId)
           : [...currentList, userId];
@@ -1462,6 +1483,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isFirebaseConfigured && db && updatedPost) {
       try {
         await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+
+        // Update post author's score & totalLikes if author is a technician
+        if (authorIdToUpdate && authorIdToUpdate !== userId) {
+          const delta = isReactionAdded ? 1 : -1;
+          const targetTech = technicians.find(t => t.userId === authorIdToUpdate);
+          const currentLikes = targetTech?.totalLikes || 0;
+          const newLikes = Math.max(0, currentLikes + delta);
+          const newScore = Math.max(0, (targetTech?.scoreEngajamento || 0) + delta);
+
+          setTechnicians(prev => prev.map(t => t.userId === authorIdToUpdate ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t));
+          await updateDoc(doc(db, 'technicians', authorIdToUpdate), {
+            totalLikes: newLikes,
+            scoreEngajamento: newScore,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+          await updateDoc(doc(db, 'users', authorIdToUpdate), {
+            totalLikes: newLikes,
+            scoreEngajamento: newScore,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+        }
       } catch (err) {
         console.warn('Firestore update reaction error:', err);
       }
@@ -1550,6 +1592,31 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
       } catch (err) {
         console.warn('Firestore toggle comment like error:', err);
+      }
+    }
+  };
+
+  const deleteCommunityComment = async (postId: string, commentId: string) => {
+    let updatedPost: CommunityPost | undefined;
+    setCommunityPosts(prev =>
+      prev.map(p => {
+        if (p.id !== postId) return p;
+        const comments = p.comments.filter(comm => comm.id !== commentId);
+        const postUpdated = {
+          ...p,
+          commentsCount: Math.max(0, p.commentsCount - 1),
+          comments
+        };
+        updatedPost = postUpdated;
+        return postUpdated;
+      })
+    );
+
+    if (isFirebaseConfigured && db && updatedPost) {
+      try {
+        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+      } catch (err) {
+        console.warn('Firestore delete comment error:', err);
       }
     }
   };
@@ -2045,6 +2112,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         togglePostReaction,
         addPostComment,
         toggleCommunityCommentLike,
+        deleteCommunityComment,
         deleteCommunityPost,
         addAcademyArticle,
         verifyAcademyArticle,

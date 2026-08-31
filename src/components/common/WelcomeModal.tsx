@@ -117,7 +117,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
                 <div>
                   <h4 className="text-xs font-black text-slate-900">Suporte Oficial TécnicaMZ</h4>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Nossa equipe oficial está disponível para apoio técnico pelo WhatsApp 851949159 ou tecnicamzpro@gmail.com.
+                    Nossa equipe oficial está disponível para apoio técnico pelo WhatsApp 841234567 ou tecnicamzpro@gmail.com.
                   </p>
                 </div>
               </div>

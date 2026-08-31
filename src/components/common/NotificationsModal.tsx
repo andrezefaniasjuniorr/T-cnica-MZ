@@ -28,7 +28,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   onOpenMessages
 }) => {
   const { currentUser, isTechnician, isCompany } = useAuth();
-  const { conversations, posts, marketItems } = useData();
+  const { conversations, communityPosts, marketItems } = useData();
 
   const [activeTab, setActiveTab] = useState<'messages' | 'feed_market' | 'official'>('messages');
 
@@ -36,12 +36,12 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
   // Derive unread conversations
   const unreadConversations = conversations.filter(
-    c => c.participantIds.includes(currentUser?.uid || '') && c.unreadCount > 0
+    c => c.participantIds.includes(currentUser?.uid || '') && ((c.unreadCount ?? 0) > 0)
   );
 
   // Derive recent community and market activities
-  const recentPosts = posts.slice(0, 5);
-  const recentMarket = marketItems.slice(0, 5);
+  const recentPosts = (communityPosts || []).slice(0, 5);
+  const recentMarket = (marketItems || []).slice(0, 5);
 
   // Official announcements
   const officialNotices = [
@@ -62,7 +62,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
     {
       id: 'notice_3',
       title: 'Canal Direto de Suporte TécnicoMZ',
-      description: 'Dúvidas ou problemas com sua conta? Fale conosco via WhatsApp Oficial 851949159 ou tecnicamzpro@gmail.com.',
+      description: 'Dúvidas ou problemas com sua conta? Fale conosco via WhatsApp Oficial 841234567 ou tecnicamzpro@gmail.com.',
       date: 'Esta semana',
       type: 'support'
     }
@@ -173,10 +173,10 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   >
                     <div className="flex items-start gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                        {conv.targetUserName?.charAt(0).toUpperCase() || 'U'}
+                        {(conv.targetUserName || conv.participants.find(p => p.id !== currentUser?.uid)?.name || 'U').charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-slate-900">{conv.targetUserName}</h4>
+                        <h4 className="text-xs font-black text-slate-900">{conv.targetUserName || conv.participants.find(p => p.id !== currentUser?.uid)?.name || 'Conversa'}</h4>
                         <p className="text-[11px] text-slate-600 line-clamp-1">{conv.lastMessage || 'Nova mensagem enviada.'}</p>
                       </div>
                     </div>
@@ -238,7 +238,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                     </div>
                   </div>
                   <span className="text-xs font-black text-blue-600 font-mono shrink-0">
-                    {item.price.toLocaleString('pt-MZ')} MZN
+                    {(item.priceMZN || item.price || 0).toLocaleString('pt-MZ')} MZN
                   </span>
                 </div>
               ))}

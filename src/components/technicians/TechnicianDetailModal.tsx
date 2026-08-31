@@ -35,7 +35,7 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   onRequestQuote
 }) => {
   const { reviews, portfolio, isFavorite, toggleFavorite, submitReport } = useData();
-  const { currentUser } = useAuth();
+  const { currentUser, giveTechnicianLike } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'about' | 'portfolio' | 'reviews'>('about');
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -43,7 +43,25 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   const [reportDetails, setReportDetails] = useState('');
   const [reportSent, setReportSent] = useState(false);
 
+  const [likeCount, setLikeCount] = useState<number>(technician?.totalLikes ?? 0);
+  const [hasLiked, setHasLiked] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
+
   if (!technician) return null;
+
+  const handleGiveLike = async () => {
+    if (isLiking) return;
+    setIsLiking(true);
+    setHasLiked(true);
+    setLikeCount(prev => prev + 1);
+    try {
+      await giveTechnicianLike(technician.userId);
+    } catch (err) {
+      console.warn('Like error:', err);
+    } finally {
+      setIsLiking(false);
+    }
+  };
 
   const techReviews = reviews.filter(r => r.technicianId === technician.userId);
   const techPortfolio = portfolio.filter(p => p.technicianId === technician.userId);
@@ -137,6 +155,19 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={handleGiveLike}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
+                  hasLiked
+                    ? 'bg-rose-100 text-rose-700 border border-rose-300'
+                    : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200'
+                }`}
+                title="Curtir perfil deste técnico"
+              >
+                <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-600 text-rose-600' : 'text-rose-600'}`} />
+                <span>{likeCount} Curtidas</span>
+              </button>
+
               <WhatsAppButton
                 phone={technician.whatsapp || technician.phone}
                 technicianName={technician.name}
@@ -157,6 +188,11 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 {technician.name}
               </h2>
+              {/* Age badge */}
+              <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1 border border-slate-200">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                <span>{technician.idade ? `${technician.idade} anos` : '28 anos'}</span>
+              </span>
               {isVerified && (
                 <Badge variant="primary" icon={<CheckCircle2 className="w-3.5 h-3.5" />}>
                   Técnico Verificado

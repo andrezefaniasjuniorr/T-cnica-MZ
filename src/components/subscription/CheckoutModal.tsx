@@ -18,13 +18,16 @@ import {
 
 interface CheckoutModalProps {
   plan: SubscriptionPlan;
+  isOpen?: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess?: () => void;
 }
 
-export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, onClose, onSuccess }) => {
+export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = true, onClose, onSuccess }) => {
   const { currentUser, activateUserSubscription } = useAuth();
   const { submitPayment } = useData();
+
+  if (!isOpen) return null;
 
   const [method, setMethod] = useState<PaymentMethod>('mpesa');
   const [phoneNumber, setPhoneNumber] = useState(currentUser?.phone ? currentUser.phone.replace(/\+258\s?/, '').replace(/\s+/g, '') : '');
@@ -126,7 +129,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, onClose, onS
       setPaymentStep('success');
 
       setTimeout(() => {
-        onSuccess();
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          onClose();
+        }
       }, 1800);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Erro ao ativar a assinatura. Tente novamente.');

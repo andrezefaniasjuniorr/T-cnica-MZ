@@ -3,21 +3,22 @@ import { useAuth } from '../../context/AuthContext';
 import { UserRole, MOZAMBIQUE_PROVINCES, TECHNICAL_CATEGORIES } from '../../types';
 import {
   X,
-  User,
+  User as UserIcon,
   Wrench,
   Building2,
-  Shield,
-  CheckCircle2,
-  AlertCircle,
-  Phone,
+  Briefcase,
   Mail,
   Lock,
+  Phone,
   Eye,
   EyeOff,
   ArrowRight,
-  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  ShieldCheck,
   KeyRound,
-  RotateCcw
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -35,81 +36,123 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const { login, register, resetPassword, isLoading } = useAuth();
 
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
-  const [accountType, setAccountType] = useState<'cliente' | 'tecnico'>(initialRole === 'client' ? 'cliente' : 'tecnico');
-  const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole);
+  // Section A: 'client' (Quero solicitar serviços / Sou Cliente)
+  // Section B: 'pro' (Sou Técnico / Empresa)
+  const [activeSection, setActiveSection] = useState<'client' | 'pro'>(
+    initialRole === 'technician' || initialRole === 'company' ? 'pro' : 'client'
+  );
 
-  // Common Fields
+  // Sub-options for Section A: 'client_login' | 'client_register'
+  const [clientOption, setClientOption] = useState<'client_login' | 'client_register'>(
+    initialMode === 'register' ? 'client_register' : 'client_login'
+  );
+
+  // Sub-options for Section B: 'tech_login' | 'company_login' | 'tech_register' | 'company_register'
+  const [proOption, setProOption] = useState<'tech_login' | 'company_login' | 'tech_register' | 'company_register'>(
+    initialRole === 'company'
+      ? (initialMode === 'register' ? 'company_register' : 'company_login')
+      : (initialMode === 'register' ? 'tech_register' : 'tech_login')
+  );
+
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+
+  // Form Fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [techType, setTechType] = useState<'technician' | 'company'>('technician');
+  const [idade, setIdade] = useState<number | string>('28');
 
   // Technician Specific
-  const [specialty, setSpecialty] = useState(TECHNICAL_CATEGORIES[0]);
-  const [province, setProvince] = useState(MOZAMBIQUE_PROVINCES[0]);
+  const [specialty, setSpecialty] = useState<string>(TECHNICAL_CATEGORIES[0] || 'Eletricidade');
+  const [province, setProvince] = useState<string>(MOZAMBIQUE_PROVINCES[0] || 'Maputo Cidade');
   const [city, setCity] = useState('Maputo');
 
   // Company Specific
   const [commercialName, setCommercialName] = useState('');
   const [nuit, setNuit] = useState('');
-  const [industry, setIndustry] = useState('Energia Solar & Eletricidade');
+  const [industry, setIndustry] = useState('Construção & Engenharia Elétrica');
   const [address, setAddress] = useState('');
   const [website, setWebsite] = useState('');
 
+  // Status Alerts
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const isEmailDuplicateError = error && (
+    error.includes('E-mail já existente') ||
+    error.includes('já está cadastrado') ||
+    error.includes('já está registado') ||
+    error.includes('email-already-in-use')
+  );
+
+  const handleSwitchToLoginWithEmail = () => {
+    setError(null);
+    if (activeSection === 'client') {
+      setClientOption('client_login');
+    } else {
+      if (proOption === 'company_register') {
+        setProOption('company_login');
+      } else {
+        setProOption('tech_login');
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
-    if (mode === 'forgot_password') {
+    // 1. FORGOT PASSWORD FLOW
+    if (isForgotPassword) {
       if (!email.trim()) {
-        setError('Por favor preencha o seu e-mail cadastrado.');
+        setError('Por favor insira o seu e-mail cadastrado.');
         return;
       }
       const res = await resetPassword(email.trim());
       if (res.success) {
-        setSuccess('Instruções de recuperação enviadas para o seu e-mail!');
-        setTimeout(() => {
-          setMode('login');
-        }, 2000);
+        setSuccess('Instruções enviadas para o seu e-mail!');
+        setTimeout(() => setIsForgotPassword(false), 2000);
       } else {
         setError(res.error || 'Erro ao solicitar recuperação de senha.');
       }
       return;
     }
 
-    if (mode === 'login') {
-      if (!email.trim()) {
-        setError('Por favor preencha o seu e-mail.');
-        return;
-      }
-      const res = await login(email.trim(), password);
-      if (res.success) {
-        setSuccess('Autenticado com sucesso!');
-        setTimeout(() => {
-          onClose();
-        }, 800);
-      } else {
-        setError(res.error || 'Erro ao iniciar sessão.');
-      }
-    } else {
-      // Registration (Rígida: Cliente vs Técnico/Empresa)
-      if (accountType === 'cliente') {
-        if (!name.trim() || !email.trim()) {
-          setError('Por favor preencha o seu nome e e-mail.');
+    // 2. SECTION A: CLIENT
+    if (activeSection === 'client') {
+      if (clientOption === 'client_login') {
+        if (!email.trim() || !password.trim()) {
+          setError('Por favor insira seu e-mail e palavra-passe.');
           return;
         }
-
-        if (password && password.length < 6) {
-          setError('A palavra-passe deve ter no mínimo 6 caracteres.');
+        const res = await login(email.trim(), password);
+        if (res.success) {
+          setSuccess('Sessão iniciada!');
+          setTimeout(() => onClose(), 600);
+        } else {
+          setError(res.error || 'Credenciais inválidas.');
+        }
+      } else {
+        if (!name.trim()) {
+          setError('Por favor insira o seu Nome Completo.');
+          return;
+        }
+        if (!email.trim()) {
+          setError('Por favor insira o seu E-mail.');
+          return;
+        }
+        if (!password || password.length < 6) {
+          setError('A palavra-passe deve ter pelo menos 6 caracteres.');
+          return;
+        }
+        if (confirmPassword && password !== confirmPassword) {
+          setError('As palavras-passe não coincidem.');
           return;
         }
 
@@ -117,29 +160,67 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
-          password: password.trim() || undefined,
+          password: password.trim(),
           role: 'client',
-          tipoConta: 'cliente'
+          tipoConta: 'cliente',
+          idade: Number(idade) || 28
         });
 
         if (res.success) {
-          setSuccess('Conta de Cliente criada com sucesso!');
-          setTimeout(() => {
-            onClose();
-          }, 1000);
+          setSuccess('Conta criada com sucesso!');
+          setTimeout(() => onClose(), 800);
         } else {
-          setError(res.error || 'Erro ao criar conta.');
+          setError(res.error || 'Erro ao criar conta de cliente.');
         }
-      } else {
-        // Técnico ou Empresa
-        const finalRole = techType === 'company' ? 'company' : 'technician';
-        if (!name.trim() || !email.trim() || !phone.trim()) {
-          setError('Por favor preencha todos os campos obrigatórios (*).');
+      }
+      return;
+    }
+
+    // 3. SECTION B: PRO (TECHNICIAN / COMPANY)
+    if (activeSection === 'pro') {
+      if (proOption === 'tech_login') {
+        if (!email.trim() || !password.trim()) {
+          setError('Por favor insira seu e-mail e palavra-passe de Técnico.');
           return;
         }
-
-        if (password && password.length < 6) {
-          setError('A palavra-passe deve ter no mínimo 6 caracteres.');
+        const res = await login(email.trim(), password);
+        if (res.success) {
+          setSuccess('Acesso ao Painel do Técnico autorizado!');
+          setTimeout(() => onClose(), 600);
+        } else {
+          setError(res.error || 'Credenciais de Técnico incorretas.');
+        }
+      } else if (proOption === 'company_login') {
+        if (!email.trim() || !password.trim()) {
+          setError('Por favor insira o e-mail corporativo e palavra-passe.');
+          return;
+        }
+        const res = await login(email.trim(), password);
+        if (res.success) {
+          setSuccess('Acesso ao Portal da Empresa autorizado!');
+          setTimeout(() => onClose(), 600);
+        } else {
+          setError(res.error || 'Credenciais de Empresa incorretas.');
+        }
+      } else if (proOption === 'tech_register') {
+        if (!name.trim()) {
+          setError('Por favor insira o Nome Completo.');
+          return;
+        }
+        if (!email.trim()) {
+          setError('Por favor insira o seu E-mail.');
+          return;
+        }
+        if (!phone.trim()) {
+          setError('Por favor insira o seu Celular / WhatsApp.');
+          return;
+        }
+        if (!password || password.length < 6) {
+          setError('A palavra-passe deve conter pelo menos 6 caracteres.');
+          return;
+        }
+        if (confirmPassword && password !== confirmPassword) {
+          setError('As palavras-passe não coincidem.');
           return;
         }
 
@@ -147,464 +228,606 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
-          password: password.trim() || undefined,
-          role: finalRole,
+          password: password.trim(),
+          role: 'technician',
           tipoConta: 'tecnico',
+          idade: Number(idade) || 28,
           specialty,
           province,
-          city,
-          nuit: finalRole === 'company' ? nuit.trim() || '400000000' : undefined,
-          commercialName: finalRole === 'company' ? commercialName.trim() || name.trim() : undefined,
-          industry: finalRole === 'company' ? industry : undefined,
-          address: finalRole === 'company' ? address.trim() || 'Moçambique' : undefined,
-          website: finalRole === 'company' ? website.trim() : undefined
+          city: city.trim() || 'Maputo'
         });
 
         if (res.success) {
-          setSuccess(`Conta de ${finalRole === 'company' ? 'Empresa' : 'Técnico'} criada com sucesso!`);
-          setTimeout(() => {
-            onClose();
-          }, 1000);
+          setSuccess('Registo de Técnico efetuado com sucesso!');
+          setTimeout(() => onClose(), 800);
         } else {
-          setError(res.error || 'Erro ao criar conta.');
+          setError(res.error || 'Erro ao registar conta de técnico.');
+        }
+      } else if (proOption === 'company_register') {
+        if (!name.trim()) {
+          setError('Por favor insira a Razão Social da Empresa.');
+          return;
+        }
+        if (!email.trim()) {
+          setError('Por favor insira o E-mail da Empresa.');
+          return;
+        }
+        if (!phone.trim()) {
+          setError('Por favor insira o Telefone / WhatsApp Corporativo.');
+          return;
+        }
+        if (!password || password.length < 6) {
+          setError('A palavra-passe deve conter pelo menos 6 caracteres.');
+          return;
+        }
+        if (confirmPassword && password !== confirmPassword) {
+          setError('As palavras-passe não coincidem.');
+          return;
+        }
+
+        const res = await register({
+          name: name.trim(),
+          commercialName: commercialName.trim() || name.trim(),
+          nuit: nuit.trim() || '400000000',
+          industry: industry.trim(),
+          address: address.trim() || 'Moçambique',
+          website: website.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          password: password.trim(),
+          role: 'company',
+          tipoConta: 'empresa',
+          idade: Number(idade) || 30,
+          province,
+          city: city.trim() || 'Maputo'
+        });
+
+        if (res.success) {
+          setSuccess('Registo Empresarial efetuado com sucesso!');
+          setTimeout(() => onClose(), 800);
+        } else {
+          setError(res.error || 'Erro ao registar conta empresarial.');
         }
       }
     }
   };
 
-  const getRoleTheme = () => {
-    switch (selectedRole) {
-      case 'technician':
-        return {
-          title: 'Portal do Profissional Técnico',
-          color: 'bg-blue-600 hover:bg-blue-700 text-white',
-          headerBg: 'bg-blue-900',
-          badge: '🔧 Técnico & Engenheiro'
-        };
-      case 'company':
-        return {
-          title: 'Portal Empresarial & Recrutamento',
-          color: 'bg-purple-600 hover:bg-purple-700 text-white',
-          headerBg: 'bg-purple-900',
-          badge: '🏢 Empresa & Indústria'
-        };
-      case 'admin':
-        return {
-          title: 'Central de Controlo Administrativa',
-          color: 'bg-slate-900 hover:bg-slate-800 text-amber-400',
-          headerBg: 'bg-slate-950',
-          badge: '🛡️ Gestão & Auditoria'
-        };
-      default:
-        return {
-          title: 'Portal do Cliente',
-          color: 'bg-emerald-600 hover:bg-emerald-700 text-white',
-          headerBg: 'bg-emerald-950',
-          badge: '👤 Cliente & Particular'
-        };
-    }
-  };
-
-  const theme = getRoleTheme();
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-        {/* Top Header */}
-        <div className={`${theme.headerBg} text-white p-6 flex items-center justify-between transition-colors duration-300`}>
-          <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-white/10 text-white border border-white/20">
-              {theme.badge}
-            </span>
-            <h2 className="text-xl font-black text-white">
-              {mode === 'login' && 'Entrar na Conta'}
-              {mode === 'register' && 'Criar Nova Conta'}
-              {mode === 'forgot_password' && 'Recuperar Palavra-passe'}
-            </h2>
-            <p className="text-xs text-white/80">Comunidade Técnica de Moçambique • TécnicaMZ</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+      <div className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 my-8">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute right-5 top-5 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Modal Header */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+            <Wrench className="w-5 h-5" />
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full bg-white/10 text-white/80 hover:text-white hover:bg-white/20 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div>
+            <h2 className="text-xl font-black text-slate-900 leading-tight">
+              Técnica<span className="text-blue-600">MZ</span> PRO
+            </h2>
+            <p className="text-xs text-slate-500 font-semibold">
+              Acesso à Plataforma de Serviços Técnicos
+            </p>
+          </div>
         </div>
 
-        {/* Role Selector Tabs (Only on login) */}
-        {mode === 'login' && (
-          <div className="p-4 bg-slate-50 border-b border-slate-200">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-              Selecione o seu Perfil de Acesso:
-            </label>
-            <div className="grid grid-cols-4 gap-1.5 bg-slate-200/70 p-1 rounded-2xl">
-              {[
-                { role: 'client' as UserRole, label: 'Cliente', icon: <User className="w-3.5 h-3.5" /> },
-                { role: 'technician' as UserRole, label: 'Técnico', icon: <Wrench className="w-3.5 h-3.5" /> },
-                { role: 'company' as UserRole, label: 'Empresa', icon: <Building2 className="w-3.5 h-3.5" /> },
-                { role: 'admin' as UserRole, label: 'Admin', icon: <Shield className="w-3.5 h-3.5" /> }
-              ].map(r => (
-                <button
-                  key={r.role}
-                  type="button"
-                  onClick={() => setSelectedRole(r.role)}
-                  className={`py-2 px-1 rounded-xl text-xs font-bold transition flex flex-col items-center gap-1 ${
-                    selectedRole === r.role
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {r.icon}
-                  <span className="text-[10px]">{r.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Mode Register: Rigid Profile Selection ("Quero Contratar Serviços" vs "Sou Técnico / Empresa") */}
-        {mode === 'register' && (
-          <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-2">
-            <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700">
-              Escolha seu Perfil Obrigatório (Permanente):
-            </label>
-            <div className="grid grid-cols-2 gap-2">
+        {/* 1. Main 2-Section Tabs */}
+        {!isForgotPassword && (
+          <div className="mb-5">
+            <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200/70">
               <button
                 type="button"
                 onClick={() => {
-                  setAccountType('cliente');
-                  setSelectedRole('client');
+                  setActiveSection('client');
+                  setError(null);
                 }}
-                className={`p-3 rounded-2xl border text-left transition flex flex-col items-start gap-1 ${
-                  accountType === 'cliente'
-                    ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20'
-                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                className={`py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition ${
+                  activeSection === 'client'
+                    ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${accountType === 'cliente' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    <User className="w-3.5 h-3.5" />
-                  </div>
-                  <span className={`text-xs font-black ${accountType === 'cliente' ? 'text-blue-900' : 'text-slate-800'}`}>
-                    Quero Contratar
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-500">Para clientes e particulares</span>
+                <UserIcon className="w-4 h-4 text-emerald-600" />
+                <span>Sou Cliente</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  setAccountType('tecnico');
-                  setSelectedRole('technician');
+                  setActiveSection('pro');
+                  setError(null);
                 }}
-                className={`p-3 rounded-2xl border text-left transition flex flex-col items-start gap-1 ${
-                  accountType === 'tecnico'
-                    ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20'
-                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                className={`py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition ${
+                  activeSection === 'pro'
+                    ? 'bg-white text-blue-700 shadow-sm border border-blue-200'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${accountType === 'tecnico' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    <Wrench className="w-3.5 h-3.5" />
-                  </div>
-                  <span className={`text-xs font-black ${accountType === 'tecnico' ? 'text-blue-900' : 'text-slate-800'}`}>
-                    Sou Técnico / Empresa
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-500">Para profissionais e empresas</span>
+                <Briefcase className="w-4 h-4 text-blue-600" />
+                <span>Técnico / Empresa</span>
               </button>
             </div>
-
-            {accountType === 'tecnico' && (
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[10px] text-slate-500 font-bold">Tipo:</span>
-                <button
-                  type="button"
-                  onClick={() => setTechType('technician')}
-                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${techType === 'technician' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}
-                >
-                  Técnico
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTechType('company')}
-                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${techType === 'company' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}
-                >
-                  Empresa
-                </button>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Body Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
-          {error && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium space-y-2">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span className="font-semibold">{error}</span>
-              </div>
-              {mode === 'register' && (error.toLowerCase().includes('registado') || error.toLowerCase().includes('cadastrado') || error.toLowerCase().includes('já existe')) && (
-                <div className="pt-1 border-t border-rose-200/60 flex items-center justify-between">
-                  <span className="text-[11px] text-rose-700">Deseja entrar com a sua conta existente?</span>
+        {/* 2. Sub-options */}
+        {!isForgotPassword && activeSection === 'client' && (
+          <div className="mb-5 p-1 bg-emerald-50/80 border border-emerald-100 rounded-2xl flex">
+            <button
+              type="button"
+              onClick={() => {
+                setClientOption('client_login');
+                setError(null);
+              }}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 ${
+                clientOption === 'client_login'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-emerald-900 hover:text-emerald-950'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Login Cliente</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setClientOption('client_register');
+                setError(null);
+              }}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 ${
+                clientOption === 'client_register'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-emerald-900 hover:text-emerald-950'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Cadastro Cliente</span>
+            </button>
+          </div>
+        )}
+
+        {!isForgotPassword && activeSection === 'pro' && (
+          <div className="mb-5 grid grid-cols-2 gap-1.5 p-1 bg-blue-50/80 border border-blue-100 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => {
+                setProOption('tech_login');
+                setError(null);
+              }}
+              className={`py-1.5 px-2 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1.5 ${
+                proOption === 'tech_login'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-blue-900 bg-white/60'
+              }`}
+            >
+              <Wrench className="w-3 h-3" />
+              <span>1. Login Técnico</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setProOption('company_login');
+                setError(null);
+              }}
+              className={`py-1.5 px-2 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1.5 ${
+                proOption === 'company_login'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-blue-900 bg-white/60'
+              }`}
+            >
+              <Building2 className="w-3 h-3" />
+              <span>2. Login Empresa</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setProOption('tech_register');
+                setError(null);
+              }}
+              className={`py-1.5 px-2 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1.5 ${
+                proOption === 'tech_register'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-blue-900 bg-white/60'
+              }`}
+            >
+              <UserPlus className="w-3 h-3" />
+              <span>3. Cadastrar Técnico</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setProOption('company_register');
+                setError(null);
+              }}
+              className={`py-1.5 px-2 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1.5 ${
+                proOption === 'company_register'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-blue-900 bg-white/60'
+              }`}
+            >
+              <Building2 className="w-3 h-3" />
+              <span>4. Cadastrar Empresa</span>
+            </button>
+          </div>
+        )}
+
+        {/* Alerts */}
+        {error && (
+          <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-800 font-bold">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1 leading-snug">
+                <p>{error}</p>
+                {isEmailDuplicateError && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setMode('login');
-                      setError(null);
-                    }}
-                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold transition shadow-2xs"
+                    onClick={handleSwitchToLoginWithEmail}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-black text-[10px] transition"
                   >
-                    Fazer Login Agora
+                    <LogIn className="w-3 h-3" />
+                    <span>Fazer Login com este E-mail</span>
                   </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {success && (
-            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{success}</span>
-            </div>
-          )}
-
-          {mode === 'forgot_password' ? (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-600">
-                Informe o seu e-mail cadastrado na plataforma TécnicaMZ. Enviaremos um link seguro para redefinir sua palavra-passe.
-              </p>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">E-mail Cadastrado</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="seu.email@exemplo.co.mz"
-                    className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    required
-                  />
-                </div>
+                )}
               </div>
             </div>
-          ) : (
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2 text-xs text-emerald-900 font-bold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div>{success}</div>
+          </div>
+        )}
+
+        {/* Form Fields */}
+        <form onSubmit={handleSubmit} className="space-y-3.5 max-h-[60vh] overflow-y-auto pr-1">
+          {/* Client Register */}
+          {!isForgotPassword && activeSection === 'client' && clientOption === 'client_register' && (
             <>
-              {/* Email */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">E-mail Profissional</label>
+                <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                  Nome Completo <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                  <UserIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                   <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="seu.email@exemplo.co.mz"
-                    className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    type="text"
                     required
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Ex: Carlos Macuácua"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition"
                   />
                 </div>
               </div>
 
-              {/* Password */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700">Palavra-passe</label>
-                  {mode === 'login' && (
-                    <button
-                      type="button"
-                      onClick={() => setMode('forgot_password')}
-                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800"
-                    >
-                      Esqueceu a palavra-passe?
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Sua palavra-passe de acesso"
-                    className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                  Idade (Anos) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={18}
+                  max={99}
+                  value={idade}
+                  onChange={e => setIdade(e.target.value)}
+                  placeholder="Ex: 28"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition"
+                />
               </div>
-
-              {/* Registration Extra Fields */}
-              {mode === 'register' && (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      {selectedRole === 'company' ? 'Razão Social da Empresa' : 'Nome Completo'}
-                    </label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      placeholder={selectedRole === 'company' ? 'Ex: Moz Engenharia & Serviços Lda' : 'Ex: Mateus Nhantumbo'}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Telefone Principal / WhatsApp (+258)</label>
-                    <div className="relative">
-                      <Phone className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                      <input
-                        type="text"
-                        value={phone}
-                        onChange={e => setPhone(e.target.value)}
-                        placeholder="+258 84 123 4567"
-                        className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Technician Extra fields */}
-                  {selectedRole === 'technician' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Especialidade Principal</label>
-                        <select
-                          value={specialty}
-                          onChange={e => setSpecialty(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-                        >
-                          {TECHNICAL_CATEGORIES.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Província de Atuação</label>
-                        <select
-                          value={province}
-                          onChange={e => setProvince(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-                        >
-                          {MOZAMBIQUE_PROVINCES.map(p => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Company Extra fields */}
-                  {selectedRole === 'company' && (
-                    <div className="space-y-3 pt-1">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Nome Comercial</label>
-                          <input
-                            type="text"
-                            value={commercialName}
-                            onChange={e => setCommercialName(e.target.value)}
-                            placeholder="Ex: MozSolar"
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">NUIT Oficial</label>
-                          <input
-                            type="text"
-                            value={nuit}
-                            onChange={e => setNuit(e.target.value)}
-                            placeholder="Ex: 400123456"
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Setor de Atividade</label>
-                          <input
-                            type="text"
-                            value={industry}
-                            onChange={e => setIndustry(e.target.value)}
-                            placeholder="Ex: Construção Civil & Estruturas"
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Província Sede</label>
-                          <select
-                            value={province}
-                            onChange={e => setProvince(e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-                          >
-                            {MOZAMBIQUE_PROVINCES.map(p => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
             </>
           )}
 
-          {/* Submit Button */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-md ${theme.color}`}
-            >
-              <span>
-                {isLoading
-                  ? 'Processando...'
-                  : mode === 'forgot_password'
-                  ? 'Enviar Link de Recuperação'
-                  : mode === 'login'
-                  ? 'Iniciar Sessão Segura'
-                  : 'Criar Minha Conta'}
-              </span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+          {/* Tech Register */}
+          {!isForgotPassword && activeSection === 'pro' && proOption === 'tech_register' && (
+            <>
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                  Nome Completo do Técnico <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <UserIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Ex: Mateus Sitoe"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                    Idade (Anos) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={18}
+                    max={99}
+                    value={idade}
+                    onChange={e => setIdade(e.target.value)}
+                    placeholder="Ex: 28"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                    WhatsApp / Celular <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      placeholder="841234567"
+                      className="w-full pl-8 pr-2.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                  Especialidade Técnica Principal <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={specialty}
+                  onChange={e => setSpecialty(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                >
+                  {TECHNICAL_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">Província</label>
+                  <select
+                    value={province}
+                    onChange={e => setProvince(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                  >
+                    {MOZAMBIQUE_PROVINCES.map(prov => (
+                      <option key={prov} value={prov}>{prov}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">Cidade</label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={e => setCity(e.target.value)}
+                    placeholder="Ex: Maputo"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Company Register */}
+          {!isForgotPassword && activeSection === 'pro' && proOption === 'company_register' && (
+            <>
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                  Razão Social / Nome da Empresa <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Building2 className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Ex: EletroTec Moçambique, Lda"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">Nome Comercial</label>
+                  <input
+                    type="text"
+                    value={commercialName}
+                    onChange={e => setCommercialName(e.target.value)}
+                    placeholder="Ex: EletroTec MZ"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">NUIT</label>
+                  <input
+                    type="text"
+                    value={nuit}
+                    onChange={e => setNuit(e.target.value)}
+                    placeholder="Ex: 400123456"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                  Telefone / WhatsApp Comercial <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="Ex: +258 84 999 0001"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                  Idade do Representante Legal <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={18}
+                  max={99}
+                  value={idade}
+                  onChange={e => setIdade(e.target.value)}
+                  placeholder="Ex: 30"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Email */}
+          <div>
+            <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+              Endereço de E-mail <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="seu.email@exemplo.com"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+              />
+            </div>
           </div>
 
-          {/* Toggle Login / Register / Forgot */}
-          <div className="text-center pt-2">
-            {mode === 'forgot_password' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('login');
-                  setError(null);
-                }}
-                className="text-xs font-bold text-slate-600 hover:text-slate-900 underline"
-              >
-                Voltar para o Início de Sessão
-              </button>
+          {/* Password */}
+          {!isForgotPassword && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-700">
+                  Palavra-passe <span className="text-red-500">*</span>
+                </label>
+                {(clientOption === 'client_login' || proOption === 'tech_login' || proOption === 'company_login') && (
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotPassword(true)}
+                    className="text-[11px] font-bold text-blue-600 hover:underline"
+                  >
+                    Esqueceu?
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Confirm Password */}
+          {!isForgotPassword && (
+            (activeSection === 'client' && clientOption === 'client_register') ||
+            (activeSection === 'pro' && (proOption === 'tech_register' || proOption === 'company_register'))
+          ) && (
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                Confirmar Palavra-passe <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Submit */}
+          <div className="pt-2">
+            {isForgotPassword ? (
+              <div className="space-y-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-md shadow-amber-600/20"
+                >
+                  {isLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span>Recuperar Palavra-passe</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPassword(false)}
+                  className="w-full py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900"
+                >
+                  Voltar
+                </button>
+              </div>
             ) : (
               <button
-                type="button"
-                onClick={() => {
-                  setMode(mode === 'login' ? 'register' : 'login');
-                  setError(null);
-                }}
-                className="text-xs font-bold text-slate-600 hover:text-slate-900 underline"
+                type="submit"
+                disabled={isLoading}
+                className={`w-full py-3 text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-md ${
+                  activeSection === 'client'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                }`}
               >
-                {mode === 'login' ? 'Não possui conta? Cadastre-se gratuitamente' : 'Já possui conta? Inicie sessão'}
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>
+                      {activeSection === 'client' && clientOption === 'client_login' && 'Entrar como Cliente'}
+                      {activeSection === 'client' && clientOption === 'client_register' && 'Criar Conta de Cliente'}
+                      {activeSection === 'pro' && proOption === 'tech_login' && 'Entrar no Painel do Técnico'}
+                      {activeSection === 'pro' && proOption === 'company_login' && 'Entrar no Painel da Empresa'}
+                      {activeSection === 'pro' && proOption === 'tech_register' && 'Cadastrar como Técnico'}
+                      {activeSection === 'pro' && proOption === 'company_register' && 'Cadastrar como Empresa'}
+                    </span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             )}
           </div>

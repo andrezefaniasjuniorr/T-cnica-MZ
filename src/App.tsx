@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Layout & Core Screens
 import { Header } from './components/layout/Header';
@@ -170,27 +171,40 @@ const AppContent: React.FC = () => {
 
     const detected = resolveTabFromLocation();
 
+    // 2. Dynamic Redirection and Role Alignment upon Login and Session Refresh (F5)
     // If Admin
     if (isAdmin) {
       if (detected === 'gestao-pro-mz' || detected === 'admin') {
         setActiveTab('gestao-pro-mz');
+      } else if (!detected) {
+        setActiveTab('gestao-pro-mz');
+        try {
+          window.history.replaceState({ tab: 'gestao-pro-mz' }, '', '#gestao-pro-mz');
+        } catch {}
       }
       return;
     }
 
-    // If Technician / Company
-    if (isTechnician || isCompany || currentUser.tipoConta === 'tecnico') {
-      // If the technician is pending approval, App will render WaitingApprovalScreen automatically
-      if (currentUser.statusAprovacao === 'pendente' || currentUser.status === 'pending_approval') {
-        return;
+    // If Company (tipoConta === 'empresa' or role === 'company')
+    if (isCompany || currentUser.tipoConta === 'empresa' || currentUser.role === 'company') {
+      if (detected && ['company', 'jobs', 'company_directory', 'technicians_directory', 'market', 'community', 'settings'].includes(detected)) {
+        setActiveTab(detected);
+      } else {
+        // Strict redirection: Company is NEVER sent to client dashboard
+        setActiveTab('company');
+        try {
+          window.history.replaceState({ tab: 'company' }, '', '#empresa');
+        } catch {}
       }
+      return;
+    }
 
-      // If approved technician:
-      // If they were on a technician-allowed tab (e.g. tools, technician, jobs, market, community, academy), preserve it on F5!
+    // If Technician (tipoConta === 'tecnico' or role === 'technician')
+    if (isTechnician || currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician') {
       if (detected && ['technician', 'tools', 'jobs', 'market', 'community', 'academy', 'technicians_directory', 'company_directory', 'settings'].includes(detected)) {
         setActiveTab(detected);
-      } else if (!detected || detected === 'client') {
-        // If coming from login or root '/' without tab, redirect to Technician Dashboard (/tecnico or #technician)
+      } else {
+        // Strict redirection: Technician is NEVER sent to client dashboard
         setActiveTab('technician');
         try {
           window.history.replaceState({ tab: 'technician' }, '', '#tecnico');
@@ -199,20 +213,20 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // If Client / Consumidor
-    if (isClient || currentUser.tipoConta === 'cliente') {
-      // If client attempts to access technician-restricted tabs, redirect to /feed or /mural
+    // If Client (tipoConta === 'cliente' or role === 'client')
+    if (isClient || currentUser.tipoConta === 'cliente' || currentUser.role === 'client') {
+      // If client attempts to access technician/company/admin tabs, redirect to client portal
       if (detected === 'tools' || detected === 'technician' || detected === 'company' || detected === 'gestao-pro-mz') {
-        setActiveTab('community');
+        setActiveTab('client');
         try {
-          window.history.replaceState({ tab: 'community' }, '', '#feed');
+          window.history.replaceState({ tab: 'client' }, '', '#cliente');
         } catch {}
       } else if (detected && VALID_TABS.includes(detected)) {
         setActiveTab(detected);
-      } else if (!detected) {
-        setActiveTab('community');
+      } else {
+        setActiveTab('client');
         try {
-          window.history.replaceState({ tab: 'community' }, '', '#feed');
+          window.history.replaceState({ tab: 'client' }, '', '#cliente');
         } catch {}
       }
     }
@@ -329,22 +343,6 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // =========================================================================
-  // APPROVAL WORKFLOW FOR TECHNICIANS & COMPANIES:
-  // Technicians and Companies with statusAprovacao === 'pendente' remain in
-  // WaitingApprovalScreen until an Administrator approves their account.
-  // =========================================================================
-  const isPendingApproval =
-    (isTechnician || isCompany) &&
-    !isAdmin &&
-    (currentUser.statusAprovacao === 'pendente' ||
-      currentUser.status === 'pending_approval' ||
-      currentUser.statusAprovacao === 'rejeitado');
-
-  if (isPendingApproval) {
-    return <WaitingApprovalScreen />;
-  }
-
   // Blocked account screen
   if (currentUser.status === 'blocked' || currentUser.statusConta === 'bloqueada') {
     return (
@@ -359,7 +357,7 @@ const AppContent: React.FC = () => {
         </p>
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <a
-            href="https://wa.me/258851949159"
+            href="https://wa.me/258841234567"
             target="_blank"
             rel="noopener noreferrer"
             className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors"
@@ -375,15 +373,6 @@ const AppContent: React.FC = () => {
         </div>
       </div>
     );
-  }
-
-  // =========================================================================
-  // STRICT PAYWALL ENFORCEMENT FOR TECHNICIANS & COMPANIES:
-  // - Técnico / Empresa: Plano Único Técnico Pro (50 MT / Mês)
-  // - Cliente: Livre de cobrança de planos
-  // =========================================================================
-  if (!isClient && !isAdmin && !isSubscriptionActive) {
-    return <SubscriptionPaywall />;
   }
 
   // =========================================================================
@@ -532,13 +521,13 @@ const AppContent: React.FC = () => {
               <h4 className="font-bold text-white uppercase text-[11px] tracking-wider">Suporte Técnico Oficial</h4>
               <div className="space-y-1.5 text-[11px] text-slate-400">
                 <a
-                  href="https://wa.me/258851949159"
+                  href="https://wa.me/258841234567"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 text-emerald-400 hover:underline font-bold"
                 >
                   <Phone className="w-3.5 h-3.5 shrink-0" />
-                  <span>WhatsApp: 851949159</span>
+                  <span>WhatsApp: 841234567</span>
                 </a>
                 <a
                   href="mailto:tecnicamzpro@gmail.com"
@@ -571,6 +560,7 @@ const AppContent: React.FC = () => {
       <SaraAiModal
         isOpen={isSaraAiOpen}
         onClose={() => setIsSaraAiOpen(false)}
+        onGoToSettings={() => handleNavigate('settings')}
       />
 
       <NotificationsModal
@@ -609,10 +599,12 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <DataProvider>
-        <AppContent />
-      </DataProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <DataProvider>
+          <AppContent />
+        </DataProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

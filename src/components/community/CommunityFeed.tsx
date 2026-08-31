@@ -3,6 +3,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { TECHNICAL_CATEGORIES, MOZAMBIQUE_PROVINCES } from '../../types';
 import { StoriesCarousel } from './StoriesCarousel';
+import { SeloMZModal } from '../common/SeloMZModal';
 import {
   MessageSquare,
   Sparkles,
@@ -44,11 +45,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     deleteCommunityComment,
     startOrGetConversation
   } = useData();
-  const { currentUser, isTechnician, isCompany, isAdmin } = useAuth();
+  const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ } = useAuth();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [isSeloModalOpen, setIsSeloModalOpen] = useState<boolean>(false);
+  const [seloFeatureName, setSeloFeatureName] = useState<string>('Publicações no Mural');
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<{ [postId: string]: string }>({});
   const [replyingTo, setReplyingTo] = useState<{ [postId: string]: { id: string; authorName: string } | null }>({});
@@ -56,7 +59,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   // New Post Form State
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-  const [newCategory, setNewCategory] = useState(TECHNICAL_CATEGORIES[0]);
+  const [newCategory, setNewCategory] = useState<string>(TECHNICAL_CATEGORIES[0]);
   const [newTagInput, setNewTagInput] = useState('');
   const [newTags, setNewTags] = useState<string[]>(['Dica Técnica', 'Moçambique']);
   const [newImageUrl, setNewImageUrl] = useState('');
@@ -99,10 +102,29 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     setNewTags(newTags.filter(t => t !== tagToRemove));
   };
 
+  const handleOpenCreatePost = () => {
+    if (!currentUser) {
+      alert('Faça login para publicar no mural técnico.');
+      return;
+    }
+    if ((isTechnician || isCompany) && !temSeloMZ && !isAdmin) {
+      setSeloFeatureName('Publicações no Mural Técnico');
+      setIsSeloModalOpen(true);
+      return;
+    }
+    setIsCreateModalOpen(true);
+  };
+
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
       alert('Faça login para publicar no mural técnico.');
+      return;
+    }
+    if ((isTechnician || isCompany) && !temSeloMZ && !isAdmin) {
+      setIsCreateModalOpen(false);
+      setSeloFeatureName('Publicações no Mural Técnico');
+      setIsSeloModalOpen(true);
       return;
     }
     if (!newTitle.trim() || !newContent.trim()) {
@@ -132,6 +154,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     const text = commentText[postId];
     if (!currentUser) {
       alert('Faça login para comentar.');
+      return;
+    }
+    if ((isTechnician || isCompany) && !temSeloMZ && !isAdmin) {
+      setSeloFeatureName('Respostas e Comentários no Mural');
+      setIsSeloModalOpen(true);
       return;
     }
     if (!text || !text.trim()) return;
@@ -177,7 +204,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
           {/* Subtle gradient only at bottom-right corner for high-contrast compact action */}
           <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-2">
             <button
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={handleOpenCreatePost}
               className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-blue-600/90 hover:bg-blue-600 text-white font-bold rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-900/40 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
               title="Criar nova publicação no mural"
             >
@@ -743,13 +770,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                 Dúvidas técnicas, credenciação e auditoria de perfis:
               </p>
               <a
-                href="https://wa.me/258851949159"
+                href="https://wa.me/258841234567"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition"
               >
                 <Phone className="w-3.5 h-3.5" />
-                <span>WhatsApp: 851949159</span>
+                <span>WhatsApp: 841234567</span>
               </a>
             </div>
           </aside>
@@ -949,6 +976,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
           </div>
         </div>
       )}
+
+      {/* Selo MZ Blocking Modal */}
+      <SeloMZModal
+        isOpen={isSeloModalOpen}
+        onClose={() => setIsSeloModalOpen(false)}
+        onGoToSeloSettings={() => {
+          setIsSeloModalOpen(false);
+          onNavigateTab('settings');
+        }}
+        featureName={seloFeatureName}
+      />
     </div>
   );
 };

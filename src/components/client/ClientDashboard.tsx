@@ -35,9 +35,9 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ onNavigateTab,
 
   // New Request Form State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState(TECHNICAL_CATEGORIES[0]);
+  const [category, setCategory] = useState<string>(TECHNICAL_CATEGORIES[0]);
   const [description, setDescription] = useState('');
-  const [province, setProvince] = useState(MOZAMBIQUE_PROVINCES[0]);
+  const [province, setProvince] = useState<string>(MOZAMBIQUE_PROVINCES[0]);
   const [city, setCity] = useState('Maputo');
   const [budgetMax, setBudgetMax] = useState<number>(5000);
   const [urgency, setUrgency] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');

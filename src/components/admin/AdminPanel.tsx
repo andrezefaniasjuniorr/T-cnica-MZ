@@ -17,7 +17,8 @@ import {
   ExternalLink,
   ChevronRight,
   LogOut,
-  Wrench
+  Wrench,
+  ShieldCheck
 } from 'lucide-react';
 
 import { AdminOverviewTab } from './AdminOverviewTab';
@@ -26,17 +27,21 @@ import { AdminUsersTab } from './AdminUsersTab';
 import { AdminPaymentsTab } from './AdminPaymentsTab';
 import { AdminBroadcastTab } from './AdminBroadcastTab';
 import { AdminSettingsTab } from './AdminSettingsTab';
+import { AdminSeloRequestsTab } from './AdminSeloRequestsTab';
 
 interface AdminPanelProps {
   onNavigateTab: (tab: string) => void;
 }
 
-type AdminTab = 'metrics' | 'approvals' | 'users' | 'payments' | 'broadcast' | 'settings';
+type AdminTab = 'metrics' | 'selo_requests' | 'approvals' | 'users' | 'payments' | 'broadcast' | 'settings';
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
   const {
     currentUser,
     usersList,
+    solicitacoesSelo,
+    aprovarSeloMZ,
+    rejeitarSeloMZ,
     updateUserStatus,
     deleteUserAccount,
     approveUserAccount,
@@ -55,11 +60,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
     updateSettings
   } = useData();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('metrics');
+  const [activeTab, setActiveTab] = useState<AdminTab>('selo_requests');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Counters for Badges
+  const pendingSeloRequestsCount = solicitacoesSelo.filter(s => s.statusSelo === 'pendente_aprovacao').length;
+
   const pendingApprovalsCount = usersList.filter(
     u => (u.role === 'technician' || u.role === 'company' || u.tipoConta === 'tecnico') &&
          (u.statusAprovacao === 'pendente' || u.status === 'pending_approval')
@@ -74,10 +81,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
   };
 
   const navItems: { id: AdminTab; label: string; icon: React.FC<{ className?: string }>; badge?: number; badgeColor?: string }[] = [
+    { id: 'selo_requests', label: 'Aprovações do Selo MZ', icon: ShieldCheck, badge: pendingSeloRequestsCount, badgeColor: 'bg-amber-400 text-slate-950 font-black' },
     { id: 'metrics', label: 'Visão Geral & Métricas', icon: BarChart3 },
-    { id: 'approvals', label: 'Aprovações Pendentes', icon: UserCheck, badge: pendingApprovalsCount, badgeColor: 'bg-amber-500 text-slate-950' },
+    { id: 'approvals', label: 'Contas Pendentes', icon: UserCheck, badge: pendingApprovalsCount, badgeColor: 'bg-slate-700 text-slate-200' },
     { id: 'users', label: 'Gestão de Usuários', icon: Users, badge: usersList.length, badgeColor: 'bg-slate-800 text-slate-300' },
-    { id: 'payments', label: 'Pagamentos (M-Pesa/e-Mola)', icon: CreditCard, badge: pendingPaymentsCount, badgeColor: 'bg-blue-500 text-white' },
+    { id: 'payments', label: 'Histórico Pagamentos', icon: CreditCard, badge: pendingPaymentsCount, badgeColor: 'bg-blue-500 text-white' },
     { id: 'broadcast', label: 'Comunicados & Avisos', icon: Radio },
     { id: 'settings', label: 'Configurações do Sistema', icon: Settings }
   ];
@@ -266,6 +274,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
 
         {/* Tab Content Container */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-20 md:pb-8">
+          {activeTab === 'selo_requests' && (
+            <AdminSeloRequestsTab
+              solicitacoes={solicitacoesSelo}
+              onApprove={aprovarSeloMZ}
+              onReject={rejeitarSeloMZ}
+            />
+          )}
+
           {activeTab === 'metrics' && (
             <AdminOverviewTab
               users={usersList}
@@ -277,27 +293,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
           {activeTab === 'approvals' && (
             <AdminApprovalsTab
               users={usersList}
-              onApprove={approveUserAccount}
-              onReject={rejectUserAccount}
-              onGrant30Days={grantManualSubscription30Days}
+              onApprove={async (id) => { await approveUserAccount(id); return { success: true }; }}
+              onReject={async (id, reason) => { await rejectUserAccount(id, reason); return { success: true }; }}
+              onGrant30Days={async (id) => { await grantManualSubscription30Days(id); return { success: true }; }}
             />
           )}
 
           {activeTab === 'users' && (
             <AdminUsersTab
               users={usersList}
-              onGrant30Days={grantManualSubscription30Days}
-              onToggleVerification={toggleUserVerification}
-              onUpdateStatus={updateUserStatus}
-              onDeleteUser={deleteUserAccount}
+              onGrant30Days={async (id) => { await grantManualSubscription30Days(id); return { success: true }; }}
+              onToggleVerification={async (id) => { await toggleUserVerification(id); return { success: true }; }}
+              onUpdateStatus={async (id, status) => { await updateUserStatus(id, status); return { success: true }; }}
+              onDeleteUser={async (id) => { await deleteUserAccount(id); return { success: true }; }}
             />
           )}
 
           {activeTab === 'payments' && (
             <AdminPaymentsTab
               payments={payments}
-              onApprovePayment={approvePayment}
-              onRejectPayment={rejectPayment}
+              onApprovePayment={async (paymentId) => {
+                await approvePayment(paymentId, currentUser?.uid || '', currentUser?.name || 'Admin');
+              }}
+              onRejectPayment={async (paymentId, reason) => {
+                await rejectPayment(paymentId, currentUser?.uid || '', currentUser?.name || 'Admin', reason || '');
+              }}
             />
           )}
 

@@ -53,8 +53,8 @@ export const AdminPaymentsTab: React.FC<AdminPaymentsTabProps> = ({
       const term = searchTerm.toLowerCase();
       const match =
         (p.userName || '').toLowerCase().includes(term) ||
-        (p.phoneNumber || '').includes(term) ||
-        (p.transactionReference || '').toLowerCase().includes(term) ||
+        (p.phoneNumber || p.userPhone || '').includes(term) ||
+        (p.transactionReference || p.transactionCode || '').toLowerCase().includes(term) ||
         (p.planName || '').toLowerCase().includes(term);
       if (!match) return false;
     }
@@ -192,10 +192,15 @@ export const AdminPaymentsTab: React.FC<AdminPaymentsTabProps> = ({
             const isApproved = payment.status === 'approved';
             const isMpesa = payment.method === 'mpesa';
 
-            const whatsappNumber = (payment.phoneNumber || '').replace(/\D/g, '');
+            const paymentPhone = payment.phoneNumber || payment.userPhone || '';
+            const paymentRef = payment.transactionReference || payment.transactionCode || '';
+            const paymentProof = payment.proofUrl || payment.receiptUrl || '';
+            const paymentDate = payment.createdAt || payment.submittedAt;
+
+            const whatsappNumber = paymentPhone.replace(/\D/g, '');
             const whatsappLink = whatsappNumber
               ? `https://wa.me/258${whatsappNumber.startsWith('258') ? whatsappNumber.substring(3) : whatsappNumber}`
-              : `https://wa.me/258851949159`;
+              : `https://wa.me/258841234567`;
 
             return (
               <div
@@ -239,17 +244,17 @@ export const AdminPaymentsTab: React.FC<AdminPaymentsTabProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                      {payment.phoneNumber && (
+                      {paymentPhone && (
                         <span className="flex items-center gap-1">
                           <Phone className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{payment.phoneNumber}</span>
+                          <span>{paymentPhone}</span>
                         </span>
                       )}
                       <span className="font-mono text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                        Ref: {payment.transactionReference || 'NÃO INFORMADO'}
+                        Ref: {paymentRef || 'NÃO INFORMADO'}
                       </span>
                       <span>
-                        {payment.createdAt ? new Date(payment.createdAt).toLocaleString('pt-PT') : 'Hoje'}
+                        {paymentDate ? new Date(paymentDate).toLocaleString('pt-PT') : 'Hoje'}
                       </span>
                     </div>
                   </div>
@@ -257,9 +262,9 @@ export const AdminPaymentsTab: React.FC<AdminPaymentsTabProps> = ({
 
                 {/* Right Actions */}
                 <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-800">
-                  {payment.proofUrl && (
+                  {paymentProof && (
                     <button
-                      onClick={() => setPreviewProofUrl(payment.proofUrl || null)}
+                      onClick={() => setPreviewProofUrl(paymentProof || null)}
                       className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -267,7 +272,7 @@ export const AdminPaymentsTab: React.FC<AdminPaymentsTabProps> = ({
                     </button>
                   )}
 
-                  {payment.phoneNumber && (
+                  {paymentPhone && (
                     <a
                       href={whatsappLink}
                       target="_blank"

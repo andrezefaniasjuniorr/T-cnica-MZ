@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Unread messages count
   const unreadMessagesCount = currentUser
-    ? conversations.filter(c => c.participantIds.includes(currentUser.uid) && c.unreadCount > 0).length
+    ? conversations.filter(c => c.participantIds.includes(currentUser.uid) && ((c.unreadCount ?? 0) > 0)).length
     : 0;
 
   const getRoleBadge = () => {
@@ -230,6 +230,22 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Painel Direct Button (Top Bar for Mobile & PC) */}
+            {currentUser && (
+              <button
+                onClick={() => onNavigateTab(roleInfo.panelTab)}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer ${
+                  activeTab === roleInfo.panelTab
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
+                }`}
+                title={`Aceder ao Painel (${roleInfo.label})`}
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-bold">Painel</span>
+              </button>
+            )}
+
             {/* Sara IA Button (Técnico / Empresa / Admin Only) */}
             {!isClient && (
               <button

@@ -6,7 +6,7 @@ export type UserStatus = 'active' | 'suspended' | 'blocked' | 'pending_approval'
 
 export type VerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
-export type CompanyVerificationStatus = 'unverified' | 'in_review' | 'verified' | 'rejected';
+export type CompanyVerificationStatus = 'unverified' | 'in_review' | 'verified' | 'rejected' | 'pending';
 
 export type SubscriptionStatus = 'none' | 'active' | 'expired';
 
@@ -18,7 +18,7 @@ export type PaymentStatus = 'pending' | 'approved' | 'rejected';
 
 export type RequestStatus = 'open' | 'receiving_proposals' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
 
-export type RequestUrgency = 'low' | 'normal' | 'urgent';
+export type RequestUrgency = 'low' | 'normal' | 'urgent' | 'medium' | 'high';
 
 export type ProposalStatus = 'pending' | 'accepted' | 'rejected';
 
@@ -48,7 +48,7 @@ export type ServiceUrgency = RequestUrgency;
 
 export type PlanTier = 'basico' | 'profissional' | 'empresa_vip';
 
-export type AccountType = 'cliente' | 'tecnico';
+export type AccountType = 'cliente' | 'tecnico' | 'empresa';
 export type ApprovalStatus = 'pendente' | 'aprovado' | 'rejeitado';
 export type AccountStatus = 'ativa' | 'bloqueada' | 'suspensa';
 
@@ -58,12 +58,19 @@ export interface User {
   email: string;
   phone?: string;
   role: UserRole;
-  tipoConta?: 'cliente' | 'tecnico';
+  tipoConta?: 'cliente' | 'tecnico' | 'empresa';
   adminSubRole?: AdminSubRole;
   status: UserStatus;
   statusAprovacao?: ApprovalStatus;
   statusConta?: AccountStatus;
   isVerified?: boolean;
+  temSeloMZ?: boolean;
+  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
+  dataSeloEnvio?: string;
+  dataSeloAprovacao?: string;
+  motivoRejeicaoSelo?: string;
+  mensagemTransacaoSelo?: string;
+  operadoraSelo?: 'mpesa' | 'emola';
   specialty?: string;
   province?: string;
   city?: string;
@@ -75,6 +82,10 @@ export interface User {
   subscriptionExpiresAt?: string;
   subscriptionStatus?: 'none' | 'active' | 'expired' | 'ativa';
   avatarUrl?: string;
+  photoURL?: string;
+  idade?: number;
+  totalLikes?: number;
+  scoreEngajamento?: number;
   suspensionReason?: string;
   rejectionReason?: string;
   createdAt: string;
@@ -98,6 +109,7 @@ export interface PortfolioItem {
   province: string;
   city?: string;
   photos: string[];
+  imageUrl?: string;
   date: string;
   createdAt: string;
 }
@@ -105,11 +117,14 @@ export interface PortfolioItem {
 export interface Review {
   id: string;
   technicianId?: string;
+  technicianName?: string;
   companyId?: string;
   clientId: string;
   clientName: string;
   clientAvatar?: string;
   requestId?: string;
+  serviceRequestId?: string;
+  category?: string;
   rating: number; // 1-5
   comment: string;
   createdAt: string;
@@ -139,11 +154,17 @@ export interface TechnicianProfile {
   bio: string;
   experienceYears: number;
   avatarUrl?: string;
+  photoURL?: string;
+  idade?: number;
+  totalLikes?: number;
+  scoreEngajamento?: number;
   coverUrl?: string;
   verificationStatus: VerificationStatus;
   verificationDocuments?: VerificationDocument[];
   verificationRejectionReason?: string;
   isVerified?: boolean;
+  temSeloMZ?: boolean;
+  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
   statusAprovacao?: ApprovalStatus;
   statusConta?: AccountStatus;
   subscriptionStatus: SubscriptionStatus;
@@ -194,6 +215,8 @@ export interface CompanyProfile {
   verificationDocuments?: VerificationDocument[];
   verificationRejectionReason?: string;
   isVerified?: boolean;
+  temSeloMZ?: boolean;
+  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
   statusAprovacao?: ApprovalStatus;
   statusConta?: AccountStatus;
   privacy?: CompanyPrivacySettings;
@@ -247,14 +270,17 @@ export interface JobApplication {
   technicianName: string;
   technicianEmail: string;
   technicianPhone: string;
-  technicianWhatsapp: string;
+  technicianWhatsapp?: string;
   technicianAvatar?: string;
-  technicianSpecialties: string[];
+  technicianSpecialties?: string[];
+  technicianSpecialty?: string;
   technicianExperienceYears: number;
   technicianProvince: string;
   technicianRating: number;
   technicianVerified: boolean;
   coverLetter: string;
+  expectedSalaryMZN?: number | string;
+  expectedSalary?: string;
   resumeUrl?: string;
   portfolioSummary?: string;
   status: ApplicationStatus;
@@ -277,22 +303,26 @@ export interface SubscriptionPlan {
   isPopular?: boolean;
   badge?: string;
   targetRole?: 'technician' | 'company' | 'all';
-  createdAt: string;
+  createdAt?: string;
   updatedAt?: string;
 }
 
 export interface PaymentRecord {
   id: string;
   userId: string;
+  technicianId?: string;
   userName: string;
   userRole: UserRole;
   userPhone?: string;
+  phoneNumber?: string;
   planId: string;
   planName: string;
   amountMZN: number;
   method: PaymentMethod;
   transactionCode: string;
+  transactionReference?: string;
   receiptUrl?: string;
+  proofUrl?: string;
   message?: string;
   status: PaymentStatus;
   rejectionReason?: string;
@@ -300,6 +330,7 @@ export interface PaymentRecord {
   reviewedByName?: string;
   reviewedAt?: string;
   submittedAt: string;
+  createdAt?: string;
 }
 
 export interface ServiceRequest {
@@ -313,13 +344,17 @@ export interface ServiceRequest {
   description: string;
   province: string;
   city: string;
+  address?: string;
   urgency: RequestUrgency;
   budgetMZN?: number;
+  budgetMinMZN?: number;
+  budgetMaxMZN?: number;
   preferredDate?: string;
   status: RequestStatus;
   acceptedTechnicianId?: string;
   acceptedTechnicianName?: string;
   acceptedProposalId?: string;
+  assignedTechnicianId?: string;
   proposalsCount?: number;
   hasClientReviewed?: boolean;
   createdAt: string;
@@ -331,17 +366,22 @@ export interface Proposal {
   requestId: string;
   requestTitle?: string;
   clientId: string;
+  clientName?: string;
   technicianId: string;
   technicianName: string;
-  technicianPhone: string;
+  technicianPhone?: string;
   technicianAvatar?: string;
+  technicianAvatarUrl?: string;
   technicianRating: number;
   technicianVerified: boolean;
   laborCostMZN: number;
   materialsCostMZN: number;
   totalCostMZN: number;
-  validityDays: number;
-  description: string;
+  validityDays?: number;
+  estimatedDays?: number | string;
+  estimatedTime?: string;
+  notes?: string;
+  description?: string;
   materialsList?: { name: string; quantity: number; unitPriceMZN: number }[];
   status: ProposalStatus;
   createdAt: string;
@@ -351,17 +391,23 @@ export interface BudgetEstimate {
   id: string;
   technicianId: string;
   technicianName: string;
-  technicianPhone: string;
+  technicianPhone?: string;
   clientName: string;
   clientPhone?: string;
   clientAddress?: string;
-  serviceTitle: string;
-  serviceDescription: string;
-  items: { description: string; quantity: number; unitPriceMZN: number; totalMZN: number }[];
+  serviceTitle?: string;
+  projectTitle?: string;
+  serviceDescription?: string;
+  category?: string;
+  items: { description: string; quantity?: number; unitPriceMZN?: number; totalMZN?: number; cost?: number }[];
   laborCostMZN: number;
-  discountMZN: number;
-  totalMZN: number;
-  validityDays: number;
+  materialsCostMZN?: number;
+  discountMZN?: number;
+  totalMZN?: number;
+  totalCostMZN?: number;
+  validityDays?: number;
+  validUntilDate?: string;
+  province?: string;
   notes?: string;
   createdAt: string;
 }
@@ -387,6 +433,10 @@ export interface ConversationItem {
   }[];
   lastMessage: string;
   lastMessageAt: string;
+  unreadCount?: number;
+  targetUserName?: string;
+  targetUserId?: string;
+  targetRole?: UserRole;
   contextType?: 'job' | 'request' | 'direct';
   contextTitle?: string;
 }
@@ -450,20 +500,23 @@ export interface MarketItem {
   sellerId: string;
   sellerName: string;
   sellerRole: UserRole;
-  sellerPhone: string;
-  sellerWhatsapp: string;
-  showWhatsapp: boolean;
+  sellerPhone?: string;
+  sellerWhatsapp?: string;
+  whatsapp?: string;
+  phone?: string;
+  showWhatsapp?: boolean;
   title: string;
   category: string;
   priceMZN: number;
-  priceDisplay: string;
+  price?: number;
+  priceDisplay?: string;
   province: string;
   city: string;
-  location: string;
+  location?: string;
   condition: 'Novo' | 'Como Novo' | 'Usado - Excelente' | 'Usado - Bom' | 'Para Peças' | string;
   brand?: string;
   model?: string;
-  quantity: number;
+  quantity?: number;
   description: string;
   images: string[];
   status: 'active' | 'sold' | 'paused' | 'moderated';
@@ -559,16 +612,21 @@ export interface AcademyArticle {
   id: string;
   title: string;
   category: string;
-  readTime: string;
-  author: string;
-  source: string;
+  readTime?: string;
+  readTimeMinutes?: number;
+  author?: string;
+  authorName?: string;
+  source?: string;
   sourceUrl?: string;
-  verifiedDate: string;
-  description: string;
+  verifiedDate?: string;
+  description?: string;
+  summary?: string;
   content?: string;
   tags: string[];
   downloadable: boolean;
   verifiedByAdmin: boolean;
+  status?: string;
+  createdAt?: string;
 }
 
 export interface PaymentMethodConfig {
@@ -581,6 +639,8 @@ export interface PaymentMethodConfig {
   bankHolder: string;
   bankNIB: string;
   instructions: string;
+  mpesa?: { number: string; name: string; enabled?: boolean; instructions?: string };
+  emola?: { number: string; name: string; enabled?: boolean; instructions?: string };
 }
 
 export interface PlatformSettings {
@@ -589,12 +649,16 @@ export interface PlatformSettings {
   supportPhone: string;
   supportEmail: string;
   whatsappSupport: string;
+  supportWhatsapp?: string;
   paymentMethods: PaymentMethodConfig;
+  mpesaNumber?: string;
+  mpesaName?: string;
   categories: string[];
   provinces: string[];
   maintenanceMode: boolean;
   saraAiEnabled: boolean;
   registrationOpen: boolean;
+  allowNewRegistrations?: boolean;
 }
 
 export const MOZAMBIQUE_PROVINCES = [
@@ -631,3 +695,23 @@ export const TECHNICAL_CATEGORIES = [
   'Eletrodomésticos',
   'Outros'
 ] as const;
+
+export interface SolicitacaoSelo {
+  id: string;
+  userId: string;
+  usuarioNome: string;
+  usuarioEmail: string;
+  usuarioTelefone: string;
+  userRole?: UserRole;
+  tipoConta?: 'cliente' | 'tecnico' | 'empresa';
+  operadora: 'mpesa' | 'emola';
+  mensagemTransacao: string;
+  valor?: number;
+  statusSelo: 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
+  motivoRejeicao?: string;
+  dataEnvio: string; // ISO date string
+  dataResposta?: string;
+  aprovadoPor?: string;
+  respondidoPor?: string;
+}
+

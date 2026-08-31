@@ -35,7 +35,7 @@ export const WaitingApprovalScreen: React.FC = () => {
   const whatsappMessage = encodeURIComponent(
     `Olá Administração TécnicaMZ Pro! Criei minha conta profissional (${currentUser?.name || ''} - ${currentUser?.email || ''}) e gostaria de solicitar a análise e aprovação do meu cadastro.`
   );
-  const whatsappUrl = `https://wa.me/258851949159?text=${whatsappMessage}`;
+  const whatsappUrl = `https://wa.me/258841234567?text=${whatsappMessage}`;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-10 font-sans selection:bg-blue-500 selection:text-white">

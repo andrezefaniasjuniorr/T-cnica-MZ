@@ -29,7 +29,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { TopBackNav } from '../common/TopBackNav';
-import { CheckoutModal } from '../subscription/CheckoutModal';
+import { SeloMZModal } from '../common/SeloMZModal';
 import { Lock, Crown, ArrowRight } from 'lucide-react';
 
 interface MarketSectionProps {
@@ -49,8 +49,8 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
     startOrGetConversation,
     plans
   } = useData();
-  const { currentUser, isClient, isTechnician, isCompany, isAdmin, canPublishMarket } = useAuth();
-  const [showVipUpgradeModal, setShowVipUpgradeModal] = useState(false);
+  const { currentUser, isClient, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
+  const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
 
   const [activeView, setActiveView] = useState<'all' | 'my_items'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,11 +67,11 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
 
   // New Item State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState(TECHNICAL_CATEGORIES[0]);
+  const [category, setCategory] = useState<string>(TECHNICAL_CATEGORIES[0]);
   const [description, setDescription] = useState('');
   const [priceMZN, setPriceMZN] = useState<number>(15000);
-  const [condition, setCondition] = useState<'new' | 'used' | 'refurbished'>('new');
-  const [province, setProvince] = useState(MOZAMBIQUE_PROVINCES[0]);
+  const [condition, setCondition] = useState<string>('Novo');
+  const [province, setProvince] = useState<string>(MOZAMBIQUE_PROVINCES[0]);
   const [city, setCity] = useState('Maputo');
   const [whatsapp, setWhatsapp] = useState(currentUser?.phone || '+258 84 000 0000');
   const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1509391365360-2e959784a276?w=800&auto=format&fit=crop&q=80');
@@ -114,8 +114,8 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
       alert('Inicie sessão para publicar anúncios no mercado.');
       return;
     }
-    if (!canPublishMarket && !isAdmin) {
-      setShowVipUpgradeModal(true);
+    if ((isTechnician || isCompany) && !temSeloMZ && !isAdmin) {
+      setIsSeloModalOpen(true);
       return;
     }
     setIsSellModalOpen(true);
@@ -1109,22 +1109,16 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
         </div>
       )}
 
-      {/* VIP Upgrade Modal */}
-      {showVipUpgradeModal && (
-        <CheckoutModal
-          plan={plans.find(p => p.id === 'plano_empresa_vip') || {
-            id: 'plano_empresa_vip',
-            name: 'Pacote Empresa / VIP',
-            priceMZN: 499,
-            durationDays: 30,
-            active: true,
-            priority: 3,
-            benefits: ['Anúncios Ilimitados no Mercado', 'Selo Empresa VIP', 'Destaque no Topo do Mural', 'Sara IA & Gerador de OS Ilimitados']
-          }}
-          onClose={() => setShowVipUpgradeModal(false)}
-          onSuccess={() => setShowVipUpgradeModal(false)}
-        />
-      )}
+      {/* Selo MZ Restriction Modal */}
+      <SeloMZModal
+        isOpen={isSeloModalOpen}
+        onClose={() => setIsSeloModalOpen(false)}
+        onGoToSeloSettings={() => {
+          setIsSeloModalOpen(false);
+          onNavigateTab('settings');
+        }}
+        featureName="Anúncios de Venda no Mercado Técnico"
+      />
     </div>
   );
 };

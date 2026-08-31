@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, TechnicianProfile, CompanyProfile, UserRole, AdminSubRole, UserStatus } from '../types';
+import { User, TechnicianProfile, CompanyProfile, UserRole, AdminSubRole, UserStatus, SolicitacaoSelo } from '../types';
 import { auth, db, isFirebaseConfigured } from '../firebase/config';
+import { safeGetStorageItem, safeSetStorageItem, safeRemoveStorageItem } from '../utils/storage';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -28,6 +29,15 @@ interface AuthContextType {
   isFinanceAdmin: boolean;
   isModerator: boolean;
 
+  // Selo MZ & Permissions
+  temSeloMZ: boolean;
+  statusSelo: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
+  isRestrictedTechnician: boolean;
+  solicitacoesSelo: SolicitacaoSelo[];
+  solicitarSeloMZ: (operadora: 'mpesa' | 'emola', mensagemTransacao: string) => Promise<{ success: boolean; error?: string }>;
+  aprovarSeloMZ: (solicitacaoId: string, userId: string) => Promise<{ success: boolean; error?: string }>;
+  rejeitarSeloMZ: (solicitacaoId: string, userId: string, motivo?: string) => Promise<{ success: boolean; error?: string }>;
+
   // Paywall & Subscription State
   isSubscriptionActive: boolean;
   activePlanTier: 'basico' | 'profissional' | 'empresa_vip' | null;
@@ -48,7 +58,10 @@ interface AuthContextType {
     phone: string;
     password?: string;
     role: UserRole;
-    tipoConta?: 'cliente' | 'tecnico';
+    tipoConta?: 'cliente' | 'tecnico' | 'empresa';
+    idade?: number;
+    photoURL?: string;
+    avatarUrl?: string;
     specialty?: string;
     province?: string;
     city?: string;
@@ -64,6 +77,7 @@ interface AuthContextType {
   updateCurrentUserProfile: (data: Partial<User>) => Promise<void>;
   updateCurrentTechProfile: (data: Partial<TechnicianProfile>) => Promise<void>;
   updateCurrentCompanyProfile: (data: Partial<CompanyProfile>) => Promise<void>;
+  giveTechnicianLike: (techUserId: string) => Promise<{ success: boolean; totalLikes: number }>;
   switchUserRole: (newRole: UserRole) => Promise<void>;
   updateUserStatus: (userId: string, status: UserStatus) => Promise<void>;
   deleteUserAccount: (userId: string) => Promise<void>;
@@ -79,24 +93,26 @@ const LOCAL_STORAGE_USER_KEY = 'tecnicamz_auth_user_id';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [usersList, setUsersList] = useState<User[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_users');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<User[]>('tecnicamz_users', []);
   });
 
   const [techList, setTechList] = useState<TechnicianProfile[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_technicians');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<TechnicianProfile[]>('tecnicamz_technicians', []);
   });
 
   const [companyList, setCompanyList] = useState<CompanyProfile[]>(() => {
-    const saved = localStorage.getItem('tecnicamz_companies');
-    return saved ? JSON.parse(saved) : [];
+    return safeGetStorageItem<CompanyProfile[]>('tecnicamz_companies', []);
+  });
+
+  const [solicitacoesSelo, setSolicitacoesSelo] = useState<SolicitacaoSelo[]>(() => {
+    return safeGetStorageItem<SolicitacaoSelo[]>('tecnicamz_solicitacoes_selo', []);
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const savedId = localStorage.getItem(LOCAL_STORAGE_USER_KEY);
+    const savedId = safeGetStorageItem<string | null>(LOCAL_STORAGE_USER_KEY, null);
     if (savedId) {
-      const found = usersList.find(u => u.uid === savedId);
+      const initialUsers = safeGetStorageItem<User[]>('tecnicamz_users', []);
+      const found = initialUsers.find(u => u.uid === savedId);
       if (found) return found;
     }
     return null;
@@ -154,17 +170,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
+    const unsubSelo = onSnapshot(
+      collection(db, 'solicitacoes_selo'),
+      (snapshot) => {
+        const selos: SolicitacaoSelo[] = [];
+        snapshot.forEach((docSnap) => {
+          selos.push({ ...docSnap.data(), id: docSnap.id } as SolicitacaoSelo);
+        });
+        // Sort newest first
+        selos.sort((a, b) => new Date(b.dataEnvio).getTime() - new Date(a.dataEnvio).getTime());
+        setSolicitacoesSelo(selos);
+      },
+      (err) => {
+        console.warn('Real-time solicitacoes_selo listener notice:', err);
+      }
+    );
+
     return () => {
       unsubUsers();
       unsubTechs();
       unsubComps();
+      unsubSelo();
     };
   }, []);
 
   // Sync current user profiles whenever currentUser, techList or companyList change
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem(LOCAL_STORAGE_USER_KEY, currentUser.uid);
+      safeSetStorageItem(LOCAL_STORAGE_USER_KEY, currentUser.uid);
       if (currentUser.role === 'technician') {
         const tech = techList.find(t => t.userId === currentUser.uid) || null;
         setCurrentTechProfile(tech);
@@ -178,7 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentCompanyProfile(null);
       }
     } else {
-      localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+      safeRemoveStorageItem(LOCAL_STORAGE_USER_KEY);
       setCurrentTechProfile(null);
       setCurrentCompanyProfile(null);
     }
@@ -186,16 +219,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Keep local storage synchronized with current lists
   useEffect(() => {
-    localStorage.setItem('tecnicamz_users', JSON.stringify(usersList));
+    safeSetStorageItem('tecnicamz_users', usersList);
   }, [usersList]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_technicians', JSON.stringify(techList));
+    safeSetStorageItem('tecnicamz_technicians', techList);
   }, [techList]);
 
   useEffect(() => {
-    localStorage.setItem('tecnicamz_companies', JSON.stringify(companyList));
+    safeSetStorageItem('tecnicamz_companies', companyList);
   }, [companyList]);
+
+  useEffect(() => {
+    safeSetStorageItem('tecnicamz_solicitacoes_selo', solicitacoesSelo);
+  }, [solicitacoesSelo]);
 
   // Firebase auth state listener - runs once on mount
   useEffect(() => {
@@ -249,12 +286,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
                 if (userDoc.exists()) {
                   const docData = userDoc.data() as Partial<User>;
-                  const tipoConta = docData.tipoConta || (docData.role === 'client' ? 'cliente' : 'tecnico');
-                  const statusAprovacao = docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado');
+                  const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
+                  
+                  let tipoConta: 'cliente' | 'tecnico' | 'empresa';
                   let role = docData.role;
-                  if (!role) {
-                    role = tipoConta === 'tecnico' ? 'technician' : 'client';
+
+                  if (isSuper) {
+                    tipoConta = 'tecnico';
+                    role = 'super_admin';
+                  } else if (docData.tipoConta === 'empresa' || docData.role === 'company') {
+                    tipoConta = 'empresa';
+                    role = 'company';
+                  } else if (docData.tipoConta === 'tecnico' || docData.role === 'technician') {
+                    tipoConta = 'tecnico';
+                    role = 'technician';
+                  } else if (docData.role === 'admin' || docData.role === 'super_admin') {
+                    tipoConta = 'tecnico';
+                    role = docData.role;
+                  } else {
+                    tipoConta = 'cliente';
+                    role = 'client';
                   }
+
+                  const statusAprovacao = isSuper ? 'aprovado' : (docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado'));
 
                   const firestoreUserData: User = {
                     uid: fbUser.uid,
@@ -266,11 +320,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     statusAprovacao: statusAprovacao,
                     statusConta: docData.statusConta || 'ativa',
                     status: docData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
-                    adminSubRole: docData.adminSubRole,
+                    adminSubRole: isSuper ? 'super_admin' : docData.adminSubRole,
                     specialty: docData.specialty,
                     province: docData.province,
                     city: docData.city,
                     avatarUrl: docData.avatarUrl,
+                    temSeloMZ: isSuper ? true : Boolean(docData.temSeloMZ || docData.statusSelo === 'aprovado'),
+                    statusSelo: isSuper ? 'aprovado' : (docData.statusSelo || (docData.temSeloMZ ? 'aprovado' : 'nenhum')),
+                    dataSeloEnvio: docData.dataSeloEnvio,
+                    dataSeloAprovacao: docData.dataSeloAprovacao,
+                    motivoRejeicaoSelo: docData.motivoRejeicaoSelo,
+                    mensagemTransacaoSelo: docData.mensagemTransacaoSelo,
+                    operadoraSelo: docData.operadoraSelo,
                     statusAssinatura: docData.statusAssinatura,
                     dataExpiracao: docData.dataExpiracao,
                     subscriptionStatus: docData.subscriptionStatus,
@@ -300,8 +361,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUsersList(prev => {
               const userMatch = prev.find(u => u.email.toLowerCase() === normalizedEmail);
               if (userMatch) {
-                const tipoConta = userMatch.tipoConta || (userMatch.role === 'client' ? 'cliente' : 'tecnico');
-                const matchedUser: User = { ...userMatch, uid: fbUser.uid, tipoConta };
+                let tipoConta: 'cliente' | 'tecnico' | 'empresa';
+                let role = userMatch.role;
+                if (userMatch.tipoConta === 'empresa' || userMatch.role === 'company') {
+                  tipoConta = 'empresa';
+                  role = 'company';
+                } else if (userMatch.tipoConta === 'tecnico' || userMatch.role === 'technician') {
+                  tipoConta = 'tecnico';
+                  role = 'technician';
+                } else {
+                  tipoConta = 'cliente';
+                  role = 'client';
+                }
+                const matchedUser: User = { ...userMatch, uid: fbUser.uid, tipoConta, role };
                 setCurrentUser(matchedUser);
               }
               return prev;
@@ -339,12 +411,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               if (userDoc.exists()) {
                 const docData = userDoc.data() as Partial<User>;
                 const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
-                const tipoConta = isSuper ? 'tecnico' : (docData.tipoConta || (docData.role === 'client' ? 'cliente' : 'tecnico'));
-                const statusAprovacao = isSuper ? 'aprovado' : (docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado'));
-                let role = isSuper ? 'super_admin' : docData.role;
-                if (!role) {
-                  role = tipoConta === 'tecnico' ? 'technician' : 'client';
+                
+                let tipoConta: 'cliente' | 'tecnico' | 'empresa';
+                let role = docData.role;
+
+                if (isSuper) {
+                  tipoConta = 'tecnico';
+                  role = 'super_admin';
+                } else if (docData.tipoConta === 'empresa' || docData.role === 'company') {
+                  tipoConta = 'empresa';
+                  role = 'company';
+                } else if (docData.tipoConta === 'tecnico' || docData.role === 'technician') {
+                  tipoConta = 'tecnico';
+                  role = 'technician';
+                } else if (docData.role === 'admin' || docData.role === 'super_admin') {
+                  tipoConta = 'tecnico';
+                  role = docData.role;
+                } else {
+                  tipoConta = 'cliente';
+                  role = 'client';
                 }
+
+                const statusAprovacao = isSuper ? 'aprovado' : (docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado'));
 
                 foundUser = {
                   uid: fbUser.uid,
@@ -361,6 +449,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   province: docData.province,
                   city: docData.city,
                   avatarUrl: docData.avatarUrl,
+                  temSeloMZ: isSuper ? true : Boolean(docData.temSeloMZ || docData.statusSelo === 'aprovado'),
+                  statusSelo: isSuper ? 'aprovado' : (docData.statusSelo || (docData.temSeloMZ ? 'aprovado' : 'nenhum')),
+                  dataSeloEnvio: docData.dataSeloEnvio,
+                  dataSeloAprovacao: docData.dataSeloAprovacao,
+                  motivoRejeicaoSelo: docData.motivoRejeicaoSelo,
+                  mensagemTransacaoSelo: docData.mensagemTransacaoSelo,
+                  operadoraSelo: docData.operadoraSelo,
                   statusAssinatura: docData.statusAssinatura,
                   dataExpiracao: docData.dataExpiracao,
                   subscriptionStatus: docData.subscriptionStatus,
@@ -378,8 +473,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const localMatch = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
             if (localMatch) {
               const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
-              const tipoConta = isSuper ? 'tecnico' : (localMatch.tipoConta || (localMatch.role === 'client' ? 'cliente' : 'tecnico'));
-              foundUser = { ...localMatch, uid: fbUser.uid, tipoConta };
+              let tipoConta: 'cliente' | 'tecnico' | 'empresa';
+              let role = localMatch.role;
+              if (isSuper) {
+                tipoConta = 'tecnico';
+                role = 'super_admin';
+              } else if (localMatch.tipoConta === 'empresa' || localMatch.role === 'company') {
+                tipoConta = 'empresa';
+                role = 'company';
+              } else if (localMatch.tipoConta === 'tecnico' || localMatch.role === 'technician') {
+                tipoConta = 'tecnico';
+                role = 'technician';
+              } else {
+                tipoConta = 'cliente';
+                role = 'client';
+              }
+              foundUser = { ...localMatch, uid: fbUser.uid, tipoConta, role };
             } else {
               const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
               foundUser = {
@@ -496,7 +605,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phone: string;
     password?: string;
     role: UserRole;
-    tipoConta?: 'cliente' | 'tecnico';
+    tipoConta?: 'cliente' | 'tecnico' | 'empresa';
+    idade?: number;
+    photoURL?: string;
+    avatarUrl?: string;
     specialty?: string;
     province?: string;
     city?: string;
@@ -514,13 +626,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // ANTI-DUPLICITY VALIDATION: Check local cache first
       const emailExistsLocal = usersList.some(u => u.email.toLowerCase() === normalizedEmail);
+      if (emailExistsLocal) {
+        return {
+          success: false,
+          error: 'E-mail já existente! Este e-mail já está cadastrado na plataforma. Faça login ou utilize outro e-mail.'
+        };
+      }
+
       const phoneExistsLocal = cleanPhoneDigits && usersList.some(u => {
         const uPhoneDigits = (u.phone || '').replace(/\D/g, '');
         return uPhoneDigits && (uPhoneDigits === cleanPhoneDigits || uPhoneDigits.endsWith(cleanPhoneDigits) || cleanPhoneDigits.endsWith(uPhoneDigits));
       });
 
-      if (emailExistsLocal || phoneExistsLocal) {
-        return { success: false, error: 'Este e-mail ou número de celular já existe.' };
+      if (phoneExistsLocal) {
+        return {
+          success: false,
+          error: 'Número de telefone já cadastrado. Por favor utilize outro número ou inicie sessão.'
+        };
       }
 
       // ANTI-DUPLICITY VALIDATION: Query Firestore database
@@ -529,14 +651,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const emailQuery = query(collection(db, 'users'), where('email', '==', normalizedEmail));
           const emailSnap = await getDocs(emailQuery);
           if (!emailSnap.empty) {
-            return { success: false, error: 'Este e-mail ou número de celular já existe.' };
+            return {
+              success: false,
+              error: 'E-mail já existente! Este e-mail já está cadastrado na plataforma. Faça login ou utilize outro e-mail.'
+            };
           }
 
           if (rawPhone) {
             const phoneQuery = query(collection(db, 'users'), where('phone', '==', rawPhone));
             const phoneSnap = await getDocs(phoneQuery);
             if (!phoneSnap.empty) {
-              return { success: false, error: 'Este e-mail ou número de celular já existe.' };
+              return {
+                success: false,
+                error: 'Número de telefone já cadastrado. Por favor utilize outro número ou inicie sessão.'
+              };
             }
           }
         } catch (queryErr) {
@@ -561,16 +689,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           generatedUid = userCredential.user.uid;
         } catch (fbErr: any) {
           if (fbErr.code === 'auth/email-already-in-use') {
-            // Attempt to authenticate if the user already has an account with this password
-            try {
-              const loginCred = await signInWithEmailAndPassword(auth, normalizedEmail, data.password);
-              generatedUid = loginCred.user.uid;
-            } catch {
-              return {
-                success: false,
-                error: 'Este endereço de e-mail já está registado. Por favor, inicie sessão com a sua palavra-passe ou recupere o seu acesso.'
-              };
-            }
+            return {
+              success: false,
+              error: 'E-mail já existente! Este e-mail já está cadastrado na plataforma. Faça login ou utilize outro e-mail.'
+            };
           } else {
             console.warn('Firebase user creation notice:', fbErr?.code || fbErr?.message);
             if (fbErr.code === 'auth/weak-password') {
@@ -585,10 +707,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const defaultName = data.name.trim() || normalizedEmail.split('@')[0];
-      const tipoConta: 'cliente' | 'tecnico' = data.tipoConta || (userRole === 'client' ? 'cliente' : 'tecnico');
+      
+      let tipoConta: 'cliente' | 'tecnico' | 'empresa' = data.tipoConta || (userRole === 'company' ? 'empresa' : userRole === 'technician' ? 'tecnico' : 'cliente');
+      if (userRole === 'company') tipoConta = 'empresa';
+      if (userRole === 'technician') tipoConta = 'tecnico';
+      if (userRole === 'client') tipoConta = 'cliente';
+
       const isAutoApproved = userRole === 'client' || userRole === 'super_admin' || userRole === 'admin';
       const statusAprovacao = isAutoApproved ? 'aprovado' : 'pendente';
       const status: UserStatus = isAutoApproved ? 'active' : 'pending_approval';
+
+      const userAge = data.idade ? Number(data.idade) : 25;
+      const userPhoto = data.photoURL || data.avatarUrl || undefined;
 
       const newUser: User = {
         uid: generatedUid,
@@ -597,6 +727,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: rawPhone,
         role: userRole,
         tipoConta: tipoConta,
+        idade: userAge,
+        photoURL: userPhoto,
+        avatarUrl: userPhoto,
+        totalLikes: 0,
+        scoreEngajamento: 0,
         adminSubRole: adminSubRole,
         status: status,
         statusAprovacao: statusAprovacao,
@@ -635,6 +770,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           specialties: data.specialty ? [data.specialty] : ['Eletricidade'],
           bio: `Profissional qualificado em ${data.specialty || 'serviços técnicos'} em ${data.province || 'Moçambique'}.`,
           experienceYears: 1,
+          idade: userAge,
+          photoURL: userPhoto,
+          avatarUrl: userPhoto,
+          totalLikes: 0,
+          scoreEngajamento: 0,
           verificationStatus: 'none',
           statusAprovacao: 'pendente',
           statusConta: 'ativa',
@@ -676,6 +816,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           address: data.address?.trim() || 'Moçambique',
           industry: data.industry?.trim() || 'Engenharia & Construção',
           description: `Empresa ${defaultName} registada na TécnicaMZ para contratação de profissionais técnicos especializados.`,
+          logoUrl: userPhoto,
           verificationStatus: 'unverified',
           statusAprovacao: 'pendente',
           statusConta: 'ativa',
@@ -764,6 +905,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(updated);
     setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updated : u)));
 
+    if (currentUser.role === 'technician') {
+      const techUpdate: Partial<TechnicianProfile> = {};
+      if (data.name) techUpdate.name = data.name;
+      if (data.phone) techUpdate.phone = data.phone;
+      if (data.avatarUrl !== undefined) {
+        techUpdate.avatarUrl = data.avatarUrl;
+        techUpdate.photoURL = data.avatarUrl;
+      }
+      if (data.photoURL !== undefined) {
+        techUpdate.photoURL = data.photoURL;
+        techUpdate.avatarUrl = data.photoURL;
+      }
+      if (data.idade !== undefined) techUpdate.idade = data.idade;
+      if (data.province) techUpdate.province = data.province;
+      if (data.city) techUpdate.city = data.city;
+      if (Object.keys(techUpdate).length > 0) {
+        updateCurrentTechProfile(techUpdate);
+      }
+    }
+
     if (isFirebaseConfigured && db) {
       try {
         await updateDoc(doc(db, 'users', currentUser.uid), { ...data, updatedAt: new Date().toISOString() });
@@ -825,6 +986,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Firestore company update error:', err);
       }
     }
+  };
+
+  const giveTechnicianLike = async (techUserId: string): Promise<{ success: boolean; totalLikes: number }> => {
+    const targetTech = techList.find(t => t.userId === techUserId);
+    const currentLikes = targetTech?.totalLikes || 0;
+    const newLikes = currentLikes + 1;
+    const newScore = (targetTech?.scoreEngajamento || 0) + 1;
+
+    setTechList(prev => prev.map(t => t.userId === techUserId ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t));
+    setUsersList(prev => prev.map(u => u.uid === techUserId ? { ...u, totalLikes: newLikes, scoreEngajamento: newScore } : u));
+    if (currentUser?.uid === techUserId) {
+      setCurrentUser(prev => prev ? { ...prev, totalLikes: newLikes, scoreEngajamento: newScore } : null);
+      setCurrentTechProfile(prev => prev ? { ...prev, totalLikes: newLikes, scoreEngajamento: newScore } : null);
+    }
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', techUserId), {
+          totalLikes: newLikes,
+          scoreEngajamento: newScore,
+          updatedAt: new Date().toISOString()
+        });
+        await updateDoc(doc(db, 'technicians', techUserId), {
+          totalLikes: newLikes,
+          scoreEngajamento: newScore,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.warn('Firestore update technician like error:', err);
+      }
+    }
+
+    return { success: true, totalLikes: newLikes };
   };
 
   const switchUserRole = async (newRole: UserRole) => {
@@ -1127,19 +1321,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
-    // Check statusAssinatura or subscriptionStatus
-    const status = (currentUser.statusAssinatura || currentUser.subscriptionStatus || '').toLowerCase();
-    if (status !== 'ativa' && status !== 'active') {
-      return false;
+    // Selo MZ active unlocks full platform features
+    if (currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado') {
+      return true;
     }
 
-    const expStr = currentUser.dataExpiracao || currentUser.subscriptionExpiresAt;
-    if (!expStr) return false;
+    // Check statusAssinatura or subscriptionStatus
+    const status = (currentUser.statusAssinatura || currentUser.subscriptionStatus || '').toLowerCase();
+    if (status === 'ativa' || status === 'active') {
+      const expStr = currentUser.dataExpiracao || currentUser.subscriptionExpiresAt;
+      if (!expStr) return true;
+      const expTime = new Date(expStr).getTime();
+      if (!isNaN(expTime) && expTime > Date.now()) {
+        return true;
+      }
+    }
 
-    const expTime = new Date(expStr).getTime();
-    if (isNaN(expTime)) return false;
-
-    return expTime > Date.now();
+    return false;
   }, [currentUser]);
 
   const activePlanTier = React.useMemo<'basico' | 'profissional' | 'empresa_vip' | null>(() => {
@@ -1258,13 +1456,297 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const isClient = currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client';
-  const isTechnician = currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician';
-  const isCompany = currentUser?.role === 'company';
+  const isCompany = currentUser?.tipoConta === 'empresa' || currentUser?.role === 'company';
+  const isTechnician = !isCompany && (currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician');
+  const isClient = !isCompany && !isTechnician && (currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client');
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.adminSubRole === 'super_admin';
   const isFinanceAdmin = isSuperAdmin || currentUser?.adminSubRole === 'finance_admin';
   const isModerator = isSuperAdmin || currentUser?.adminSubRole === 'moderator';
+
+  // SELO MZ CALCULATION & ACCESS CONTROL
+  const temSeloMZ = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
+    ) {
+      return true;
+    }
+    return Boolean(currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
+  }, [currentUser]);
+
+  const statusSelo = React.useMemo<'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado'>(() => {
+    if (!currentUser) return 'nenhum';
+    if (temSeloMZ) return 'aprovado';
+    return currentUser.statusSelo || 'nenhum';
+  }, [currentUser, temSeloMZ]);
+
+  const isRestrictedTechnician = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.adminSubRole === 'super_admin') {
+      return false;
+    }
+    const isTech = currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician';
+    if (!isTech) return false;
+    return !temSeloMZ;
+  }, [currentUser, temSeloMZ]);
+
+  // SELO MZ ACTIONS
+  const solicitarSeloMZ = async (
+    operadora: 'mpesa' | 'emola',
+    mensagemTransacao: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser) {
+      return { success: false, error: 'Usuário não autenticado.' };
+    }
+
+    const trimmedMsg = mensagemTransacao.trim();
+    if (trimmedMsg.length < 15) {
+      return { success: false, error: 'Cole a mensagem de confirmação SMS completa da operadora.' };
+    }
+
+    const nowIso = new Date().toISOString();
+    const reqId = `selo_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const novaSolicitacao: SolicitacaoSelo = {
+      id: reqId,
+      userId: currentUser.uid,
+      usuarioNome: currentUser.name,
+      usuarioEmail: currentUser.email,
+      usuarioTelefone: currentUser.phone || '',
+      userRole: currentUser.role,
+      tipoConta: currentUser.tipoConta || 'tecnico',
+      operadora,
+      mensagemTransacao: trimmedMsg,
+      valor: 50,
+      statusSelo: 'pendente_aprovacao',
+      dataEnvio: nowIso
+    };
+
+    // Update local currentUser
+    const updatedUser: User = {
+      ...currentUser,
+      statusSelo: 'pendente_aprovacao',
+      operadoraSelo: operadora,
+      mensagemTransacaoSelo: trimmedMsg,
+      dataSeloEnvio: nowIso,
+      updatedAt: nowIso
+    };
+
+    setCurrentUser(updatedUser);
+    setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updatedUser : u)));
+    setSolicitacoesSelo(prev => [novaSolicitacao, ...prev.filter(s => s.id !== reqId)]);
+
+    // Update in Firestore
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'solicitacoes_selo', reqId), novaSolicitacao);
+      } catch (err) {
+        console.warn('Firestore create solicitacao_selo error:', err);
+      }
+
+      try {
+        await updateDoc(doc(db, 'users', currentUser.uid), {
+          statusSelo: 'pendente_aprovacao',
+          operadoraSelo: operadora,
+          mensagemTransacaoSelo: trimmedMsg,
+          dataSeloEnvio: nowIso,
+          updatedAt: nowIso
+        });
+      } catch (err) {
+        console.warn('Firestore update user selo error:', err);
+      }
+    }
+
+    return { success: true };
+  };
+
+  const aprovarSeloMZ = async (
+    solicitacaoId: string,
+    userId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const nowIso = new Date().toISOString();
+
+    // Update solicitacoes list
+    setSolicitacoesSelo(prev =>
+      prev.map(s =>
+        s.id === solicitacaoId
+          ? {
+              ...s,
+              statusSelo: 'aprovado',
+              dataResposta: nowIso,
+              aprovadoPor: currentUser?.name || 'Administrador'
+            }
+          : s
+      )
+    );
+
+    // Update users list
+    setUsersList(prev =>
+      prev.map(u =>
+        u.uid === userId
+          ? {
+              ...u,
+              temSeloMZ: true,
+              statusSelo: 'aprovado',
+              isVerified: true,
+              statusAprovacao: 'aprovado',
+              statusConta: 'ativa',
+              status: 'active',
+              statusAssinatura: 'ativa',
+              subscriptionStatus: 'active',
+              dataSeloAprovacao: nowIso,
+              updatedAt: nowIso
+            }
+          : u
+      )
+    );
+
+    // If current logged-in user is the one approved
+    if (currentUser?.uid === userId) {
+      setCurrentUser(prev =>
+        prev
+          ? {
+              ...prev,
+              temSeloMZ: true,
+              statusSelo: 'aprovado',
+              isVerified: true,
+              statusAprovacao: 'aprovado',
+              statusConta: 'ativa',
+              status: 'active',
+              statusAssinatura: 'ativa',
+              subscriptionStatus: 'active',
+              dataSeloAprovacao: nowIso,
+              updatedAt: nowIso
+            }
+          : null
+      );
+    }
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'solicitacoes_selo', solicitacaoId), {
+          statusSelo: 'aprovado',
+          dataResposta: nowIso,
+          aprovadoPor: currentUser?.name || 'Administrador'
+        });
+      } catch (err) {
+        console.warn('Firestore approve solicitacao_selo error:', err);
+      }
+
+      try {
+        await updateDoc(doc(db, 'users', userId), {
+          temSeloMZ: true,
+          statusSelo: 'aprovado',
+          isVerified: true,
+          statusAprovacao: 'aprovado',
+          statusConta: 'ativa',
+          status: 'active',
+          statusAssinatura: 'ativa',
+          subscriptionStatus: 'active',
+          dataSeloAprovacao: nowIso,
+          updatedAt: nowIso
+        });
+      } catch (err) {
+        console.warn('Firestore approve user selo error:', err);
+      }
+
+      try {
+        await updateDoc(doc(db, 'technicians', userId), {
+          temSeloMZ: true,
+          statusSelo: 'aprovado',
+          isVerified: true,
+          verificationStatus: 'approved',
+          statusAprovacao: 'aprovado',
+          statusConta: 'ativa',
+          status: 'active',
+          subscriptionStatus: 'active',
+          updatedAt: nowIso
+        });
+      } catch {
+        // may not exist
+      }
+    }
+
+    return { success: true };
+  };
+
+  const rejeitarSeloMZ = async (
+    solicitacaoId: string,
+    userId: string,
+    motivo = 'Código de transação não localizado ou SMS inválido.'
+  ): Promise<{ success: boolean; error?: string }> => {
+    const nowIso = new Date().toISOString();
+
+    setSolicitacoesSelo(prev =>
+      prev.map(s =>
+        s.id === solicitacaoId
+          ? {
+              ...s,
+              statusSelo: 'rejeitado',
+              motivoRejeicao: motivo,
+              dataResposta: nowIso
+            }
+          : s
+      )
+    );
+
+    setUsersList(prev =>
+      prev.map(u =>
+        u.uid === userId
+          ? {
+              ...u,
+              temSeloMZ: false,
+              statusSelo: 'rejeitado',
+              motivoRejeicaoSelo: motivo,
+              updatedAt: nowIso
+            }
+          : u
+      )
+    );
+
+    if (currentUser?.uid === userId) {
+      setCurrentUser(prev =>
+        prev
+          ? {
+              ...prev,
+              temSeloMZ: false,
+              statusSelo: 'rejeitado',
+              motivoRejeicaoSelo: motivo,
+              updatedAt: nowIso
+            }
+          : null
+      );
+    }
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'solicitacoes_selo', solicitacaoId), {
+          statusSelo: 'rejeitado',
+          motivoRejeicao: motivo,
+          dataResposta: nowIso
+        });
+      } catch (err) {
+        console.warn('Firestore reject solicitacao_selo error:', err);
+      }
+
+      try {
+        await updateDoc(doc(db, 'users', userId), {
+          temSeloMZ: false,
+          statusSelo: 'rejeitado',
+          motivoRejeicaoSelo: motivo,
+          updatedAt: nowIso
+        });
+      } catch (err) {
+        console.warn('Firestore reject user selo error:', err);
+      }
+    }
+
+    return { success: true };
+  };
 
   return (
     <AuthContext.Provider
@@ -1285,6 +1767,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isFinanceAdmin,
         isModerator,
 
+        temSeloMZ,
+        statusSelo,
+        isRestrictedTechnician,
+        solicitacoesSelo,
+        solicitarSeloMZ,
+        aprovarSeloMZ,
+        rejeitarSeloMZ,
+
         isSubscriptionActive,
         activePlanTier,
         activePlanId,
@@ -1304,6 +1794,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateCurrentUserProfile,
         updateCurrentTechProfile,
         updateCurrentCompanyProfile,
+        giveTechnicianLike,
         switchUserRole,
         updateUserStatus,
         deleteUserAccount,
