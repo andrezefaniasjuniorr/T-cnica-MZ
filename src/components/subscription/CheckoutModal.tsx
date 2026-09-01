@@ -430,7 +430,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
               <div>
                 <h4 className="text-lg font-black text-slate-900">A Confirmar Pagamento com a Operadora...</h4>
                 <p className="text-xs text-slate-500 mt-1">
-                  A gravar comprovativo e a libertar a sua conta no Firestore...
+                  A gravar comprovativo e a libertar a sua conta no sistema...
                 </p>
               </div>
             </div>

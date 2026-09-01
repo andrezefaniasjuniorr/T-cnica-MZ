@@ -56,7 +56,24 @@ import {
 import { useAuth } from './AuthContext';
 import { auth, db, isFirebaseConfigured } from '../firebase/config';
 import { safeGetStorageItem, safeSetStorageItem } from '../utils/storage';
-import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
+
+const formatTimestampToIso = (val: any): string => {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') return val;
+  if (val && typeof val.toDate === 'function') {
+    try {
+      return val.toDate().toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
+  }
+  if (val && typeof val.seconds === 'number') {
+    return new Date(val.seconds * 1000).toISOString();
+  }
+  if (val instanceof Date) return val.toISOString();
+  return new Date().toISOString();
+};
 
 interface DataContextType {
   technicians: TechnicianProfile[];
@@ -312,33 +329,133 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!isFirebaseConfigured || !db) return;
 
+    // 1. Stories / Histórias (Status 24h) real-time sync
+    const storiesMap = new Map<string, StoryItem>();
+    const updateMergedStories = () => {
+      const now = Date.now();
+      const list = Array.from(storiesMap.values())
+        .filter(s => !s.expiresAt || new Date(s.expiresAt).getTime() > now);
+      list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setStories(list);
+    };
+
+    const mapStoryDoc = (docSnap: any): StoryItem => {
+      const data = docSnap.data() || {};
+      const createdAtIso = formatTimestampToIso(data.createdAt || data.data);
+      const nowTime = new Date(createdAtIso).getTime();
+      const expiresAtIso = data.expiresAt || new Date(nowTime + 24 * 60 * 60 * 1000).toISOString();
+      const deleteAtIso = data.deleteAt || new Date(nowTime + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      return {
+        id: docSnap.id,
+        authorId: data.authorId || data.autorId || data.userId || '',
+        authorName: data.authorName || data.autor || data.autorNome || 'Técnico MZ',
+        authorRole: data.authorRole || data.autorTipo || 'technician',
+        authorAvatar: data.authorAvatar || data.autorFoto || data.foto || data.avatarUrl || '',
+        authorSpecialty: data.authorSpecialty || data.especialidade || (data.authorRole === 'company' ? 'Empresa Registada' : 'Técnico Especialista'),
+        authorProvince: data.authorProvince || data.provincia || 'Maputo',
+        authorWhatsapp: data.authorWhatsapp || data.whatsapp || data.phone || '',
+        authorPhone: data.authorPhone || data.telefone || data.phone || '',
+        imageUrl: data.imageUrl || data.imagem || data.foto || undefined,
+        text: data.text || data.texto || data.conteudo || '',
+        backgroundColor: data.backgroundColor || 'from-slate-900 via-blue-950 to-indigo-950',
+        textColor: data.textColor || '#ffffff',
+        viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : 0,
+        viewers: Array.isArray(data.viewers) ? data.viewers : [],
+        reactions: Array.isArray(data.reactions) ? data.reactions : (Array.isArray(data.likes) ? data.likes : []),
+        createdAt: createdAtIso,
+        expiresAt: expiresAtIso,
+        deleteAt: deleteAtIso
+      };
+    };
+
+    const unsubHistorias = onSnapshot(
+      collection(db, 'historias'),
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          storiesMap.set(docSnap.id, mapStoryDoc(docSnap));
+        });
+        updateMergedStories();
+      },
+      (err) => console.warn('Realtime historias notice:', err)
+    );
+
     const unsubStories = onSnapshot(
       collection(db, 'stories'),
       (snapshot) => {
-        const list: StoryItem[] = [];
-        const now = Date.now();
         snapshot.forEach((docSnap) => {
-          const item = { ...docSnap.data(), id: docSnap.id } as StoryItem;
-          // Keep stories that have not expired (within 24 hours)
-          if (!item.expiresAt || new Date(item.expiresAt).getTime() > now) {
-            list.push(item);
+          if (!storiesMap.has(docSnap.id)) {
+            storiesMap.set(docSnap.id, mapStoryDoc(docSnap));
           }
         });
-        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        setStories(list);
+        updateMergedStories();
       },
       (err) => console.warn('Realtime stories notice:', err)
     );
 
-    const unsubPosts = onSnapshot(
+    // 2. Mural / Community Posts real-time sync
+    const postsMap = new Map<string, CommunityPost>();
+    const updateMergedPosts = () => {
+      const posts = Array.from(postsMap.values());
+      posts.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setCommunityPosts(posts);
+    };
+
+    const mapPostDoc = (docSnap: any): CommunityPost => {
+      const data = docSnap.data() || {};
+      const rawLikes = Array.isArray(data.likes) ? data.likes : (Array.isArray(data.curtidas) ? data.curtidas : []);
+      const rawReactions = data.reactions || {};
+      const usefulLikes = Array.isArray(rawReactions.useful) && rawReactions.useful.length > 0 ? rawReactions.useful : rawLikes;
+
+      return {
+        id: docSnap.id,
+        authorId: data.authorId || data.autorId || data.userId || '',
+        authorName: data.authorName || data.autor || data.autorNome || data.name || 'Técnico MZ',
+        authorRole: data.authorRole || data.autorTipo || 'technician',
+        authorAvatar: data.authorAvatar || data.autorFoto || data.foto || data.avatarUrl || '',
+        authorSpecialty: data.authorSpecialty || data.especialidade || (data.authorRole === 'company' ? 'Empresa' : 'Técnico Especialista'),
+        authorProvince: data.authorProvince || data.provincia || 'Maputo',
+        authorWhatsapp: data.authorWhatsapp || data.whatsapp || data.phone || '',
+        title: data.title || data.titulo || 'Publicação no Mural',
+        content: data.content || data.conteudo || data.texto || '',
+        category: data.category || data.categoria || 'Geral',
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        images: Array.isArray(data.images) && data.images.length > 0
+          ? data.images
+          : (data.foto ? [data.foto] : (data.imageUrl ? [data.imageUrl] : (data.imagem ? [data.imagem] : []))),
+        reactions: {
+          useful: usefulLikes,
+          insightful: Array.isArray(rawReactions.insightful) ? rawReactions.insightful : [],
+          applause: Array.isArray(rawReactions.applause) ? rawReactions.applause : [],
+          question: Array.isArray(rawReactions.question) ? rawReactions.question : []
+        },
+        commentsCount: typeof data.commentsCount === 'number' ? data.commentsCount : (Array.isArray(data.comments) ? data.comments.length : 0),
+        comments: Array.isArray(data.comments) ? data.comments : [],
+        pinned: Boolean(data.pinned),
+        createdAt: formatTimestampToIso(data.createdAt || data.data || data.dataEnvio || data.createdAtIso)
+      };
+    };
+
+    const unsubMuralPosts = onSnapshot(
+      collection(db, 'mural_posts'),
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          postsMap.set(docSnap.id, mapPostDoc(docSnap));
+        });
+        updateMergedPosts();
+      },
+      (err) => console.warn('Realtime mural_posts notice:', err)
+    );
+
+    const unsubCommunityPosts = onSnapshot(
       collection(db, 'community_posts'),
       (snapshot) => {
-        const posts: CommunityPost[] = [];
         snapshot.forEach((docSnap) => {
-          posts.push({ ...docSnap.data(), id: docSnap.id } as CommunityPost);
+          if (!postsMap.has(docSnap.id)) {
+            postsMap.set(docSnap.id, mapPostDoc(docSnap));
+          }
         });
-        posts.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        setCommunityPosts(posts);
+        updateMergedPosts();
       },
       (err) => console.warn('Realtime community_posts notice:', err)
     );
@@ -382,26 +499,115 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.warn('Realtime messages notice:', err)
     );
 
+    // 3. Technicians & Usuários real-time sync for "Técnicos MZ"
+    const techsMap = new Map<string, TechnicianProfile>();
+    const updateMergedTechs = () => {
+      const list = Array.from(techsMap.values());
+      // Sort strictly descending based on total engagement (totalLikes / scoreEngajamento)
+      list.sort((a, b) => {
+        const likesA = (a.totalLikes ?? 0);
+        const likesB = (b.totalLikes ?? 0);
+        if (likesB !== likesA) return likesB - likesA;
+        const scoreA = (a.scoreEngajamento ?? 0);
+        const scoreB = (b.scoreEngajamento ?? 0);
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return (b.rating ?? 0) - (a.rating ?? 0);
+      });
+      setTechnicians(list);
+    };
+
+    const mapTechDoc = (docSnap: any): TechnicianProfile | null => {
+      const data = docSnap.data() || {};
+      const role = String(data.role || data.tipoConta || '').toLowerCase().trim();
+      const isTech = role === 'technician' || role === 'tecnico' || data.tipoConta === 'tecnico' || data.role === 'technician' || !role;
+
+      if (!isTech && role && role !== 'admin' && role !== 'super_admin') {
+        return null;
+      }
+
+      const defaultName = data.name || data.nome || 'Técnico Especialista';
+      const cleanPhone = data.phone || data.telefone || '';
+      const cleanWhatsapp = data.whatsapp || cleanPhone || '';
+      const specialties = Array.isArray(data.specialties) && data.specialties.length > 0
+        ? data.specialties
+        : (data.specialty ? [data.specialty] : (data.especialidade ? [data.especialidade] : ['Eletricidade']));
+
+      return {
+        userId: docSnap.id,
+        name: defaultName,
+        email: data.email || '',
+        phone: cleanPhone,
+        whatsapp: cleanWhatsapp,
+        showWhatsappButton: data.showWhatsappButton ?? true,
+        customWhatsappMessage: data.customWhatsappMessage || `Olá ${defaultName}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
+        province: data.province || data.provincia || 'Maputo Cidade',
+        city: data.city || data.cidade || 'Maputo',
+        district: data.district || data.distrito,
+        specialties: specialties,
+        bio: data.bio || `Profissional qualificado em ${specialties.join(', ')} em Moçambique.`,
+        experienceYears: typeof data.experienceYears === 'number' ? data.experienceYears : 2,
+        avatarUrl: data.avatarUrl || data.photoURL || data.foto || '',
+        photoURL: data.photoURL || data.avatarUrl || data.foto || '',
+        totalLikes: typeof data.totalLikes === 'number' ? data.totalLikes : 0,
+        scoreEngajamento: typeof data.scoreEngajamento === 'number' ? data.scoreEngajamento : (data.totalLikes || 0),
+        verificationStatus: data.verificationStatus || (data.isVerified ? 'approved' : 'none'),
+        statusAprovacao: data.statusAprovacao || 'aprovado',
+        statusConta: data.statusConta || 'ativa',
+        status: data.status || 'active',
+        isVerified: Boolean(data.isVerified || data.verificationStatus === 'approved'),
+        subscriptionStatus: data.subscriptionStatus || 'none',
+        activePlanId: data.activePlanId,
+        subscriptionExpiresAt: data.subscriptionExpiresAt || data.dataExpiracao,
+        rating: typeof data.rating === 'number' ? data.rating : 5.0,
+        reviewsCount: typeof data.reviewsCount === 'number' ? data.reviewsCount : 0,
+        completedJobsCount: typeof data.completedJobsCount === 'number' ? data.completedJobsCount : 0,
+        availability: data.availability || 'available',
+        featured: Boolean(data.featured),
+        idade: data.idade ? Number(data.idade) : undefined,
+        createdAt: formatTimestampToIso(data.createdAt || data.dataCadastro || data.dataCriacao)
+      };
+    };
+
     const unsubTechs = onSnapshot(
       collection(db, 'technicians'),
       (snapshot) => {
-        const list: TechnicianProfile[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), userId: docSnap.id } as TechnicianProfile);
+          const tech = mapTechDoc(docSnap);
+          if (tech) techsMap.set(docSnap.id, tech);
         });
-        // Sort strictly descending based on total engagement (totalLikes / scoreEngajamento)
-        list.sort((a, b) => {
-          const likesA = (a.totalLikes ?? 0);
-          const likesB = (b.totalLikes ?? 0);
-          if (likesB !== likesA) return likesB - likesA;
-          const scoreA = (a.scoreEngajamento ?? 0);
-          const scoreB = (b.scoreEngajamento ?? 0);
-          if (scoreB !== scoreA) return scoreB - scoreA;
-          return (b.rating ?? 0) - (a.rating ?? 0);
-        });
-        setTechnicians(list);
+        updateMergedTechs();
       },
       (err) => console.warn('Realtime technicians notice:', err)
+    );
+
+    const unsubUsuarios = onSnapshot(
+      collection(db, 'usuarios'),
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          const tech = mapTechDoc(docSnap);
+          if (tech) {
+            const existing = techsMap.get(docSnap.id);
+            techsMap.set(docSnap.id, existing ? { ...existing, ...tech } : tech);
+          }
+        });
+        updateMergedTechs();
+      },
+      (err) => console.warn('Realtime usuarios notice:', err)
+    );
+
+    const unsubUsers = onSnapshot(
+      collection(db, 'users'),
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          const tech = mapTechDoc(docSnap);
+          if (tech) {
+            const existing = techsMap.get(docSnap.id);
+            techsMap.set(docSnap.id, existing ? { ...existing, ...tech } : tech);
+          }
+        });
+        updateMergedTechs();
+      },
+      (err) => console.warn('Realtime users notice:', err)
     );
 
     const unsubComps = onSnapshot(
@@ -490,12 +696,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => {
+      unsubHistorias();
       unsubStories();
-      unsubPosts();
+      unsubMuralPosts();
+      unsubCommunityPosts();
       unsubMarket();
       unsubConversations();
       unsubMessages();
       unsubTechs();
+      unsubUsuarios();
+      unsubUsers();
       unsubComps();
       unsubJobs();
       unsubRequests();
@@ -1410,15 +1620,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Find if user is technician with specialty
     const techProfile = technicians.find(t => t.userId === currentUser.uid);
+    const compProfile = companies.find(c => c.userId === currentUser.uid);
+
+    const newPostId = `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const isoNow = new Date().toISOString();
 
     const newPost: CommunityPost = {
-      id: `post_${Date.now()}`,
+      id: newPostId,
       authorId: currentUser.uid,
       authorName: currentUser.name,
       authorRole: currentUser.role,
-      authorAvatar: currentUser.avatarUrl,
-      authorSpecialty: techProfile?.specialties[0] || (currentUser.role === 'company' ? 'Empresa / Indústria' : 'TécnicaMZ Profissional'),
-      authorProvince: techProfile?.province || 'Maputo',
+      authorAvatar: currentUser.avatarUrl || techProfile?.avatarUrl || compProfile?.logoUrl || '',
+      authorSpecialty: techProfile?.specialties?.[0] || (currentUser.role === 'company' ? 'Empresa / Indústria' : 'TécnicaMZ Profissional'),
+      authorProvince: techProfile?.province || currentUser.province || 'Maputo',
       authorWhatsapp: techProfile?.whatsapp || currentUser.phone || '',
       title: postData.title.trim(),
       content: postData.content.trim(),
@@ -1434,14 +1648,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       commentsCount: 0,
       comments: [],
       pinned: false,
-      createdAt: new Date().toISOString()
+      createdAt: isoNow
     };
 
     setCommunityPosts(prev => [newPost, ...prev]);
 
     if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'community_posts', newPost.id), newPost);
+        const firestoreData = {
+          ...newPost,
+          autorId: currentUser.uid,
+          autor: currentUser.name,
+          autorNome: currentUser.name,
+          autorTipo: currentUser.role,
+          autorFoto: currentUser.avatarUrl || techProfile?.avatarUrl || '',
+          foto: postData.images?.[0] || '',
+          titulo: postData.title.trim(),
+          conteudo: postData.content.trim(),
+          categoria: postData.category,
+          likes: [],
+          curtidas: [],
+          data: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          createdAtIso: isoNow
+        };
+
+        // Salvar diretamente na coleção mural_posts
+        await setDoc(doc(db, 'mural_posts', newPost.id), firestoreData);
+        // Também salvar na coleção community_posts para máxima retrocompatibilidade
+        await setDoc(doc(db, 'community_posts', newPost.id), firestoreData);
       } catch (err) {
         console.warn('Firestore add community post error:', err);
       }
@@ -1482,7 +1717,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db && updatedPost) {
       try {
-        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+        const usefulLikes = (updatedPost as CommunityPost).reactions?.useful || [];
+        const payloadToUpdate = {
+          ...updatedPost,
+          likes: usefulLikes,
+          curtidas: usefulLikes,
+          updatedAt: new Date().toISOString()
+        };
+
+        await setDoc(doc(db, 'mural_posts', postId), payloadToUpdate, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'community_posts', postId), payloadToUpdate, { merge: true }).catch(() => {});
 
         // Update post author's score & totalLikes if author is a technician
         if (authorIdToUpdate && authorIdToUpdate !== userId) {
@@ -1494,6 +1738,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           setTechnicians(prev => prev.map(t => t.userId === authorIdToUpdate ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t));
           await updateDoc(doc(db, 'technicians', authorIdToUpdate), {
+            totalLikes: newLikes,
+            scoreEngajamento: newScore,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+          await updateDoc(doc(db, 'usuarios', authorIdToUpdate), {
             totalLikes: newLikes,
             scoreEngajamento: newScore,
             updatedAt: new Date().toISOString()
@@ -1527,7 +1776,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authorName: currentUser.name,
       authorRole: currentUser.role,
       authorAvatar: currentUser.avatarUrl,
-      authorSpecialty: techProfile?.specialties[0],
+      authorSpecialty: techProfile?.specialties?.[0],
       text: text.trim(),
       replyToId,
       replyToName,
@@ -1552,7 +1801,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db && updatedPost) {
       try {
-        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+        await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
       } catch (err) {
         console.warn('Firestore add comment error:', err);
       }
@@ -1589,7 +1839,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db && updatedPost) {
       try {
-        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+        await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
       } catch (err) {
         console.warn('Firestore toggle comment like error:', err);
       }
@@ -1614,7 +1865,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db && updatedPost) {
       try {
-        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true });
+        await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
       } catch (err) {
         console.warn('Firestore delete comment error:', err);
       }
@@ -1626,7 +1878,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await deleteDoc(doc(db, 'community_posts', postId));
+        await deleteDoc(doc(db, 'mural_posts', postId)).catch(() => {});
+        await deleteDoc(doc(db, 'community_posts', postId)).catch(() => {});
       } catch (err) {
         console.warn('Firestore delete community post error:', err);
       }
@@ -1650,9 +1903,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const now = new Date();
     const expiresAtDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
     const deleteAtDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const storyId = `historia_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     const newStory: StoryItem = {
-      id: `story_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: storyId,
       authorId: currentUser.uid,
       authorName: currentUser.name,
       authorRole: currentUser.role,
@@ -1677,16 +1931,32 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'stories', newStory.id), newStory);
+        const firestoreStoryPayload = {
+          ...newStory,
+          autorId: currentUser.uid,
+          autor: currentUser.name,
+          autorNome: currentUser.name,
+          autorTipo: currentUser.role,
+          autorFoto: newStory.authorAvatar || '',
+          foto: storyData.imageUrl || '',
+          imagem: storyData.imageUrl || '',
+          texto: storyData.text || '',
+          conteudo: storyData.text || '',
+          data: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          createdAtIso: now.toISOString()
+        };
+
+        // Salvar diretamente na coleção historias
+        await setDoc(doc(db, 'historias', storyId), firestoreStoryPayload);
+        // Também salvar na coleção stories para compatibilidade total
+        await setDoc(doc(db, 'stories', storyId), firestoreStoryPayload);
       } catch (err: any) {
         console.warn('Firestore create story error:', err);
       }
-      try {
-        await setDoc(doc(db, 'historias', newStory.id), newStory);
-      } catch {}
     }
 
-    return { success: true, id: newStory.id };
+    return { success: true, id: storyId };
   };
 
   const viewStory = async (storyId: string) => {
@@ -1725,10 +1995,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
+        await updateDoc(doc(db, 'historias', storyId), {
+          viewsCount: updatedViewsCount,
+          viewers: updatedViewers
+        }).catch(() => {});
         await updateDoc(doc(db, 'stories', storyId), {
           viewsCount: updatedViewsCount,
           viewers: updatedViewers
-        });
+        }).catch(() => {});
       } catch (err) {
         console.warn('Firestore view story error:', err);
       }
@@ -1765,9 +2039,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
+        await updateDoc(doc(db, 'historias', storyId), {
+          reactions: updatedReactions
+        }).catch(() => {});
         await updateDoc(doc(db, 'stories', storyId), {
           reactions: updatedReactions
-        });
+        }).catch(() => {});
       } catch (err) {
         console.warn('Firestore react to story error:', err);
       }
@@ -1790,13 +2067,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await deleteDoc(doc(db, 'stories', storyId));
+        await deleteDoc(doc(db, 'historias', storyId)).catch(() => {});
+        await deleteDoc(doc(db, 'stories', storyId)).catch(() => {});
       } catch (err) {
         console.warn('Firestore delete story error:', err);
       }
-      try {
-        await deleteDoc(doc(db, 'historias', storyId));
-      } catch {}
     }
   };
 

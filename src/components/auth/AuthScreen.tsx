@@ -287,7 +287,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       }
     } catch (err: any) {
       console.error('Erro na submissão de cadastro:', err);
-      setError(err?.message || 'Falha ao processar o cadastro no Firebase.');
+      setError(err?.message || 'Falha ao processar o cadastro na plataforma.');
     }
   };
 
@@ -368,7 +368,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </div>
           )}
 
-          {/* TAB 1: CLIENT FLOW (NO PASSWORD / NO FIREBASE REGISTRATION) */}
+          {/* TAB 1: CLIENT FLOW (NO PASSWORD / NO REGISTRATION) */}
           {activeTab === 'client' && (
             <form id="client-login-form" onSubmit={handleClientSubmit} className="space-y-6">
               <div className="bg-sky-50/60 rounded-2xl p-5 border border-sky-100 text-slate-700 text-sm">
@@ -377,7 +377,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   Acesso Imediato para Clientes
                 </div>
                 <p className="text-slate-600 text-sm leading-relaxed">
-                  Não é necessário criar conta ou senha no Firebase. Basta informar o seu nome para contactar técnicos certificados, solicitar orçamentos e emitir avaliações.
+                  Não é necessário criar conta ou senha. Basta informar o seu nome para contactar técnicos certificados, solicitar orçamentos e emitir avaliações.
                 </p>
               </div>
 
@@ -912,7 +912,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       <div className="pt-2 border-t border-slate-100 space-y-4">
                         <div>
                           <label htmlFor="email" className="block text-xs font-bold text-slate-700 mb-1">
-                            E-mail de Acesso ao Firebase *
+                            E-mail de Acesso à Plataforma *
                           </label>
                           <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -992,7 +992,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         disabled={isLoading}
                         className="w-full mt-3 py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-md shadow-blue-600/20 hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                       >
-                        <span>{isLoading ? 'Cadastrando no Firebase...' : `Concluir Cadastro de ${proRole === 'tecnico' ? 'Técnico' : 'Empresa'}`}</span>
+                        <span>{isLoading ? 'A registar na plataforma...' : `Concluir Cadastro de ${proRole === 'tecnico' ? 'Técnico' : 'Empresa'}`}</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </form>

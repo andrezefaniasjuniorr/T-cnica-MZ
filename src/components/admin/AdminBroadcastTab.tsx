@@ -86,7 +86,7 @@ export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
         setFeedback({ type: 'error', message: res.error || 'Erro ao enviar comunicado.' });
       }
     } catch {
-      setFeedback({ type: 'error', message: 'Falha na comunicação com o Firestore.' });
+      setFeedback({ type: 'error', message: 'Falha na comunicação com o servidor.' });
     } finally {
       setIsSubmitting(false);
     }

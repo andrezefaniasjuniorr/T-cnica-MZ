@@ -10,7 +10,7 @@ import {
   sendPasswordResetEmail,
   updatePassword as fbUpdatePassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -143,6 +143,89 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
+    const unsubUsuarios = onSnapshot(
+      collection(db, 'usuarios'),
+      (snapshot) => {
+        const usersFromUsuarios: User[] = [];
+        const techsFromUsuarios: TechnicianProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          const d = docSnap.data() || {};
+          const role = String(d.role || d.tipoConta || 'technician').toLowerCase().trim();
+          const isTech = role === 'technician' || role === 'tecnico' || d.tipoConta === 'tecnico';
+          const defaultName = d.name || d.nome || 'Técnico Especialista';
+          const cleanPhone = d.phone || d.telefone || '';
+          const userObj: User = {
+            uid: docSnap.id,
+            name: defaultName,
+            email: d.email || '',
+            phone: cleanPhone,
+            role: (role === 'company' || role === 'empresa') ? 'company' : (role === 'admin' ? 'admin' : (role === 'super_admin' ? 'super_admin' : 'technician')),
+            tipoConta: (role === 'company' || role === 'empresa') ? 'empresa' : 'tecnico',
+            idade: d.idade ? Number(d.idade) : undefined,
+            photoURL: d.photoURL || d.avatarUrl || d.foto || '',
+            avatarUrl: d.avatarUrl || d.photoURL || d.foto || '',
+            specialty: d.specialty || d.especialidade || 'Eletricidade',
+            province: d.province || d.provincia || 'Maputo Cidade',
+            city: d.city || d.cidade || 'Maputo',
+            status: d.status || 'active',
+            statusConta: d.statusConta || 'ativa',
+            statusAprovacao: d.statusAprovacao || 'aprovado',
+            totalLikes: typeof d.totalLikes === 'number' ? d.totalLikes : 0,
+            scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0,
+            createdAt: d.createdAt || d.dataCadastro || new Date().toISOString()
+          };
+          usersFromUsuarios.push(userObj);
+
+          if (isTech) {
+            techsFromUsuarios.push({
+              userId: docSnap.id,
+              name: defaultName,
+              email: d.email || '',
+              phone: cleanPhone,
+              whatsapp: d.whatsapp || cleanPhone,
+              showWhatsappButton: d.showWhatsappButton ?? true,
+              customWhatsappMessage: d.customWhatsappMessage || `Olá ${defaultName}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
+              province: d.province || d.provincia || 'Maputo Cidade',
+              city: d.city || d.cidade || 'Maputo',
+              specialties: Array.isArray(d.specialties) ? d.specialties : (d.specialty ? [d.specialty] : (d.especialidade ? [d.especialidade] : ['Eletricidade'])),
+              bio: d.bio || `Profissional qualificado em ${d.specialty || d.especialidade || 'serviços técnicos'} em Moçambique.`,
+              experienceYears: typeof d.experienceYears === 'number' ? d.experienceYears : 2,
+              avatarUrl: d.avatarUrl || d.photoURL || d.foto || '',
+              photoURL: d.photoURL || d.avatarUrl || d.foto || '',
+              totalLikes: typeof d.totalLikes === 'number' ? d.totalLikes : 0,
+              scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0,
+              verificationStatus: d.verificationStatus || 'none',
+              isVerified: Boolean(d.isVerified || d.verificationStatus === 'approved'),
+              subscriptionStatus: d.subscriptionStatus || 'none',
+              statusAprovacao: d.statusAprovacao || 'aprovado',
+              statusConta: d.statusConta || 'ativa',
+              status: d.status || 'active',
+              rating: typeof d.rating === 'number' ? d.rating : 5.0,
+              reviewsCount: typeof d.reviewsCount === 'number' ? d.reviewsCount : 0,
+              completedJobsCount: typeof d.completedJobsCount === 'number' ? d.completedJobsCount : 0,
+              availability: d.availability || 'available',
+              createdAt: d.createdAt || d.dataCadastro || new Date().toISOString()
+            });
+          }
+        });
+
+        setUsersList(prev => {
+          const map = new Map(prev.map(u => [u.uid, u]));
+          usersFromUsuarios.forEach(u => map.set(u.uid, { ...map.get(u.uid), ...u }));
+          return Array.from(map.values());
+        });
+
+        if (techsFromUsuarios.length > 0) {
+          setTechList(prev => {
+            const map = new Map(prev.map(t => [t.userId, t]));
+            techsFromUsuarios.forEach(t => map.set(t.userId, { ...map.get(t.userId), ...t }));
+            return Array.from(map.values());
+          });
+        }
+      },
+      (err) => console.warn('Real-time usuarios listener notice:', err)
+    );
+
     const unsubTechs = onSnapshot(
       collection(db, 'technicians'),
       (snapshot) => {
@@ -189,6 +272,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       unsubUsers();
+      unsubUsuarios();
       unsubTechs();
       unsubComps();
       unsubSelo();
@@ -879,6 +963,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Save user to Firestore if available
       if (isFirebaseConfigured && db) {
         try {
+          const usuarioPayload = {
+            ...newUser,
+            uid: generatedUid,
+            nome: defaultName,
+            name: defaultName,
+            email: normalizedEmail,
+            telefone: rawPhone,
+            phone: rawPhone,
+            role: userRole,
+            tipoConta: tipoConta,
+            idade: userAge,
+            especialidade: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
+            specialty: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
+            provincia: data.province || 'Maputo Cidade',
+            province: data.province || 'Maputo Cidade',
+            cidade: data.city || 'Maputo',
+            city: data.city || 'Maputo',
+            foto: userPhoto || '',
+            avatarUrl: userPhoto || '',
+            photoURL: userPhoto || '',
+            totalLikes: 0,
+            scoreEngajamento: 0,
+            status: 'active',
+            statusConta: 'ativa',
+            statusAprovacao: statusAprovacao,
+            createdAt: serverTimestamp(),
+            dataCadastro: serverTimestamp(),
+            createdAtIso: new Date().toISOString()
+          };
+
+          await setDoc(doc(db, 'usuarios', generatedUid), usuarioPayload);
           await setDoc(doc(db, 'users', generatedUid), newUser);
         } catch (dbErr) {
           console.warn('Firestore user doc creation error:', dbErr);
@@ -923,7 +1038,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (isFirebaseConfigured && db) {
           try {
-            await setDoc(doc(db, 'technicians', generatedUid), newTech);
+            await setDoc(doc(db, 'technicians', generatedUid), {
+              ...newTech,
+              createdAt: serverTimestamp(),
+              createdAtIso: new Date().toISOString()
+            });
+            await setDoc(doc(db, 'usuarios', generatedUid), {
+              ...newTech,
+              uid: generatedUid,
+              nome: defaultName,
+              telefone: rawPhone,
+              tipoConta: 'tecnico',
+              createdAt: serverTimestamp(),
+              createdAtIso: new Date().toISOString()
+            }, { merge: true });
           } catch (dbErr) {
             console.warn('Firestore tech doc creation error:', dbErr);
           }

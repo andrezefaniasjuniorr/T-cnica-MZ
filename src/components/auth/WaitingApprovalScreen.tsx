@@ -110,7 +110,7 @@ export const WaitingApprovalScreen: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-200">1. Cadastro Enviado</p>
-                  <p className="text-[11px] text-slate-400">Dados do perfil registados no banco de dados com segurança.</p>
+                  <p className="text-[11px] text-slate-400">Dados do perfil registados no sistema com segurança.</p>
                 </div>
               </div>
 

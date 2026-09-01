@@ -143,6 +143,10 @@
       "schema": { "$ref": "#/entities/User" },
       "description": "User accounts"
     },
+    "/usuarios/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User accounts in Portuguese schema"
+    },
     "/technicians/{technicianId}": {
       "schema": { "$ref": "#/entities/TechnicianProfile" },
       "description": "Public and detailed technician profiles"
@@ -162,6 +166,14 @@
     "/stories/{storyId}": {
       "schema": { "$ref": "#/entities/Story" },
       "description": "24-Hour Stories published by technicians and companies"
+    },
+    "/historias/{storyId}": {
+      "schema": { "$ref": "#/entities/Story" },
+      "description": "24-Hour Stories published in Portuguese schema"
+    },
+    "/mural_posts/{postId}": {
+      "schema": { "$ref": "#/entities/Story" },
+      "description": "Mural posts published in real time"
     }
   }
 }

@@ -43,9 +43,16 @@ service cloud.firestore {
       );
     }
 
-    // 1. Users collection - Real-time sync for authenticated users & Admins
+    // 1. Users & Usuarios collections - Real-time sync for authenticated users & Admins
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isSuperAdmin() || isAdmin();
+    }
+
+    match /usuarios/{userId} {
+      allow read: if true;
       allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isSuperAdmin() || isAdmin();
@@ -156,6 +163,19 @@ service cloud.firestore {
     }
 
     // 10. Community Posts / Mural & Comments
+    match /mural_posts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if (isAuthenticated() && resource.data.authorId == request.auth.uid) || isModerator() || isAdmin();
+
+      match /comentarios/{commentId} {
+        allow read: if true;
+        allow create, update: if isAuthenticated();
+        allow delete: if (isAuthenticated() && resource.data.authorId == request.auth.uid) || isModerator() || isAdmin();
+      }
+    }
+
     match /community_posts/{postId} {
       allow read: if true;
       allow create: if isAuthenticated();
