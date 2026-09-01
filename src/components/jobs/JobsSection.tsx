@@ -46,17 +46,20 @@ export const JobsSection: React.FC<JobsSectionProps> = ({ onNavigateTab, onOpenM
   const activeJobs = jobs.filter(j => j.status === 'active');
 
   const filteredJobs = activeJobs.filter(job => {
+    const term = (searchTerm || '').toString().toLowerCase().trim();
     const matchSearch =
-      searchTerm === '' ||
-      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.category.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      (job.title || '').toLowerCase().includes(term) ||
+      (job.companyName || '').toLowerCase().includes(term) ||
+      (job.description || '').toLowerCase().includes(term) ||
+      (job.category || '').toLowerCase().includes(term) ||
+      (job.city || '').toLowerCase().includes(term) ||
+      (job.province || '').toLowerCase().includes(term);
 
     const matchCategory = selectedCategory === 'all' || job.category === selectedCategory;
     const matchProvince = selectedProvince === 'all' || job.province === selectedProvince;
     const matchContract = selectedContract === 'all' || job.contractType === selectedContract;
-    const matchVerified = !onlyVerifiedCompany || job.companyVerified;
+    const matchVerified = !onlyVerifiedCompany || Boolean(job.companyVerified);
 
     return matchSearch && matchCategory && matchProvince && matchContract && matchVerified;
   });

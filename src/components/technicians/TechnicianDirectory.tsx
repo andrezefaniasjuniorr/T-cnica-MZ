@@ -51,12 +51,13 @@ export const TechnicianDirectory: React.FC<TechnicianDirectoryProps> = ({
 
       // Search query (name, bio, city, specialties)
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = tech.name.toLowerCase().includes(q);
-        const matchesBio = tech.bio.toLowerCase().includes(q);
-        const matchesCity = tech.city.toLowerCase().includes(q);
-        const matchesSpec = tech.specialties.some(s => s.toLowerCase().includes(q));
-        if (!matchesName && !matchesBio && !matchesCity && !matchesSpec) {
+        const q = (searchQuery || '').toString().toLowerCase().trim();
+        const matchesName = (tech.name || '').toLowerCase().includes(q);
+        const matchesBio = (tech.bio || '').toLowerCase().includes(q);
+        const matchesCity = (tech.city || '').toLowerCase().includes(q);
+        const matchesProv = (tech.province || '').toLowerCase().includes(q);
+        const matchesSpec = (tech.specialties || []).some(s => (s || '').toLowerCase().includes(q));
+        if (!matchesName && !matchesBio && !matchesCity && !matchesProv && !matchesSpec) {
           return false;
         }
       }

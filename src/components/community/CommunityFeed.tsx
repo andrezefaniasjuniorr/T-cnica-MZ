@@ -172,11 +172,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   // Filter posts
   const filteredPosts = communityPosts.filter(post => {
     const matchCategory = selectedCategory === 'all' || post.category === selectedCategory;
+    const term = (searchTerm || '').toLowerCase().trim();
     const matchSearch =
-      post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      post.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      post.authorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (post.tags && post.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())));
+      !term ||
+      (post.title || '').toLowerCase().includes(term) ||
+      (post.content || '').toLowerCase().includes(term) ||
+      (post.authorName || '').toLowerCase().includes(term) ||
+      (post.tags && post.tags.some(t => (t || '').toLowerCase().includes(term)));
 
     return matchCategory && matchSearch;
   });
@@ -770,13 +772,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                 Dúvidas técnicas, credenciação e auditoria de perfis:
               </p>
               <a
-                href="https://wa.me/258841234567"
+                href="https://wa.me/258851949159"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition"
               >
                 <Phone className="w-3.5 h-3.5" />
-                <span>WhatsApp: 841234567</span>
+                <span>WhatsApp: 851949159</span>
               </a>
             </div>
           </aside>

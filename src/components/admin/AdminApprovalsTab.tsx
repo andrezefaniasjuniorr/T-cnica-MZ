@@ -196,7 +196,7 @@ export const AdminApprovalsTab: React.FC<AdminApprovalsTabProps> = ({
             const whatsappNumber = (applicant.phone || '').replace(/\D/g, '');
             const whatsappLink = whatsappNumber
               ? `https://wa.me/258${whatsappNumber.startsWith('258') ? whatsappNumber.substring(3) : whatsappNumber}`
-              : `https://wa.me/258841234567`;
+              : `https://wa.me/258851949159`;
 
             return (
               <div

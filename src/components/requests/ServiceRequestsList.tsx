@@ -46,12 +46,14 @@ export const ServiceRequestsList: React.FC<ServiceRequestsListProps> = ({
 
   const filteredRequests = serviceRequests.filter(req => {
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      if (
-        !req.title.toLowerCase().includes(q) &&
-        !req.description.toLowerCase().includes(q) &&
-        !req.city.toLowerCase().includes(q)
-      ) {
+      const q = (searchQuery || '').toString().toLowerCase().trim();
+      const match =
+        (req.title || '').toLowerCase().includes(q) ||
+        (req.description || '').toLowerCase().includes(q) ||
+        (req.city || '').toLowerCase().includes(q) ||
+        (req.province || '').toLowerCase().includes(q) ||
+        (req.category || '').toLowerCase().includes(q);
+      if (!match) {
         return false;
       }
     }

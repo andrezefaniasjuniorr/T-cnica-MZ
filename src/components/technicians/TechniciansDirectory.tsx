@@ -72,12 +72,16 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
   // Filtered technicians for the main list
   const filteredTechs = useMemo(() => {
     return activeTechsSorted.filter(tech => {
+      const term = (searchTerm || '').toString().toLowerCase().trim();
       const matchSearch =
-        tech.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tech.specialties.some(s => s.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        tech.bio.toLowerCase().includes(searchTerm.toLowerCase());
+        !term ||
+        (tech.name || '').toLowerCase().includes(term) ||
+        (tech.specialties || []).some(s => (s || '').toLowerCase().includes(term)) ||
+        (tech.bio || '').toLowerCase().includes(term) ||
+        (tech.city || '').toLowerCase().includes(term) ||
+        (tech.province || '').toLowerCase().includes(term);
 
-      const matchCategory = selectedCategory === 'all' || tech.specialties.includes(selectedCategory);
+      const matchCategory = selectedCategory === 'all' || (tech.specialties || []).includes(selectedCategory);
       const matchProvince = selectedProvince === 'all' || tech.province === selectedProvince;
       const matchVerified = !onlyVerified || tech.verificationStatus === 'approved';
 

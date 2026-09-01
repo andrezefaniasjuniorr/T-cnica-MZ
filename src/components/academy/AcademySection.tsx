@@ -28,9 +28,13 @@ export const AcademySection: React.FC<AcademySectionProps> = ({ onNavigateTab })
   const [selectedArticle, setSelectedArticle] = useState<AcademyArticle | null>(null);
 
   const filteredArticles = academyArticles.filter(art => {
+    const term = (searchTerm || '').toString().toLowerCase().trim();
     const matchSearch =
-      art.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      art.summary.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      (art.title || '').toLowerCase().includes(term) ||
+      (art.summary || '').toLowerCase().includes(term) ||
+      (art.category || '').toLowerCase().includes(term) ||
+      (art.content || '').toLowerCase().includes(term);
     const matchCat = selectedCategory === 'all' || art.category === selectedCategory;
 
     return matchSearch && matchCat && art.status === 'published';

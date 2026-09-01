@@ -25,13 +25,13 @@ import {
 export const INITIAL_SETTINGS: PlatformSettings = {
   platformName: 'TécnicaMZ Pro',
   slogan: 'A Maior Rede Profissional e Plataforma Técnica de Moçambique',
-  supportPhone: '+258 84 123 4567',
+  supportPhone: '+258 85 194 9159',
   supportEmail: 'suporte@tecnicamz.co.mz',
-  whatsappSupport: '+258841234567',
+  whatsappSupport: '+258851949159',
   paymentMethods: {
-    mpesaNumber: '84 500 1234',
+    mpesaNumber: '85 194 9159',
     mpesaName: 'TécnicaMZ Serviços Lda',
-    emolaNumber: '86 500 1234',
+    emolaNumber: '86 194 9159',
     emolaName: 'TécnicaMZ Serviços Lda',
     bankName: 'Millennium BIM',
     bankAccount: '1234567890',

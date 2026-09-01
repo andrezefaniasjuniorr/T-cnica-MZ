@@ -199,10 +199,15 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
       if (item.status !== 'active' && !isAdmin) return false;
     }
 
+    const term = (searchTerm || '').toString().toLowerCase().trim();
     const matchSearch =
-      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sellerName.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      (item.title || '').toLowerCase().includes(term) ||
+      (item.description || '').toLowerCase().includes(term) ||
+      (item.sellerName || '').toLowerCase().includes(term) ||
+      (item.category || '').toLowerCase().includes(term) ||
+      (item.city || '').toLowerCase().includes(term) ||
+      (item.province || '').toLowerCase().includes(term);
 
     const matchCat = selectedCategory === 'all' || item.category === selectedCategory;
     const matchProv = selectedProvince === 'all' || item.province === selectedProvince;

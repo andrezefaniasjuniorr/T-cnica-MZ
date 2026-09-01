@@ -357,7 +357,7 @@ const AppContent: React.FC = () => {
         </p>
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <a
-            href="https://wa.me/258841234567"
+            href="https://wa.me/258851949159"
             target="_blank"
             rel="noopener noreferrer"
             className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors"
@@ -521,13 +521,13 @@ const AppContent: React.FC = () => {
               <h4 className="font-bold text-white uppercase text-[11px] tracking-wider">Suporte Técnico Oficial</h4>
               <div className="space-y-1.5 text-[11px] text-slate-400">
                 <a
-                  href="https://wa.me/258841234567"
+                  href="https://wa.me/258851949159"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 text-emerald-400 hover:underline font-bold"
                 >
                   <Phone className="w-3.5 h-3.5 shrink-0" />
-                  <span>WhatsApp: 841234567</span>
+                  <span>WhatsApp: 851949159</span>
                 </a>
                 <a
                   href="mailto:tecnicamzpro@gmail.com"

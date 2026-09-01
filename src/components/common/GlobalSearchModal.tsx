@@ -31,48 +31,57 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
   if (!isOpen) return null;
 
-  const q = query.trim().toLowerCase();
+  const q = (query || '').toString().trim().toLowerCase();
 
   const matchedTechs = q
     ? technicians.filter(
         t =>
-          t.name.toLowerCase().includes(q) ||
-          t.specialties.some(s => s.toLowerCase().includes(q)) ||
-          t.province.toLowerCase().includes(q)
+          (t.name || '').toLowerCase().includes(q) ||
+          (t.specialties || []).some(s => (s || '').toLowerCase().includes(q)) ||
+          (t.bio || '').toLowerCase().includes(q) ||
+          (t.city || '').toLowerCase().includes(q) ||
+          (t.province || '').toLowerCase().includes(q)
       )
     : [];
 
   const matchedCompanies = q
     ? companies.filter(
         c =>
-          c.companyName.toLowerCase().includes(q) ||
-          c.industry.toLowerCase().includes(q) ||
-          c.province.toLowerCase().includes(q)
+          (c.companyName || '').toLowerCase().includes(q) ||
+          (c.commercialName || '').toLowerCase().includes(q) ||
+          (c.industry || '').toLowerCase().includes(q) ||
+          (c.city || '').toLowerCase().includes(q) ||
+          (c.province || '').toLowerCase().includes(q)
       )
     : [];
 
   const matchedJobs = q
     ? jobs.filter(
         j =>
-          j.title.toLowerCase().includes(q) ||
-          j.category.toLowerCase().includes(q) ||
-          j.province.toLowerCase().includes(q)
+          (j.title || '').toLowerCase().includes(q) ||
+          (j.companyName || '').toLowerCase().includes(q) ||
+          (j.description || '').toLowerCase().includes(q) ||
+          (j.category || '').toLowerCase().includes(q) ||
+          (j.province || '').toLowerCase().includes(q)
       )
     : [];
 
   const matchedMarket = q
     ? marketItems.filter(
         m =>
-          m.title.toLowerCase().includes(q) ||
-          m.category.toLowerCase().includes(q)
+          (m.title || '').toLowerCase().includes(q) ||
+          (m.description || '').toLowerCase().includes(q) ||
+          (m.category || '').toLowerCase().includes(q) ||
+          (m.sellerName || '').toLowerCase().includes(q)
       )
     : [];
 
   const matchedAcademy = q
     ? academyArticles.filter(
         a =>
-          a.title.toLowerCase().includes(q) ||
-          a.category.toLowerCase().includes(q)
+          (a.title || '').toLowerCase().includes(q) ||
+          (a.summary || '').toLowerCase().includes(q) ||
+          (a.category || '').toLowerCase().includes(q)
       )
     : [];
 

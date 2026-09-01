@@ -319,7 +319,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             const whatsappNumber = (user.phone || '').replace(/\D/g, '');
             const whatsappLink = whatsappNumber
               ? `https://wa.me/258${whatsappNumber.startsWith('258') ? whatsappNumber.substring(3) : whatsappNumber}`
-              : `https://wa.me/258841234567`;
+              : `https://wa.me/258851949159`;
 
             return (
               <div
@@ -559,7 +559,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              Esta ação é <strong>irreversível</strong>. Todos os dados, perfil e documentos de <strong>{selectedUserForDelete.name}</strong> ({selectedUserForDelete.email}) serão apagados da base de dados do Firestore.
+              Esta ação é <strong>irreversível</strong>. Todos os dados, perfil e documentos de <strong>{selectedUserForDelete.name}</strong> ({selectedUserForDelete.email}) serão apagados da base de dados do Sistema.
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-2">

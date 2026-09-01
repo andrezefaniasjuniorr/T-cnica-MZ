@@ -38,14 +38,20 @@ export const CompanyDirectory: React.FC<CompanyDirectoryProps> = ({ onNavigateTa
   const [jobToApply, setJobToApply] = useState<JobOpening | null>(null);
 
   const filteredCompanies = companies.filter(comp => {
+    const term = (searchTerm || '').toString().toLowerCase().trim();
     const matchSearch =
-      searchTerm === '' ||
-      comp.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      comp.commercialName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      comp.description.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      (comp.companyName || '').toLowerCase().includes(term) ||
+      (comp.commercialName || '').toLowerCase().includes(term) ||
+      (comp.description || '').toLowerCase().includes(term) ||
+      (comp.industry || '').toLowerCase().includes(term) ||
+      (comp.city || '').toLowerCase().includes(term) ||
+      (comp.province || '').toLowerCase().includes(term);
 
     const matchProvince = selectedProvince === 'all' || comp.province === selectedProvince;
-    const matchIndustry = selectedIndustry === 'all' || comp.industry.toLowerCase().includes(selectedIndustry.toLowerCase());
+    const matchIndustry =
+      selectedIndustry === 'all' ||
+      (comp.industry || '').toLowerCase().includes((selectedIndustry || '').toLowerCase());
     const matchVerified = !onlyVerified || comp.verificationStatus === 'verified';
 
     return matchSearch && matchProvince && matchIndustry && matchVerified;

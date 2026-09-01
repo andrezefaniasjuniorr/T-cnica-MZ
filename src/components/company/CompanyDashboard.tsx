@@ -102,11 +102,14 @@ export const CompanyDashboard: React.FC<CompanyDashboardProps> = ({ onNavigateTa
 
   // Filtered talents
   const filteredTalents = technicians.filter(tech => {
+    const term = (talentSearch || '').toString().toLowerCase().trim();
     const matchSearch =
-      talentSearch === '' ||
-      tech.name.toLowerCase().includes(talentSearch.toLowerCase()) ||
-      tech.specialties.some(s => s.toLowerCase().includes(talentSearch.toLowerCase()));
-    const matchSpec = talentSpecialty === 'all' || tech.specialties.includes(talentSpecialty);
+      !term ||
+      (tech.name || '').toLowerCase().includes(term) ||
+      (tech.specialties || []).some(s => (s || '').toLowerCase().includes(term)) ||
+      (tech.city || '').toLowerCase().includes(term) ||
+      (tech.province || '').toLowerCase().includes(term);
+    const matchSpec = talentSpecialty === 'all' || (tech.specialties || []).includes(talentSpecialty);
     const matchProv = talentProvince === 'all' || tech.province === talentProvince;
     return matchSearch && matchSpec && matchProv;
   });

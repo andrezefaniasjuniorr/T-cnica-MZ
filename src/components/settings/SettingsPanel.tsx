@@ -612,7 +612,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <a
-              href="https://wa.me/258841234567"
+              href="https://wa.me/258851949159"
               target="_blank"
               rel="noopener noreferrer"
               className="p-4 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200 rounded-2xl transition flex items-center justify-between group"
@@ -623,7 +623,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-black text-emerald-950">WhatsApp Oficial</p>
-                  <p className="text-[11px] font-mono text-emerald-700 font-bold">841234567</p>
+                  <p className="text-[11px] font-mono text-emerald-700 font-bold">851949159</p>
                 </div>
               </div>
               <ExternalLink className="w-4 h-4 text-emerald-600 group-hover:translate-x-0.5 transition-transform" />

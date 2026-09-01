@@ -62,7 +62,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
     {
       id: 'notice_3',
       title: 'Canal Direto de Suporte TécnicoMZ',
-      description: 'Dúvidas ou problemas com sua conta? Fale conosco via WhatsApp Oficial 841234567 ou tecnicamzpro@gmail.com.',
+      description: 'Dúvidas ou problemas com sua conta? Fale conosco via WhatsApp Oficial 851949159 ou tecnicamzpro@gmail.com.',
       date: 'Esta semana',
       type: 'support'
     }

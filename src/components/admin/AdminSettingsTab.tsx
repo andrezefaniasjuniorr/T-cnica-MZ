@@ -25,12 +25,12 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   onUpdateSettings
 }) => {
   const [formData, setFormData] = useState({
-    mpesaNumber: settings.paymentMethods?.mpesaNumber || settings.paymentMethods?.mpesa?.number || settings.mpesaNumber || '841234567',
+    mpesaNumber: settings.paymentMethods?.mpesaNumber || settings.paymentMethods?.mpesa?.number || settings.mpesaNumber || '851949159',
     mpesaName: settings.paymentMethods?.mpesaName || settings.paymentMethods?.mpesa?.name || settings.mpesaName || 'TécnicaMZ Pro',
-    emolaNumber: settings.paymentMethods?.emolaNumber || settings.paymentMethods?.emola?.number || '861234567',
+    emolaNumber: settings.paymentMethods?.emolaNumber || settings.paymentMethods?.emola?.number || '861949159',
     emolaName: settings.paymentMethods?.emolaName || settings.paymentMethods?.emola?.name || 'TécnicaMZ Pro',
-    supportPhone: settings.supportPhone || '+258841234567',
-    supportWhatsapp: settings.supportWhatsapp || settings.whatsappSupport || '+258841234567',
+    supportPhone: settings.supportPhone || '+258851949159',
+    supportWhatsapp: settings.supportWhatsapp || settings.whatsappSupport || '+258851949159',
     supportEmail: settings.supportEmail || 'suporte@tecnicamz.com',
     maintenanceMode: Boolean(settings.maintenanceMode),
     allowNewRegistrations: settings.allowNewRegistrations !== false && settings.registrationOpen !== false,

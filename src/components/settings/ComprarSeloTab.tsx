@@ -38,7 +38,7 @@ export const ComprarSeloTab: React.FC = () => {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Transfer numbers
-  const mpesaNumber = settings?.paymentMethods?.mpesaNumber || '841234567';
+  const mpesaNumber = settings?.paymentMethods?.mpesaNumber || '851949159';
   const mpesaName = settings?.paymentMethods?.mpesaName || 'André Zefanias Júnior';
   const emolaNumber = settings?.paymentMethods?.emolaNumber || '861949159';
   const emolaName = settings?.paymentMethods?.emolaName || 'André Zefanias Júnior';
@@ -400,13 +400,13 @@ export const ComprarSeloTab: React.FC = () => {
           <div>
             <h3 className="text-xs font-black text-slate-900">Precisa de Ajuda com o Pagamento?</h3>
             <p className="text-[11px] text-slate-500">
-              Fale diretamente com o suporte no WhatsApp: <strong className="text-slate-700">841234567</strong>
+              Fale diretamente com o suporte no WhatsApp: <strong className="text-slate-700">851949159</strong>
             </p>
           </div>
         </div>
 
         <a
-          href="https://wa.me/258841234567?text=Olá%20TécnicaMZ!%20Gostaria%20de%20ajuda%20para%20ativar%20o%20meu%20Selo%20MZ."
+          href="https://wa.me/258851949159?text=Olá%20TécnicaMZ!%20Gostaria%20de%20ajuda%20para%20ativar%20o%20meu%20Selo%20MZ."
           target="_blank"
           rel="noopener noreferrer"
           className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs transition"

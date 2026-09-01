@@ -268,12 +268,12 @@ export const SubscriptionPaywall: React.FC = () => {
           <p>
             Precisa de ajuda com o pagamento? Contacte o suporte via WhatsApp:{' '}
             <a
-              href="https://wa.me/258841234567"
+              href="https://wa.me/258851949159"
               target="_blank"
               rel="noopener noreferrer"
               className="text-emerald-400 font-bold hover:underline"
             >
-              (+258) 84 123 4567
+              (+258) 85 194 9159
             </a>
           </p>
         </div>

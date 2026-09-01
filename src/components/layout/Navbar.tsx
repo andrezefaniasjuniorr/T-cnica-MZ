@@ -58,11 +58,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'home', label: 'Início' },
     { id: 'community', label: 'Mural dos Técnicos' },
     { id: 'technicians_directory', label: 'Técnicos MZ' },
-    { id: 'jobs', label: 'Vagas & Emprego' },
+    { id: 'jobs', label: 'Vagas & Empregos' },
     { id: 'company_directory', label: 'Empresas' },
+    { id: 'academy', label: 'Manuais & Livros' },
     { id: 'market', label: 'Mercado' },
-    { id: 'tools', label: 'Ferramentas & Nível' },
-    { id: 'academy', label: 'Academia' }
+    { id: 'tools', label: 'Ferramentas & Nível' }
   ];
 
   return (

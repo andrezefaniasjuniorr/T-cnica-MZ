@@ -48,7 +48,7 @@ export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
   // Filtered users for specific user target picker
   const filteredUsers = users.filter(u => {
     if (!specificUserSearch.trim()) return true;
-    const s = specificUserSearch.toLowerCase();
+    const s = (specificUserSearch || '').toString().toLowerCase().trim();
     return (
       (u.name || '').toLowerCase().includes(s) ||
       (u.email || '').toLowerCase().includes(s) ||

@@ -115,7 +115,7 @@ export const AdminRoute: React.FC<AdminRouteProps> = ({ children, onRedirectToFe
         </div>
         <h2 className="text-xl font-bold text-white">Acesso Não Autorizado</h2>
         <p className="text-xs text-slate-400 max-w-md mt-2 mb-6">
-          Você não possui privilégios de administrador no Firestore para acessar a rota secreta de gestão. Redirecionando para o Feed...
+          Você não possui privilégios de administrador no Sistema para acessar a rota secreta de gestão. Redirecionando para o Feed...
         </p>
         <button
           onClick={onRedirectToFeed}
