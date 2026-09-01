@@ -30,6 +30,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ onNavigateTab,
   const { currentUser } = useAuth();
   const { serviceRequests, proposals, addServiceRequest, acceptProposal, addReview } = useData();
 
+  // Retrieve client name from localStorage if available
+  const storedClientName = typeof window !== 'undefined' ? localStorage.getItem('clienteNome') : null;
+  const clientDisplayName = storedClientName || currentUser?.name || 'Cliente';
+
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
   const [selectedReviewTech, setSelectedReviewTech] = useState<{ id: string; name: string; reqId: string } | null>(null);
 
@@ -119,10 +123,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ onNavigateTab,
                 Painel do Cliente MZ
               </span>
               <h1 className="text-2xl sm:text-4xl font-black text-white">
-                Meus Pedidos de Serviço & Obras
+                {storedClientName ? `Olá, ${clientDisplayName}!` : 'Meus Pedidos de Serviço & Obras'}
               </h1>
               <p className="text-xs sm:text-sm text-emerald-200">
-                Solicite orçamentos para eletricidade, energia solar, canalização e climatização em qualquer província.
+                {storedClientName ? 'Bem-vindo ao seu painel. Solicite orçamentos para eletricidade, energia solar, canalização e climatização.' : 'Solicite orçamentos para eletricidade, energia solar, canalização e climatização em qualquer província.'}
               </p>
             </div>
 

@@ -18,6 +18,7 @@ import {
 import { CompanyDetailModal } from './CompanyDetailModal';
 import { ApplyJobModal } from '../jobs/ApplyJobModal';
 import { TopBackNav } from '../common/TopBackNav';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface CompanyDirectoryProps {
   onNavigateTab: (tab: string) => void;
@@ -149,11 +150,12 @@ export const CompanyDirectory: React.FC<CompanyDirectoryProps> = ({ onNavigateTa
                 <div className="space-y-4">
                   {/* Top row */}
                   <div className="flex items-start justify-between gap-3">
-                    <div className="w-16 h-16 rounded-2xl bg-purple-50 p-1 border border-slate-100 shadow-xs shrink-0">
-                      <img
-                        src={company.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb18fe27c?w=150&auto=format&fit=crop&q=80'}
-                        alt={company.companyName}
-                        className="w-full h-full object-cover rounded-xl"
+                    <div className="w-16 h-16 rounded-2xl bg-purple-50 p-1 border border-slate-100 shadow-xs shrink-0 overflow-hidden">
+                      <UserAvatar
+                        src={company.logoUrl || company.avatarUrl}
+                        name={company.companyName}
+                        role="company"
+                        className="w-full h-full rounded-xl object-cover"
                       />
                     </div>
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { RoleEntryCards } from './RoleEntryCards';
+import { UserAvatar } from '../common/UserAvatar';
 import {
   Search,
   Wrench,
@@ -175,11 +176,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-100 p-0.5 border border-slate-200 shrink-0">
-                      <img
-                        src={tech.avatarUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=150&auto=format&fit=crop&q=80'}
-                        alt={tech.name}
-                        className="w-full h-full object-cover rounded-xl"
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 p-0.5 border border-slate-200 shrink-0 overflow-hidden">
+                      <UserAvatar
+                        src={tech.avatarUrl || tech.photoURL}
+                        name={tech.name}
+                        role="technician"
+                        className="w-full h-full rounded-xl object-cover"
                       />
                     </div>
                     <div>

@@ -44,18 +44,46 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   const [reportSent, setReportSent] = useState(false);
 
   const [likeCount, setLikeCount] = useState<number>(technician?.totalLikes ?? 0);
-  const [hasLiked, setHasLiked] = useState(false);
+  const [hasLiked, setHasLiked] = useState(() => {
+    if (!technician?.userId) return false;
+    try {
+      const raw = localStorage.getItem('tecnicamz_liked_techs_list');
+      if (raw) {
+        const list = JSON.parse(raw);
+        return Array.isArray(list) && list.includes(technician.userId);
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
   const [isLiking, setIsLiking] = useState(false);
+
+  React.useEffect(() => {
+    if (technician) {
+      setLikeCount(technician.totalLikes ?? 0);
+      try {
+        const raw = localStorage.getItem('tecnicamz_liked_techs_list');
+        if (raw) {
+          const list = JSON.parse(raw);
+          setHasLiked(Array.isArray(list) && list.includes(technician.userId));
+        }
+      } catch {}
+    }
+  }, [technician?.totalLikes, technician?.userId]);
 
   if (!technician) return null;
 
   const handleGiveLike = async () => {
-    if (isLiking) return;
+    if (isLiking || hasLiked) return;
     setIsLiking(true);
     setHasLiked(true);
     setLikeCount(prev => prev + 1);
     try {
-      await giveTechnicianLike(technician.userId);
+      const res = await giveTechnicianLike(technician.userId);
+      if (res.totalLikes !== undefined) {
+        setLikeCount(res.totalLikes);
+      }
     } catch (err) {
       console.warn('Like error:', err);
     } finally {

@@ -51,6 +51,7 @@ interface AuthContextType {
 
   activateUserSubscription: (planId: string, durationDays?: number, transactionCode?: string) => Promise<boolean>;
 
+  loginAsClient: (name: string) => { success: boolean; user: User };
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   register: (data: {
     name: string;
@@ -234,13 +235,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     safeSetStorageItem('tecnicamz_solicitacoes_selo', solicitacoesSelo);
   }, [solicitacoesSelo]);
 
+  // Helper: Login / Access as Client (Guest with Name stored in localStorage)
+  const loginAsClient = (clientName: string): { success: boolean; user: User } => {
+    const trimmedName = (clientName || '').trim() || 'Cliente';
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('clienteNome', trimmedName);
+    }
+    const clientUser: User = {
+      uid: `client_${Date.now()}`,
+      name: trimmedName,
+      email: '',
+      phone: '',
+      role: 'client',
+      tipoConta: 'cliente',
+      statusAprovacao: 'aprovado',
+      statusConta: 'ativa',
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+    setCurrentUser(clientUser);
+    safeSetStorageItem(LOCAL_STORAGE_USER_KEY, clientUser.uid);
+    setUsersList(prev => {
+      const filtered = prev.filter(u => u.uid !== clientUser.uid);
+      return [clientUser, ...filtered];
+    });
+    return { success: true, user: clientUser };
+  };
+
   // Firebase auth state listener - runs once on mount
   useEffect(() => {
     if (isFirebaseConfigured && auth) {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
         try {
-          if (fbUser && fbUser.email) {
-            const normalizedEmail = fbUser.email.toLowerCase();
+          if (fbUser) {
+            const normalizedEmail = (fbUser.email || '').toLowerCase();
             
             // Check if admin super account
             if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
@@ -259,7 +287,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               };
               setCurrentUser(prev => (prev?.uid === fbUser.uid && prev?.role === 'super_admin' ? prev : adminUser));
               setUsersList(prev => {
-                const existingIndex = prev.findIndex(u => u.email.toLowerCase() === normalizedEmail);
+                const existingIndex = prev.findIndex(u => (u.email || '').toLowerCase() === normalizedEmail);
                 if (existingIndex >= 0) {
                   if (prev[existingIndex].uid === fbUser.uid && prev[existingIndex].role === 'super_admin') {
                     return prev;
@@ -280,39 +308,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return;
             }
 
-            // 3. RECARREGAMENTO / SESSÃO ATIVA: LEITURA OBRIGATÓRIA NO FIRESTORE (doc(db, 'users', fbUser.uid))
+            // 4. SESSÃO ATIVA: LEITURA OBRIGATÓRIA NO FIRESTORE (users/{uid})
             if (db) {
               try {
                 const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
                 if (userDoc.exists()) {
                   const docData = userDoc.data() as Partial<User>;
-                  const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
+                  const rawRole = String(docData.role || docData.tipoConta || '').toLowerCase().trim();
+                  const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com' || rawRole === 'super_admin';
                   
                   let tipoConta: 'cliente' | 'tecnico' | 'empresa';
-                  let role = docData.role;
+                  let role: UserRole;
 
                   if (isSuper) {
                     tipoConta = 'tecnico';
                     role = 'super_admin';
-                  } else if (docData.tipoConta === 'empresa' || docData.role === 'company') {
+                  } else if (rawRole === 'admin' || docData.role === 'admin') {
+                    tipoConta = 'tecnico';
+                    role = 'admin';
+                  } else if (rawRole === 'empresa' || rawRole === 'company' || docData.tipoConta === 'empresa' || docData.role === 'company') {
                     tipoConta = 'empresa';
                     role = 'company';
-                  } else if (docData.tipoConta === 'tecnico' || docData.role === 'technician') {
+                  } else if (rawRole === 'tecnico' || rawRole === 'technician' || docData.tipoConta === 'tecnico' || docData.role === 'technician') {
                     tipoConta = 'tecnico';
                     role = 'technician';
-                  } else if (docData.role === 'admin' || docData.role === 'super_admin') {
-                    tipoConta = 'tecnico';
-                    role = docData.role;
                   } else {
-                    tipoConta = 'cliente';
-                    role = 'client';
+                    tipoConta = 'tecnico';
+                    role = 'technician';
                   }
 
                   const statusAprovacao = isSuper ? 'aprovado' : (docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado'));
 
                   const firestoreUserData: User = {
                     uid: fbUser.uid,
-                    name: docData.name || fbUser.displayName || normalizedEmail.split('@')[0],
+                    name: docData.name || fbUser.displayName || (normalizedEmail ? normalizedEmail.split('@')[0] : 'Profissional MZ'),
                     email: normalizedEmail,
                     phone: docData.phone || '',
                     role: role,
@@ -324,7 +353,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     specialty: docData.specialty,
                     province: docData.province,
                     city: docData.city,
-                    avatarUrl: docData.avatarUrl,
+                    avatarUrl: docData.avatarUrl || docData.photoURL,
+                    photoURL: docData.photoURL || docData.avatarUrl,
                     temSeloMZ: isSuper ? true : Boolean(docData.temSeloMZ || docData.statusSelo === 'aprovado'),
                     statusSelo: isSuper ? 'aprovado' : (docData.statusSelo || (docData.temSeloMZ ? 'aprovado' : 'nenhum')),
                     dataSeloEnvio: docData.dataSeloEnvio,
@@ -336,13 +366,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     dataExpiracao: docData.dataExpiracao,
                     subscriptionStatus: docData.subscriptionStatus,
                     activePlanId: docData.activePlanId,
+                    totalLikes: docData.totalLikes || 0,
+                    scoreEngajamento: docData.scoreEngajamento || 0,
                     createdAt: docData.createdAt || new Date().toISOString(),
                     updatedAt: docData.updatedAt
                   };
 
                   setCurrentUser(firestoreUserData);
+
+                  // Auto redirect based on role if no specific hash
+                  if (typeof window !== 'undefined') {
+                    const currentHash = (window.location.hash || '').replace(/^#/, '');
+                    if (!currentHash || currentHash === 'login' || currentHash === 'auth') {
+                      if (role === 'technician') {
+                        window.location.hash = '#tecnico';
+                      } else if (role === 'company') {
+                        window.location.hash = '#empresa';
+                      } else if (role === 'super_admin' || role === 'admin') {
+                        window.location.hash = '#gestao-pro-mz';
+                      }
+                    }
+                  }
+
+                  // If technician, also fetch tech profile
+                  if (role === 'technician') {
+                    try {
+                      const techDoc = await getDoc(doc(db, 'technicians', fbUser.uid));
+                      if (techDoc.exists()) {
+                        const tData = techDoc.data() as TechnicianProfile;
+                        setCurrentTechProfile({ ...tData, userId: fbUser.uid });
+                      }
+                    } catch (tErr) {
+                      console.warn('Fetch tech doc on auth changed notice:', tErr);
+                    }
+                  }
+
+                  // If company, also fetch company profile
+                  if (role === 'company') {
+                    try {
+                      const compDoc = await getDoc(doc(db, 'companies', fbUser.uid));
+                      if (compDoc.exists()) {
+                        const cData = compDoc.data() as CompanyProfile;
+                        setCurrentCompanyProfile({ ...cData, userId: fbUser.uid });
+                      }
+                    } catch (cErr) {
+                      console.warn('Fetch comp doc on auth changed notice:', cErr);
+                    }
+                  }
+
                   setUsersList(prev => {
-                    const existingIndex = prev.findIndex(u => u.uid === fbUser.uid || u.email.toLowerCase() === normalizedEmail);
+                    const existingIndex = prev.findIndex(u => u.uid === fbUser.uid || ((u.email || '').toLowerCase() === normalizedEmail && normalizedEmail));
                     if (existingIndex >= 0) {
                       const updated = [...prev];
                       updated[existingIndex] = firestoreUserData;
@@ -359,19 +432,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Fallback to local match if Firestore was temporarily unavailable
             setUsersList(prev => {
-              const userMatch = prev.find(u => u.email.toLowerCase() === normalizedEmail);
+              const userMatch = prev.find(u => (u.email || '').toLowerCase() === normalizedEmail && normalizedEmail);
               if (userMatch) {
+                const rawRole = String(userMatch.role || userMatch.tipoConta || '').toLowerCase().trim();
                 let tipoConta: 'cliente' | 'tecnico' | 'empresa';
                 let role = userMatch.role;
-                if (userMatch.tipoConta === 'empresa' || userMatch.role === 'company') {
+                if (userMatch.tipoConta === 'empresa' || rawRole === 'company' || rawRole === 'empresa') {
                   tipoConta = 'empresa';
                   role = 'company';
-                } else if (userMatch.tipoConta === 'tecnico' || userMatch.role === 'technician') {
+                } else {
                   tipoConta = 'tecnico';
                   role = 'technician';
-                } else {
-                  tipoConta = 'cliente';
-                  role = 'client';
                 }
                 const matchedUser: User = { ...userMatch, uid: fbUser.uid, tipoConta, role };
                 setCurrentUser(matchedUser);
@@ -379,7 +450,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return prev;
             });
           } else {
-            setCurrentUser(null);
+            // No active Firebase Auth user: check if there is a saved client name in localStorage
+            const savedClientName = typeof window !== 'undefined' ? localStorage.getItem('clienteNome') : null;
+            if (savedClientName) {
+              const clientUser: User = {
+                uid: `client_${savedClientName.toLowerCase().replace(/\s+/g, '_')}`,
+                name: savedClientName,
+                email: '',
+                phone: '',
+                role: 'client',
+                tipoConta: 'cliente',
+                statusAprovacao: 'aprovado',
+                statusConta: 'ativa',
+                status: 'active',
+                createdAt: new Date().toISOString()
+              };
+              setCurrentUser(clientUser);
+            } else {
+              setCurrentUser(null);
+            }
           }
         } finally {
           setIsLoading(false);
@@ -387,6 +476,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return () => unsubscribe();
     } else {
+      // Offline / unconfigured: check saved client name
+      const savedClientName = typeof window !== 'undefined' ? localStorage.getItem('clienteNome') : null;
+      if (savedClientName) {
+        const clientUser: User = {
+          uid: `client_${savedClientName.toLowerCase().replace(/\s+/g, '_')}`,
+          name: savedClientName,
+          email: '',
+          phone: '',
+          role: 'client',
+          tipoConta: 'cliente',
+          statusAprovacao: 'aprovado',
+          statusConta: 'ativa',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        };
+        setCurrentUser(clientUser);
+      }
       setIsLoading(false);
     }
   }, []);
@@ -394,7 +500,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string; user?: User }> => {
     setIsLoading(true);
     try {
-      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedEmail = (email || '').trim().toLowerCase();
 
       // If Firebase is configured and password is provided, authenticate directly via Firebase Auth
       if (isFirebaseConfigured && auth && password) {
@@ -402,41 +508,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
           const fbUser = userCredential.user;
 
-          // 1. LEITURA DE PERFIL PÓS-AUTENTICAÇÃO:
-          // Busca OBRIGATÓRIA no documento do usuário no Firestore: doc(db, 'users', user.uid)
+          // 3. LOGIN OBRIGATÓRIO: CONSULTA NA COLEÇÃO 'users' PELO 'user.uid'
           let foundUser: User | null = null;
           if (db) {
             try {
               const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
               if (userDoc.exists()) {
                 const docData = userDoc.data() as Partial<User>;
-                const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
+                const rawRole = String(docData.role || docData.tipoConta || '').toLowerCase().trim();
+                const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com' || rawRole === 'super_admin';
                 
                 let tipoConta: 'cliente' | 'tecnico' | 'empresa';
-                let role = docData.role;
+                let role: UserRole;
 
                 if (isSuper) {
                   tipoConta = 'tecnico';
                   role = 'super_admin';
-                } else if (docData.tipoConta === 'empresa' || docData.role === 'company') {
+                } else if (rawRole === 'admin' || docData.role === 'admin') {
+                  tipoConta = 'tecnico';
+                  role = 'admin';
+                } else if (rawRole === 'empresa' || rawRole === 'company' || docData.tipoConta === 'empresa' || docData.role === 'company') {
                   tipoConta = 'empresa';
                   role = 'company';
-                } else if (docData.tipoConta === 'tecnico' || docData.role === 'technician') {
+                } else if (rawRole === 'tecnico' || rawRole === 'technician' || docData.tipoConta === 'tecnico' || docData.role === 'technician') {
                   tipoConta = 'tecnico';
                   role = 'technician';
-                } else if (docData.role === 'admin' || docData.role === 'super_admin') {
-                  tipoConta = 'tecnico';
-                  role = docData.role;
                 } else {
-                  tipoConta = 'cliente';
-                  role = 'client';
+                  tipoConta = 'tecnico';
+                  role = 'technician';
                 }
 
                 const statusAprovacao = isSuper ? 'aprovado' : (docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado'));
 
                 foundUser = {
                   uid: fbUser.uid,
-                  name: docData.name || fbUser.displayName || normalizedEmail.split('@')[0],
+                  name: docData.name || fbUser.displayName || (normalizedEmail ? normalizedEmail.split('@')[0] : 'Profissional MZ'),
                   email: normalizedEmail,
                   phone: docData.phone || '',
                   role: role,
@@ -448,7 +554,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   specialty: docData.specialty,
                   province: docData.province,
                   city: docData.city,
-                  avatarUrl: docData.avatarUrl,
+                  avatarUrl: docData.avatarUrl || docData.photoURL,
+                  photoURL: docData.photoURL || docData.avatarUrl,
                   temSeloMZ: isSuper ? true : Boolean(docData.temSeloMZ || docData.statusSelo === 'aprovado'),
                   statusSelo: isSuper ? 'aprovado' : (docData.statusSelo || (docData.temSeloMZ ? 'aprovado' : 'nenhum')),
                   dataSeloEnvio: docData.dataSeloEnvio,
@@ -460,9 +567,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   dataExpiracao: docData.dataExpiracao,
                   subscriptionStatus: docData.subscriptionStatus,
                   activePlanId: docData.activePlanId,
+                  totalLikes: docData.totalLikes || 0,
+                  scoreEngajamento: docData.scoreEngajamento || 0,
                   createdAt: docData.createdAt || new Date().toISOString(),
                   updatedAt: docData.updatedAt
                 };
+
+                if (role === 'technician') {
+                  try {
+                    const techDoc = await getDoc(doc(db, 'technicians', fbUser.uid));
+                    if (techDoc.exists()) {
+                      const tData = techDoc.data() as TechnicianProfile;
+                      setCurrentTechProfile({ ...tData, userId: fbUser.uid });
+                    }
+                  } catch (tErr) {
+                    console.warn('Fetch tech doc on login notice:', tErr);
+                  }
+                }
+
+                if (role === 'company') {
+                  try {
+                    const compDoc = await getDoc(doc(db, 'companies', fbUser.uid));
+                    if (compDoc.exists()) {
+                      const cData = compDoc.data() as CompanyProfile;
+                      setCurrentCompanyProfile({ ...cData, userId: fbUser.uid });
+                    }
+                  } catch (cErr) {
+                    console.warn('Fetch comp doc on login notice:', cErr);
+                  }
+                }
               }
             } catch (err) {
               console.warn('Firestore lookup error in login:', err);
@@ -470,35 +603,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           if (!foundUser) {
-            const localMatch = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
-            if (localMatch) {
-              const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
-              let tipoConta: 'cliente' | 'tecnico' | 'empresa';
-              let role = localMatch.role;
-              if (isSuper) {
-                tipoConta = 'tecnico';
-                role = 'super_admin';
-              } else if (localMatch.tipoConta === 'empresa' || localMatch.role === 'company') {
-                tipoConta = 'empresa';
-                role = 'company';
-              } else if (localMatch.tipoConta === 'tecnico' || localMatch.role === 'technician') {
-                tipoConta = 'tecnico';
-                role = 'technician';
-              } else {
-                tipoConta = 'cliente';
-                role = 'client';
-              }
-              foundUser = { ...localMatch, uid: fbUser.uid, tipoConta, role };
-            } else {
-              const isSuper = normalizedEmail === 'andrezefaniasjuniorr@gmail.com';
+            // If super admin email
+            if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
               foundUser = {
                 uid: fbUser.uid,
-                name: isSuper ? 'André Zefanias Júnior' : (fbUser.displayName || normalizedEmail.split('@')[0]),
+                name: 'André Zefanias Júnior',
                 email: normalizedEmail,
-                phone: isSuper ? '+258 84 999 0001' : '',
-                role: isSuper ? 'super_admin' : 'client',
-                tipoConta: isSuper ? 'tecnico' : 'cliente',
-                adminSubRole: isSuper ? 'super_admin' : undefined,
+                phone: '+258 84 999 0001',
+                role: 'super_admin',
+                adminSubRole: 'super_admin',
+                tipoConta: 'tecnico',
                 statusAprovacao: 'aprovado',
                 statusConta: 'ativa',
                 status: 'active',
@@ -506,11 +620,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               };
               if (db) {
                 try {
-                  await setDoc(doc(db, 'users', fbUser.uid), foundUser);
-                } catch (e) {
-                  console.warn('Auto create user doc in Firestore:', e);
-                }
+                  await setDoc(doc(db, 'users', fbUser.uid), foundUser, { merge: true });
+                } catch (e) {}
               }
+            } else {
+              // Not found in Firestore -> Alert as per rule 3
+              return {
+                success: false,
+                error: 'Esta conta não possui um perfil de Técnico ou Empresa válido no sistema TécnicaMZ.'
+              };
             }
           }
 
@@ -523,7 +641,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           setCurrentUser(foundUser);
           setUsersList(prev => {
-            const idx = prev.findIndex(u => u.uid === foundUser!.uid || u.email.toLowerCase() === normalizedEmail);
+            const idx = prev.findIndex(u => u.uid === foundUser!.uid || ((u.email || '').toLowerCase() === normalizedEmail && normalizedEmail));
             if (idx >= 0) {
               const updated = [...prev];
               updated[idx] = foundUser!;
@@ -531,6 +649,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             return [foundUser!, ...prev];
           });
+
+          // REDIRECIONAMENTO AUTOMÁTICO COM BASE NO ROLE
+          if (typeof window !== 'undefined') {
+            if (foundUser.role === 'technician' || foundUser.tipoConta === 'tecnico') {
+              window.location.hash = '#tecnico';
+            } else if (foundUser.role === 'company' || foundUser.tipoConta === 'empresa') {
+              window.location.hash = '#empresa';
+            } else if (foundUser.role === 'super_admin' || foundUser.role === 'admin') {
+              window.location.hash = '#gestao-pro-mz';
+            }
+          }
 
           return { success: true, user: foundUser };
         } catch (fbErr: any) {
@@ -556,8 +685,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Check registered users list (for demo/fallback when password is not provided)
-      const match = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
+      // Check registered users list (for fallback)
+      const match = usersList.find(u => (u.email || '').toLowerCase() === normalizedEmail && normalizedEmail);
       if (match) {
         if (match.status === 'suspended' || match.statusConta === 'suspensa') {
           return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
@@ -565,7 +694,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (match.status === 'blocked' || match.statusConta === 'bloqueada') {
           return { success: false, error: 'Acesso bloqueado por violação das políticas da plataforma.' };
         }
-        const tipoConta = match.tipoConta || (match.role === 'client' ? 'cliente' : 'tecnico');
+        const tipoConta = match.tipoConta || (match.role === 'company' ? 'empresa' : 'tecnico');
         const userWithTipo = { ...match, tipoConta };
         setCurrentUser(userWithTipo);
         return { success: true, user: userWithTipo };
@@ -591,7 +720,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true, user: superAdminUser };
       }
 
-      return { success: false, error: 'Nenhuma conta encontrada com este e-mail. Por favor crie uma nova conta.' };
+      return { success: false, error: 'Nenhuma conta de Técnico ou Empresa encontrada com este e-mail.' };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Falha ao autenticar.' };
     } finally {
@@ -620,12 +749,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
-      const normalizedEmail = data.email.trim().toLowerCase();
-      const rawPhone = (data.phone || '').trim();
+      const normalizedEmail = (data?.email || '').toString().trim().toLowerCase();
+      const rawPhone = (data?.phone || '').toString().trim();
       const cleanPhoneDigits = rawPhone.replace(/\D/g, '');
 
-      // ANTI-DUPLICITY VALIDATION: Check local cache first
-      const emailExistsLocal = usersList.some(u => u.email.toLowerCase() === normalizedEmail);
+      if (!normalizedEmail) {
+        return { success: false, error: 'Por favor, informe um endereço de e-mail válido.' };
+      }
+
+      // ANTI-DUPLICITY VALIDATION: Check local cache safely
+      const emailExistsLocal = usersList.some(u => (u?.email || '').toString().toLowerCase().trim() === normalizedEmail && normalizedEmail !== '');
       if (emailExistsLocal) {
         return {
           success: false,
@@ -634,7 +767,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const phoneExistsLocal = cleanPhoneDigits && usersList.some(u => {
-        const uPhoneDigits = (u.phone || '').replace(/\D/g, '');
+        const uPhoneDigits = (u?.phone || '').toString().replace(/\D/g, '');
         return uPhoneDigits && (uPhoneDigits === cleanPhoneDigits || uPhoneDigits.endsWith(cleanPhoneDigits) || cleanPhoneDigits.endsWith(uPhoneDigits));
       });
 
@@ -863,7 +996,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(null);
       setCurrentTechProfile(null);
       setCurrentCompanyProfile(null);
-      localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('clienteNome');
+        localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+        window.location.hash = '';
+      }
       setIsLoading(false);
     }
   };
@@ -927,7 +1064,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await updateDoc(doc(db, 'users', currentUser.uid), { ...data, updatedAt: new Date().toISOString() });
+        await setDoc(doc(db, 'users', currentUser.uid), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
       } catch (err) {
         console.warn('Firestore user update error:', err);
       }
@@ -935,7 +1072,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateCurrentTechProfile = async (data: Partial<TechnicianProfile>) => {
-    if (!currentUser || currentUser.role !== 'technician') return;
+    if (!currentUser || (currentUser.role !== 'technician' && currentUser.tipoConta !== 'tecnico')) return;
     const existing = currentTechProfile || ({} as TechnicianProfile);
     const updated: TechnicianProfile = {
       ...existing,
@@ -954,7 +1091,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await updateDoc(doc(db, 'technicians', currentUser.uid), { ...data, updatedAt: new Date().toISOString() });
+        await setDoc(doc(db, 'technicians', currentUser.uid), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
       } catch (err) {
         console.warn('Firestore tech update error:', err);
       }
@@ -962,7 +1099,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateCurrentCompanyProfile = async (data: Partial<CompanyProfile>) => {
-    if (!currentUser || currentUser.role !== 'company') return;
+    if (!currentUser || (currentUser.role !== 'company' && currentUser.tipoConta !== 'empresa')) return;
     const existing = currentCompanyProfile || ({} as CompanyProfile);
     const updated: CompanyProfile = {
       ...existing,
@@ -981,14 +1118,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await updateDoc(doc(db, 'companies', currentUser.uid), { ...data, updatedAt: new Date().toISOString() });
+        await setDoc(doc(db, 'companies', currentUser.uid), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
       } catch (err) {
         console.warn('Firestore company update error:', err);
       }
     }
   };
 
-  const giveTechnicianLike = async (techUserId: string): Promise<{ success: boolean; totalLikes: number }> => {
+  const giveTechnicianLike = async (techUserId: string): Promise<{ success: boolean; totalLikes: number; error?: string }> => {
+    if (!techUserId) return { success: false, totalLikes: 0, error: 'ID de técnico inválido.' };
+    
+    // Check if client/user has already liked this technician
+    const LIKE_STORAGE_KEY = 'tecnicamz_liked_techs_list';
+    let likedList: string[] = [];
+    try {
+      const raw = localStorage.getItem(LIKE_STORAGE_KEY);
+      if (raw) {
+        likedList = JSON.parse(raw);
+        if (!Array.isArray(likedList)) likedList = [];
+      }
+    } catch {
+      likedList = [];
+    }
+
+    if (likedList.includes(techUserId)) {
+      const existingTech = techList.find(t => t.userId === techUserId);
+      return { 
+        success: false, 
+        totalLikes: existingTech?.totalLikes || 0,
+        error: 'Você já curtiu este perfil profissional!' 
+      };
+    }
+
+    // Add to liked list
+    likedList.push(techUserId);
+    try {
+      localStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(likedList));
+    } catch (e) {
+      console.warn('Storage save error:', e);
+    }
+
     const targetTech = techList.find(t => t.userId === techUserId);
     const currentLikes = targetTech?.totalLikes || 0;
     const newLikes = currentLikes + 1;
@@ -1003,16 +1172,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await updateDoc(doc(db, 'users', techUserId), {
+        await setDoc(doc(db, 'users', techUserId), {
           totalLikes: newLikes,
           scoreEngajamento: newScore,
           updatedAt: new Date().toISOString()
-        });
-        await updateDoc(doc(db, 'technicians', techUserId), {
+        }, { merge: true });
+        await setDoc(doc(db, 'technicians', techUserId), {
           totalLikes: newLikes,
           scoreEngajamento: newScore,
           updatedAt: new Date().toISOString()
-        });
+        }, { merge: true });
+
+        // Save like audit in Firestore
+        const likeDocId = `${techUserId}_${currentUser?.uid || 'client_' + Date.now()}`;
+        await setDoc(doc(db, 'technician_likes', likeDocId), {
+          techUserId,
+          likedBy: currentUser?.uid || localStorage.getItem('clienteNome') || 'Cliente Anónimo',
+          likedAt: new Date().toISOString()
+        }, { merge: true });
       } catch (err) {
         console.warn('Firestore update technician like error:', err);
       }
@@ -1456,9 +1633,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const isCompany = currentUser?.tipoConta === 'empresa' || currentUser?.role === 'company';
-  const isTechnician = !isCompany && (currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician');
-  const isClient = !isCompany && !isTechnician && (currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client');
+  const isCompany = currentUser?.tipoConta === 'empresa' || currentUser?.role === 'company' || (currentUser?.role as any) === 'empresa';
+  const isTechnician = !isCompany && (currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician' || (currentUser?.role as any) === 'tecnico');
+  const isClient = !isCompany && !isTechnician && (currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client' || (currentUser?.role as any) === 'cliente');
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.adminSubRole === 'super_admin';
   const isFinanceAdmin = isSuperAdmin || currentUser?.adminSubRole === 'finance_admin';
@@ -1786,6 +1963,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hasTopMuralHighlight,
         activateUserSubscription,
 
+        loginAsClient,
         login,
         register,
         logout,

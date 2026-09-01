@@ -2,10 +2,17 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase/config';
 
 /**
- * Resizes and compresses an image client-side to ensure fast loading and reasonable storage size
+ * Resizes and compresses an image client-side to ensure ultra-fast loading,
+ * optimized especially for mobile devices and high-resolution camera photos.
  */
-export async function compressImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.85): Promise<Blob> {
+export async function compressImage(file: File, maxWidth = 500, maxHeight = 500, quality = 0.82): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    // If already a tiny blob, return quickly
+    if (file.size < 80 * 1024 && file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = (event) => {
@@ -37,7 +44,11 @@ export async function compressImage(file: File, maxWidth = 800, maxHeight = 800,
           return;
         }
 
+        // Smooth image rendering
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
+
         canvas.toBlob(
           (blob) => {
             if (blob) {
@@ -46,7 +57,7 @@ export async function compressImage(file: File, maxWidth = 800, maxHeight = 800,
               resolve(file);
             }
           },
-          file.type || 'image/jpeg',
+          'image/jpeg',
           quality
         );
       };
@@ -70,22 +81,23 @@ export function fileToDataUrl(file: File | Blob): Promise<string> {
 
 /**
  * Uploads an image to Firebase Storage and returns public URL.
- * Falls back to base64 data URL if storage is unavailable.
+ * Falls back to high-performance base64 data URL if storage is unavailable.
  */
 export async function uploadProfilePhoto(userId: string, file: File): Promise<string> {
   try {
-    const compressedBlob = await compressImage(file, 600, 600, 0.85);
+    const safeUserId = (userId || 'user').toString().trim();
+    const compressedBlob = await compressImage(file, 500, 500, 0.82);
 
     if (storage) {
       try {
-        const fileExt = file.name.split('.').pop() || 'jpg';
-        const storagePath = `profile_photos/${userId}_${Date.now()}.${fileExt}`;
+        const fileExt = (file.name || 'avatar.jpg').split('.').pop() || 'jpg';
+        const storagePath = `profile_photos/${safeUserId}_${Date.now()}.${fileExt}`;
         const storageRef = ref(storage, storagePath);
 
         const snapshot = await uploadBytes(storageRef, compressedBlob, {
-          contentType: file.type || 'image/jpeg',
+          contentType: 'image/jpeg',
           customMetadata: {
-            uploadedBy: userId,
+            uploadedBy: safeUserId,
             uploadedAt: new Date().toISOString()
           }
         });
@@ -97,12 +109,12 @@ export async function uploadProfilePhoto(userId: string, file: File): Promise<st
       }
     }
 
-    // Fallback if storage failed or unconfigured
+    // Direct compressed base64 fallback (guarantees instantaneous mobile rendering)
     const dataUrl = await fileToDataUrl(compressedBlob);
     return dataUrl;
   } catch (error) {
     console.error('Error during image processing:', error);
-    // Last resort fallback
     return fileToDataUrl(file);
   }
 }
+

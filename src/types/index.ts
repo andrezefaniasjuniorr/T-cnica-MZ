@@ -205,6 +205,8 @@ export interface CompanyProfile {
   description: string;
   slogan?: string;
   logoUrl?: string;
+  avatarUrl?: string;
+  photoURL?: string;
   coverUrl?: string;
   socialLinks?: {
     linkedin?: string;

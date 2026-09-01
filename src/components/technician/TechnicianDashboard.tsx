@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { UserAvatar } from '../common/UserAvatar';
 import {
   TechnicianProfile,
   ServiceRequest,
@@ -235,14 +236,12 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
         <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-900/40 relative overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
             <div className="flex items-start sm:items-center gap-5">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white p-1 shadow-lg shrink-0">
-                <img
-                  src={
-                    currentTechProfile?.avatarUrl ||
-                    'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=150&auto=format&fit=crop&q=80'
-                  }
-                  alt={currentTechProfile?.name || currentUser.name}
-                  className="w-full h-full object-cover rounded-xl"
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white p-1 shadow-lg shrink-0 overflow-hidden">
+                <UserAvatar
+                  src={currentTechProfile?.avatarUrl || currentUser?.avatarUrl || currentUser?.photoURL}
+                  name={currentTechProfile?.name || currentUser.name}
+                  role="technician"
+                  className="w-full h-full rounded-xl object-cover"
                 />
               </div>
 

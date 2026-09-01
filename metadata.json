@@ -1,6 +1,6 @@
 {
   "name": "TécnicaMZ Pro",
-  "description": "TécnicaMZ Pro — Conectamos profissionais técnicos, clientes e oportunidades em Moçambique.",
+  "description": "A maior rede de profissionais técnicos e empresas de engenharia em Moçambique. Encontre especialistas em eletrônica, eletricidade, refrigeração e TI.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CompanyProfile, JobOpening } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { UserAvatar } from '../common/UserAvatar';
 import {
   X,
   ArrowLeft,
@@ -76,11 +77,12 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white p-1.5 shadow-xl border border-white/20 shrink-0">
-              <img
-                src={company.logoUrl || `https://images.unsplash.com/photo-1541888946425-d0fbb18fe27c?w=150&auto=format&fit=crop&q=80`}
-                alt={company.companyName}
-                className="w-full h-full object-cover rounded-xl"
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white p-1.5 shadow-xl border border-white/20 shrink-0 overflow-hidden">
+              <UserAvatar
+                src={company.logoUrl || company.avatarUrl}
+                name={company.companyName}
+                role="company"
+                className="w-full h-full rounded-xl object-cover"
               />
             </div>
 

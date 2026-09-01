@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { UserAvatar } from '../common/UserAvatar';
 import {
   CompanyProfile,
   JobOpening,
@@ -139,14 +140,12 @@ export const CompanyDashboard: React.FC<CompanyDashboardProps> = ({ onNavigateTa
 
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
             <div className="flex items-start sm:items-center gap-5">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white p-1 shadow-lg shrink-0">
-                <img
-                  src={
-                    currentCompanyProfile?.logoUrl ||
-                    'https://images.unsplash.com/photo-1541888946425-d0fbb18fe27c?w=150&auto=format&fit=crop&q=80'
-                  }
-                  alt={currentCompanyProfile?.companyName || currentUser.name}
-                  className="w-full h-full object-cover rounded-xl"
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white p-1 shadow-lg shrink-0 overflow-hidden">
+                <UserAvatar
+                  src={currentCompanyProfile?.logoUrl || currentUser?.avatarUrl || currentUser?.photoURL}
+                  name={currentCompanyProfile?.companyName || currentUser.name}
+                  role="company"
+                  className="w-full h-full rounded-xl object-cover"
                 />
               </div>
 

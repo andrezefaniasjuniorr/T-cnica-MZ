@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { SeloMZModal } from './SeloMZModal';
+import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
+import { db, isFirebaseConfigured } from '../../firebase/config';
 import {
   X,
   ArrowLeft,
@@ -136,16 +138,32 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
 
         const data = await response.json();
         const replyText = data.analysis || data.fallback || 'Análise da foto técnica concluída.';
+        const saraMsg: Message = {
+          id: `sara_${Date.now()}`,
+          sender: 'sara',
+          text: replyText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
 
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `sara_${Date.now()}`,
-            sender: 'sara',
-            text: replyText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        setMessages(prev => [...prev, saraMsg]);
+
+        // Save conversation snapshot to Firestore
+        if (isFirebaseConfigured && db) {
+          try {
+            const convoId = `ai_chat_${currentUser?.uid || 'client'}_${Date.now()}`;
+            await setDoc(doc(db, 'ai_conversations', convoId), {
+              userId: currentUser?.uid || 'guest',
+              userName: currentUser?.name || 'Cliente',
+              userRole: currentUser?.role || 'client',
+              userPrompt: userText || 'Análise de Imagem Técnica',
+              aiReply: replyText,
+              hasImage: true,
+              createdAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (fireErr) {
+            console.warn('Firestore AI save error:', fireErr);
           }
-        ]);
+        }
       } else {
         // Text chat call to Gemini via server API
         const response = await fetch('/api/sara/chat', {
@@ -161,16 +179,32 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
 
         const data = await response.json();
         const replyText = data.reply || data.fallback || 'Resposta processada.';
+        const saraMsg: Message = {
+          id: `sara_${Date.now()}`,
+          sender: 'sara',
+          text: replyText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
 
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `sara_${Date.now()}`,
-            sender: 'sara',
-            text: replyText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        setMessages(prev => [...prev, saraMsg]);
+
+        // Save conversation snapshot to Firestore
+        if (isFirebaseConfigured && db) {
+          try {
+            const convoId = `ai_chat_${currentUser?.uid || 'client'}_${Date.now()}`;
+            await setDoc(doc(db, 'ai_conversations', convoId), {
+              userId: currentUser?.uid || 'guest',
+              userName: currentUser?.name || 'Cliente',
+              userRole: currentUser?.role || 'client',
+              userPrompt: userText,
+              aiReply: replyText,
+              hasImage: false,
+              createdAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (fireErr) {
+            console.warn('Firestore AI save error:', fireErr);
           }
-        ]);
+        }
       }
     } catch (err: any) {
       console.warn('Sara IA connection error:', err);

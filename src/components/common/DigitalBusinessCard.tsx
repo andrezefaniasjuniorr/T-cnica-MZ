@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TechnicianProfile, CompanyProfile } from '../../types';
+import { UserAvatar } from './UserAvatar';
 import {
   X,
   ArrowLeft,
@@ -87,15 +88,12 @@ export const DigitalBusinessCard: React.FC<DigitalBusinessCardProps> = ({
               : 'bg-gradient-to-br from-purple-900 via-slate-900 to-indigo-950'
           }`}>
             <div className="flex items-start justify-between gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-white p-1 shadow-lg shrink-0">
-                <img
-                  src={
-                    isTech
-                      ? technician?.avatarUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=150&auto=format&fit=crop&q=80'
-                      : company?.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb18fe27c?w=150&auto=format&fit=crop&q=80'
-                  }
-                  alt={name}
-                  className="w-full h-full object-cover rounded-xl"
+              <div className="w-14 h-14 rounded-2xl bg-white p-1 shadow-lg shrink-0 overflow-hidden">
+                <UserAvatar
+                  src={isTech ? (technician?.avatarUrl || technician?.photoURL) : (company?.logoUrl || company?.avatarUrl)}
+                  name={name}
+                  role={isTech ? 'technician' : 'company'}
+                  className="w-full h-full rounded-xl object-cover"
                 />
               </div>
 

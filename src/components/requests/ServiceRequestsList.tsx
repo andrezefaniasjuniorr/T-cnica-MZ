@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../common/Badge';
+import { UserAvatar } from '../common/UserAvatar';
 import {
   TECHNICAL_CATEGORIES,
   MOZAMBIQUE_PROVINCES,
@@ -267,12 +268,10 @@ export const ServiceRequestsList: React.FC<ServiceRequestsListProps> = ({
                             className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                           >
                             <div className="flex items-start gap-3">
-                              <img
-                                src={
-                                  prop.technicianAvatar ||
-                                  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80'
-                                }
-                                alt={prop.technicianName}
+                              <UserAvatar
+                                src={prop.technicianAvatar}
+                                name={prop.technicianName}
+                                role="technician"
                                 className="w-10 h-10 rounded-xl object-cover"
                               />
                               <div>

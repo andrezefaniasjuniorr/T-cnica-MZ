@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TechnicianProfile } from '../../types';
 import { Badge } from '../common/Badge';
 import { WhatsAppButton } from './WhatsAppButton';
@@ -23,7 +23,29 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
   const { giveTechnicianLike } = useAuth();
   const [likeCount, setLikeCount] = useState<number>(technician.totalLikes ?? 0);
   const [isLiking, setIsLiking] = useState(false);
-  const [hasLiked, setHasLiked] = useState(false);
+  const [hasLiked, setHasLiked] = useState(() => {
+    try {
+      const raw = localStorage.getItem('tecnicamz_liked_techs_list');
+      if (raw) {
+        const list = JSON.parse(raw);
+        return Array.isArray(list) && list.includes(technician.userId);
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    setLikeCount(technician.totalLikes ?? 0);
+    try {
+      const raw = localStorage.getItem('tecnicamz_liked_techs_list');
+      if (raw) {
+        const list = JSON.parse(raw);
+        setHasLiked(Array.isArray(list) && list.includes(technician.userId));
+      }
+    } catch {}
+  }, [technician.totalLikes, technician.userId]);
 
   const isFav = isFavorite(technician.userId);
   const isVerified = technician.verificationStatus === 'approved';
@@ -31,12 +53,15 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
 
   const handleGiveLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isLiking) return;
+    if (isLiking || hasLiked) return;
     setIsLiking(true);
     setHasLiked(true);
     setLikeCount(prev => prev + 1);
     try {
-      await giveTechnicianLike(technician.userId);
+      const res = await giveTechnicianLike(technician.userId);
+      if (res.totalLikes !== undefined) {
+        setLikeCount(res.totalLikes);
+      }
     } catch (err) {
       console.warn('Like error:', err);
     } finally {
