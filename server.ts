@@ -18,7 +18,14 @@ function getGenAI(): GoogleGenAI {
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY environment variable is not configured.');
     }
-    genAIClient = new GoogleGenAI({ apiKey });
+    genAIClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
   }
   return genAIClient;
 }
@@ -89,7 +96,7 @@ O usuário atual é: ${userName || 'Usuário'} (${userRole || 'visitante'}).`;
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.7-flash',
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
@@ -133,7 +140,7 @@ Estruture em tópicos numerados:
 6. Solução e próximos passos: materiais necessários e estimativa em Meticais.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.7-flash',
       contents: [
         {
           text: userPrompt

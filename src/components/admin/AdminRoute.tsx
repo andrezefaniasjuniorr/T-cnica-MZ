@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db, isFirebaseConfigured } from '../../firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
+import { safeGetDoc } from '../../firebase/db';
+import { doc } from 'firebase/firestore';
 import { Shield, ShieldAlert, Loader2 } from 'lucide-react';
 
 interface AdminRouteProps {
@@ -42,9 +43,9 @@ export const AdminRoute: React.FC<AdminRouteProps> = ({ children, onRedirectToFe
       try {
         if (isFirebaseConfigured && db && currentUser.uid) {
           const userRef = doc(db, 'users', currentUser.uid);
-          const userSnap = await getDoc(userRef);
+          const userSnap = await safeGetDoc(userRef, 1, 300);
           
-          if (userSnap.exists()) {
+          if (userSnap && userSnap.exists()) {
             const data = userSnap.data();
             const userRole = data?.role;
             const adminSub = data?.adminSubRole;

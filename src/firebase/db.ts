@@ -10,7 +10,10 @@ import {
   query,
   where,
   orderBy,
-  onSnapshot
+  onSnapshot,
+  DocumentReference,
+  DocumentSnapshot,
+  SetOptions
 } from 'firebase/firestore';
 
 export enum OperationType {
@@ -59,3 +62,66 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
   return errInfo;
 }
+
+/**
+ * Resiliently fetch a Firestore document.
+ * If the client is offline or establishing connection, retries before returning null gracefully
+ * without throwing noisy unhandled console.error exceptions.
+ */
+export async function safeGetDoc(
+  docRef: DocumentReference,
+  maxRetries = 2,
+  delayMs = 400
+): Promise<DocumentSnapshot | null> {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const snap = await getDoc(docRef);
+      return snap;
+    } catch (err: any) {
+      const isOffline =
+        err?.code === 'unavailable' ||
+        err?.message?.includes('offline') ||
+        err?.message?.includes('client is offline');
+
+      if (isOffline && i < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
+        continue;
+      }
+
+      if (isOffline) {
+        console.warn(`[Firestore SafeGet] Offline temporário ao buscar ${docRef.path}:`, err?.message);
+        return null;
+      }
+
+      console.warn(`[Firestore SafeGet] Aviso ao buscar ${docRef.path}:`, err?.message || err);
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Resiliently write to a Firestore document with merge: true by default.
+ */
+export async function safeSetDoc(
+  docRef: DocumentReference,
+  data: any,
+  options: SetOptions = { merge: true }
+): Promise<boolean> {
+  try {
+    await setDoc(docRef, data, options);
+    return true;
+  } catch (err: any) {
+    const isOffline =
+      err?.code === 'unavailable' ||
+      err?.message?.includes('offline') ||
+      err?.message?.includes('client is offline');
+    if (isOffline) {
+      console.warn(`[Firestore SafeSet] Gravação offline em ${docRef.path}, armazenada localmente para sincronização.`);
+    } else {
+      console.warn(`[Firestore SafeSet] Aviso ao gravar em ${docRef.path}:`, err?.message || err);
+    }
+    return false;
+  }
+}
+
