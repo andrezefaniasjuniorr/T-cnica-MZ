@@ -365,17 +365,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                       <div className="flex items-center gap-3.5">
                         <div className="w-12 h-12 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
                           {post.authorAvatar ? (
-                            <img src={post.authorAvatar} alt={post.authorName} className="w-full h-full object-cover" />
+                            <img src={post.authorAvatar} alt={post.authorName || 'Usuário'} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-indigo-100 text-indigo-700 font-black text-base">
-                              {post.authorName.charAt(0)}
+                              {(post.authorName || 'U').charAt(0).toUpperCase()}
                             </div>
                           )}
                         </div>
 
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm sm:text-base font-black text-slate-900">{post.authorName}</h3>
+                            <h3 className="text-sm sm:text-base font-black text-slate-900">{post.authorName || 'Usuário'}</h3>
                             {post.authorRole === 'super_admin' && (
                               <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black">
                                 Super Admin
@@ -609,7 +609,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                                 <div key={comment.id} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
                                   <div className="flex items-center justify-between text-xs flex-wrap gap-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-black text-slate-900">{comment.authorName}</span>
+                                      <span className="font-black text-slate-900">{comment.authorName || 'Usuário'}</span>
                                       {isPostOwner && (
                                         <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-900 rounded-full font-black border border-amber-200 flex items-center gap-1">
                                           ★ Autor da Publicação

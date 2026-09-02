@@ -39,15 +39,17 @@ export const AdminRoute: React.FC<AdminRouteProps> = ({ children, onRedirectToFe
         return;
       }
 
-      // Direct Firestore check on 'users' collection
+      // Direct Firestore check on 'usuarios' and 'users' collections
       try {
         if (isFirebaseConfigured && db && currentUser.uid) {
-          const userRef = doc(db, 'users', currentUser.uid);
-          const userSnap = await safeGetDoc(userRef, 1, 300);
+          let userSnap = await safeGetDoc(doc(db, 'usuarios', currentUser.uid), 1, 300);
+          if (!userSnap || !userSnap.exists()) {
+            userSnap = await safeGetDoc(doc(db, 'users', currentUser.uid), 1, 300);
+          }
           
           if (userSnap && userSnap.exists()) {
             const data = userSnap.data();
-            const userRole = data?.role;
+            const userRole = data?.role || data?.tipoConta;
             const adminSub = data?.adminSubRole;
             const isAdminRole = userRole === 'admin' || userRole === 'super_admin' || adminSub === 'super_admin';
 

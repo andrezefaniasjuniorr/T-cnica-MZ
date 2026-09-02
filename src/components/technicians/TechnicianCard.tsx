@@ -139,7 +139,7 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
               technician.photoURL ||
               'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
             }
-            alt={technician.name}
+            alt={technician?.name || 'Técnico Especialista'}
             className="w-16 h-16 sm:w-18 sm:h-18 rounded-full object-cover bg-slate-100 border-2 border-slate-200 shadow-xs"
           />
           {/* Like Count Badge on Circular Photo */}
@@ -154,11 +154,11 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
 
         <div className="min-w-0 flex-1">
           <h3 className="text-base sm:text-lg font-black text-slate-900 truncate tracking-tight group-hover:text-blue-600 transition">
-            {technician.name}
+            {technician?.name || 'Técnico Especialista'}
           </h3>
           <p className="text-xs font-semibold text-blue-700 truncate mt-0.5">
-            {technician.specialties[0]}
-            {technician.specialties.length > 1 && ` +${technician.specialties.length - 1}`}
+            {technician?.specialties?.[0] || 'Eletricidade'}
+            {technician?.specialties && technician.specialties.length > 1 && ` +${technician.specialties.length - 1}`}
           </p>
 
           <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-slate-500">

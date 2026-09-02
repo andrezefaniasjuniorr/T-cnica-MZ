@@ -272,16 +272,16 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
         <div className="absolute top-6 sm:top-7 inset-x-0 z-30 px-4 py-2 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="relative w-10 h-10 rounded-full ring-2 ring-blue-500 overflow-hidden bg-slate-800 shrink-0">
-              {currentStory.authorAvatar ? (
+              {currentStory?.authorAvatar ? (
                 <img
                   src={currentStory.authorAvatar}
-                  alt={currentStory.authorName}
+                  alt={currentStory?.authorName || 'Usuário'}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-white font-bold bg-blue-600 text-sm">
-                  {currentStory.authorName.charAt(0)}
+                  {(currentStory?.authorName || 'U').charAt(0).toUpperCase()}
                 </div>
               )}
             </div>
@@ -289,7 +289,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             <div className="leading-tight">
               <div className="flex items-center space-x-1.5">
                 <span className="text-white font-bold text-sm drop-shadow-md line-clamp-1">
-                  {currentStory.authorName}
+                  {currentStory?.authorName || 'Usuário'}
                 </span>
                 <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
                 {currentGroup.stories.length > 1 && (

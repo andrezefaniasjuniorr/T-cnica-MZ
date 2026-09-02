@@ -174,13 +174,13 @@ export const StoriesCarousel: React.FC = () => {
                     {group.authorAvatar ? (
                       <img
                         src={group.authorAvatar}
-                        alt={group.authorName}
+                        alt={group.authorName || 'Usuário'}
                         className="w-full h-full rounded-full object-cover group-hover:scale-110 transition-transform duration-300"
                         referrerPolicy="no-referrer"
                       />
                     ) : (
                       <div className="w-full h-full rounded-full flex items-center justify-center text-sm font-bold text-white bg-gradient-to-br from-blue-600 to-indigo-800">
-                        {group.authorName.charAt(0).toUpperCase()}
+                        {(group.authorName || 'U').charAt(0).toUpperCase()}
                       </div>
                     )}
 
@@ -194,7 +194,7 @@ export const StoriesCarousel: React.FC = () => {
                 </div>
 
                 <span className="mt-1.5 text-[11px] font-medium text-slate-300 group-hover:text-white text-center truncate w-full">
-                  {isUserAuthor ? 'Você' : group.authorName.split(' ')[0]}
+                  {isUserAuthor ? 'Você' : (group.authorName || 'Usuário').split(' ')[0]}
                 </span>
               </button>
             );

@@ -1392,6 +1392,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
+        await setDoc(doc(db, 'usuarios', techUserId), {
+          totalLikes: newLikes,
+          scoreEngajamento: newScore,
+          pontos: newScore,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
         await setDoc(doc(db, 'users', techUserId), {
           totalLikes: newLikes,
           scoreEngajamento: newScore,
