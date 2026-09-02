@@ -604,10 +604,25 @@ export interface StoryItem {
   textColor?: string;
   viewsCount?: number;
   viewers?: StoryViewer[];
+  visualizadores?: string[];
   reactions?: StoryReaction[];
   createdAt: string; // ISO string
   expiresAt: string; // ISO string (createdAt + 24 hours)
   deleteAt: string;  // ISO string (createdAt + 7 days)
+}
+
+export interface UserStoriesGroup {
+  authorId: string;
+  authorName: string;
+  authorRole?: UserRole;
+  authorAvatar?: string;
+  authorSpecialty?: string;
+  authorProvince?: string;
+  authorWhatsapp?: string;
+  authorPhone?: string;
+  stories: StoryItem[];
+  hasUnviewed: boolean;
+  latestStoryCreatedAt: string;
 }
 
 export interface AcademyArticle {

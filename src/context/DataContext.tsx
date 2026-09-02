@@ -56,7 +56,7 @@ import {
 import { useAuth } from './AuthContext';
 import { auth, db, isFirebaseConfigured } from '../firebase/config';
 import { safeGetStorageItem, safeSetStorageItem } from '../utils/storage';
-import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, arrayUnion, increment } from 'firebase/firestore';
 
 const formatTimestampToIso = (val: any): string => {
   if (!val) return new Date().toISOString();
@@ -190,7 +190,7 @@ interface DataContextType {
     images?: string[];
   }) => void;
   togglePostReaction: (postId: string, reactionType: 'useful' | 'insightful' | 'applause' | 'question') => void;
-  addPostComment: (postId: string, text: string, replyToId?: string, replyToName?: string) => void;
+  addPostComment: (postId: string, text: string, replyToId?: string, replyToName?: string) => Promise<{ success: boolean; error?: string }>;
   toggleCommunityCommentLike: (postId: string, commentId: string) => void;
   deleteCommunityComment: (postId: string, commentId: string) => void;
   deleteCommunityPost: (postId: string) => void;
@@ -346,6 +346,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const expiresAtIso = data.expiresAt || new Date(nowTime + 24 * 60 * 60 * 1000).toISOString();
       const deleteAtIso = data.deleteAt || new Date(nowTime + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+      const visualizadores = Array.isArray(data.visualizadores) ? data.visualizadores : [];
+      const viewers = Array.isArray(data.viewers) ? data.viewers : [];
+      const viewsCount = typeof data.viewsCount === 'number'
+        ? Math.max(data.viewsCount, visualizadores.length, viewers.length)
+        : Math.max(visualizadores.length, viewers.length);
+
       return {
         id: docSnap.id,
         authorId: data.authorId || data.autorId || data.userId || '',
@@ -360,8 +366,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         text: data.text || data.texto || data.conteudo || '',
         backgroundColor: data.backgroundColor || 'from-slate-900 via-blue-950 to-indigo-950',
         textColor: data.textColor || '#ffffff',
-        viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : 0,
-        viewers: Array.isArray(data.viewers) ? data.viewers : [],
+        viewsCount,
+        viewers,
+        visualizadores,
         reactions: Array.isArray(data.reactions) ? data.reactions : (Array.isArray(data.likes) ? data.likes : []),
         createdAt: createdAtIso,
         expiresAt: expiresAtIso,
@@ -393,12 +400,62 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.warn('Realtime stories notice:', err)
     );
 
-    // 2. Mural / Community Posts real-time sync
+    // 2. Mural / Community Posts real-time sync & subcollection comments
     const postsMap = new Map<string, CommunityPost>();
+    const commentUnsubs = new Map<string, () => void>();
+
     const updateMergedPosts = () => {
       const posts = Array.from(postsMap.values());
       posts.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       setCommunityPosts(posts);
+    };
+
+    const subscribePostComments = (postId: string) => {
+      if (!postId || commentUnsubs.has(postId)) return;
+      try {
+        const unsub = onSnapshot(
+          collection(db, 'mural_posts', postId, 'comentarios'),
+          (commSnap) => {
+            if (!commSnap.empty) {
+              const loadedComments: CommunityComment[] = [];
+              commSnap.forEach((cDoc) => {
+                const cData = cDoc.data() || {};
+                loadedComments.push({
+                  id: cDoc.id,
+                  postId,
+                  authorId: cData.autorId || cData.authorId || '',
+                  authorName: cData.autorNome || cData.authorName || 'Técnico MZ',
+                  authorRole: cData.authorRole || cData.autorTipo || 'technician',
+                  authorAvatar: cData.autorFoto || cData.authorAvatar || cData.authorPhoto || '',
+                  authorSpecialty: cData.authorSpecialty || cData.especialidade || '',
+                  text: cData.texto || cData.text || '',
+                  replyToId: cData.replyToId || undefined,
+                  replyToName: cData.replyToName || undefined,
+                  likes: Array.isArray(cData.likes) ? cData.likes : [],
+                  createdAt: formatTimestampToIso(cData.criadoEm || cData.createdAt || cData.createdAtIso)
+                });
+              });
+              loadedComments.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+
+              // Update post map and state
+              const existing = postsMap.get(postId);
+              if (existing) {
+                const mergedPost = {
+                  ...existing,
+                  comments: loadedComments,
+                  commentsCount: Math.max(loadedComments.length, existing.commentsCount || 0)
+                };
+                postsMap.set(postId, mergedPost);
+                updateMergedPosts();
+              }
+            }
+          },
+          (err) => console.warn(`Subcollection comments notice for ${postId}:`, err)
+        );
+        commentUnsubs.set(postId, unsub);
+      } catch (err) {
+        console.warn('Error subscribing to post comments:', err);
+      }
     };
 
     const mapPostDoc = (docSnap: any): CommunityPost => {
@@ -441,6 +498,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (snapshot) => {
         snapshot.forEach((docSnap) => {
           postsMap.set(docSnap.id, mapPostDoc(docSnap));
+          subscribePostComments(docSnap.id);
         });
         updateMergedPosts();
       },
@@ -454,6 +512,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!postsMap.has(docSnap.id)) {
             postsMap.set(docSnap.id, mapPostDoc(docSnap));
           }
+          subscribePostComments(docSnap.id);
         });
         updateMergedPosts();
       },
@@ -503,15 +562,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const techsMap = new Map<string, TechnicianProfile>();
     const updateMergedTechs = () => {
       const list = Array.from(techsMap.values());
-      // Sort strictly descending based on total engagement (totalLikes / scoreEngajamento)
+      // Sort strictly descending based on total engagement (totalLikes / scoreEngajamento / pontos / curtidas)
       list.sort((a, b) => {
-        const likesA = (a.totalLikes ?? 0);
-        const likesB = (b.totalLikes ?? 0);
+        const likesA = (a.totalLikes ?? (a as any).curtidas ?? (a as any).pontos ?? 0);
+        const likesB = (b.totalLikes ?? (b as any).curtidas ?? (b as any).pontos ?? 0);
         if (likesB !== likesA) return likesB - likesA;
-        const scoreA = (a.scoreEngajamento ?? 0);
-        const scoreB = (b.scoreEngajamento ?? 0);
+        const scoreA = (a.scoreEngajamento ?? (a as any).pontos ?? 0);
+        const scoreB = (b.scoreEngajamento ?? (b as any).pontos ?? 0);
         if (scoreB !== scoreA) return scoreB - scoreA;
-        return (b.rating ?? 0) - (a.rating ?? 0);
+        return (b.rating ?? 5) - (a.rating ?? 5);
       });
       setTechnicians(list);
     };
@@ -532,6 +591,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? data.specialties
         : (data.specialty ? [data.specialty] : (data.especialidade ? [data.especialidade] : ['Eletricidade']));
 
+      const totalLikes = typeof data.totalLikes === 'number'
+        ? data.totalLikes
+        : (typeof data.curtidas === 'number'
+          ? data.curtidas
+          : (typeof data.likes === 'number'
+            ? data.likes
+            : (typeof data.pontos === 'number' ? data.pontos : 0)));
+
+      const scoreEngajamento = typeof data.scoreEngajamento === 'number'
+        ? data.scoreEngajamento
+        : (typeof data.pontos === 'number'
+          ? data.pontos
+          : totalLikes);
+
       return {
         userId: docSnap.id,
         name: defaultName,
@@ -548,8 +621,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         experienceYears: typeof data.experienceYears === 'number' ? data.experienceYears : 2,
         avatarUrl: data.avatarUrl || data.photoURL || data.foto || '',
         photoURL: data.photoURL || data.avatarUrl || data.foto || '',
-        totalLikes: typeof data.totalLikes === 'number' ? data.totalLikes : 0,
-        scoreEngajamento: typeof data.scoreEngajamento === 'number' ? data.scoreEngajamento : (data.totalLikes || 0),
+        totalLikes,
+        scoreEngajamento,
         verificationStatus: data.verificationStatus || (data.isVerified ? 'approved' : 'none'),
         statusAprovacao: data.statusAprovacao || 'aprovado',
         statusConta: data.statusConta || 'ativa',
@@ -700,6 +773,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubStories();
       unsubMuralPosts();
       unsubCommunityPosts();
+      commentUnsubs.forEach(u => u());
       unsubMarket();
       unsubConversations();
       unsubMessages();
@@ -1764,24 +1838,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     text: string,
     replyToId?: string,
     replyToName?: string
-  ) => {
-    if (!currentUser || !text.trim()) return;
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser || !text.trim()) {
+      return { success: false, error: 'Texto do comentário não pode estar vazio.' };
+    }
 
     const techProfile = technicians.find(t => t.userId === currentUser.uid);
+    const commentId = `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const nowIso = new Date().toISOString();
 
     const newComment: CommunityComment = {
-      id: `comm_${Date.now()}`,
+      id: commentId,
       postId,
       authorId: currentUser.uid,
       authorName: currentUser.name,
       authorRole: currentUser.role,
-      authorAvatar: currentUser.avatarUrl,
-      authorSpecialty: techProfile?.specialties?.[0],
+      authorAvatar: currentUser.avatarUrl || techProfile?.avatarUrl || '',
+      authorSpecialty: techProfile?.specialties?.[0] || (currentUser.role === 'company' ? 'Empresa' : 'Técnico Especialista'),
       text: text.trim(),
       replyToId,
       replyToName,
       likes: [],
-      createdAt: new Date().toISOString()
+      createdAt: nowIso
     };
 
     let updatedPost: CommunityPost | undefined;
@@ -1791,22 +1869,55 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (p.id !== postId) return p;
         const postUpdated = {
           ...p,
-          commentsCount: p.commentsCount + 1,
-          comments: [...p.comments, newComment]
+          commentsCount: (p.commentsCount || 0) + 1,
+          comments: [...(p.comments || []), newComment]
         };
         updatedPost = postUpdated;
         return postUpdated;
       })
     );
 
-    if (isFirebaseConfigured && db && updatedPost) {
+    if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
-        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
-      } catch (err) {
+        const commentFirestoreData = {
+          id: commentId,
+          postId,
+          texto: text.trim(),
+          text: text.trim(),
+          autorId: currentUser.uid,
+          authorId: currentUser.uid,
+          autorNome: currentUser.name,
+          authorName: currentUser.name,
+          autorFoto: newComment.authorAvatar,
+          authorAvatar: newComment.authorAvatar,
+          authorPhoto: newComment.authorAvatar,
+          authorRole: currentUser.role,
+          authorSpecialty: newComment.authorSpecialty,
+          replyToId: replyToId || null,
+          replyToName: replyToName || null,
+          likes: [],
+          curtidas: 0,
+          criadoEm: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          createdAtIso: nowIso
+        };
+
+        // Salvar na subcoleção comentarios de mural_posts e community_posts
+        await setDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), commentFirestoreData);
+        await setDoc(doc(db, 'community_posts', postId, 'comentarios', commentId), commentFirestoreData).catch(() => {});
+
+        // Atualizar documento pai
+        if (updatedPost) {
+          await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
+          await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
+        }
+      } catch (err: any) {
         console.warn('Firestore add comment error:', err);
+        return { success: false, error: err?.message || 'Erro ao gravar comentário no banco de dados.' };
       }
     }
+
+    return { success: true };
   };
 
   const toggleCommunityCommentLike = async (postId: string, commentId: string) => {
@@ -1841,6 +1952,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
         await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
+        // Atualizar também na subcoleção se existir
+        const currentComm = updatedPost.comments.find(c => c.id === commentId);
+        if (currentComm) {
+          await updateDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), {
+            likes: currentComm.likes,
+            curtidas: currentComm.likes.length
+          }).catch(() => {});
+        }
       } catch (err) {
         console.warn('Firestore toggle comment like error:', err);
       }
@@ -1863,10 +1982,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     );
 
-    if (isFirebaseConfigured && db && updatedPost) {
+    if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
-        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
+        await deleteDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId)).catch(() => {});
+        await deleteDoc(doc(db, 'community_posts', postId, 'comentarios', commentId)).catch(() => {});
+        if (updatedPost) {
+          await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
+          await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
+        }
       } catch (err) {
         console.warn('Firestore delete comment error:', err);
       }
@@ -1931,28 +2054,51 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        const firestoreStoryPayload = {
-          ...newStory,
+        const firestoreStoryPayload: Record<string, any> = {
+          id: storyId,
+          authorId: currentUser.uid,
+          authorName: currentUser.name,
+          authorPhoto: newStory.authorAvatar || '',
+          authorRole: currentUser.role,
+          authorSpecialty: newStory.authorSpecialty,
+          authorProvince: newStory.authorProvince,
+          authorWhatsapp: newStory.authorWhatsapp,
+          authorPhone: newStory.authorPhone,
           autorId: currentUser.uid,
           autor: currentUser.name,
           autorNome: currentUser.name,
           autorTipo: currentUser.role,
           autorFoto: newStory.authorAvatar || '',
-          foto: storyData.imageUrl || '',
-          imagem: storyData.imageUrl || '',
           texto: storyData.text || '',
+          text: storyData.text || '',
           conteudo: storyData.text || '',
+          backgroundColor: newStory.backgroundColor,
+          textColor: newStory.textColor,
+          viewsCount: 0,
+          viewers: [],
+          reactions: [],
           data: serverTimestamp(),
           createdAt: serverTimestamp(),
-          createdAtIso: now.toISOString()
+          createdAtIso: now.toISOString(),
+          expiresAt: expiresAtDate.toISOString(),
+          deleteAt: deleteAtDate.toISOString()
         };
+
+        // Incluir mídia se for história com imagem
+        if (storyData.imageUrl) {
+          firestoreStoryPayload.mediaUrl = storyData.imageUrl;
+          firestoreStoryPayload.imageUrl = storyData.imageUrl;
+          firestoreStoryPayload.foto = storyData.imageUrl;
+          firestoreStoryPayload.imagem = storyData.imageUrl;
+        }
 
         // Salvar diretamente na coleção historias
         await setDoc(doc(db, 'historias', storyId), firestoreStoryPayload);
         // Também salvar na coleção stories para compatibilidade total
-        await setDoc(doc(db, 'stories', storyId), firestoreStoryPayload);
+        await setDoc(doc(db, 'stories', storyId), firestoreStoryPayload).catch(() => {});
       } catch (err: any) {
         console.warn('Firestore create story error:', err);
+        return { success: false, error: err?.message || 'Erro ao gravar história no Firestore.' };
       }
     }
 
@@ -1966,20 +2112,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const currentStory = stories.find(s => s.id === storyId);
     if (!currentStory) return;
 
-    // Check if already viewed
-    const alreadyViewed = (currentStory.viewers || []).some(v => v.userId === userId);
+    // Check if already viewed by this user
+    const alreadyViewed = (currentStory.viewers || []).some(v => v.userId === userId) ||
+                          (currentStory.visualizadores || []).includes(userId);
     if (alreadyViewed) return;
 
     const newViewer: StoryViewer = {
       userId: currentUser.uid,
-      userName: currentUser.name,
+      userName: currentUser.name || 'Usuário MZ',
       userRole: currentUser.role,
-      userAvatar: currentUser.avatarUrl,
+      userAvatar: currentUser.avatarUrl || currentUser.photoURL || '',
       viewedAt: new Date().toISOString()
     };
 
     const updatedViewers = [...(currentStory.viewers || []), newViewer];
-    const updatedViewsCount = (currentStory.viewsCount || 0) + 1;
+    const updatedVisualizadores = [...(currentStory.visualizadores || []), userId];
+    const updatedViewsCount = Math.max((currentStory.viewsCount || 0) + 1, updatedVisualizadores.length);
 
     setStories(prev =>
       prev.map(s =>
@@ -1987,7 +2135,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? {
               ...s,
               viewsCount: updatedViewsCount,
-              viewers: updatedViewers
+              viewers: updatedViewers,
+              visualizadores: updatedVisualizadores
             }
           : s
       )
@@ -1996,13 +2145,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isFirebaseConfigured && db) {
       try {
         await updateDoc(doc(db, 'historias', storyId), {
-          viewsCount: updatedViewsCount,
-          viewers: updatedViewers
-        }).catch(() => {});
+          viewsCount: increment(1),
+          visualizadores: arrayUnion(userId),
+          viewers: arrayUnion(newViewer)
+        }).catch(async () => {
+          await setDoc(doc(db, 'historias', storyId), {
+            viewsCount: updatedViewsCount,
+            visualizadores: updatedVisualizadores,
+            viewers: updatedViewers
+          }, { merge: true }).catch(() => {});
+        });
+
         await updateDoc(doc(db, 'stories', storyId), {
-          viewsCount: updatedViewsCount,
-          viewers: updatedViewers
-        }).catch(() => {});
+          viewsCount: increment(1),
+          visualizadores: arrayUnion(userId),
+          viewers: arrayUnion(newViewer)
+        }).catch(async () => {
+          await setDoc(doc(db, 'stories', storyId), {
+            viewsCount: updatedViewsCount,
+            visualizadores: updatedVisualizadores,
+            viewers: updatedViewers
+          }, { merge: true }).catch(() => {});
+        });
       } catch (err) {
         console.warn('Firestore view story error:', err);
       }

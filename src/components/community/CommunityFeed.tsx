@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { TECHNICAL_CATEGORIES, MOZAMBIQUE_PROVINCES } from '../../types';
 import { StoriesCarousel } from './StoriesCarousel';
 import { SeloMZModal } from '../common/SeloMZModal';
+import { compressImageToDataUrl } from '../../utils/imageUpload';
 import {
   MessageSquare,
   Sparkles,
@@ -27,7 +28,8 @@ import {
   ExternalLink,
   MessageCircle,
   Flame,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 interface CommunityFeedProps {
@@ -55,6 +57,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<{ [postId: string]: string }>({});
   const [replyingTo, setReplyingTo] = useState<{ [postId: string]: { id: string; authorName: string } | null }>({});
+  const [isSubmittingComment, setIsSubmittingComment] = useState<{ [postId: string]: boolean }>({});
 
   // New Post Form State
   const [newTitle, setNewTitle] = useState('');
@@ -65,6 +68,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   const [newImageUrl, setNewImageUrl] = useState('');
   const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null);
 
+  const [isCompressingPostImage, setIsCompressingPostImage] = useState(false);
+
   // Preset sample technical equipment photos
   const PRESET_POST_IMAGES = [
     { label: 'Instalação Solar', url: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=800&auto=format&fit=crop&q=80' },
@@ -73,21 +78,21 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     { label: 'Medição & Instrumentação', url: 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=800&auto=format&fit=crop&q=80' }
   ];
 
-  // Handle local image upload
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle local image upload with Canvas client-side compression
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 4 * 1024 * 1024) {
-        alert('A foto deve ter no máximo 4MB.');
-        return;
+      setIsCompressingPostImage(true);
+      try {
+        const compressedDataUrl = await compressImageToDataUrl(file, 800, 800, 0.6);
+        setUploadedImagePreview(compressedDataUrl);
+        setNewImageUrl(compressedDataUrl);
+      } catch (err) {
+        console.error('Erro ao comprimir foto:', err);
+        alert('Erro ao processar imagem. Tente outra foto.');
+      } finally {
+        setIsCompressingPostImage(false);
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        setUploadedImagePreview(result);
-        setNewImageUrl(result);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -150,7 +155,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     setIsCreateModalOpen(false);
   };
 
-  const handleSendComment = (postId: string) => {
+  const handleSendComment = async (postId: string, e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const text = commentText[postId];
     if (!currentUser) {
       alert('Faça login para comentar.');
@@ -161,12 +167,26 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       setIsSeloModalOpen(true);
       return;
     }
-    if (!text || !text.trim()) return;
+    if (!text || !text.trim() || isSubmittingComment[postId]) return;
 
     const reply = replyingTo[postId];
-    addPostComment(postId, text, reply?.id);
-    setCommentText(prev => ({ ...prev, [postId]: '' }));
-    setReplyingTo(prev => ({ ...prev, [postId]: null }));
+    setIsSubmittingComment(prev => ({ ...prev, [postId]: true }));
+
+    try {
+      const result = await addPostComment(postId, text, reply?.id, reply?.authorName);
+      if (result?.success !== false) {
+        // Limpar o campo e o reply apenas após confirmação
+        setCommentText(prev => ({ ...prev, [postId]: '' }));
+        setReplyingTo(prev => ({ ...prev, [postId]: null }));
+      } else {
+        alert(result?.error || 'Erro ao publicar comentário.');
+      }
+    } catch (err: any) {
+      console.error('Erro ao enviar comentário:', err);
+      alert(err?.message || 'Falha ao enviar comentário.');
+    } finally {
+      setIsSubmittingComment(prev => ({ ...prev, [postId]: false }));
+    }
   };
 
   // Filter posts
@@ -666,28 +686,37 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                           </p>
                         )}
 
-                        {/* Add Comment Input */}
-                        <div className="flex items-center gap-2 pt-2">
+                        {/* Add Comment Input Form */}
+                        <form
+                          onSubmit={(e) => handleSendComment(post.id, e)}
+                          className="flex items-center gap-2 pt-2"
+                        >
                           <input
                             type="text"
                             value={commentText[post.id] || ''}
                             onChange={e => setCommentText({ ...commentText, [post.id]: e.target.value })}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleSendComment(post.id);
-                            }}
                             placeholder={currentUser ? (replyingTo[post.id] ? `Respondendo a @${replyingTo[post.id]?.authorName}...` : 'Escreva uma resposta técnica ou dica...') : 'Faça login para comentar'}
-                            disabled={!currentUser}
-                            className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500"
+                            disabled={!currentUser || isSubmittingComment[post.id]}
+                            className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
                           />
                           <button
-                            onClick={() => handleSendComment(post.id)}
-                            disabled={!currentUser || !commentText[post.id]?.trim()}
+                            type="submit"
+                            disabled={!currentUser || !commentText[post.id]?.trim() || isSubmittingComment[post.id]}
                             className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0"
                           >
-                            <Send className="w-3.5 h-3.5" />
-                            <span>{replyingTo[post.id] ? 'Enviar Resposta' : 'Comentar'}</span>
+                            {isSubmittingComment[post.id] ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>A enviar...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-3.5 h-3.5" />
+                                <span>{replyingTo[post.id] ? 'Enviar Resposta' : 'Comentar'}</span>
+                              </>
+                            )}
                           </button>
-                        </div>
+                        </form>
                       </div>
                     )}
                   </div>
@@ -968,10 +997,20 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs transition flex items-center gap-2 shadow-md shadow-indigo-600/20"
+                  disabled={isCompressingPostImage}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs transition flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Publicar no Mural</span>
+                  {isCompressingPostImage ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Comprimindo foto...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Publicar no Mural</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

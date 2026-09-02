@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Image as ImageIcon, Type, Sparkles, Upload, Loader2, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { compressImageToDataUrl, uploadImageFile } from '../../utils/imageUpload';
 
 interface CreateStoryModalProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ const GRADIENT_PRESETS = [
   { id: 'blue', name: 'Azul Técnico', class: 'from-blue-900 via-indigo-950 to-slate-950', textClass: 'text-white' },
   { id: 'emerald', name: 'Verde Energia', class: 'from-emerald-950 via-teal-900 to-slate-950', textClass: 'text-emerald-50' },
   { id: 'amber', name: 'Ouro Industrial', class: 'from-amber-950 via-yellow-950 to-slate-950', textClass: 'text-amber-100' },
-  { id: 'purple', name: 'Violeta Elétrico', class: 'from-purple-950 via-indigo-900 to-slate-950', textClass: 'text-purple-100' }
+  { id: 'purple', name: 'Violeta Elétrico', class: 'from-purple-950 via-indigo-950 to-slate-950', textClass: 'text-purple-100' }
 ];
 
 export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onClose }) => {
@@ -25,33 +26,39 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
   const [selectedGradient, setSelectedGradient] = useState(GRADIENT_PRESETS[0]);
   const [imageUrl, setImageUrl] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('A imagem deve ter no máximo 5MB.');
-        return;
-      }
       setError(null);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setImagePreview(base64);
-        setImageUrl(base64);
-      };
-      reader.readAsDataURL(file);
+      setIsCompressing(true);
+      try {
+        // High-performance canvas compression to max 1200px and 0.78 quality
+        const compressedDataUrl = await compressImageToDataUrl(file, 1200, 1200, 0.78);
+        setImagePreview(compressedDataUrl);
+        setImageUrl(compressedDataUrl);
+      } catch (err: any) {
+        console.error('Erro ao processar imagem:', err);
+        setError('Não foi possível comprimir a foto. Tente outra imagem.');
+      } finally {
+        setIsCompressing(false);
+      }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
+    if (!currentUser) {
+      setError('Faça login para publicar uma história.');
+      return;
+    }
 
     if (mode === 'text' && !text.trim()) {
       setError('Por favor, escreva uma mensagem para a sua história.');
@@ -59,7 +66,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
     }
 
     if (mode === 'image' && !imageUrl && !imagePreview) {
-      setError('Por favor, selecione ou insira uma imagem para a sua história.');
+      setError('Por favor, selecione uma foto ou trabalho para a sua história.');
       return;
     }
 
@@ -67,9 +74,28 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
     setError(null);
 
     try {
+      let finalImageUrl: string | undefined = undefined;
+
+      // Scenario A: Image Story -> Compress and upload
+      if (mode === 'image') {
+        const rawSource = imagePreview || imageUrl;
+        if (rawSource) {
+          setUploadStatus('A carregar foto...');
+          finalImageUrl = await uploadImageFile(
+            rawSource,
+            'historias',
+            `story_${currentUser.uid}_${Date.now()}`,
+            800,
+            0.6
+          );
+        }
+      }
+
+      // Scenario B: Text Story or Image Story with text
+      setUploadStatus('A publicar história...');
       const res = await createStory({
         text: text.trim() || undefined,
-        imageUrl: mode === 'image' ? (imageUrl || imagePreview || undefined) : undefined,
+        imageUrl: mode === 'image' ? finalImageUrl : undefined,
         backgroundColor: mode === 'text' ? selectedGradient.class : 'from-slate-950 to-slate-900',
         textColor: '#ffffff'
       });
@@ -81,15 +107,18 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
           setText('');
           setImagePreview(null);
           setImageUrl('');
+          setUploadStatus('');
           onClose();
         }, 1200);
       } else {
         setError(res.error || 'Erro ao publicar história.');
       }
     } catch (err: any) {
+      console.error('Erro ao publicar história:', err);
       setError(err?.message || 'Falha na publicação.');
     } finally {
       setIsSubmitting(false);
+      setUploadStatus('');
     }
   };
 
@@ -219,7 +248,13 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
               {/* Mode: IMAGE */}
               {mode === 'image' && (
                 <div className="space-y-4">
-                  {imagePreview ? (
+                  {isCompressing ? (
+                    <div className="border-2 border-dashed border-blue-500/50 rounded-2xl p-8 flex flex-col items-center justify-center text-center bg-slate-800/60 animate-pulse">
+                      <Loader2 className="w-8 h-8 text-blue-400 animate-spin mb-2" />
+                      <span className="text-sm font-bold text-white">Comprimindo e Otimizando Imagem...</span>
+                      <span className="text-xs text-slate-400 mt-1">Ajustando resolução para carregamento rápido</span>
+                    </div>
+                  ) : imagePreview ? (
                     <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-700/80 h-52 sm:h-64 flex items-center justify-center group">
                       <img
                         src={imagePreview}
@@ -244,7 +279,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
                         <Upload className="w-6 h-6" />
                       </div>
                       <span className="text-sm font-semibold text-white">Carregar Foto do Trabalho</span>
-                      <span className="text-xs text-slate-400 mt-1">PNG, JPG ou WEBP até 5MB</span>
+                      <span className="text-xs text-slate-400 mt-1">Otimização automática para fotos pesadas (&gt; 1MB)</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -257,7 +292,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
                   {/* Caption */}
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">
-                      Legenda Opcional
+                      Legenda / Descrição do Trabalho
                     </label>
                     <input
                       type="text"
@@ -275,13 +310,18 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isCompressing}
                   className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-all"
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
                       <span>Publicando História...</span>
+                    </>
+                  ) : isCompressing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Processando Foto...</span>
                     </>
                   ) : (
                     <>
