@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
+import { soundFX } from '../../utils/audio';
 import {
   X,
   ArrowLeft,
@@ -28,6 +29,17 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 }) => {
   const { technicians, companies, jobs, marketItems, academyArticles } = useData();
   const [query, setQuery] = useState('');
+
+  const handleClose = () => {
+    soundFX.playModalClose();
+    onClose();
+  };
+
+  const handleSelect = (tab: string, item?: any) => {
+    soundFX.playClick();
+    onSelectResult(tab, item);
+    handleClose();
+  };
 
   if (!isOpen) return null;
 
@@ -94,7 +106,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
         {/* Search Bar Input */}
         <div className="p-3.5 sm:p-5 border-b border-slate-200 flex items-center gap-2.5 sm:gap-3 bg-slate-50">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 flex items-center gap-1 text-xs font-bold transition shadow-2xs"
             title="Voltar / Fechar pesquisa"
           >
@@ -119,7 +131,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
             </button>
           )}
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
             title="Fechar (X)"
           >

@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { TechnicianProfile } from '../../types';
 import { Badge } from '../common/Badge';
 import { WhatsAppButton } from './WhatsAppButton';
-import { Star, CheckCircle2, MapPin, Clock, ArrowRight, Heart, Calendar, Sparkles } from 'lucide-react';
+import { Star, CheckCircle2, MapPin, Clock, ArrowRight, Heart, Calendar, Sparkles, MessageSquare } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
+import { soundFX } from '../../utils/audio';
+import { UserRankBadge } from '../../utils/gamification';
 
 interface TechnicianCardProps {
   technician: TechnicianProfile;
   onSelect: (technician: TechnicianProfile) => void;
   onRequestQuote?: (technician: TechnicianProfile) => void;
+  onOpenMessages?: (userId: string, userName: string, role: string) => void;
   rank?: number;
 }
 
@@ -17,6 +20,7 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
   technician,
   onSelect,
   onRequestQuote,
+  onOpenMessages,
   rank
 }) => {
   const { isFavorite, toggleFavorite } = useData();
@@ -54,6 +58,7 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
   const handleGiveLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isLiking || hasLiked) return;
+    soundFX.playLike();
     setIsLiking(true);
     setHasLiked(true);
     setLikeCount(prev => prev + 1);
@@ -116,6 +121,7 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
+              soundFX.playClick();
               toggleFavorite(technician.userId);
             }}
             className={`p-1.5 rounded-full transition ${
@@ -153,9 +159,12 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-base sm:text-lg font-black text-slate-900 truncate tracking-tight group-hover:text-blue-600 transition">
-            {technician?.name || 'Técnico Especialista'}
-          </h3>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h3 className="text-base sm:text-lg font-black text-slate-900 truncate tracking-tight group-hover:text-blue-600 transition">
+              {technician?.name || 'Técnico Especialista'}
+            </h3>
+            <UserRankBadge points={technician.pontos ?? technician.scoreEngajamento ?? 0} size="xs" />
+          </div>
           <p className="text-xs font-semibold text-blue-700 truncate mt-0.5">
             {technician?.specialties?.[0] || 'Eletricidade'}
             {technician?.specialties && technician.specialties.length > 1 && ` +${technician.specialties.length - 1}`}
@@ -211,9 +220,25 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
           technicianName={technician.name}
           className="flex-1 text-[11px] py-2"
         />
+        {onOpenMessages && (
+          <button
+            onClick={() => {
+              soundFX.playModalOpen();
+              onOpenMessages(technician.userId || (technician as any).id, technician.name, 'technician');
+            }}
+            className="px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-blue-200 shrink-0"
+            title="Mensagem Direta / Chat Privado"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+            <span>Chat</span>
+          </button>
+        )}
         <button
-          onClick={() => onSelect(technician)}
-          className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+          onClick={() => {
+            soundFX.playModalOpen();
+            onSelect(technician);
+          }}
+          className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
           title="Ver perfil completo"
         >
           <span>Perfil</span>

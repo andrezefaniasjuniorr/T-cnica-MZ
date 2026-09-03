@@ -4,6 +4,7 @@ import { useData } from '../../context/DataContext';
 import { SeloMZModal } from './SeloMZModal';
 import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../firebase/config';
+import { soundFX } from '../../utils/audio';
 import {
   X,
   ArrowLeft,
@@ -223,6 +224,11 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   };
 
+  const handleClose = () => {
+    soundFX.playModalClose();
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs">
       <div className="relative w-full max-w-3xl h-[85vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
@@ -231,7 +237,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white p-3.5 sm:p-5 flex items-center justify-between border-b border-blue-900/50">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1 text-xs font-bold"
               title="Sair / Voltar"
             >
@@ -254,7 +260,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition"
             title="Fechar (X)"
           >

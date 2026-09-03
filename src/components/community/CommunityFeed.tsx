@@ -5,6 +5,8 @@ import { TECHNICAL_CATEGORIES, MOZAMBIQUE_PROVINCES } from '../../types';
 import { StoriesCarousel } from './StoriesCarousel';
 import { SeloMZModal } from '../common/SeloMZModal';
 import { compressImageToDataUrl } from '../../utils/imageUpload';
+import { soundFX } from '../../utils/audio';
+import { UserRankBadge } from '../../utils/gamification';
 import {
   MessageSquare,
   Sparkles,
@@ -39,15 +41,26 @@ interface CommunityFeedProps {
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) => {
   const {
     communityPosts,
+    technicians,
     addCommunityPost,
     togglePostReaction,
     addPostComment,
     deleteCommunityPost,
     toggleCommunityCommentLike,
     deleteCommunityComment,
+    markAcceptedSolution,
     startOrGetConversation
   } = useData();
   const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ } = useAuth();
+
+  const getAuthorPoints = (authorId?: string) => {
+    if (!authorId) return 0;
+    if (currentUser && currentUser.uid === authorId) {
+      return currentUser.pontos ?? currentUser.scoreEngajamento ?? 0;
+    }
+    const tech = technicians?.find(t => t.userId === authorId);
+    return tech?.pontos ?? tech?.scoreEngajamento ?? 0;
+  };
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -117,6 +130,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       setIsSeloModalOpen(true);
       return;
     }
+    soundFX.playModalOpen();
     setIsCreateModalOpen(true);
   };
 
@@ -147,6 +161,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       images: imagesToSave
     });
 
+    // Sound effect on post creation
+    soundFX.playPost();
+
     // Reset
     setNewTitle('');
     setNewContent('');
@@ -175,6 +192,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     try {
       const result = await addPostComment(postId, text, reply?.id, reply?.authorName);
       if (result?.success !== false) {
+        // Sound effect on successful comment submission
+        soundFX.playComment();
+
         // Limpar o campo e o reply apenas após confirmação
         setCommentText(prev => ({ ...prev, [postId]: '' }));
         setReplyingTo(prev => ({ ...prev, [postId]: null }));
@@ -376,6 +396,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm sm:text-base font-black text-slate-900">{post.authorName || 'Usuário'}</h3>
+                            <UserRankBadge points={getAuthorPoints(post.authorId)} size="xs" />
                             {post.authorRole === 'super_admin' && (
                               <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black">
                                 Super Admin
@@ -409,8 +430,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                         </div>
                       </div>
 
-                      {/* Top actions: Category badge & Delete */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      {/* Top actions: Category badge, Solution badge & Delete */}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {post.solucaoAceita && (
+                          <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Solução Aceita</span>
+                          </span>
+                        )}
+
                         <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
                           {post.category}
                         </span>
@@ -473,7 +501,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         {/* 1. Useful / Prático */}
                         <button
-                          onClick={() => togglePostReaction(post.id, 'useful')}
+                          onClick={() => {
+                            soundFX.playLike();
+                            togglePostReaction(post.id, 'useful');
+                          }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
                             hasUseful
                               ? 'bg-amber-100 text-amber-800 border border-amber-300 font-black'
@@ -492,7 +523,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
 
                         {/* 2. Insightful / Técnico */}
                         <button
-                          onClick={() => togglePostReaction(post.id, 'insightful')}
+                          onClick={() => {
+                            soundFX.playLike();
+                            togglePostReaction(post.id, 'insightful');
+                          }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
                             hasInsightful
                               ? 'bg-blue-100 text-blue-800 border border-blue-300 font-black'
@@ -511,7 +545,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
 
                         {/* 3. Applause / Parabéns */}
                         <button
-                          onClick={() => togglePostReaction(post.id, 'applause')}
+                          onClick={() => {
+                            soundFX.playLike();
+                            togglePostReaction(post.id, 'applause');
+                          }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
                             hasApplause
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-black'
@@ -530,7 +567,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
 
                         {/* 4. Question / Dúvida */}
                         <button
-                          onClick={() => togglePostReaction(post.id, 'question')}
+                          onClick={() => {
+                            soundFX.playLike();
+                            togglePostReaction(post.id, 'question');
+                          }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
                             hasQuestion
                               ? 'bg-purple-100 text-purple-800 border border-purple-300 font-black'
@@ -604,12 +644,31 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                               const isPostOwner = comment.authorId === post.authorId;
                               const hasLikedComment = currentUser && comment.likes?.includes(currentUser.uid);
                               const canDeleteComment = isCommentAuthor || isPostAuthor || isAdmin;
+                              const isAcceptedSolution = Boolean(
+                                comment.solucaoAceita ||
+                                (post.comentarioSolucaoId && post.comentarioSolucaoId === comment.id)
+                              );
+                              const canMarkSolution = (isPostAuthor || isAdmin) && !isAcceptedSolution;
 
                               return (
-                                <div key={comment.id} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                                <div
+                                  key={comment.id}
+                                  className={`p-3.5 rounded-xl transition-all space-y-2 ${
+                                    isAcceptedSolution
+                                      ? 'bg-emerald-50/70 border-2 border-emerald-500 ring-2 ring-emerald-200 shadow-md'
+                                      : 'bg-white border border-slate-200 shadow-2xs'
+                                  }`}
+                                >
                                   <div className="flex items-center justify-between text-xs flex-wrap gap-1">
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="font-black text-slate-900">{comment.authorName || 'Usuário'}</span>
+                                      <UserRankBadge points={getAuthorPoints(comment.authorId)} size="xs" />
+                                      {isAcceptedSolution && (
+                                        <span className="text-[10px] px-2.5 py-0.5 bg-emerald-600 text-white rounded-full font-black flex items-center gap-1 shadow-xs animate-pulse">
+                                          <CheckCircle2 className="w-3 h-3 text-white" />
+                                          ✔ Solução Oficial
+                                        </span>
+                                      )}
                                       {isPostOwner && (
                                         <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-900 rounded-full font-black border border-amber-200 flex items-center gap-1">
                                           ★ Autor da Publicação
@@ -628,12 +687,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                                     {comment.text}
                                   </p>
 
-                                  {/* Comment Footer: Like, Reply, Delete */}
-                                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                                  {/* Comment Footer: Like, Reply, Accept Solution, Delete */}
+                                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] flex-wrap gap-2">
                                     <div className="flex items-center gap-3">
                                       {/* Like comment */}
                                       <button
-                                        onClick={() => toggleCommunityCommentLike(post.id, comment.id)}
+                                        onClick={() => {
+                                          soundFX.playLike();
+                                          toggleCommunityCommentLike(post.id, comment.id);
+                                        }}
                                         className={`flex items-center gap-1 font-bold transition px-2 py-0.5 rounded-lg ${
                                           hasLikedComment
                                             ? 'text-rose-600 bg-rose-50'
@@ -662,19 +724,35 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                                       </button>
                                     </div>
 
-                                    {canDeleteComment && (
-                                      <button
-                                        onClick={() => {
-                                          if (confirm('Excluir este comentário?')) {
-                                            deleteCommunityComment(post.id, comment.id);
-                                          }
-                                        }}
-                                        className="text-slate-400 hover:text-red-600 p-1 rounded transition"
-                                        title="Excluir comentário"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                      {/* Mark Accepted Solution Button */}
+                                      {canMarkSolution && (
+                                        <button
+                                          onClick={() => {
+                                            markAcceptedSolution(post.id, comment.id);
+                                          }}
+                                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-[10px] font-black flex items-center gap-1 transition shadow-2xs active:scale-95 cursor-pointer"
+                                          title="Marcar este comentário como a Solução Oficial (+50 pontos ao autor)"
+                                        >
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                          <span>Aceitar Solução (+50 pts)</span>
+                                        </button>
+                                      )}
+
+                                      {canDeleteComment && (
+                                        <button
+                                          onClick={() => {
+                                            if (confirm('Excluir este comentário?')) {
+                                              deleteCommunityComment(post.id, comment.id);
+                                            }
+                                          }}
+                                          className="text-slate-400 hover:text-red-600 p-1 rounded transition"
+                                          title="Excluir comentário"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -729,6 +807,58 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
 
           {/* Desktop Right Sidebar Column (Hidden on mobile, visible on lg) */}
           <aside className="hidden lg:block lg:col-span-4 space-y-5 sticky top-20">
+            {/* Widget 0: Ranking da Bancada / Gamificação */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
+                  <Award className="w-4 h-4 text-amber-500" />
+                  <span>Ranking da Bancada</span>
+                </div>
+                <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  TOP PONTOS
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Técnicos com mais soluções aceitas e pontuações acumuladas:
+              </p>
+              <div className="space-y-2">
+                {[...technicians]
+                  .sort((a, b) => ((b.pontos ?? b.scoreEngajamento ?? 0) - (a.pontos ?? a.scoreEngajamento ?? 0)))
+                  .slice(0, 4)
+                  .map((tech, idx) => {
+                    const techPoints = tech.pontos ?? tech.scoreEngajamento ?? 0;
+                    return (
+                      <div
+                        key={tech.userId || idx}
+                        onClick={() => onNavigateTab('technicians_directory')}
+                        className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50 hover:bg-slate-100/80 transition cursor-pointer border border-slate-100"
+                        title="Ver técnico no diretório"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${
+                            idx === 0 ? 'bg-amber-400 text-slate-950 shadow-2xs' :
+                            idx === 1 ? 'bg-slate-300 text-slate-800' :
+                            idx === 2 ? 'bg-amber-700 text-white' :
+                            'bg-slate-200 text-slate-600'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-slate-900 truncate">{tech.name}</p>
+                            <div className="mt-0.5">
+                              <UserRankBadge points={techPoints} size="xs" />
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-xs font-mono font-black text-blue-600 shrink-0">
+                          {techPoints} pts
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
             {/* Widget 1: Official Emergency & EDM Contacts */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-3">
               <div className="flex items-center gap-2 text-slate-900 font-black text-sm">

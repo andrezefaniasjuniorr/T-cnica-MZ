@@ -251,6 +251,16 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
                           </a>
                         )}
 
+                        {onOpenMessages && (
+                          <button
+                            onClick={() => onOpenMessages(tech.userId, tech.name, 'technician')}
+                            className="p-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 transition border border-blue-200"
+                            title="Mensagem Direta / Chat"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         <button
                           onClick={() => setSelectedTechForDetail(tech)}
                           className="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition flex items-center gap-1"
@@ -338,6 +348,7 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
               rank={idx + 1}
               onSelect={selected => setSelectedTechForDetail(selected)}
               onRequestQuote={handleRequestQuoteDefault}
+              onOpenMessages={onOpenMessages}
             />
           ))}
         </div>
@@ -348,6 +359,7 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
         technician={selectedTechForDetail}
         onClose={() => setSelectedTechForDetail(null)}
         onRequestQuote={handleRequestQuoteDefault}
+        onOpenMessages={onOpenMessages}
       />
 
       {/* Digital Business Card Modal */}

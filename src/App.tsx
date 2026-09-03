@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 // Layout & Core Screens
 import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
+import { MobileExtraMenuDrawer } from './components/layout/MobileExtraMenuDrawer';
 import { AuthScreen } from './components/auth/AuthScreen';
 
 // Main Functional Tabs
@@ -122,6 +123,7 @@ const AppContent: React.FC = () => {
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [targetMessageUser, setTargetMessageUser] = useState<{ id: string; name: string; role: string } | null>(null);
 
   const [isAccessDeniedOpen, setIsAccessDeniedOpen] = useState(false);
@@ -394,6 +396,7 @@ const AppContent: React.FC = () => {
         }}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
         unreadNotificationsCount={0}
+        onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
       />
 
       {/* 2. Main Content Body */}
@@ -474,6 +477,7 @@ const AppContent: React.FC = () => {
         activeTab={activeTab}
         onNavigateTab={handleNavigate}
         onOpenSaraAi={() => setIsSaraAiOpen(true)}
+        onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
       />
 
       {/* 4. Global Official Footer */}
@@ -592,6 +596,20 @@ const AppContent: React.FC = () => {
         onClose={() => setIsAccessDeniedOpen(false)}
         requiredRole={requiredRoleForDenied}
         onOpenAuth={() => handleNavigate('settings')}
+      />
+
+      {/* 5. Mobile Extra Menu Drawer (All Options Grid & Sound Settings) */}
+      <MobileExtraMenuDrawer
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        activeTab={activeTab}
+        onNavigateTab={handleNavigate}
+        onOpenSaraAi={() => setIsSaraAiOpen(true)}
+        onOpenMessages={() => {
+          setTargetMessageUser(null);
+          setIsMessagesOpen(true);
+        }}
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { WhatsAppButton } from './WhatsAppButton';
 import { Badge } from '../common/Badge';
+import { UserRankBadge } from '../../utils/gamification';
 import {
   X,
   ArrowLeft,
@@ -20,19 +21,22 @@ import {
   Layers,
   Send,
   Phone,
-  Mail
+  Mail,
+  MessageSquare
 } from 'lucide-react';
 
 interface TechnicianDetailModalProps {
   technician: TechnicianProfile | null;
   onClose: () => void;
   onRequestQuote: (technician: TechnicianProfile) => void;
+  onOpenMessages?: (userId: string, userName: string, role: string) => void;
 }
 
 export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   technician,
   onClose,
-  onRequestQuote
+  onRequestQuote,
+  onOpenMessages
 }) => {
   const { reviews, portfolio, isFavorite, toggleFavorite, submitReport } = useData();
   const { currentUser, giveTechnicianLike } = useAuth();
@@ -201,6 +205,18 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
                 technicianName={technician.name}
                 className="flex-1 sm:flex-none"
               />
+              {onOpenMessages && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenMessages(technician.userId || (technician as any).id, technician.name, 'technician');
+                  }}
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Mensagem Direta / Chat</span>
+                </button>
+              )}
               <button
                 onClick={() => onRequestQuote(technician)}
                 className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm"
@@ -216,6 +232,13 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 {technician.name}
               </h2>
+              <UserRankBadge points={technician.pontos ?? technician.scoreEngajamento ?? 0} showPoints size="sm" />
+              {(technician.streakCount && technician.streakCount > 0) && (
+                <span className="px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-black flex items-center gap-1 border border-orange-200">
+                  <span className="text-sm">🔥</span>
+                  <span>{technician.streakCount} dias na bancada</span>
+                </span>
+              )}
               {/* Age badge */}
               <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1 border border-slate-200">
                 <Calendar className="w-3.5 h-3.5 text-slate-500" />

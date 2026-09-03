@@ -105,6 +105,11 @@ service cloud.firestore {
       allow delete: if (isAuthenticated() && resource.data.clientId == request.auth.uid) || isSuperAdmin();
     }
 
+    match /pedidos_servicos/{requestId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
     match /proposals/{proposalId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
@@ -114,6 +119,10 @@ service cloud.firestore {
         isAdmin()
       );
       allow delete: if isSuperAdmin();
+    }
+
+    match /propostas/{proposalId} {
+      allow read, write: if isAuthenticated();
     }
 
     // 7. Payments & Receipts (pagamentos)
@@ -232,8 +241,14 @@ service cloud.firestore {
     match /conversations/{conversationId} {
       allow read, write: if isAuthenticated();
     }
+    match /chats/{chatId} {
+      allow read, write: if isAuthenticated();
+    }
 
     match /messages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /mensagens_diretas/{messageId} {
       allow read, write: if isAuthenticated();
     }
 

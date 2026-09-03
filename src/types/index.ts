@@ -86,6 +86,9 @@ export interface User {
   idade?: number;
   totalLikes?: number;
   scoreEngajamento?: number;
+  pontos?: number;
+  streakCount?: number;
+  lastLoginDate?: string;
   suspensionReason?: string;
   rejectionReason?: string;
   createdAt: string;
@@ -158,6 +161,9 @@ export interface TechnicianProfile {
   idade?: number;
   totalLikes?: number;
   scoreEngajamento?: number;
+  pontos?: number;
+  streakCount?: number;
+  lastLoginDate?: string;
   coverUrl?: string;
   verificationStatus: VerificationStatus;
   verificationDocuments?: VerificationDocument[];
@@ -540,6 +546,9 @@ export interface CommunityComment {
   replyToId?: string;
   replyToName?: string;
   likes?: string[];
+  isAcceptedSolution?: boolean;
+  solucaoAceita?: boolean;
+  acceptedSolutionAt?: string;
   createdAt: string;
 }
 
@@ -557,6 +566,8 @@ export interface CommunityPost {
   category: string;
   tags?: string[];
   images?: string[];
+  solucaoAceita?: boolean;
+  comentarioSolucaoId?: string;
   reactions: {
     useful: string[];      // user IDs
     insightful: string[];  // user IDs

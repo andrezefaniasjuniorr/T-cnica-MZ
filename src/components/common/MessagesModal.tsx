@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { soundFX } from '../../utils/audio';
 import { ConversationItem, MessageItem } from '../../types';
 import {
   X,
@@ -52,7 +53,9 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
       setActiveConvId(convId);
     } else if (isOpen && currentUser && !activeConvId) {
       // Pick first conversation user is part of
-      const userConvs = conversations.filter(c => c.participantIds.includes(currentUser.uid));
+      const userConvs = (conversations || []).filter(
+        c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid)
+      );
       if (userConvs.length > 0) {
         setActiveConvId(userConvs[0].id);
       }
@@ -67,22 +70,36 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
   if (!isOpen || !currentUser) return null;
 
   // Conversations user participates in
-  const userConversations = conversations.filter(c => c.participantIds.includes(currentUser.uid));
+  const userConversations = (conversations || []).filter(
+    c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid)
+  );
 
   const filteredConversations = userConversations.filter(c => {
-    const other = c.participants.find(p => p.id !== currentUser.uid);
+    const participantsList = Array.isArray(c?.participants) ? c.participants : [];
+    const other = participantsList.find(p => p?.id !== currentUser.uid);
     if (!other) return false;
-    return other.name.toLowerCase().includes(searchTerm.toLowerCase()) || (c.lastMessage && c.lastMessage.toLowerCase().includes(searchTerm.toLowerCase()));
+    return (
+      (other.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.lastMessage && c.lastMessage.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
   });
 
-  const activeConversation = conversations.find(c => c.id === activeConvId);
-  const otherParticipant = activeConversation?.participants.find(p => p.id !== currentUser.uid);
+  const activeConversation = (conversations || []).find(c => c.id === activeConvId);
+  const otherParticipant = Array.isArray(activeConversation?.participants)
+    ? activeConversation.participants.find(p => p?.id !== currentUser.uid)
+    : null;
   const activeMessages = messages.filter(m => m.conversationId === activeConvId);
+
+  const handleClose = () => {
+    soundFX.playModalClose();
+    onClose();
+  };
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !activeConvId) return;
 
+    soundFX.playComment();
     sendMessage(activeConvId, inputText.trim());
     setInputText('');
   };
@@ -106,7 +123,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
           <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
             <div className="flex items-center gap-2">
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="p-1.5 -ml-1 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition"
                 title="Voltar / Sair do Chat"
               >
@@ -123,7 +140,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 {userConversations.length}
               </span>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
                 title="Fechar Chat"
               >
@@ -161,7 +178,10 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 return (
                   <button
                     key={c.id}
-                    onClick={() => setActiveConvId(c.id)}
+                    onClick={() => {
+                      soundFX.playClick();
+                      setActiveConvId(c.id);
+                    }}
                     className={`w-full text-left p-3 rounded-2xl transition flex items-start gap-3 ${
                       isSelected ? 'bg-blue-600 text-white shadow-xs' : 'hover:bg-slate-200/70 text-slate-800'
                     }`}
@@ -203,7 +223,10 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   {/* Mobile Back Button to conversation list */}
                   <button
-                    onClick={() => setActiveConvId(null)}
+                    onClick={() => {
+                      soundFX.playClick();
+                      setActiveConvId(null);
+                    }}
                     className="p-1.5 md:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition flex items-center gap-1 text-xs font-bold shrink-0"
                     title="Voltar para Lista de Conversas"
                   >
@@ -229,7 +252,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition flex items-center gap-1 text-xs font-bold"
                     title="Fechar Janela de Chat"
                   >

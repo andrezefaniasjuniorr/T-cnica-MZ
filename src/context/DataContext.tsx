@@ -56,6 +56,7 @@ import {
 import { useAuth } from './AuthContext';
 import { auth, db, isFirebaseConfigured } from '../firebase/config';
 import { safeGetStorageItem, safeSetStorageItem } from '../utils/storage';
+import { soundFX } from '../utils/audio';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, arrayUnion, increment } from 'firebase/firestore';
 
 const formatTimestampToIso = (val: any): string => {
@@ -194,6 +195,7 @@ interface DataContextType {
   toggleCommunityCommentLike: (postId: string, commentId: string) => void;
   deleteCommunityComment: (postId: string, commentId: string) => void;
   deleteCommunityPost: (postId: string) => void;
+  markAcceptedSolution: (postId: string, commentId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Academy
   addAcademyArticle: (article: Omit<AcademyArticle, 'id' | 'verifiedByAdmin'>) => void;
@@ -432,6 +434,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   replyToId: cData.replyToId || undefined,
                   replyToName: cData.replyToName || undefined,
                   likes: Array.isArray(cData.likes) ? cData.likes : [],
+                  isAcceptedSolution: Boolean(cData.isAcceptedSolution || cData.solucaoAceita),
+                  solucaoAceita: Boolean(cData.solucaoAceita || cData.isAcceptedSolution),
+                  acceptedSolutionAt: cData.acceptedSolutionAt || undefined,
                   createdAt: formatTimestampToIso(cData.criadoEm || cData.createdAt || cData.createdAtIso)
                 });
               });
@@ -442,6 +447,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               if (existing) {
                 const mergedPost = {
                   ...existing,
+                  solucaoAceita: existing.solucaoAceita || loadedComments.some(c => c.solucaoAceita),
                   comments: loadedComments,
                   commentsCount: Math.max(loadedComments.length, existing.commentsCount || 0)
                 };
@@ -487,7 +493,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           question: Array.isArray(rawReactions.question) ? rawReactions.question : []
         },
         commentsCount: typeof data.commentsCount === 'number' ? data.commentsCount : (Array.isArray(data.comments) ? data.comments.length : 0),
-        comments: Array.isArray(data.comments) ? data.comments : [],
+        comments: Array.isArray(data.comments)
+          ? data.comments.map((c: any) => ({
+              ...c,
+              solucaoAceita: Boolean(c.solucaoAceita || c.isAcceptedSolution || (data.comentarioSolucaoId && c.id === data.comentarioSolucaoId)),
+              isAcceptedSolution: Boolean(c.isAcceptedSolution || c.solucaoAceita || (data.comentarioSolucaoId && c.id === data.comentarioSolucaoId))
+            }))
+          : [],
+        solucaoAceita: Boolean(data.solucaoAceita),
+        comentarioSolucaoId: data.comentarioSolucaoId || undefined,
         pinned: Boolean(data.pinned),
         createdAt: formatTimestampToIso(data.createdAt || data.data || data.dataEnvio || data.createdAtIso)
       };
@@ -532,30 +546,62 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.warn('Realtime market_items notice:', err)
     );
 
+    const convsMap = new Map<string, ConversationItem>();
+    const updateMergedConversations = () => {
+      const list = Array.from(convsMap.values());
+      list.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
+      setConversations(list);
+    };
+
     const unsubConversations = onSnapshot(
       collection(db, 'conversations'),
       (snapshot) => {
-        const list: ConversationItem[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as ConversationItem);
+          convsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as ConversationItem);
         });
-        list.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
-        setConversations(list);
+        updateMergedConversations();
       },
       (err) => console.warn('Realtime conversations notice:', err)
     );
 
+    const unsubChats = onSnapshot(
+      collection(db, 'chats'),
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          convsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as ConversationItem);
+        });
+        updateMergedConversations();
+      },
+      (err) => console.warn('Realtime chats notice:', err)
+    );
+
+    const msgsMap = new Map<string, MessageItem>();
+    const updateMergedMessages = () => {
+      const list = Array.from(msgsMap.values());
+      list.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+      setMessages(list);
+    };
+
     const unsubMessages = onSnapshot(
       collection(db, 'messages'),
       (snapshot) => {
-        const list: MessageItem[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as MessageItem);
+          msgsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as MessageItem);
         });
-        list.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-        setMessages(list);
+        updateMergedMessages();
       },
       (err) => console.warn('Realtime messages notice:', err)
+    );
+
+    const unsubMensagensDiretas = onSnapshot(
+      collection(db, 'mensagens_diretas'),
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          msgsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as MessageItem);
+        });
+        updateMergedMessages();
+      },
+      (err) => console.warn('Realtime mensagens_diretas notice:', err)
     );
 
     // 3. Technicians & Usuários real-time sync for "Técnicos MZ"
@@ -623,6 +669,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         photoURL: data.photoURL || data.avatarUrl || data.foto || '',
         totalLikes,
         scoreEngajamento,
+        pontos: typeof data.pontos === 'number' ? data.pontos : scoreEngajamento,
+        streakCount: typeof data.streakCount === 'number' ? data.streakCount : 1,
+        lastLoginDate: data.lastLoginDate || data.ultimoAcesso || '',
         verificationStatus: data.verificationStatus || (data.isVerified ? 'approved' : 'none'),
         statusAprovacao: data.statusAprovacao || 'aprovado',
         statusConta: data.statusConta || 'ativa',
@@ -755,6 +804,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.warn('Realtime payments notice:', err)
     );
 
+    const unsubPortfolio = onSnapshot(
+      collection(db, 'portfolio'),
+      (snapshot) => {
+        const list: PortfolioItem[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as PortfolioItem);
+        });
+        if (list.length > 0) {
+          setPortfolio(list);
+        }
+      },
+      (err) => console.warn('Realtime portfolio notice:', err)
+    );
+
     const unsubNotifications = onSnapshot(
       collection(db, 'notifications'),
       (snapshot) => {
@@ -776,7 +839,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       commentUnsubs.forEach(u => u());
       unsubMarket();
       unsubConversations();
+      unsubChats();
       unsubMessages();
+      unsubMensagensDiretas();
       unsubTechs();
       unsubUsuarios();
       unsubUsers();
@@ -786,6 +851,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubProposals();
       unsubReviews();
       unsubPayments();
+      unsubPortfolio();
       unsubNotifications();
     };
   }, []);
@@ -910,6 +976,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString()
     };
     setNotifications(prev => [newNotif, ...prev]);
+
+    if (isFirebaseConfigured && db && userId) {
+      try {
+        // 1. Salvar na coleção geral de notificações
+        setDoc(doc(db, 'notifications', newNotif.id), newNotif).catch(() => {});
+        // 2. Salvar na subcoleção notificacoes do usuário no Firestore
+        setDoc(doc(db, 'users', userId, 'notificacoes', newNotif.id), newNotif).catch(() => {});
+        setDoc(doc(db, 'usuarios', userId, 'notificacoes', newNotif.id), newNotif).catch(() => {});
+        // 3. Salvar no array notificacoes do documento de usuário
+        updateDoc(doc(db, 'users', userId), {
+          notificacoes: arrayUnion(newNotif)
+        }).catch(() => {});
+        updateDoc(doc(db, 'usuarios', userId), {
+          notificacoes: arrayUnion(newNotif)
+        }).catch(() => {});
+      } catch (e) {
+        console.warn('Erro ao salvar notificação no Firestore:', e);
+      }
+    }
   };
 
   // Technician Get & Updates
@@ -1302,7 +1387,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Service Requests & Proposals
-  const createServiceRequest = (data: Omit<ServiceRequest, 'id' | 'createdAt' | 'status' | 'proposalsCount'>) => {
+  const createServiceRequest = async (data: Omit<ServiceRequest, 'id' | 'createdAt' | 'status' | 'proposalsCount'>) => {
     const newReq: ServiceRequest = {
       ...data,
       id: `req_${Date.now()}`,
@@ -1311,6 +1396,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString()
     };
     setServiceRequests(prev => [newReq, ...prev]);
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'serviceRequests', newReq.id), newReq);
+        await setDoc(doc(db, 'pedidos_servicos', newReq.id), newReq).catch(() => {});
+      } catch (err) {
+        console.warn('Firestore create service request error:', err);
+      }
+    }
 
     // Notify technicians matching category
     technicians
@@ -1327,13 +1421,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
   };
 
-  const updateRequestStatus = (requestId: string, status: ServiceRequest['status']) => {
+  const updateRequestStatus = async (requestId: string, status: ServiceRequest['status']) => {
     setServiceRequests(prev =>
       prev.map(r => (r.id === requestId ? { ...r, status, updatedAt: new Date().toISOString() } : r))
     );
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'serviceRequests', requestId), { status, updatedAt: new Date().toISOString() });
+        await updateDoc(doc(db, 'pedidos_servicos', requestId), { status, updatedAt: new Date().toISOString() }).catch(() => {});
+      } catch (err) {
+        console.warn('Firestore update request status error:', err);
+      }
+    }
   };
 
-  const submitProposal = (data: Omit<Proposal, 'id' | 'createdAt' | 'status'>) => {
+  const submitProposal = async (data: Omit<Proposal, 'id' | 'createdAt' | 'status'>) => {
     const newProp: Proposal = {
       ...data,
       id: `prop_${Date.now()}`,
@@ -1355,6 +1458,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : r
       )
     );
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'proposals', newProp.id), newProp);
+        await setDoc(doc(db, 'propostas', newProp.id), newProp).catch(() => {});
+        await updateDoc(doc(db, 'serviceRequests', data.requestId), {
+          proposalsCount: increment(1),
+          status: 'receiving_proposals',
+          updatedAt: new Date().toISOString()
+        }).catch(() => {});
+        await updateDoc(doc(db, 'pedidos_servicos', data.requestId), {
+          proposalsCount: increment(1),
+          status: 'receiving_proposals',
+          updatedAt: new Date().toISOString()
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('Firestore submit proposal error:', err);
+      }
+    }
 
     // Notify client
     createNotification(
@@ -1443,17 +1565,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Portfolio
-  const addPortfolioItem = (item: Omit<PortfolioItem, 'id' | 'createdAt'>) => {
+  const addPortfolioItem = async (item: Omit<PortfolioItem, 'id' | 'createdAt'>) => {
     const newItem: PortfolioItem = {
       ...item,
       id: `port_${Date.now()}`,
       createdAt: new Date().toISOString()
     };
     setPortfolio(prev => [newItem, ...prev]);
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'portfolio', newItem.id), newItem);
+      } catch (err) {
+        console.warn('Firestore add portfolio error:', err);
+      }
+    }
   };
 
-  const deletePortfolioItem = (itemId: string) => {
+  const deletePortfolioItem = async (itemId: string) => {
     setPortfolio(prev => prev.filter(p => p.id !== itemId));
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await deleteDoc(doc(db, 'portfolio', itemId));
+      } catch (err) {
+        console.warn('Firestore delete portfolio error:', err);
+      }
+    }
   };
 
   // Market
@@ -1826,6 +1964,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             scoreEngajamento: newScore,
             updatedAt: new Date().toISOString()
           }).catch(() => {});
+
+          if (isReactionAdded) {
+            const reactionLabels: Record<string, string> = {
+              useful: 'Útil 💡',
+              insightful: 'Inspirador ⭐',
+              applause: 'Palmas 👏',
+              question: 'Dúvida ❓'
+            };
+            createNotification(
+              authorIdToUpdate,
+              'Nova Reação no Mural',
+              `${currentUser.name} reagiu com "${reactionLabels[reactionType] || reactionType}" à sua publicação.`,
+              'info',
+              'community',
+              postId
+            );
+          }
         }
       } catch (err) {
         console.warn('Firestore update reaction error:', err);
@@ -1917,6 +2072,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    // Notificar autor do post se for outra pessoa
+    if (updatedPost && updatedPost.authorId && updatedPost.authorId !== currentUser.uid) {
+      createNotification(
+        updatedPost.authorId,
+        'Novo Comentário no Mural',
+        `${currentUser.name} comentou no seu post "${updatedPost.title}".`,
+        'info',
+        'community',
+        postId
+      );
+    }
+
     return { success: true };
   };
 
@@ -1959,6 +2126,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             likes: currentComm.likes,
             curtidas: currentComm.likes.length
           }).catch(() => {});
+
+          if (currentComm.likes.includes(userId) && currentComm.authorId && currentComm.authorId !== userId) {
+            createNotification(
+              currentComm.authorId,
+              'Curtida no seu Comentário',
+              `${currentUser.name} curtiu seu comentário técnico no mural.`,
+              'info',
+              'community',
+              postId
+            );
+          }
         }
       } catch (err) {
         console.warn('Firestore toggle comment like error:', err);
@@ -2007,6 +2185,133 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Firestore delete community post error:', err);
       }
     }
+  };
+
+  const markAcceptedSolution = async (postId: string, commentId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser) {
+      return { success: false, error: 'Inicie sessão para marcar a solução.' };
+    }
+
+    const post = communityPosts.find(p => p.id === postId);
+    if (!post) {
+      return { success: false, error: 'Publicação não encontrada.' };
+    }
+
+    // Apenas o autor do post ou admin pode marcar como solução oficial
+    const isAuthor = post.authorId === currentUser.uid;
+    const isAdminUser = currentUser.role === 'admin' || currentUser.role === 'super_admin';
+    if (!isAuthor && !isAdminUser) {
+      return { success: false, error: 'Apenas o autor da publicação pode selecionar a Solução Aceita.' };
+    }
+
+    const targetComment = post.comments.find(c => c.id === commentId);
+    if (!targetComment) {
+      return { success: false, error: 'Comentário técnico não encontrado.' };
+    }
+
+    const nowIso = new Date().toISOString();
+
+    setCommunityPosts(prev =>
+      prev.map(p => {
+        if (p.id !== postId) return p;
+        const updatedComments = p.comments.map(c => {
+          const isThis = c.id === commentId;
+          return {
+            ...c,
+            solucaoAceita: isThis,
+            isAcceptedSolution: isThis,
+            acceptedSolutionAt: isThis ? nowIso : undefined
+          };
+        });
+
+        return {
+          ...p,
+          solucaoAceita: true,
+          comentarioSolucaoId: commentId,
+          comments: updatedComments
+        };
+      })
+    );
+
+    // Tocar som de sucesso/recompensa
+    try {
+      soundFX.playSuccess();
+    } catch (e) {
+      console.warn('Audio notice:', e);
+    }
+
+    // Persistir no Firestore e bonificar autor da resposta com +50 pontos
+    const commentAuthorId = targetComment.authorId;
+    if (isFirebaseConfigured && db) {
+      try {
+        // Atualizar documento do post
+        await setDoc(doc(db, 'mural_posts', postId), {
+          solucaoAceita: true,
+          comentarioSolucaoId: commentId,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+
+        await setDoc(doc(db, 'community_posts', postId), {
+          solucaoAceita: true,
+          comentarioSolucaoId: commentId,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+
+        // Atualizar comentário na subcoleção
+        await setDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), {
+          solucaoAceita: true,
+          isAcceptedSolution: true,
+          acceptedSolutionAt: nowIso
+        }, { merge: true }).catch(() => {});
+
+        await setDoc(doc(db, 'community_posts', postId, 'comentarios', commentId), {
+          solucaoAceita: true,
+          isAcceptedSolution: true,
+          acceptedSolutionAt: nowIso
+        }, { merge: true }).catch(() => {});
+
+        // Incrementar +50 pontos para o autor da resposta usando increment(50)
+        if (commentAuthorId) {
+          const pointsPayload = {
+            pontos: increment(50),
+            scoreEngajamento: increment(50),
+            updatedAt: serverTimestamp()
+          };
+          updateDoc(doc(db, 'users', commentAuthorId), pointsPayload).catch(() => {});
+          updateDoc(doc(db, 'usuarios', commentAuthorId), pointsPayload).catch(() => {});
+          updateDoc(doc(db, 'technicians', commentAuthorId), pointsPayload).catch(() => {});
+        }
+      } catch (err: any) {
+        console.warn('Firestore mark accepted solution error:', err);
+      }
+    }
+
+    // Atualizar pontos locais do técnico
+    if (commentAuthorId) {
+      setTechnicians(prev =>
+        prev.map(t =>
+          t.userId === commentAuthorId
+            ? {
+                ...t,
+                pontos: (t.pontos || 0) + 50,
+                scoreEngajamento: (t.scoreEngajamento || 0) + 50
+              }
+            : t
+        )
+      );
+
+      // Notificação em tempo real para o autor da resposta
+      createNotification(
+        commentAuthorId,
+        '✔ Solução Aceita (+50 Pontos)!',
+        `Parabéns! ${currentUser.name} marcou sua resposta técnica como a Solução Oficial no post "${post.title}". Você recebeu +50 pontos de reputação!`,
+        'success',
+        'community',
+        postId
+      );
+    }
+
+    return { success: true };
   };
 
   // Stories / Status (24h) System
@@ -2292,7 +2597,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isFirebaseConfigured && db) {
       try {
         await setDoc(doc(db, 'messages', newMsg.id), { ...newMsg, deleteAt });
+        await setDoc(doc(db, 'mensagens_diretas', newMsg.id), { ...newMsg, deleteAt }).catch(() => {});
         await setDoc(doc(db, 'conversations', conversationId), updatedConvData, { merge: true });
+        await setDoc(doc(db, 'chats', conversationId), updatedConvData, { merge: true }).catch(() => {});
       } catch (err) {
         console.warn('Firestore send message error:', err);
       }
@@ -2351,6 +2658,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isFirebaseConfigured && db) {
       try {
         setDoc(doc(db, 'conversations', newId), newConv);
+        setDoc(doc(db, 'chats', newId), newConv).catch(() => {});
       } catch (err) {
         console.warn('Firestore create conversation error:', err);
       }
@@ -2553,6 +2861,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toggleCommunityCommentLike,
         deleteCommunityComment,
         deleteCommunityPost,
+        markAcceptedSolution,
         addAcademyArticle,
         verifyAcademyArticle,
         sendMessage,

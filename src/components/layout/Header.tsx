@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { soundFX } from '../../utils/audio';
+import { UserRankBadge } from '../../utils/gamification';
 import {
   Wrench,
   Search,
@@ -19,7 +21,8 @@ import {
   GraduationCap,
   LayoutDashboard,
   ChevronDown,
-  MoreHorizontal
+  MoreHorizontal,
+  LayoutGrid
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -30,6 +33,7 @@ interface HeaderProps {
   onOpenMessages: () => void;
   onOpenNotifications: () => void;
   unreadNotificationsCount: number;
+  onOpenMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,7 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSaraAi,
   onOpenMessages,
   onOpenNotifications,
-  unreadNotificationsCount
+  unreadNotificationsCount,
+  onOpenMobileMenu
 }) => {
   const { currentUser, isClient, isTechnician, isCompany, isAdmin, logout } = useAuth();
   const { conversations } = useData();
@@ -64,7 +69,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Unread messages count
   const unreadMessagesCount = currentUser
-    ? conversations.filter(c => c.participantIds.includes(currentUser.uid) && ((c.unreadCount ?? 0) > 0)).length
+    ? (conversations || []).filter(
+        c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid) && ((c.unreadCount ?? 0) > 0)
+      ).length
     : 0;
 
   const getRoleBadge = () => {
@@ -132,7 +139,10 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Quick Search Bar */}
             <div className="relative ml-1">
               <button
-                onClick={onOpenSearch}
+                onClick={() => {
+                  soundFX.playModalOpen();
+                  onOpenSearch();
+                }}
                 className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-slate-100 hover:bg-slate-200/70 rounded-full text-slate-500 text-xs font-medium transition cursor-pointer"
                 title="Pesquisa Geral"
               >
@@ -152,7 +162,10 @@ export const Header: React.FC<HeaderProps> = ({
               return (
                 <button
                   key={item.id}
-                  onClick={() => onNavigateTab(item.id)}
+                  onClick={() => {
+                    soundFX.playClick();
+                    onNavigateTab(item.id);
+                  }}
                   className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-blue-50 text-blue-600 font-black ring-1 ring-blue-100 shadow-2xs'
@@ -174,7 +187,10 @@ export const Header: React.FC<HeaderProps> = ({
               return (
                 <button
                   key={item.id}
-                  onClick={() => onNavigateTab(item.id)}
+                  onClick={() => {
+                    soundFX.playClick();
+                    onNavigateTab(item.id);
+                  }}
                   className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-blue-50 text-blue-600 font-black'
@@ -190,7 +206,10 @@ export const Header: React.FC<HeaderProps> = ({
             {/* 'Mais' Dropdown for Medium Screens */}
             <div className="relative" ref={moreMenuRef}>
               <button
-                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                onClick={() => {
+                  soundFX.playClick();
+                  setIsMoreMenuOpen(!isMoreMenuOpen);
+                }}
                 className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
                   overflowOnMedium.some(i => i.id === activeTab)
                     ? 'bg-blue-50 text-blue-600 font-black'
@@ -211,6 +230,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <button
                         key={item.id}
                         onClick={() => {
+                          soundFX.playClick();
                           onNavigateTab(item.id);
                           setIsMoreMenuOpen(false);
                         }}
@@ -230,10 +250,28 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Botão "Mais" Exclusivo para Mobile Header (@media max-width: 768px) */}
+            {onOpenMobileMenu && (
+              <button
+                onClick={() => {
+                  soundFX.playModalOpen();
+                  onOpenMobileMenu();
+                }}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 md:hidden flex items-center justify-center transition active:scale-95 cursor-pointer"
+                title="Abrir todas as opções do sistema"
+                aria-label="Mais Opções"
+              >
+                <LayoutGrid className="w-4 h-4 text-blue-600" />
+              </button>
+            )}
+
             {/* Painel Direct Button (Top Bar for Mobile & PC) */}
             {currentUser && (
               <button
-                onClick={() => onNavigateTab(roleInfo.panelTab)}
+                onClick={() => {
+                  soundFX.playClick();
+                  onNavigateTab(roleInfo.panelTab);
+                }}
                 className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer ${
                   activeTab === roleInfo.panelTab
                     ? 'bg-blue-600 text-white shadow-xs'
@@ -249,7 +287,10 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Sara IA Button (Técnico / Empresa / Admin Only) */}
             {!isClient && (
               <button
-                onClick={onOpenSaraAi}
+                onClick={() => {
+                  soundFX.playModalOpen();
+                  onOpenSaraAi();
+                }}
                 className="px-2.5 sm:px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
                 title="Assistente Sara IA (Visão Computacional & Normas)"
               >
@@ -258,11 +299,34 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
+            {/* Daily Streak Counter: "🔥 X Dias na Bancada" */}
+            {currentUser && (
+              <div
+                className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-linear-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-orange-200 dark:border-orange-800/60 text-orange-600 dark:text-orange-400 text-xs font-black shadow-2xs group cursor-default transition-all hover:scale-105 select-none"
+                title={`Ofensiva Diária: ${currentUser.streakCount || 1} dias na bancada (+10 pontos/dia)!`}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                </span>
+                <span className="text-xs sm:text-sm animate-pulse">🔥</span>
+                <span className="font-mono font-black text-orange-700 dark:text-orange-300 text-[11px] sm:text-xs">
+                  {currentUser.streakCount || 1}
+                </span>
+                <span className="hidden lg:inline text-[10px] font-bold text-orange-800 dark:text-orange-200">
+                  Dias na Bancada
+                </span>
+              </div>
+            )}
+
             {/* Notifications Bell */}
             <button
-              onClick={onOpenNotifications}
-              className="relative p-2 rounded-full hover:bg-slate-100 text-slate-700 transition active:scale-95"
-              title="Notificações"
+              onClick={() => {
+                soundFX.playModalOpen();
+                onOpenNotifications();
+              }}
+              className="relative p-2 rounded-full hover:bg-slate-100 text-slate-700 transition active:scale-95 cursor-pointer"
+              title="Notificações em Tempo Real"
             >
               <Bell className="w-5 h-5 text-slate-700" />
               {unreadNotificationsCount > 0 && (
@@ -274,7 +338,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Messages Chat Trigger */}
             <button
-              onClick={onOpenMessages}
+              onClick={() => {
+                soundFX.playModalOpen();
+                onOpenMessages();
+              }}
               className="relative p-2 rounded-full hover:bg-slate-100 text-slate-700 transition active:scale-95"
               title="Mensagens Diretas"
             >
@@ -287,7 +354,10 @@ export const Header: React.FC<HeaderProps> = ({
             {/* User Profile & Dropdown */}
             <div className="relative" ref={profileMenuRef}>
               <button
-                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                onClick={() => {
+                  soundFX.playClick();
+                  setIsProfileMenuOpen(!isProfileMenuOpen);
+                }}
                 className="flex items-center gap-1.5 p-1 sm:p-1.5 rounded-full hover:bg-slate-100 transition focus:outline-none cursor-pointer"
                 title="Meu Perfil & Menu"
               >
@@ -305,9 +375,12 @@ export const Header: React.FC<HeaderProps> = ({
               {isProfileMenuOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200/90 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-4 py-3 border-b border-slate-100">
-                    <p className="text-xs font-black text-slate-900 truncate">
-                      {currentUser?.name || 'Utilizador'}
-                    </p>
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <p className="text-xs font-black text-slate-900 truncate">
+                        {currentUser?.name || 'Utilizador'}
+                      </p>
+                      <UserRankBadge points={currentUser?.pontos ?? currentUser?.scoreEngajamento ?? 0} size="xs" />
+                    </div>
                     <p className="text-[11px] text-slate-500 font-mono truncate">
                       {currentUser?.email}
                     </p>

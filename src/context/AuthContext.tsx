@@ -11,7 +11,7 @@ import {
   sendPasswordResetEmail,
   updatePassword as fbUpdatePassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs, serverTimestamp, increment, arrayUnion } from 'firebase/firestore';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -172,7 +172,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             statusConta: d.statusConta || 'ativa',
             statusAprovacao: d.statusAprovacao || 'aprovado',
             totalLikes: typeof d.totalLikes === 'number' ? d.totalLikes : 0,
-            scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0,
+            scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : (typeof d.pontos === 'number' ? d.pontos : 0),
+            pontos: typeof d.pontos === 'number' ? d.pontos : (typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0),
+            streakCount: typeof d.streakCount === 'number' ? d.streakCount : (typeof d.sequenciaDias === 'number' ? d.sequenciaDias : 1),
+            lastLoginDate: d.lastLoginDate || d.ultimoAcesso || '',
             createdAt: d.createdAt || d.dataCadastro || new Date().toISOString()
           };
           usersFromUsuarios.push(userObj);
@@ -194,7 +197,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               avatarUrl: d.avatarUrl || d.photoURL || d.foto || '',
               photoURL: d.photoURL || d.avatarUrl || d.foto || '',
               totalLikes: typeof d.totalLikes === 'number' ? d.totalLikes : 0,
-              scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0,
+              scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : (typeof d.pontos === 'number' ? d.pontos : 0),
+              pontos: typeof d.pontos === 'number' ? d.pontos : (typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0),
+              streakCount: typeof d.streakCount === 'number' ? d.streakCount : (typeof d.sequenciaDias === 'number' ? d.sequenciaDias : 1),
+              lastLoginDate: d.lastLoginDate || d.ultimoAcesso || '',
               verificationStatus: d.verificationStatus || 'none',
               isVerified: Boolean(d.isVerified || d.verificationStatus === 'approved'),
               subscriptionStatus: d.subscriptionStatus || 'none',
@@ -527,9 +533,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 activePlanId: rawData.activePlanId,
                 totalLikes: typeof rawData.totalLikes === 'number' ? rawData.totalLikes : (typeof rawData.curtidas === 'number' ? rawData.curtidas : 0),
                 scoreEngajamento: typeof rawData.scoreEngajamento === 'number' ? rawData.scoreEngajamento : (typeof rawData.pontos === 'number' ? rawData.pontos : 0),
+                pontos: typeof rawData.pontos === 'number' ? rawData.pontos : (typeof rawData.scoreEngajamento === 'number' ? rawData.scoreEngajamento : 0),
+                streakCount: typeof rawData.streakCount === 'number' ? rawData.streakCount : (typeof rawData.sequenciaDias === 'number' ? rawData.sequenciaDias : 1),
+                lastLoginDate: rawData.lastLoginDate || rawData.ultimoAcesso || '',
                 createdAt: rawData.createdAt || rawData.dataCadastro || new Date().toISOString(),
                 updatedAt: rawData.updatedAt
               };
+
+              // ==============================================================
+              // OFENSIVA DIÁRIA (DAILY STREAK CONTADOR DE SEQUÊNCIA)
+              // ==============================================================
+              const todayStr = new Date().toISOString().split('T')[0];
+              const lastLoginDateRaw = rawData.lastLoginDate || rawData.ultimoAcesso || '';
+              const lastLoginDay = lastLoginDateRaw ? lastLoginDateRaw.split('T')[0] : '';
+
+              let updatedStreak = typeof rawData.streakCount === 'number' ? rawData.streakCount : (typeof rawData.sequenciaDias === 'number' ? rawData.sequenciaDias : 1);
+              let bonusPoints = 0;
+
+              if (lastLoginDay !== todayStr) {
+                if (lastLoginDay) {
+                  const lastDate = new Date(lastLoginDay + 'T00:00:00Z');
+                  const todayDate = new Date(todayStr + 'T00:00:00Z');
+                  const diffDays = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+                  if (diffDays === 1) {
+                    updatedStreak = updatedStreak + 1;
+                    bonusPoints = 10;
+                  } else {
+                    updatedStreak = 1;
+                    bonusPoints = 10;
+                  }
+                } else {
+                  updatedStreak = 1;
+                  bonusPoints = 10;
+                }
+
+                // Grava bônus de ofensiva diária no Firestore
+                try {
+                  const streakPayload = {
+                    streakCount: updatedStreak,
+                    lastLoginDate: todayStr,
+                    ultimoAcesso: todayStr,
+                    pontos: increment(bonusPoints),
+                    scoreEngajamento: increment(bonusPoints)
+                  };
+                  updateDoc(userRef, streakPayload).catch(() => {});
+                  updateDoc(usersRef, streakPayload).catch(() => {});
+                  if (role === 'technician') {
+                    updateDoc(doc(db, 'technicians', fbUser.uid), streakPayload).catch(() => {});
+                  }
+                } catch (stErr) {
+                  console.warn('Erro ao atualizar ofensiva no Firestore:', stErr);
+                }
+              }
+
+              firestoreUserData.streakCount = updatedStreak;
+              firestoreUserData.lastLoginDate = todayStr;
+              if (bonusPoints > 0) {
+                firestoreUserData.pontos = (firestoreUserData.pontos || 0) + bonusPoints;
+                firestoreUserData.scoreEngajamento = (firestoreUserData.scoreEngajamento || 0) + bonusPoints;
+              }
 
               if (role === 'technician') {
                 try {
@@ -573,7 +635,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         statusAprovacao: live.statusAprovacao || prev.statusAprovacao,
                         statusConta: live.statusConta || prev.statusConta,
                         totalLikes: typeof live.totalLikes === 'number' ? live.totalLikes : prev.totalLikes,
-                        scoreEngajamento: typeof live.scoreEngajamento === 'number' ? live.scoreEngajamento : prev.scoreEngajamento
+                        scoreEngajamento: typeof live.scoreEngajamento === 'number' ? live.scoreEngajamento : prev.scoreEngajamento,
+                        pontos: typeof live.pontos === 'number' ? live.pontos : (typeof live.scoreEngajamento === 'number' ? live.scoreEngajamento : prev.pontos),
+                        streakCount: typeof live.streakCount === 'number' ? live.streakCount : prev.streakCount,
+                        lastLoginDate: live.lastLoginDate || prev.lastLoginDate
                       };
                     });
                   }

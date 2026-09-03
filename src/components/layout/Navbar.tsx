@@ -42,7 +42,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Unread messages count for current user
   const unreadMessagesCount = currentUser
-    ? conversations.filter(c => c.participantIds.includes(currentUser.uid) && ((c.unreadCount ?? 0) > 0)).length
+    ? (conversations || []).filter(
+        c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid) && ((c.unreadCount ?? 0) > 0)
+      ).length
     : 0;
 
   const getDashboardTabName = () => {
