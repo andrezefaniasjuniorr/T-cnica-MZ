@@ -87,6 +87,14 @@ export interface User {
   totalLikes?: number;
   scoreEngajamento?: number;
   pontos?: number;
+  points?: number;
+  likesCount?: number;
+  stars?: number;
+  badges?: {
+    excelente: number;
+    util: number;
+    tecnico: number;
+  };
   streakCount?: number;
   lastLoginDate?: string;
   suspensionReason?: string;
@@ -162,6 +170,14 @@ export interface TechnicianProfile {
   totalLikes?: number;
   scoreEngajamento?: number;
   pontos?: number;
+  points?: number;
+  likesCount?: number;
+  stars?: number;
+  badges?: {
+    excelente: number;
+    util: number;
+    tecnico: number;
+  };
   streakCount?: number;
   lastLoginDate?: string;
   coverUrl?: string;

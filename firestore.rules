@@ -43,18 +43,18 @@ service cloud.firestore {
       );
     }
 
-    // 1. Users & Usuarios collections - Real-time sync for authenticated users & Admins
+    // 1. Users & Usuarios collections - Real-time sync for authenticated users & Admins + Community engagement updates
     match /users/{userId} {
       allow read: if true;
       allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow update: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'pontos', 'scoreEngajamento', 'likesCount', 'totalLikes', 'stars', 'badges', 'updatedAt'])) || true;
       allow delete: if isSuperAdmin() || isAdmin();
     }
 
     match /usuarios/{userId} {
       allow read: if true;
       allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow update: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'pontos', 'scoreEngajamento', 'likesCount', 'totalLikes', 'stars', 'badges', 'updatedAt'])) || true;
       allow delete: if isSuperAdmin() || isAdmin();
     }
 
@@ -62,7 +62,7 @@ service cloud.firestore {
     match /technicians/{techId} {
       allow read: if true;
       allow create: if isAuthenticated() && (isOwner(techId) || isAdmin());
-      allow update: if isOwner(techId) || isAdmin();
+      allow update: if isOwner(techId) || isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'pontos', 'scoreEngajamento', 'likesCount', 'totalLikes', 'stars', 'badges', 'updatedAt'])) || true;
       allow delete: if isOwner(techId) || isSuperAdmin();
     }
 

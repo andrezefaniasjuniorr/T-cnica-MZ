@@ -149,8 +149,8 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
       projectTitle: clientBudgetTitle,
       category: currentTechProfile?.specialties[0] || 'Eletricidade',
       items: budgetItems,
-      laborCostMZN: budgetItems.find(i => i.description.toLowerCase().includes('mão de obra'))?.cost || 0,
-      materialsCostMZN: budgetItems.filter(i => !i.description.toLowerCase().includes('mão de obra')).reduce((a, b) => a + b.cost, 0),
+      laborCostMZN: budgetItems.find(i => (i.description || '').toLowerCase().includes('mão de obra'))?.cost || 0,
+      materialsCostMZN: budgetItems.filter(i => !(i.description || '').toLowerCase().includes('mão de obra')).reduce((a, b) => a + (b.cost || 0), 0),
       totalCostMZN: totalBudgetSum,
       validUntilDate: '2026-10-30',
       province: currentTechProfile?.province || 'Maputo Cidade'

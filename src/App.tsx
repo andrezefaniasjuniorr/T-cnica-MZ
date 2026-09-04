@@ -400,7 +400,7 @@ const AppContent: React.FC = () => {
       />
 
       {/* 2. Main Content Body */}
-      <main className="flex-1 pb-16 md:pb-8">
+      <main className="app-container main-container flex-1 pb-16 md:pb-8">
         {activeTab === 'community' && (
           <CommunityFeed onNavigateTab={handleNavigate} />
         )}

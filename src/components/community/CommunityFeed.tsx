@@ -49,6 +49,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     toggleCommunityCommentLike,
     deleteCommunityComment,
     markAcceptedSolution,
+    markCommentAsUseful,
     startOrGetConversation
   } = useData();
   const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ } = useAuth();
@@ -725,6 +726,27 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                                     </div>
 
                                     <div className="flex items-center gap-2">
+                                      {/* Mark Useful Comment Button (+5 pts) */}
+                                      {canMarkSolution && (
+                                        <button
+                                          onClick={async () => {
+                                            soundFX.playSuccess();
+                                            await markCommentAsUseful(
+                                              post.id,
+                                              post.authorId,
+                                              comment.id,
+                                              comment.authorId,
+                                              currentUser?.uid || ''
+                                            );
+                                          }}
+                                          className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black flex items-center gap-1 transition shadow-2xs active:scale-95 cursor-pointer"
+                                          title="Parabenizar e marcar comentário como Útil (+5 pts e badge ao autor)"
+                                        >
+                                          <span>💡</span>
+                                          <span>Útil (+5 pts)</span>
+                                        </button>
+                                      )}
+
                                       {/* Mark Accepted Solution Button */}
                                       {canMarkSolution && (
                                         <button
@@ -823,10 +845,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
               </p>
               <div className="space-y-2">
                 {[...technicians]
-                  .sort((a, b) => ((b.pontos ?? b.scoreEngajamento ?? 0) - (a.pontos ?? a.scoreEngajamento ?? 0)))
+                  .sort((a, b) => ((b.points ?? b.pontos ?? b.scoreEngajamento ?? 0) - (a.points ?? a.pontos ?? a.scoreEngajamento ?? 0)))
                   .slice(0, 4)
                   .map((tech, idx) => {
-                    const techPoints = tech.pontos ?? tech.scoreEngajamento ?? 0;
+                    const techPoints = tech.points ?? tech.pontos ?? tech.scoreEngajamento ?? 0;
+                    const stars = tech.stars ?? Math.min(5, Math.floor(techPoints / 200));
                     return (
                       <div
                         key={tech.userId || idx}
@@ -845,7 +868,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                           </span>
                           <div className="min-w-0">
                             <p className="text-xs font-black text-slate-900 truncate">{tech.name}</p>
-                            <div className="mt-0.5">
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[11px] select-none text-amber-500 font-bold" title={`${stars}/5 estrelas`}>
+                                {'⭐'.repeat(stars)}
+                              </span>
                               <UserRankBadge points={techPoints} size="xs" />
                             </div>
                           </div>

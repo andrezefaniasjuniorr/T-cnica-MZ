@@ -58,6 +58,12 @@ import { auth, db, isFirebaseConfigured } from '../firebase/config';
 import { safeGetStorageItem, safeSetStorageItem } from '../utils/storage';
 import { soundFX } from '../utils/audio';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, arrayUnion, increment } from 'firebase/firestore';
+import {
+  markCommentAsUseful,
+  giveHeartOrLike,
+  reactToPost,
+  recalculateUserStarsAndRanking
+} from '../services/engagement';
 
 const formatTimestampToIso = (val: any): string => {
   if (!val) return new Date().toISOString();
@@ -196,6 +202,10 @@ interface DataContextType {
   deleteCommunityComment: (postId: string, commentId: string) => void;
   deleteCommunityPost: (postId: string) => void;
   markAcceptedSolution: (postId: string, commentId: string) => Promise<{ success: boolean; error?: string }>;
+  markCommentAsUseful: (postId: string, postAuthorId: string, commentId: string, commentAuthorId: string, currentUserId: string) => Promise<{ success: boolean; error?: string; solvedCommentId?: string; pointsAdded?: number }>;
+  giveHeartOrLike: (targetAuthorId: string, isLiking?: boolean) => Promise<{ success: boolean; likesCount: number; points: number; error?: string }>;
+  reactToPost: (postAuthorId: string, reactionType: 'excelente' | 'util' | 'tecnico' | string) => Promise<{ success: boolean; reactionType: string; pointsAdded: number; error?: string }>;
+  recalculateUserStarsAndRanking: (userId: string) => Promise<{ stars: number; points: number }>;
 
   // Academy
   addAcademyArticle: (article: Omit<AcademyArticle, 'id' | 'verifiedByAdmin'>) => void;
@@ -290,7 +300,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [conversations, setConversations] = useState<ConversationItem[]>(() => {
-    return safeGetStorageItem<ConversationItem[]>('tecnicamz_conversations', []);
+    const raw = safeGetStorageItem<ConversationItem[]>('tecnicamz_conversations', []);
+    return Array.isArray(raw)
+      ? raw.map(c => ({
+          ...c,
+          participantIds: Array.isArray(c?.participantIds) ? c.participantIds : [],
+          participants: Array.isArray(c?.participants) ? c.participants : []
+        }))
+      : [];
   });
 
   const [messages, setMessages] = useState<MessageItem[]>(() => {
@@ -547,6 +564,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     const convsMap = new Map<string, ConversationItem>();
+    const normalizeConvDoc = (docId: string, rawData: any): ConversationItem => {
+      const data = rawData || {};
+      let participantIds: string[] = [];
+      if (Array.isArray(data.participantIds)) {
+        participantIds = data.participantIds.map((id: any) => String(id || '')).filter(Boolean);
+      } else if (Array.isArray(data.participants)) {
+        participantIds = data.participants.map((p: any) => String(p?.id || p?.userId || '')).filter(Boolean);
+      }
+      const participants = Array.isArray(data.participants) ? data.participants : [];
+      return {
+        ...data,
+        id: docId,
+        participantIds,
+        participants,
+      } as ConversationItem;
+    };
+
     const updateMergedConversations = () => {
       const list = Array.from(convsMap.values());
       list.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
@@ -557,7 +591,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       collection(db, 'conversations'),
       (snapshot) => {
         snapshot.forEach((docSnap) => {
-          convsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as ConversationItem);
+          convsMap.set(docSnap.id, normalizeConvDoc(docSnap.id, docSnap.data()));
         });
         updateMergedConversations();
       },
@@ -568,7 +602,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       collection(db, 'chats'),
       (snapshot) => {
         snapshot.forEach((docSnap) => {
-          convsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as ConversationItem);
+          convsMap.set(docSnap.id, normalizeConvDoc(docSnap.id, docSnap.data()));
         });
         updateMergedConversations();
       },
@@ -1949,6 +1983,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const newScore = Math.max(0, (targetTech?.scoreEngajamento || 0) + delta);
 
           setTechnicians(prev => prev.map(t => t.userId === authorIdToUpdate ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t));
+          
+          // Integração com sistema unificado de engajamento
+          if (isReactionAdded) {
+            const reactionBadge = reactionType === 'insightful' ? 'tecnico' : (reactionType === 'applause' ? 'excelente' : 'util');
+            reactToPost(authorIdToUpdate, reactionBadge).catch(() => {});
+          } else {
+            giveHeartOrLike(authorIdToUpdate, false).catch(() => {});
+          }
           await updateDoc(doc(db, 'technicians', authorIdToUpdate), {
             totalLikes: newLikes,
             scoreEngajamento: newScore,
@@ -2275,11 +2317,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const pointsPayload = {
             pontos: increment(50),
             scoreEngajamento: increment(50),
+            points: increment(50),
+            'badges.util': increment(1),
             updatedAt: serverTimestamp()
           };
           updateDoc(doc(db, 'users', commentAuthorId), pointsPayload).catch(() => {});
           updateDoc(doc(db, 'usuarios', commentAuthorId), pointsPayload).catch(() => {});
           updateDoc(doc(db, 'technicians', commentAuthorId), pointsPayload).catch(() => {});
+
+          // Recalcular estrelas e ranking no Firestore
+          recalculateUserStarsAndRanking(commentAuthorId).catch(() => {});
         }
       } catch (err: any) {
         console.warn('Firestore mark accepted solution error:', err);
@@ -2607,7 +2654,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Notify other participant
     const conv = conversations.find(c => c.id === conversationId);
-    if (conv) {
+    if (conv && Array.isArray(conv.participantIds)) {
       const otherId = conv.participantIds.find(id => id !== currentUser.uid);
       if (otherId) {
         createNotification(
@@ -2632,7 +2679,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Check if conversation already exists between these 2 users
     const existing = conversations.find(
-      c => c.participantIds.includes(currentUser.uid) && c.participantIds.includes(targetUserId)
+      c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid) && c.participantIds.includes(targetUserId)
     );
 
     if (existing) {
@@ -2862,6 +2909,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteCommunityComment,
         deleteCommunityPost,
         markAcceptedSolution,
+        markCommentAsUseful,
+        giveHeartOrLike,
+        reactToPost,
+        recalculateUserStarsAndRanking,
         addAcademyArticle,
         verifyAcademyArticle,
         sendMessage,

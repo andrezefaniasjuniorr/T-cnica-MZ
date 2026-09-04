@@ -204,55 +204,60 @@ export const Header: React.FC<HeaderProps> = ({
             })}
 
             {/* 'Mais' Dropdown for Medium Screens */}
-            <div className="relative" ref={moreMenuRef}>
-              <button
-                onClick={() => {
-                  soundFX.playClick();
-                  setIsMoreMenuOpen(!isMoreMenuOpen);
-                }}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
-                  overflowOnMedium.some(i => i.id === activeTab)
-                    ? 'bg-blue-50 text-blue-600 font-black'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <MoreHorizontal className="w-4 h-4" />
-                <span>Mais</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
+            {!isClient && (
+              <div className="relative" ref={moreMenuRef}>
+                <button
+                  id="btnMaisDesktop"
+                  onClick={() => {
+                    soundFX.playClick();
+                    setIsMoreMenuOpen(!isMoreMenuOpen);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                    overflowOnMedium.some(i => i.id === activeTab)
+                      ? 'bg-blue-50 text-blue-600 font-black'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                  <span>Mais</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </button>
 
-              {isMoreMenuOpen && (
-                <div className="absolute left-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                  {overflowOnMedium.map(item => {
-                    const Icon = item.icon;
-                    const isActive = activeTab === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          soundFX.playClick();
-                          onNavigateTab(item.id);
-                          setIsMoreMenuOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition ${
-                          isActive ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                {isMoreMenuOpen && (
+                  <div className="absolute left-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    {overflowOnMedium.map(item => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            soundFX.playClick();
+                            onNavigateTab(item.id);
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition ${
+                            isActive ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </nav>
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Botão "Mais" Exclusivo para Mobile Header (@media max-width: 768px) */}
-            {onOpenMobileMenu && (
+            {onOpenMobileMenu && !isClient && (
               <button
+                id="headerBtnMaisMobile"
+                data-nav="mais-header"
                 onClick={() => {
                   soundFX.playModalOpen();
                   onOpenMobileMenu();

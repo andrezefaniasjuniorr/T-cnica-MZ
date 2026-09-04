@@ -61,7 +61,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Technician Specific
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [idade, setIdade] = useState<number | string>('28');
+  const [idade, setIdade] = useState<number | string>('');
   const [specialty, setSpecialty] = useState<string>(TECHNICAL_CATEGORIES[0] || 'Eletricidade');
   const [province, setProvince] = useState<string>(MOZAMBIQUE_PROVINCES[0] || 'Maputo Cidade');
   const [city, setCity] = useState('Maputo');
@@ -298,7 +298,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-sky-100 p-6 sm:p-8 my-8 animate-in fade-in zoom-in-95 duration-200">
+      <div className="auth-card relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-sky-100 p-6 sm:p-8 my-8 animate-in fade-in zoom-in-95 duration-200">
         
         {/* Close Button */}
         <button
@@ -382,7 +382,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <Sparkles className="w-4 h-4 text-blue-600" />
                 Acesso Rápido para Clientes
               </div>
-              <p>Digite apenas o seu nome para solicitar orçamentos e contactar técnicos diretamente via WhatsApp.</p>
+              <p className="description long-text">Digite apenas o seu nome para solicitar orçamentos e contactar técnicos diretamente via WhatsApp.</p>
             </div>
 
             <div>
@@ -618,110 +618,105 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                     {/* Technician Specific (Side-by-side) */}
                     {proRole === 'tecnico' && (
-                      <div className="space-y-3 pt-1">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          <div>
-                            <label htmlFor="name" className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Nome Completo *
-                            </label>
-                            <input
-                              id="name"
-                              name="name"
-                              type="text"
-                              required
-                              value={name}
-                              onChange={(e) => setName(e.target.value)}
-                              placeholder="Seu nome"
-                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label htmlFor="phone" className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Telefone / WhatsApp *
-                            </label>
-                            <input
-                              id="phone"
-                              name="phone"
-                              type="tel"
-                              required
-                              value={phone}
-                              onChange={(e) => setPhone(e.target.value)}
-                              placeholder="+258 84 000 0000"
-                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
+                      <div className="form-grid pt-1">
+                        <div className="form-group">
+                          <label htmlFor="name" className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Nome Completo *
+                          </label>
+                          <input
+                            id="name"
+                            name="name"
+                            type="text"
+                            required
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Seu nome"
+                            className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                          />
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          <div>
-                            <label htmlFor="specialty" className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Especialidade *
-                            </label>
-                            <select
-                              id="specialty"
-                              name="specialty"
-                              value={specialty}
-                              onChange={(e) => setSpecialty(e.target.value)}
-                              className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                            >
-                              {TECHNICAL_CATEGORIES.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label htmlFor="idade" className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Idade *
-                            </label>
-                            <input
-                              id="idade"
-                              name="idade"
-                              type="number"
-                              min="18"
-                              max="85"
-                              required
-                              value={idade}
-                              onChange={(e) => setIdade(e.target.value)}
-                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
+                        <div className="form-group">
+                          <label htmlFor="phone" className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Telefone / WhatsApp *
+                          </label>
+                          <input
+                            id="phone"
+                            name="phone"
+                            type="tel"
+                            required
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="+258 84 000 0000"
+                            className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                          />
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          <div>
-                            <label htmlFor="province" className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Província *
-                            </label>
-                            <select
-                              id="province"
-                              name="province"
-                              value={province}
-                              onChange={(e) => setProvince(e.target.value)}
-                              className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                            >
-                              {MOZAMBIQUE_PROVINCES.map(prov => (
-                                <option key={prov} value={prov}>{prov}</option>
-                              ))}
-                            </select>
-                          </div>
+                        <div className="form-group">
+                          <label htmlFor="specialty" className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Especialidade *
+                          </label>
+                          <select
+                            id="specialty"
+                            name="specialty"
+                            value={specialty}
+                            onChange={(e) => setSpecialty(e.target.value)}
+                            className="form-control w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                          >
+                            {TECHNICAL_CATEGORIES.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                          <div>
-                            <label htmlFor="city" className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Cidade / Distrito *
-                            </label>
-                            <input
-                              id="city"
-                              name="city"
-                              type="text"
-                              required
-                              value={city}
-                              onChange={(e) => setCity(e.target.value)}
-                              placeholder="Ex: Maputo"
-                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
+                        <div className="form-group">
+                          <label htmlFor="idade" className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Idade *
+                          </label>
+                          <input
+                            type="number"
+                            id="idade"
+                            name="idade"
+                            placeholder="Ex: 20"
+                            min="16"
+                            max="100"
+                            required
+                            value={idade}
+                            onChange={(e) => setIdade(e.target.value)}
+                            className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label htmlFor="province" className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Província *
+                          </label>
+                          <select
+                            id="province"
+                            name="province"
+                            value={province}
+                            onChange={(e) => setProvince(e.target.value)}
+                            className="form-control w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                          >
+                            {MOZAMBIQUE_PROVINCES.map(prov => (
+                              <option key={prov} value={prov}>{prov}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label htmlFor="city" className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Cidade / Distrito *
+                          </label>
+                          <input
+                            id="city"
+                            name="city"
+                            type="text"
+                            required
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                            placeholder="Ex: Maputo"
+                            className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                          />
                         </div>
                       </div>
                     )}

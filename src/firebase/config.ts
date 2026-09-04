@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 export const firebaseConfig = {
@@ -22,6 +22,26 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+// Ativar persistência offline no Firestore (enableIndexedDbPersistence)
+if (typeof window !== 'undefined' && db) {
+  enableIndexedDbPersistence(db).catch((err: any) => {
+    if (err?.code === 'failed-precondition') {
+      console.warn('[Firestore] Persistência offline ativa em outra aba/janela.');
+    } else if (err?.code === 'unimplemented') {
+      console.warn('[Firestore] O navegador atual não suporta IndexedDb persistence.');
+    } else {
+      console.warn('[Firestore] Aviso ao ativar persistência offline:', err?.message || err);
+    }
+  });
+
+  // Disponibilizar globalmente para app.js e utilitários
+  (window as any).firebaseApp = app;
+  (window as any).db = db;
+  (window as any).auth = auth;
+  (window as any).storage = storage;
+}
+
 export { app, auth, db, storage };
+
 
 

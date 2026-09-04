@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { WhatsAppButton } from './WhatsAppButton';
 import { Badge } from '../common/Badge';
 import { UserRankBadge } from '../../utils/gamification';
+import { giveHeartOrLike, renderProfileEngagement } from '../../services/engagement';
 import {
   X,
   ArrowLeft,
@@ -84,10 +85,12 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
     setHasLiked(true);
     setLikeCount(prev => prev + 1);
     try {
-      const res = await giveTechnicianLike(technician.userId);
-      if (res.totalLikes !== undefined) {
-        setLikeCount(res.totalLikes);
+      // Atualiza permanentemente no Firestore via giveHeartOrLike (+1 like, +1 point, recalcula ranking)
+      const res = await giveHeartOrLike(technician.userId, true);
+      if (res.likesCount !== undefined) {
+        setLikeCount(res.likesCount);
       }
+      giveTechnicianLike(technician.userId).catch(() => {});
     } catch (err) {
       console.warn('Like error:', err);
     } finally {
@@ -291,6 +294,12 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
                   : 'Indisponível'}
               </span>
             </div>
+
+            {/* Painel Unificado de Engajamento, Estrelas e Badges */}
+            <div 
+              className="mt-3" 
+              dangerouslySetInnerHTML={{ __html: renderProfileEngagement(technician) }} 
+            />
           </div>
         </div>
 

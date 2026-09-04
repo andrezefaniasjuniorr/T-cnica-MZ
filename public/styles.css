@@ -1,4 +1,6 @@
-@import "tailwindcss";
+/* =========================================================================
+   TÉCNICAMZ PRO - ULTRA-COMPACT NATIVE MOBILE APP STYLING (styles.css)
+   ========================================================================= */
 
 /* 1. CONFIGURAÇÃO BASE E CONTAINER GLOBAL */
 html, body {
@@ -81,71 +83,4 @@ html, body {
   padding: 6px 10px !important;
   font-size: 13px !important;
   border-radius: 6px !important;
-}
-
-@layer utilities {
-  /* Hide scrollbar for Chrome, Safari and Opera */
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  /* Hide scrollbar for IE, Edge and Firefox */
-  .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-  }
-}
-
-@media print {
-  @page {
-    size: A4 portrait;
-    margin: 12mm 15mm;
-  }
-
-  html, body {
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    color: #0f172a !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    font-size: 11pt !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* Hide everything except printable sheets */
-  nav,
-  header,
-  footer,
-  aside,
-  button,
-  .no-print,
-  [role="navigation"],
-  .fixed,
-  .sticky {
-    display: none !important;
-  }
-
-  /* Unset dark mode containers and shadows for crisp black/white print */
-  #root,
-  main,
-  .min-h-screen {
-    background: transparent !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-height: auto !important;
-  }
-
-  .print-only-sheet {
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: #ffffff !important;
-    color: #0f172a !important;
-  }
 }
