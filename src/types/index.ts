@@ -2,7 +2,7 @@ export type UserRole = 'client' | 'technician' | 'company' | 'admin' | 'super_ad
 
 export type AdminSubRole = 'super_admin' | 'finance_admin' | 'moderator' | 'support';
 
-export type UserStatus = 'active' | 'suspended' | 'blocked' | 'pending_approval';
+export type UserStatus = 'active' | 'suspended' | 'blocked' | 'banned' | 'pending_approval';
 
 export type VerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { soundFX } from '../../utils/audio';
+import { getInitial } from '../../utils/stringUtils';
 import {
   X,
   ArrowLeft,
@@ -172,11 +173,11 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
-                            {t.name.charAt(0)}
+                            {getInitial(t.name)}
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-black text-slate-900">{t.name}</p>
+                              <p className="text-xs font-black text-slate-900">{t.name || 'Técnico'}</p>
                               {t.verificationStatus === 'approved' && (
                                 <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded">
                                   Verificado
@@ -212,10 +213,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0">
-                            {c.companyName.charAt(0)}
+                            {getInitial(c.companyName)}
                           </div>
                           <div>
-                            <p className="text-xs font-black text-slate-900">{c.companyName}</p>
+                            <p className="text-xs font-black text-slate-900">{c.companyName || 'Empresa'}</p>
                             <p className="text-[11px] text-slate-500">{c.industry} • 📍 {c.city}, {c.province}</p>
                           </div>
                         </div>

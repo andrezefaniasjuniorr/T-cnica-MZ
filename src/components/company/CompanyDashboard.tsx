@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { UserAvatar } from '../common/UserAvatar';
+import { getInitial } from '../../utils/stringUtils';
 import {
   CompanyProfile,
   JobOpening,
@@ -521,11 +522,11 @@ export const CompanyDashboard: React.FC<CompanyDashboardProps> = ({ onNavigateTa
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-black text-sm shrink-0">
-                          {app.technicianName.charAt(0)}
+                          {getInitial(app.technicianName)}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-black text-slate-900">{app.technicianName}</h4>
+                            <h4 className="text-sm font-black text-slate-900">{app.technicianName || 'Técnico'}</h4>
                             {app.technicianVerified && (
                               <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.2 rounded border border-blue-200 flex items-center gap-0.5">
                                 <CheckCircle2 className="w-3 h-3 text-blue-500" /> Verificado
@@ -690,10 +691,10 @@ export const CompanyDashboard: React.FC<CompanyDashboardProps> = ({ onNavigateTa
                   <div className="space-y-3">
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-black text-sm shrink-0">
-                        {tech.name.charAt(0)}
+                        {getInitial(tech.name)}
                       </div>
                       <div>
-                        <h4 className="text-sm font-black text-slate-900">{tech.name}</h4>
+                        <h4 className="text-sm font-black text-slate-900">{tech.name || 'Técnico'}</h4>
                         <p className="text-xs text-purple-600 font-semibold">{tech.specialties.join(', ')}</p>
                         <p className="text-[11px] text-slate-500">📍 {tech.city}, {tech.province}</p>
                       </div>

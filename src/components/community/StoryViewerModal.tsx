@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { getInitial } from '../../utils/stringUtils';
 import {
   X,
   Eye,
@@ -281,7 +282,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-white font-bold bg-blue-600 text-sm">
-                  {(currentStory?.authorName || 'U').charAt(0).toUpperCase()}
+                  {getInitial(currentStory?.authorName)}
                 </div>
               )}
             </div>
@@ -533,16 +534,16 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                         {viewer.userAvatar ? (
                           <img
                             src={viewer.userAvatar}
-                            alt={viewer.userName}
+                            alt={viewer.userName || 'Usuário'}
                             className="w-full h-full rounded-full object-cover"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          viewer.userName.charAt(0)
+                          getInitial(viewer.userName)
                         )}
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-white">{viewer.userName}</p>
+                        <p className="text-sm font-semibold text-white">{viewer.userName || 'Usuário'}</p>
                         <p className="text-xs text-slate-400 capitalize">
                           {viewer.userRole === 'technician' ? 'Técnico Pro' : viewer.userRole === 'company' ? 'Empresa' : 'Cliente'}
                         </p>

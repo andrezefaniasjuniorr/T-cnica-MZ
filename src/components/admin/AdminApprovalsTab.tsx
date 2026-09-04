@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../../types';
+import { getInitial } from '../../utils/stringUtils';
 import {
   UserCheck,
   UserX,
@@ -210,18 +211,18 @@ export const AdminApprovalsTab: React.FC<AdminApprovalsTabProps> = ({
                       {applicant.avatarUrl ? (
                         <img
                           src={applicant.avatarUrl}
-                          alt={applicant.name}
+                          alt={applicant.name || 'Candidato'}
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <span>{applicant.name.charAt(0).toUpperCase()}</span>
+                        <span>{getInitial(applicant.name)}</span>
                       )}
                     </div>
 
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-bold text-white">{applicant.name}</h3>
+                        <h3 className="text-sm font-bold text-white">{applicant.name || 'Candidato Sem Nome'}</h3>
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                             isCompany

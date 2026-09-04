@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, UserRole, UserStatus } from '../../types';
+import { getInitial } from '../../utils/stringUtils';
 import {
   Users,
   Search,
@@ -288,11 +289,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
         ) : (
           filteredUsers.map(user => {
             const isProcessing = processingId === user.uid;
+            const userName = user.name || (user as any).displayName || 'Usuário Sem Nome';
+            const userEmail = user.email || 'Sem email';
+            const userRole = user.role || (user as any).tipoConta || 'cliente';
             const isCompany = user.role === 'company' || (user as any).tipoConta === 'empresa';
-            const isClient = user.role === 'client' || user.tipoConta === 'cliente';
+            const isClient = user.role === 'client' || (user as any).tipoConta === 'cliente';
             const isAdmin = user.role === 'admin';
-            const isVerified = Boolean(user.isVerified);
-            const isBlocked = user.status === 'blocked' || user.statusConta === 'bloqueada';
+            const isVerified = Boolean(user.isVerified || (user as any).hasSeloMZ || (user as any).temSeloMZ || (user as any).statusSelo === 'aprovado');
+            const isBlocked = user.status === 'blocked' || user.status === 'banned' || (user as any).statusConta === 'bloqueada' || (user as any).statusConta === 'suspensa' || user.status === 'suspended';
 
             // Subscription Calculation
             const exp = user.dataExpiracao || user.subscriptionExpiresAt;
@@ -335,15 +339,15 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   <div className="flex items-start gap-3.5">
                     <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0 font-bold overflow-hidden">
                       {user.avatarUrl ? (
-                        <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={user.avatarUrl} alt={userName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <span>{user.name.charAt(0).toUpperCase()}</span>
+                        <span>{getInitial(userName)}</span>
                       )}
                     </div>
 
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-white">{user.name}</span>
+                        <span className="text-sm font-bold text-white">{userName}</span>
 
                         {/* Role Badge */}
                         <span
@@ -380,7 +384,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
                         <span className="flex items-center gap-1">
                           <Mail className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{user.email}</span>
+                          <span>{userEmail}</span>
                         </span>
                         {user.phone && (
                           <span className="flex items-center gap-1">
@@ -432,7 +436,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                     {/* Add 30 Days (50 MT Plan) */}
                     {!isClient && !isAdmin && (
                       <button
-                        onClick={() => handleGrantBonus(user.uid, user.name)}
+                        onClick={() => handleGrantBonus(user.uid, userName)}
                         disabled={isProcessing}
                         className="px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50"
                         title="Conceder ou Estender 30 Dias de Assinatura Pro"
@@ -442,7 +446,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                       </button>
                     )}
 
-                    {/* Toggle Verified Badge */}
+                    {/* Toggle Verified / Selo MZ Badge */}
                     {!isClient && (
                       <button
                         onClick={() => handleToggleVerified(user)}
@@ -452,10 +456,10 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                             ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 hover:bg-blue-600/30'
                             : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
                         }`}
-                        title="Alternar Selo de Verificado"
+                        title={isVerified ? "Remover Selo MZ" : "Conceder Selo MZ"}
                       >
                         <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-                        <span>{isVerified ? 'Remover Selo' : 'Dar Selo'}</span>
+                        <span>{isVerified ? 'Remover Selo' : 'Conceder Selo'}</span>
                       </button>
                     )}
 
@@ -466,7 +470,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                           onClick={() => handleUnban(user)}
                           disabled={isProcessing}
                           className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                          title="Desbloquear Conta"
+                          title="Desbanir / Desbloquear Usuário"
                         >
                           <Unlock className="w-3.5 h-3.5" />
                           <span>Desbanir</span>
@@ -475,10 +479,11 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                         <button
                           onClick={() => setSelectedUserForBan(user)}
                           disabled={isProcessing}
-                          className="p-2 rounded-xl bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 text-xs font-semibold flex items-center transition-colors"
-                          title="Bloquear / Suspender Conta"
+                          className="px-3 py-1.5 rounded-xl bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                          title="Bloquear/Banir Usuário"
                         >
-                          <Ban className="w-4 h-4" />
+                          <Ban className="w-3.5 h-3.5" />
+                          <span>Bloquear/Banir</span>
                         </button>
                       )
                     )}

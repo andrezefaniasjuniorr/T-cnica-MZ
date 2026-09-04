@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getInitial } from '../../utils/stringUtils';
 
 interface UserAvatarProps {
   src?: string | null;
@@ -21,7 +22,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 }) => {
   const [hasError, setHasError] = useState(false);
 
-  const initial = (name || 'U').trim().charAt(0).toUpperCase() || 'U';
+  const initial = getInitial(name);
 
   const isCompany = role === 'company' || role === 'empresa';
   const isTechnician = role === 'technician' || role === 'tecnico';

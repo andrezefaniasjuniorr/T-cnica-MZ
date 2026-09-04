@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { soundFX } from '../../utils/audio';
+import { getInitial } from '../../utils/stringUtils';
 import { ConversationItem, MessageItem } from '../../types';
 import {
   X,
@@ -189,13 +190,13 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
                       isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                     }`}>
-                      {other?.name.charAt(0) || 'U'}
+                      {getInitial(other?.name)}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
                         <p className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
-                          {other?.name}
+                          {other?.name || 'Usuário'}
                         </p>
                         <span className={`text-[10px] ${isSelected ? 'text-blue-200' : 'text-slate-400'}`}>
                           {new Date(c.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -235,11 +236,11 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                   </button>
 
                   <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm shrink-0">
-                    {otherParticipant.name.charAt(0)}
+                    {getInitial(otherParticipant.name)}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-sm font-black text-slate-900 truncate">{otherParticipant.name}</h4>
+                      <h4 className="text-sm font-black text-slate-900 truncate">{otherParticipant.name || 'Usuário'}</h4>
                       {getRoleBadge(otherParticipant.role)}
                     </div>
                     {activeConversation.contextTitle && (
