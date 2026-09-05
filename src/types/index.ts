@@ -55,9 +55,12 @@ export type AccountStatus = 'ativa' | 'bloqueada' | 'suspensa';
 export interface User {
   uid: string;
   name: string;
+  nome?: string;
   email: string;
   phone?: string;
+  nuit?: string;
   role: UserRole;
+  tipo?: 'cliente' | 'tecnico' | 'empresa' | string;
   tipoConta?: 'cliente' | 'tecnico' | 'empresa';
   adminSubRole?: AdminSubRole;
   status: UserStatus;
@@ -757,5 +760,17 @@ export interface SolicitacaoSelo {
   dataResposta?: string;
   aprovadoPor?: string;
   respondidoPor?: string;
+}
+
+declare global {
+  interface Window {
+    isRegistering?: boolean;
+    isCreatingAccount?: boolean;
+    fazerLogin?: (email: string, senha: string) => Promise<any>;
+    cadastrarEmpresa?: (email: string, senha: string, dadosEmpresa: any) => Promise<any>;
+    carregarPainelEmpresa?: (userData: any) => void;
+    carregarPainelTecnico?: (userData: any) => void;
+    carregarPainelCliente?: (userData: any) => void;
+  }
 }
 

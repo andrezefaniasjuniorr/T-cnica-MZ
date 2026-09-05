@@ -84,3 +84,25 @@ html, body {
   font-size: 13px !important;
   border-radius: 6px !important;
 }
+
+/* =========================================================================
+   NAVEGAÇÃO POR ABAS DO PAINEL DO PROFISSIONAL (tab-content & dashboard-tabs)
+   ========================================================================= */
+.tab-content { 
+  display: none; 
+}
+
+.tab-content.active { 
+  display: block !important; 
+}
+
+.dashboard-tabs {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-tabs .tab-btn.active {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}

@@ -151,14 +151,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setSuccess('Autenticado com sucesso!');
         setTimeout(() => {
           onClose();
-          if (res.user?.role === 'company' || res.user?.tipoConta === 'empresa') {
-            window.location.hash = '#empresa';
-          } else if (res.user?.role === 'technician' || res.user?.tipoConta === 'tecnico') {
-            window.location.hash = '#tecnico';
+          if (res.user?.tipo === 'empresa' || res.user?.role === 'company' || res.user?.tipoConta === 'empresa') {
+            window.location.replace("painel-empresa.html");
+          } else if (res.user?.tipo === 'tecnico' || res.user?.role === 'technician' || res.user?.tipoConta === 'tecnico') {
+            window.location.replace("painel-tecnico.html");
+          } else if (res.user?.tipo === 'cliente' || res.user?.role === 'client' || res.user?.tipoConta === 'cliente') {
+            window.location.replace("painel-cliente.html");
           } else if (res.user?.role === 'super_admin' || res.user?.role === 'admin') {
             window.location.hash = '#gestao-pro-mz';
           } else {
-            window.location.hash = '#tecnico';
+            window.location.replace("painel-tecnico.html");
           }
         }, 300);
       } else {
@@ -226,6 +228,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           phone: valorTelefone,
           password: valorSenha,
           role: 'technician',
+          tipo: 'tecnico',
           tipoConta: 'tecnico',
           idade: valorIdade,
           specialty: valorEspecialidade,
@@ -237,7 +240,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setSuccess('Cadastro concluído com sucesso!');
           setTimeout(() => {
             onClose();
-            window.location.hash = '#tecnico';
+            window.location.replace("painel-tecnico.html");
           }, 350);
         } else {
           setError(res.error || 'Erro ao realizar cadastro.');
@@ -272,6 +275,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           phone: valorTelefone,
           password: valorSenha,
           role: 'company',
+          tipo: 'empresa', // FIX: Identificador estrito do tipo de conta
           tipoConta: 'empresa',
           province: valorProvincia,
           city: valorCidade,
@@ -284,7 +288,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setSuccess('Cadastro de empresa concluído!');
           setTimeout(() => {
             onClose();
-            window.location.hash = '#empresa';
+            window.location.replace("painel-empresa.html");
           }, 350);
         } else {
           setError(res.error || 'Erro ao realizar cadastro de empresa.');

@@ -149,3 +149,25 @@ html, body {
     color: #0f172a !important;
   }
 }
+
+/* =========================================================================
+   NAVEGAÇÃO POR ABAS DO PAINEL DO PROFISSIONAL (tab-content & dashboard-tabs)
+   ========================================================================= */
+.tab-content { 
+  display: none; 
+}
+
+.tab-content.active { 
+  display: block !important; 
+}
+
+.dashboard-tabs {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-tabs .tab-btn.active {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}

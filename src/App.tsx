@@ -63,11 +63,42 @@ const resolveTabFromLocation = (): string | null => {
   if (rawPath === 'gestao-pro-mz' || rawPath === 'admin' || rawHash === 'gestao-pro-mz' || rawHash === 'admin') {
     return 'gestao-pro-mz';
   }
-  // Technician aliases
-  if (rawPath === 'tecnico' || rawPath === 'painel-tecnico' || rawHash === 'tecnico' || rawHash === 'painel-tecnico' || rawHash === 'technician') {
+  // Company aliases (including painel-empresa.html and aliases)
+  if (
+    rawPath === 'empresa' ||
+    rawPath === 'painel-empresa' ||
+    rawPath === 'painel-empresa.html' ||
+    rawPath.includes('painel-empresa') ||
+    rawHash === 'empresa' ||
+    rawHash === 'company' ||
+    rawHash === 'painel-empresa'
+  ) {
+    return 'company';
+  }
+  // Technician aliases (including painel-tecnico.html and aliases)
+  if (
+    rawPath === 'tecnico' ||
+    rawPath === 'painel-tecnico' ||
+    rawPath === 'painel-tecnico.html' ||
+    rawPath.includes('painel-tecnico') ||
+    rawHash === 'tecnico' ||
+    rawHash === 'painel-tecnico' ||
+    rawHash === 'technician'
+  ) {
     return 'technician';
   }
   // Client & Mural / Feed aliases
+  if (
+    rawPath === 'cliente' ||
+    rawPath === 'painel-cliente' ||
+    rawPath === 'painel-cliente.html' ||
+    rawPath.includes('painel-cliente') ||
+    rawHash === 'cliente' ||
+    rawHash === 'client' ||
+    rawHash === 'painel-cliente'
+  ) {
+    return 'client';
+  }
   if (rawPath === 'feed' || rawPath === 'mural' || rawHash === 'feed' || rawHash === 'mural' || rawHash === 'community') {
     return 'community';
   }
@@ -82,14 +113,6 @@ const resolveTabFromLocation = (): string | null => {
   // Jobs aliases
   if (rawPath === 'vagas' || rawHash === 'vagas' || rawHash === 'jobs') {
     return 'jobs';
-  }
-  // Company aliases
-  if (rawPath === 'empresa' || rawHash === 'empresa' || rawHash === 'company') {
-    return 'company';
-  }
-  // Client profile
-  if (rawPath === 'cliente' || rawHash === 'cliente' || rawHash === 'client') {
-    return 'client';
   }
   // Academy
   if (rawPath === 'academia' || rawHash === 'academia' || rawHash === 'academy') {
@@ -171,6 +194,35 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!currentUser || isLoading) return;
 
+    // Se o usuário JÁ ESTÁ logado e a URL atual for de Login/Cadastro, manda para o painel correto sem recarregar
+    if (typeof window !== 'undefined' && (window.location.pathname.includes('login') || window.location.pathname.includes('cadastro'))) {
+      if (isCompany || currentUser.tipo === 'empresa' || currentUser.tipoConta === 'empresa' || currentUser.role === 'company') {
+        setActiveTab('company');
+        try {
+          window.history.replaceState({ tab: 'company' }, '', '/#empresa');
+        } catch {}
+        return;
+      } else if (isTechnician || currentUser.tipo === 'tecnico' || currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician') {
+        setActiveTab('technician');
+        try {
+          window.history.replaceState({ tab: 'technician' }, '', '/#tecnico');
+        } catch {}
+        return;
+      } else if (isAdmin) {
+        setActiveTab('gestao-pro-mz');
+        try {
+          window.history.replaceState({ tab: 'gestao-pro-mz' }, '', '/#gestao-pro-mz');
+        } catch {}
+        return;
+      } else {
+        setActiveTab('client');
+        try {
+          window.history.replaceState({ tab: 'client' }, '', '/#cliente');
+        } catch {}
+        return;
+      }
+    }
+
     const detected = resolveTabFromLocation();
 
     // 2. Dynamic Redirection and Role Alignment upon Login and Session Refresh (F5)
@@ -187,8 +239,8 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // If Company (tipoConta === 'empresa' or role === 'company')
-    if (isCompany || currentUser.tipoConta === 'empresa' || currentUser.role === 'company') {
+    // If Company (tipo === 'empresa' or tipoConta === 'empresa' or role === 'company')
+    if (isCompany || currentUser.tipo === 'empresa' || currentUser.tipoConta === 'empresa' || currentUser.role === 'company') {
       if (detected && ['company', 'jobs', 'company_directory', 'technicians_directory', 'market', 'community', 'settings'].includes(detected)) {
         setActiveTab(detected);
       } else {
@@ -201,8 +253,8 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // If Technician (tipoConta === 'tecnico' or role === 'technician')
-    if (isTechnician || currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician') {
+    // If Technician (tipo === 'tecnico' or tipoConta === 'tecnico' or role === 'technician')
+    if (isTechnician || currentUser.tipo === 'tecnico' || currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician') {
       if (detected && ['technician', 'tools', 'jobs', 'market', 'community', 'academy', 'technicians_directory', 'company_directory', 'settings'].includes(detected)) {
         setActiveTab(detected);
       } else {
@@ -215,8 +267,8 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // If Client (tipoConta === 'cliente' or role === 'client')
-    if (isClient || currentUser.tipoConta === 'cliente' || currentUser.role === 'client') {
+    // If Client (tipo === 'cliente' or tipoConta === 'cliente' or role === 'client')
+    if (isClient || currentUser.tipo === 'cliente' || currentUser.tipoConta === 'cliente' || currentUser.role === 'client') {
       // If client attempts to access technician/company/admin tabs, redirect to client portal
       if (detected === 'tools' || detected === 'technician' || detected === 'company' || detected === 'gestao-pro-mz') {
         setActiveTab('client');
@@ -232,7 +284,7 @@ const AppContent: React.FC = () => {
         } catch {}
       }
     }
-  }, [currentUser?.uid, currentUser?.tipoConta, currentUser?.role, currentUser?.statusAprovacao, currentUser?.status, isClient, isTechnician, isCompany, isAdmin, isLoading]);
+  }, [currentUser?.uid, currentUser?.tipo, currentUser?.tipoConta, currentUser?.role, currentUser?.statusAprovacao, currentUser?.status, isClient, isTechnician, isCompany, isAdmin, isLoading]);
 
   // 3. First-time login onboarding check
   useEffect(() => {

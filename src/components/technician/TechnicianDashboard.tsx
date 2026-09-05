@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { UserAvatar } from '../common/UserAvatar';
@@ -8,7 +8,8 @@ import {
   Proposal,
   TECHNICAL_CATEGORIES,
   MOZAMBIQUE_PROVINCES,
-  PaymentMethod
+  PaymentMethod,
+  PortfolioItem
 } from '../../types';
 import {
   Wrench,
@@ -31,7 +32,16 @@ import {
   AlertCircle,
   Copy,
   Calculator,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  MapPin,
+  Calendar,
+  MessageSquare,
+  Search,
+  Filter,
+  Check,
+  X,
+  CreditCard
 } from 'lucide-react';
 import { DigitalBusinessCard } from '../common/DigitalBusinessCard';
 import { TopBackNav } from '../common/TopBackNav';
@@ -49,6 +59,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
     reviews,
     portfolio,
     plans,
+    payments,
     submitProposal,
     submitVerificationDocuments,
     submitPayment,
@@ -58,12 +69,15 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
     settings
   } = useData();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'requests' | 'proposals' | 'budget_generator' | 'portfolio' | 'subscription' | 'profile'>('overview');
+  // Tab State: uses the exact IDs corresponding to data-tab in the specification
+  const [activeTab, setActiveTab] = useState<
+    'tab-visao-geral' | 'tab-pedidos' | 'tab-propostas' | 'tab-orcamentos' | 'tab-portfolio' | 'tab-assinatura' | 'tab-editar'
+  >('tab-visao-geral');
+
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   // Proposal modal state
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
-  const [proposalPrice, setProposalPrice] = useState<number>(3500);
   const [proposalLabor, setProposalLabor] = useState<number>(2000);
   const [proposalMaterials, setProposalMaterials] = useState<number>(1500);
   const [proposalNotes, setProposalNotes] = useState('');
@@ -87,12 +101,80 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
   const [docNameInput, setDocNameInput] = useState('');
   const [docUploadedSuccess, setDocUploadedSuccess] = useState(false);
 
-  // M-Pesa Subscription Modal
+  // Portfolio modal state
+  const [isAddPortfolioModalOpen, setIsAddPortfolioModalOpen] = useState(false);
+  const [newPortTitle, setNewPortTitle] = useState('');
+  const [newPortCategory, setNewPortCategory] = useState(currentTechProfile?.specialties[0] || 'Eletricidade');
+  const [newPortDesc, setNewPortDesc] = useState('');
+  const [newPortImage, setNewPortImage] = useState('https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=60');
+  const [newPortCity, setNewPortCity] = useState(currentTechProfile?.city || 'Maputo');
+  const [portfolioSuccess, setPortfolioSuccess] = useState(false);
+
+  // Requests search & filter state
+  const [requestsSearch, setRequestsSearch] = useState('');
+  const [requestsCategoryFilter, setRequestsCategoryFilter] = useState('all');
+
+  // Profile edit state
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState(false);
+
+  // M-Pesa Subscription Modal & Tab State
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState(plans[0]?.id || 'plan_pro');
   const [subMethod, setSubMethod] = useState<PaymentMethod>('mpesa');
   const [txCode, setTxCode] = useState('');
   const [subSuccess, setSubSuccess] = useState(false);
+
+  // Synchronize Tab Switching function
+  const handleTabClick = (tabId: string, e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setActiveTab(tabId as any);
+
+    // Sync active classes and display in DOM to support vanilla scripts and CSS transitions
+    const tabButtons = document.querySelectorAll('.dashboard-tabs .tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(b => {
+      if (b.getAttribute('data-tab') === tabId) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+
+    tabContents.forEach(c => {
+      if (c.id === tabId) {
+        c.classList.add('active');
+        c.classList.remove('hidden');
+        (c as HTMLElement).style.display = 'block';
+      } else {
+        c.classList.remove('active');
+        c.classList.add('hidden');
+        (c as HTMLElement).style.display = 'none';
+      }
+    });
+  };
+
+  // Initialize and synchronize with external / vanilla JS tab switchers (e.g. initDashboardTabs)
+  useEffect(() => {
+    if (typeof (window as any).initDashboardTabs === 'function') {
+      (window as any).initDashboardTabs();
+    }
+
+    const handleExternalClick = (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement)?.closest?.('.dashboard-tabs .tab-btn');
+      if (btn) {
+        const targetTabId = btn.getAttribute('data-tab');
+        if (targetTabId && targetTabId !== activeTab) {
+          setActiveTab(targetTabId as any);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleExternalClick);
+    return () => {
+      document.removeEventListener('click', handleExternalClick);
+    };
+  }, [activeTab]);
 
   if (!currentUser || currentUser.role !== 'technician') {
     return (
@@ -114,12 +196,17 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
     );
   }
 
+  // Filter user specific records
+  const myProposals = proposals.filter(p => p.technicianId === currentUser.uid);
+  const myPortfolio = portfolio.filter(p => p.technicianId === currentUser.uid);
+  const myPayments = payments.filter(p => p.userId === currentUser.uid);
+
   // Calculate profile completion percentage
   let completionScore = 40;
   if (currentTechProfile?.bio && currentTechProfile.bio.length > 20) completionScore += 15;
   if (currentTechProfile?.whatsapp) completionScore += 15;
   if (currentTechProfile?.verificationStatus === 'approved') completionScore += 15;
-  if (portfolio.filter(p => p.technicianId === currentUser.uid).length > 0) completionScore += 15;
+  if (myPortfolio.length > 0) completionScore += 15;
   completionScore = Math.min(100, completionScore);
 
   const isVerified = currentTechProfile?.verificationStatus === 'approved';
@@ -181,7 +268,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
     });
 
     setSelectedRequest(null);
-    setActiveTab('proposals');
+    handleTabClick('tab-propostas');
   };
 
   const handleSubmitVerification = (e: React.FormEvent) => {
@@ -220,6 +307,45 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
       }, 2000);
     }
   };
+
+  const handleAddPortfolio = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPortTitle.trim()) return;
+
+    addPortfolioItem({
+      technicianId: currentUser.uid,
+      title: newPortTitle.trim(),
+      description: newPortDesc.trim() || 'Obra executada com excelência e conformidade com as normas técnicas de Moçambique.',
+      category: newPortCategory,
+      province: currentTechProfile?.province || 'Maputo Cidade',
+      city: newPortCity.trim() || currentTechProfile?.city || 'Maputo',
+      photos: [newPortImage],
+      imageUrl: newPortImage,
+      date: new Date().toISOString().split('T')[0]
+    });
+
+    setPortfolioSuccess(true);
+    setTimeout(() => {
+      setPortfolioSuccess(false);
+      setIsAddPortfolioModalOpen(false);
+      setNewPortTitle('');
+      setNewPortDesc('');
+    }, 1500);
+  };
+
+  // Filter requests based on search and category
+  const filteredRequests = serviceRequests.filter(req => {
+    const matchesSearch =
+      !requestsSearch ||
+      req.title.toLowerCase().includes(requestsSearch.toLowerCase()) ||
+      req.description.toLowerCase().includes(requestsSearch.toLowerCase()) ||
+      req.city.toLowerCase().includes(requestsSearch.toLowerCase());
+
+    const matchesCategory =
+      requestsCategoryFilter === 'all' || req.category === requestsCategoryFilter;
+
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
@@ -288,7 +414,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
               </button>
 
               <button
-                onClick={() => setActiveTab('budget_generator')}
+                onClick={(e) => handleTabClick('tab-orcamentos', e)}
                 className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-blue-600/30"
               >
                 <Calculator className="w-4 h-4" />
@@ -313,34 +439,144 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
         </div>
 
         {/* Dashboard Navigation Tabs */}
-        <div className="bg-white rounded-2xl p-2 border border-slate-200 shadow-xs flex flex-wrap items-center gap-1.5 overflow-x-auto">
-          {[
-            { id: 'overview', label: 'Visão Geral & Selo', icon: <Wrench className="w-4 h-4" /> },
-            { id: 'requests', label: `Pedidos de Serviços (${serviceRequests.length})`, icon: <Briefcase className="w-4 h-4" /> },
-            { id: 'proposals', label: `Minhas Propostas (${proposals.filter(p => p.technicianId === currentUser.uid).length})`, icon: <FileText className="w-4 h-4" /> },
-            { id: 'budget_generator', label: 'Gerador de Orçamentos', icon: <Calculator className="w-4 h-4" /> },
-            { id: 'portfolio', label: `Portfólio de Obras (${portfolio.filter(p => p.technicianId === currentUser.uid).length})`, icon: <Camera className="w-4 h-4" /> },
-            { id: 'subscription', label: 'Assinatura & M-Pesa', icon: <DollarSign className="w-4 h-4" /> },
-            { id: 'profile', label: 'Editar Perfil & WhatsApp', icon: <Phone className="w-4 h-4" /> }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
+        <div className="dashboard-tabs bg-white rounded-2xl p-2 border border-slate-200 shadow-xs flex flex-wrap items-center gap-1.5 overflow-x-auto">
+          <button
+            className={`tab-btn px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'tab-visao-geral' ? 'active bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            data-tab="tab-visao-geral"
+            onClick={(e) => handleTabClick('tab-visao-geral', e)}
+          >
+            <Wrench className="w-4 h-4" />
+            <span>Visão Geral & Selo</span>
+          </button>
+
+          <button
+            className={`tab-btn px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'tab-pedidos' ? 'active bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            data-tab="tab-pedidos"
+            onClick={(e) => handleTabClick('tab-pedidos', e)}
+          >
+            <Briefcase className="w-4 h-4" />
+            <span>Pedidos de Serviços ({serviceRequests.length})</span>
+          </button>
+
+          <button
+            className={`tab-btn px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'tab-propostas' ? 'active bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            data-tab="tab-propostas"
+            onClick={(e) => handleTabClick('tab-propostas', e)}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Minhas Propostas ({myProposals.length})</span>
+          </button>
+
+          <button
+            className={`tab-btn px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'tab-orcamentos' ? 'active bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            data-tab="tab-orcamentos"
+            onClick={(e) => handleTabClick('tab-orcamentos', e)}
+          >
+            <Calculator className="w-4 h-4" />
+            <span>Gerador de Orçamentos</span>
+          </button>
+
+          <button
+            className={`tab-btn px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'tab-portfolio' ? 'active bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            data-tab="tab-portfolio"
+            onClick={(e) => handleTabClick('tab-portfolio', e)}
+          >
+            <Camera className="w-4 h-4" />
+            <span>Portfólio de Obras ({myPortfolio.length})</span>
+          </button>
+
+          <button
+            className={`tab-btn px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'tab-assinatura' ? 'active bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            data-tab="tab-assinatura"
+            onClick={(e) => handleTabClick('tab-assinatura', e)}
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>Assinatura & M-Pesa</span>
+          </button>
+
+          <button
+            className={`tab-btn px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'tab-editar' ? 'active bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            data-tab="tab-editar"
+            onClick={(e) => handleTabClick('tab-editar', e)}
+          >
+            <Phone className="w-4 h-4" />
+            <span>Editar Perfil & WhatsApp</span>
+          </button>
         </div>
 
-        {/* TAB 1: OVERVIEW & VERIFICATION SEAL */}
-        {activeTab === 'overview' && (
+        {/* ========================================================================= */}
+        {/* ABA 1: VISÃO GERAL & SELO MZ */}
+        {/* ========================================================================= */}
+        <div
+          id="tab-visao-geral"
+          className={`tab-content ${activeTab === 'tab-visao-geral' ? 'active' : 'hidden'}`}
+          style={{ display: activeTab === 'tab-visao-geral' ? 'block' : 'none' }}
+        >
           <div className="space-y-6">
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avaliação Média</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                  <span className="text-xl sm:text-2xl font-black text-slate-900">{currentTechProfile?.rating?.toFixed(1) || '5.0'}</span>
+                  <span className="text-xs text-slate-400">/ 5.0</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">{currentTechProfile?.reviewsCount || 0} avaliações reais</p>
+              </div>
+
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pedidos Disponíveis</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Briefcase className="w-5 h-5 text-blue-600" />
+                  <span className="text-xl sm:text-2xl font-black text-slate-900">{serviceRequests.length}</span>
+                </div>
+                <button
+                  onClick={(e) => handleTabClick('tab-pedidos', e)}
+                  className="text-[11px] text-blue-600 font-bold hover:underline mt-1 inline-block"
+                >
+                  Ver oportunidades →
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Minhas Propostas</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                  <span className="text-xl sm:text-2xl font-black text-slate-900">{myProposals.length}</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">{myProposals.filter(p => p.status === 'accepted').length} propostas aceites</p>
+              </div>
+
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Obras no Portfólio</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Camera className="w-5 h-5 text-emerald-600" />
+                  <span className="text-xl sm:text-2xl font-black text-slate-900">{myPortfolio.length}</span>
+                </div>
+                <button
+                  onClick={(e) => handleTabClick('tab-portfolio', e)}
+                  className="text-[11px] text-emerald-600 font-bold hover:underline mt-1 inline-block"
+                >
+                  Gerir obras →
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Subscription Status Card */}
               <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
@@ -349,7 +585,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
                     isSubActive ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                   }`}>
-                    {isSubActive ? '🟢 ATIVA (27 dias)' : '⏳ NÃO ATIVA'}
+                    {isSubActive ? '🟢 ATIVA' : '⏳ NÃO ATIVA'}
                   </span>
                 </div>
                 <div>
@@ -363,10 +599,11 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   </p>
                 </div>
                 <button
-                  onClick={() => setIsSubModalOpen(true)}
-                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition"
+                  onClick={(e) => handleTabClick('tab-assinatura', e)}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
                 >
-                  Renovar via M-Pesa / e-Mola
+                  <CreditCard className="w-4 h-4" />
+                  <span>Gerir Assinatura M-Pesa</span>
                 </button>
               </div>
 
@@ -377,44 +614,293 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                     <ShieldCheck className="w-5 h-5 text-blue-600" />
                     <span>Selo Oficial de Técnico Verificado TécnicaMZ</span>
                   </h3>
-                  <span className={`text-xs font-bold ${isVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {isVerified ? '✓ Selo Ativo' : 'Pendente de Documentação'}
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                    isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {isVerified ? '✓ Selo MZ Ativo' : 'Pendente de Documentação'}
                   </span>
                 </div>
 
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Técnicos verificados passam por auditoria de identidade (BI / Passaporte) e certificados do IIM / UEM / Institutos Médios.
+                  Técnicos verificados passam por auditoria de identidade (BI / Passaporte) e certificados do IIM / UEM / Institutos Médios. O Selo MZ confere autoridade e prioridade no ranking regional.
                 </p>
 
                 {docUploadedSuccess && (
                   <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span>Documento submetido para a equipa de auditoria com sucesso!</span>
                   </div>
                 )}
 
-                <form onSubmit={handleSubmitVerification} className="flex gap-2 pt-2">
+                <form onSubmit={handleSubmitVerification} className="flex flex-col sm:flex-row gap-2 pt-2">
                   <input
                     type="text"
                     value={docNameInput}
                     onChange={e => setDocNameInput(e.target.value)}
                     placeholder="Nome do Certificado / Número do BI (Ex: Certificado_Eletrotecnica_IIM.pdf)"
-                    className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    required
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shrink-0"
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shrink-0 flex items-center justify-center gap-1.5"
                   >
-                    Submeter Documento
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Submeter Documento</span>
                   </button>
                 </form>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* TAB 4: BUDGET GENERATOR (PROPOSTAS & ORÇAMENTOS) */}
-        {activeTab === 'budget_generator' && (
+        {/* ========================================================================= */}
+        {/* ABA 2: PEDIDOS DE SERVIÇOS DISPONÍVEIS */}
+        {/* ========================================================================= */}
+        <div
+          id="tab-pedidos"
+          className={`tab-content ${activeTab === 'tab-pedidos' ? 'active' : 'hidden'}`}
+          style={{ display: activeTab === 'tab-pedidos' ? 'block' : 'none' }}
+        >
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Mural de Pedidos de Serviços</h2>
+                <p className="text-xs text-slate-500">Clientes procuram técnicos qualificados. Envie sua proposta e feche serviços.</p>
+              </div>
+
+              {/* Search & Category Filter */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={requestsSearch}
+                    onChange={e => setRequestsSearch(e.target.value)}
+                    placeholder="Buscar pedidos..."
+                    className="pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs w-44"
+                  />
+                </div>
+
+                <select
+                  value={requestsCategoryFilter}
+                  onChange={e => setRequestsCategoryFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
+                >
+                  <option value="all">Todas as Categorias</option>
+                  {TECHNICAL_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* List of Requests */}
+            {filteredRequests.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 space-y-2">
+                <Briefcase className="w-10 h-10 mx-auto text-slate-300" />
+                <p className="text-sm font-bold">Nenhum pedido de serviço encontrado.</p>
+                <p className="text-xs text-slate-500">Tente ajustar a busca ou verificar novamente em breve.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredRequests.map(req => {
+                  const alreadyProposed = myProposals.some(p => p.requestId === req.id);
+                  return (
+                    <div
+                      key={req.id}
+                      className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md transition space-y-4 flex flex-col justify-between"
+                    >
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                            {req.category}
+                          </span>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            req.urgency === 'urgent'
+                              ? 'bg-rose-100 text-rose-700'
+                              : req.urgency === 'high'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {req.urgency === 'urgent' ? '⚡ Urgente' : req.urgency === 'high' ? 'Alta prioridade' : 'Normal'}
+                          </span>
+                        </div>
+
+                        <h3 className="text-sm font-black text-slate-900 leading-snug">{req.title}</h3>
+                        <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">{req.description}</p>
+
+                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-1">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            {req.city}, {req.province}
+                          </span>
+                          <span className="font-semibold text-slate-700">
+                            👤 {req.clientName}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase font-bold">Orçamento Indicado</span>
+                          <p className="text-sm font-black text-slate-900 font-mono">
+                            {req.budgetMZN ? `${req.budgetMZN.toLocaleString()} MZN` : 'A combinar'}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {alreadyProposed ? (
+                            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                              ✓ Proposta Enviada
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setSelectedRequest(req);
+                                setProposalLabor(req.budgetMZN ? Math.round(req.budgetMZN * 0.6) : 2500);
+                                setProposalMaterials(req.budgetMZN ? Math.round(req.budgetMZN * 0.4) : 1500);
+                              }}
+                              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Enviar Proposta</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* ABA 3: MINHAS PROPOSTAS */}
+        {/* ========================================================================= */}
+        <div
+          id="tab-propostas"
+          className={`tab-content ${activeTab === 'tab-propostas' ? 'active' : 'hidden'}`}
+          style={{ display: activeTab === 'tab-propostas' ? 'block' : 'none' }}
+        >
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Minhas Propostas Submetidas</h2>
+                <p className="text-xs text-slate-500">Acompanhe o estado de aprovação e valores cotados aos clientes.</p>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl">
+                <span>Total: {myProposals.length}</span>
+                <span>•</span>
+                <span className="text-emerald-600">Aceites: {myProposals.filter(p => p.status === 'accepted').length}</span>
+              </div>
+            </div>
+
+            {myProposals.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 space-y-3">
+                <FileText className="w-12 h-12 mx-auto text-slate-300" />
+                <p className="text-sm font-bold text-slate-700">Ainda não enviou nenhuma proposta.</p>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Aceda à aba "Pedidos de Serviços" e envie sua cotação profissional para fechar novas obras em Moçambique.
+                </p>
+                <button
+                  onClick={(e) => handleTabClick('tab-pedidos', e)}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 mt-2"
+                >
+                  <Briefcase className="w-4 h-4" />
+                  <span>Explorar Pedidos de Serviços</span>
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
+                {myProposals.map(prop => (
+                  <div key={prop.id} className="p-5 bg-white hover:bg-slate-50/70 transition space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900">{prop.requestTitle || 'Proposta Técnica de Obra'}</h4>
+                        <p className="text-xs text-slate-500">Cliente: <strong className="text-slate-800">{prop.clientName || 'Cliente Particular'}</strong></p>
+                      </div>
+
+                      <span className={`self-start sm:self-auto text-xs font-bold px-3 py-1 rounded-full ${
+                        prop.status === 'accepted'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : prop.status === 'rejected'
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {prop.status === 'accepted'
+                          ? '🎉 Aceite pelo Cliente!'
+                          : prop.status === 'rejected'
+                          ? '✕ Não Selecionada'
+                          : '⏳ Aguardando Decisão'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-xl text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Mão de Obra</span>
+                        <p className="font-mono font-bold text-slate-800">{prop.laborCostMZN.toLocaleString()} MZN</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Materiais</span>
+                        <p className="font-mono font-bold text-slate-800">{prop.materialsCostMZN.toLocaleString()} MZN</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Valor Total</span>
+                        <p className="font-mono font-black text-blue-700">{prop.totalCostMZN.toLocaleString()} MZN</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Prazo Estimado</span>
+                        <p className="font-semibold text-slate-800">{prop.estimatedDays || '2 dias'}</p>
+                      </div>
+                    </div>
+
+                    {prop.notes && (
+                      <p className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200/80">
+                        💬 <span className="italic">{prop.notes}</span>
+                      </p>
+                    )}
+
+                    {prop.status === 'accepted' && (
+                      <div className="pt-1 flex items-center gap-2">
+                        {onOpenMessages && (
+                          <button
+                            onClick={() => onOpenMessages(prop.clientId, prop.clientName || 'Cliente', 'client')}
+                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Conversar com Cliente</span>
+                          </button>
+                        )}
+                        <a
+                          href={`https://wa.me/?text=${encodeURIComponent(`Olá! Sou ${currentTechProfile?.name || currentUser.name} do TécnicaMZ Pro a respeito da proposta aprovada para "${prop.requestTitle}".`)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>Falar no WhatsApp</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* ABA 4: GERADOR DE ORÇAMENTOS */}
+        {/* ========================================================================= */}
+        <div
+          id="tab-orcamentos"
+          className={`tab-content ${activeTab === 'tab-orcamentos' ? 'active' : 'hidden'}`}
+          style={{ display: activeTab === 'tab-orcamentos' ? 'block' : 'none' }}
+        >
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
               <div>
@@ -474,6 +960,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                       <button
                         onClick={() => handleRemoveBudgetItem(idx)}
                         className="text-rose-500 hover:text-rose-700 text-xs font-bold p-1"
+                        title="Remover item"
                       >
                         ✕
                       </button>
@@ -508,7 +995,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
             </div>
 
             {/* Total Callout */}
-            <div className="p-5 rounded-2xl bg-slate-900 text-white flex items-center justify-between">
+            <div className="p-5 rounded-2xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <p className="text-xs text-slate-400">Total do Orçamento Estimado</p>
                 <p className="text-xl sm:text-2xl font-black font-mono mt-0.5 text-emerald-400">
@@ -521,7 +1008,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   href={`https://wa.me/?text=${encodeURIComponent(
                     `*Orçamento TécnicaMZ - ${clientBudgetTitle}*\n` +
                     `Cliente: ${clientBudgetName}\n` +
-                    `Técnico: ${currentTechProfile?.name}\n\n` +
+                    `Técnico: ${currentTechProfile?.name || currentUser.name}\n\n` +
                     budgetItems.map(i => `• ${i.description}: ${i.cost.toLocaleString()} MZN`).join('\n') +
                     `\n\n*TOTAL: ${totalBudgetSum.toLocaleString()} MZN*`
                   )}`}
@@ -535,14 +1022,263 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* TAB 7: PROFILE & WHATSAPP CONFIG */}
-        {activeTab === 'profile' && (
+        {/* ========================================================================= */}
+        {/* ABA 5: PORTFÓLIO DE OBRAS */}
+        {/* ========================================================================= */}
+        <div
+          id="tab-portfolio"
+          className={`tab-content ${activeTab === 'tab-portfolio' ? 'active' : 'hidden'}`}
+          style={{ display: activeTab === 'tab-portfolio' ? 'block' : 'none' }}
+        >
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-            <div className="pb-6 border-b border-slate-100">
-              <h2 className="text-lg font-black text-slate-900">Configurações de Contato & WhatsApp</h2>
-              <p className="text-xs text-slate-500">Controle a exibição do botão direto de WhatsApp e mensagem automática.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Portfólio de Obras & Projetos</h2>
+                <p className="text-xs text-slate-500">Adicione fotografias de instalações e manutenções concluídas para gerar confiança.</p>
+              </div>
+
+              <button
+                onClick={() => setIsAddPortfolioModalOpen(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Adicionar Nova Obra</span>
+              </button>
+            </div>
+
+            {myPortfolio.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 space-y-3">
+                <Camera className="w-12 h-12 mx-auto text-slate-300" />
+                <p className="text-sm font-bold text-slate-700">Seu portfólio ainda está vazio.</p>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Técnicos com obras fotográficas no portfólio recebem 3x mais solicitações de orçamento.
+                </p>
+                <button
+                  onClick={() => setIsAddPortfolioModalOpen(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition inline-flex items-center gap-1.5 mt-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Publicar Primeira Obra (+15% Perfil)</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {myPortfolio.map(item => (
+                  <div
+                    key={item.id}
+                    className="group relative rounded-2xl overflow-hidden border border-slate-200 bg-white hover:shadow-lg transition flex flex-col justify-between"
+                  >
+                    <div className="aspect-video w-full bg-slate-100 relative overflow-hidden">
+                      <img
+                        src={item.imageUrl || item.photos?.[0] || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=60'}
+                        alt={item.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        referrerPolicy="no-referrer"
+                      />
+                      <span className="absolute top-2 left-2 text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                        {item.category}
+                      </span>
+                      <button
+                        onClick={() => deletePortfolioItem(item.id)}
+                        className="absolute top-2 right-2 p-1.5 bg-rose-600/90 hover:bg-rose-700 text-white rounded-lg opacity-0 group-hover:opacity-100 transition shadow-xs"
+                        title="Apagar obra do portfólio"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="p-4 space-y-1.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 line-clamp-1">{item.title}</h4>
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{item.description}</p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>📍 {item.city || 'Maputo'}, {item.province}</span>
+                        <span>{item.date || 'Recente'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* ABA 6: ASSINATURA & M-PESA */}
+        {/* ========================================================================= */}
+        <div
+          id="tab-assinatura"
+          className={`tab-content ${activeTab === 'tab-assinatura' ? 'active' : 'hidden'}`}
+          style={{ display: activeTab === 'tab-assinatura' ? 'block' : 'none' }}
+        >
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Assinatura Profissional & Pagamentos M-Pesa</h2>
+                <p className="text-xs text-slate-500">Mantenha seu perfil em destaque nos motores de busca de Moçambique.</p>
+              </div>
+
+              <span className={`text-xs font-black uppercase px-3 py-1 rounded-full ${
+                isSubActive ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+              }`}>
+                {isSubActive ? '🟢 ASSINATURA ATIVA' : '⏳ ASSINATURA PENDENTE'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Payment Instructions & Number */}
+              <div className="p-6 rounded-3xl bg-slate-900 text-white space-y-4">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <CreditCard className="w-5 h-5" />
+                  <h3 className="text-sm font-black uppercase tracking-wider">Dados Oficiais para Envio</h3>
+                </div>
+
+                <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10 text-xs">
+                  <div className="flex justify-between items-center py-1 border-b border-white/10">
+                    <span className="text-slate-400">Carteira Móvel:</span>
+                    <strong className="text-white">M-Pesa (Vodacom) / e-Mola (Movitel)</strong>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-white/10">
+                    <span className="text-slate-400">Número Oficial:</span>
+                    <strong className="text-emerald-400 font-mono text-sm">{settings.mpesaNumber || '84 123 4567'}</strong>
+                  </div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-400">Titular da Conta:</span>
+                    <strong className="text-white">{settings.mpesaName || 'TécnicaMZ Pro Oficial'}</strong>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  1. Abra o menu M-Pesa (*150#) ou e-Mola (*898#).<br />
+                  2. Transfira o valor do plano para o número acima.<br />
+                  3. Guarde o SMS de confirmação e cole o <strong>Código da Transação</strong> no formulário ao lado.
+                </p>
+              </div>
+
+              {/* Submit Payment Form */}
+              <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 space-y-4">
+                <h3 className="text-sm font-black text-slate-900">Validar Comprovativo de Pagamento</h3>
+
+                {subSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Comprovativo submetido com sucesso! A auditoria ativará o plano em breve.</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubPayment} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Selecione o Plano</label>
+                    <select
+                      value={selectedPlanId}
+                      onChange={e => setSelectedPlanId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+                    >
+                      {plans.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} - {p.priceMZN} MZN/mês</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Método Utilizado</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSubMethod('mpesa')}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border text-center transition ${
+                          subMethod === 'mpesa' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        M-Pesa (Vodacom)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubMethod('emola')}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border text-center transition ${
+                          subMethod === 'emola' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        e-Mola (Movitel)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Código da Transação SMS</label>
+                    <input
+                      type="text"
+                      value={txCode}
+                      onChange={e => setTxCode(e.target.value)}
+                      placeholder="Ex: 8H93KL12MZ"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Submeter Comprovativo M-Pesa</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Payment history table */}
+            {myPayments.length > 0 && (
+              <div className="space-y-2 pt-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">Histórico de Transações</h4>
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
+                  {myPayments.map(pay => (
+                    <div key={pay.id} className="p-3.5 bg-white flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-bold text-slate-900">{pay.planName}</p>
+                        <p className="text-[11px] text-slate-500 font-mono">Cód: {pay.transactionCode} • {pay.method.toUpperCase()}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-mono font-bold text-slate-900">{pay.amountMZN} MZN</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          pay.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {pay.status === 'approved' ? 'Aprovado' : 'Em Análise'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* ABA 7: EDITAR PERFIL & WHATSAPP */}
+        {/* ========================================================================= */}
+        <div
+          id="tab-editar"
+          className={`tab-content ${activeTab === 'tab-editar' ? 'active' : 'hidden'}`}
+          style={{ display: activeTab === 'tab-editar' ? 'block' : 'none' }}
+        >
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Configurações de Contato & WhatsApp</h2>
+                <p className="text-xs text-slate-500">Controle a exibição do botão direto de WhatsApp e informações visíveis aos clientes.</p>
+              </div>
+
+              {profileSuccessMsg && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Perfil atualizado com sucesso!</span>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -551,7 +1287,11 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                 <input
                   type="text"
                   value={currentTechProfile?.name || ''}
-                  onChange={e => updateCurrentTechProfile({ name: e.target.value })}
+                  onChange={e => {
+                    updateCurrentTechProfile({ name: e.target.value });
+                    setProfileSuccessMsg(true);
+                    setTimeout(() => setProfileSuccessMsg(false), 2000);
+                  }}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold"
                 />
               </div>
@@ -561,8 +1301,45 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                 <input
                   type="text"
                   value={currentTechProfile?.whatsapp || ''}
-                  onChange={e => updateCurrentTechProfile({ whatsapp: e.target.value })}
+                  onChange={e => {
+                    updateCurrentTechProfile({ whatsapp: e.target.value });
+                    setProfileSuccessMsg(true);
+                    setTimeout(() => setProfileSuccessMsg(false), 2000);
+                  }}
+                  placeholder="840000000 ou +258840000000"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Província de Atuação</label>
+                <select
+                  value={currentTechProfile?.province || 'Maputo Cidade'}
+                  onChange={e => {
+                    updateCurrentTechProfile({ province: e.target.value });
+                    setProfileSuccessMsg(true);
+                    setTimeout(() => setProfileSuccessMsg(false), 2000);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold"
+                >
+                  {MOZAMBIQUE_PROVINCES.map(prov => (
+                    <option key={prov} value={prov}>{prov}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Cidade / Distrito</label>
+                <input
+                  type="text"
+                  value={currentTechProfile?.city || ''}
+                  onChange={e => {
+                    updateCurrentTechProfile({ city: e.target.value });
+                    setProfileSuccessMsg(true);
+                    setTimeout(() => setProfileSuccessMsg(false), 2000);
+                  }}
+                  placeholder="Ex: Maputo, Matola, Beira"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold"
                 />
               </div>
             </div>
@@ -570,27 +1347,36 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
             <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-emerald-950">Exibir Botão Flutuante de WhatsApp no Perfil</p>
-                <p className="text-[11px] text-emerald-800">Permite que clientes iniciem conversas com 1 clique.</p>
+                <p className="text-[11px] text-emerald-800">Permite que clientes iniciem conversas com 1 clique diretamente pelo WhatsApp.</p>
               </div>
               <input
                 type="checkbox"
                 checked={currentTechProfile?.showWhatsappButton ?? true}
-                onChange={e => updateCurrentTechProfile({ showWhatsappButton: e.target.checked })}
+                onChange={e => {
+                  updateCurrentTechProfile({ showWhatsappButton: e.target.checked });
+                  setProfileSuccessMsg(true);
+                  setTimeout(() => setProfileSuccessMsg(false), 2000);
+                }}
                 className="w-5 h-5 accent-emerald-600 rounded cursor-pointer"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Biografia & Especialidades</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Biografia & Especialidades Técnicas</label>
               <textarea
                 rows={4}
                 value={currentTechProfile?.bio || ''}
-                onChange={e => updateCurrentTechProfile({ bio: e.target.value })}
+                onChange={e => {
+                  updateCurrentTechProfile({ bio: e.target.value });
+                  setProfileSuccessMsg(true);
+                  setTimeout(() => setProfileSuccessMsg(false), 2000);
+                }}
+                placeholder="Descreva suas qualificações, anos de experiência e ferramentas profissionais..."
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm"
               />
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* QR Digital Card Modal */}
@@ -600,60 +1386,215 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
         onClose={() => setIsQrModalOpen(false)}
       />
 
-      {/* M-Pesa Subscription Modal */}
-      {isSubModalOpen && (
+      {/* Proposal Submission Modal */}
+      {selectedRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
-              <h3 className="text-sm font-black">Renovar Assinatura TécnicaMZ</h3>
-              <button onClick={() => setIsSubModalOpen(false)} className="text-slate-400 hover:text-white">
+              <div>
+                <h3 className="text-sm font-black">Enviar Proposta de Serviço</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{selectedRequest.title}</p>
+              </div>
+              <button
+                onClick={() => setSelectedRequest(null)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubPayment} className="p-6 space-y-4">
-              {subSuccess && (
+            <form onSubmit={handleSubmitProposal} className="p-6 space-y-4">
+              <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
+                <p className="text-slate-500">Cliente: <strong className="text-slate-800">{selectedRequest.clientName}</strong></p>
+                <p className="text-slate-500">Local: <strong className="text-slate-800">{selectedRequest.city}, {selectedRequest.province}</strong></p>
+                {selectedRequest.budgetMZN && (
+                  <p className="text-slate-500">Orçamento Indicado: <strong className="text-blue-600 font-mono">{selectedRequest.budgetMZN.toLocaleString()} MZN</strong></p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Mão de Obra (MZN)</label>
+                  <input
+                    type="number"
+                    value={proposalLabor}
+                    onChange={e => setProposalLabor(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Materiais Estimados (MZN)</label>
+                  <input
+                    type="number"
+                    value={proposalMaterials}
+                    onChange={e => setProposalMaterials(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
+                <span className="font-bold text-blue-950">Total da Proposta:</span>
+                <span className="font-mono font-black text-blue-700 text-sm">
+                  {(proposalLabor + proposalMaterials).toLocaleString()} MZN
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Prazo de Conclusão Estimado</label>
+                <input
+                  type="text"
+                  value={proposalDays}
+                  onChange={e => setProposalDays(e.target.value)}
+                  placeholder="Ex: 2 dias úteis, 1 semana"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Observações Técnicas / Garantia</label>
+                <textarea
+                  rows={3}
+                  value={proposalNotes}
+                  onChange={e => setProposalNotes(e.target.value)}
+                  placeholder="Descreva detalhes dos materiais, procedimentos de segurança e tempo de garantia..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRequest(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Submeter Proposta</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Portfolio Item Modal */}
+      {isAddPortfolioModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+              <h3 className="text-sm font-black">Publicar Obra no Portfólio</h3>
+              <button
+                onClick={() => setIsAddPortfolioModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddPortfolio} className="p-6 space-y-4">
+              {portfolioSuccess && (
                 <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold">
-                  Comprovativo enviado para a auditoria! Seu plano será ativado após conferência.
+                  Obra publicada com sucesso no seu portfólio!
                 </div>
               )}
 
-              <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs space-y-1 text-emerald-950">
-                <p className="font-bold">Dados Oficiais para Envio M-Pesa:</p>
-                <p>Número: <strong className="font-mono">{settings.mpesaNumber}</strong></p>
-                <p>Titular: <strong>{settings.mpesaName}</strong></p>
-              </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Plano Desejado</label>
-                <select
-                  value={selectedPlanId}
-                  onChange={e => setSelectedPlanId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                >
-                  {plans.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} - {p.priceMZN} MZN/mês</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Código da Transação SMS M-Pesa</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Título do Trabalho</label>
                 <input
                   type="text"
-                  value={txCode}
-                  onChange={e => setTxCode(e.target.value)}
-                  placeholder="Ex: 8H93KL12MZ"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold"
+                  value={newPortTitle}
+                  onChange={e => setNewPortTitle(e.target.value)}
+                  placeholder="Ex: Instalação Solar Residencial 5kVA"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                   required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Categoria</label>
+                  <select
+                    value={newPortCategory}
+                    onChange={e => setNewPortCategory(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  >
+                    {TECHNICAL_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Cidade</label>
+                  <input
+                    type="text"
+                    value={newPortCity}
+                    onChange={e => setNewPortCity(e.target.value)}
+                    placeholder="Maputo, Matola..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Foto da Obra (URL)</label>
+                <input
+                  type="url"
+                  value={newPortImage}
+                  onChange={e => setNewPortImage(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
+                  required
+                />
+                <div className="flex gap-2 mt-1.5 overflow-x-auto text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setNewPortImage('https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=60')}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 whitespace-nowrap"
+                  >
+                    Solar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPortImage('https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=60')}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 whitespace-nowrap"
+                  >
+                    Painel Elétrico
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPortImage('https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&auto=format&fit=crop&q=60')}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 whitespace-nowrap"
+                  >
+                    Redes / TI
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Descrição dos Serviços Realizados</label>
+                <textarea
+                  rows={3}
+                  value={newPortDesc}
+                  onChange={e => setNewPortDesc(e.target.value)}
+                  placeholder="Detalhes dos materiais utilizados, desafios técnicos e resultado final..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
               >
-                Submeter Comprovativo
+                <Camera className="w-4 h-4" />
+                <span>Salvar no Portfólio</span>
               </button>
             </form>
           </div>

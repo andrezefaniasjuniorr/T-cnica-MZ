@@ -10,14 +10,304 @@
  * - Renderização Compacta do Perfil de Engajamento
  */
 
-// 0. CONTROLE DE INTERFACE POR PAPEL (UI/UX)
+// 0. CONTROLE DE INTERFACE POR PAPEL (UI/UX) E CARREGAMENTO DE PAINÉIS
 function applyRoleBasedUI(userRole) {
+  const role = String(userRole || '').toLowerCase();
   const btnMais = document.querySelector('[data-nav="mais"]') || document.getElementById('btnMais');
   if (btnMais) {
-    btnMais.style.display = (userRole === 'cliente' || userRole === 'client') ? 'none' : 'flex';
+    btnMais.style.display = (role === 'cliente' || role === 'client') ? 'none' : 'flex';
   }
 }
 window.applyRoleBasedUI = applyRoleBasedUI;
+
+// Funções de carregamento de painéis baseados no tipo de conta
+function carregarPainelEmpresa(userData) {
+  console.log('[Painel] Carregando Painel da Empresa:', userData?.nome || userData?.name || userData?.companyName || userData?.uid);
+  if (typeof window !== 'undefined') {
+    if (window.location.hash !== '#empresa') {
+      window.location.hash = '#empresa';
+    }
+  }
+  applyRoleBasedUI('empresa');
+}
+window.carregarPainelEmpresa = carregarPainelEmpresa;
+
+function carregarPainelTecnico(userData) {
+  console.log('[Painel] Carregando Painel do Técnico:', userData?.nome || userData?.name || userData?.uid);
+  if (typeof window !== 'undefined') {
+    if (window.location.hash !== '#tecnico') {
+      window.location.hash = '#tecnico';
+    }
+  }
+  applyRoleBasedUI('tecnico');
+}
+window.carregarPainelTecnico = carregarPainelTecnico;
+
+function carregarPainelCliente(userData) {
+  console.log('[Painel] Carregando Painel do Cliente:', userData?.nome || userData?.name || userData?.uid);
+  if (typeof window !== 'undefined') {
+    if (window.location.hash !== '#cliente') {
+      window.location.hash = '#cliente';
+    }
+  }
+  applyRoleBasedUI('cliente');
+}
+window.carregarPainelCliente = carregarPainelCliente;
+
+// Variável global de controle para pausar o listener global durante o cadastro
+window.isRegistering = false;
+
+// 2. CORREÇÃO DA LÓGICA DE CADASTRO (auth.js / register.js):
+// Aguardar explicitamente a gravação no Firestore ANTES de permitir que o ouvinte processe o login
+async function cadastrarEmpresa(email, senha, dadosEmpresa) {
+  try {
+    window.isRegistering = true;
+    // 1. Variáveis globais de controle para pausar o listener durante o cadastro
+    window.isCreatingAccount = true;
+    window.isRegistering = true;
+    const authInstance = window.auth;
+    const dbInstance = window.db;
+
+    // Se a função do React/AuthContext já estiver vinculada, prioriza para sincronia do estado
+    if (window.TecnicaProAuth && typeof window.TecnicaProAuth.cadastrarEmpresa === 'function') {
+      const result = await window.TecnicaProAuth.cadastrarEmpresa(email, senha, dadosEmpresa);
+      window.isCreatingAccount = false;
+      window.isRegistering = false;
+      return result;
+    }
+
+    // 1. Cria a conta no Firebase Auth
+    let user = null;
+    if (authInstance && senha) {
+      const { createUserWithEmailAndPassword } = window.firebaseAuth || (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'));
+      const userCredential = await createUserWithEmailAndPassword(authInstance, email, senha);
+      user = userCredential.user;
+    } else {
+      user = { uid: 'company_' + Date.now(), email };
+    }
+
+    const nomeEmpresa = (typeof dadosEmpresa === 'object' ? (dadosEmpresa?.nome || dadosEmpresa?.name || dadosEmpresa?.companyName) : dadosEmpresa) || email.split('@')[0];
+    const nuitEmpresa = (typeof dadosEmpresa === 'object' ? (dadosEmpresa?.nuit || dadosEmpresa?.nuir) : '') || '400000000';
+
+    // 2. OBRIGATÓRIO: Salva os dados no Firestore ANTES de qualquer redirecionamento
+    if (dbInstance) {
+      const { doc, setDoc } = window.firebaseFirestore || (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'));
+      await setDoc(doc(dbInstance, "users", user.uid), {
+        uid: user.uid,
+        nome: nomeEmpresa,
+        email: email,
+        tipo: "empresa", // <--- Garantir que não está salvando "tecnico"
+        criadoEm: new Date()
+      });
+
+      await setDoc(doc(dbInstance, "companies", user.uid), {
+        userId: user.uid,
+        companyName: nomeEmpresa,
+        email: email,
+        nuit: nuitEmpresa,
+        tipo: "empresa",
+        tipoConta: "empresa",
+        role: "company",
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+    }
+
+    // 3. Libera o monitoramento global e redireciona manualmente
+    window.isCreatingAccount = false;
+    window.isRegistering = false;
+    carregarPainelEmpresa({ uid: user.uid, nome: nomeEmpresa, email, tipo: "empresa" });
+    window.location.replace("painel-empresa.html");
+    return { success: true, user };
+
+  } catch (error) {
+    window.isCreatingAccount = false;
+    window.isRegistering = false;
+    console.error("Erro no cadastro da empresa:", error);
+    return { success: false, error: error.message };
+  }
+}
+window.cadastrarEmpresa = cadastrarEmpresa;
+
+// 2. ESTRUTURA DE CORREÇÃO DO FORMULÁRIO DE CADASTRO:
+// Garante o binding com e.preventDefault() obrigatório
+function setupCadastroEmpresaForm() {
+  const form = document.getElementById('form-cadastro-empresa');
+  if (!form || form.dataset.boundSubmit === 'true') return;
+  form.dataset.boundSubmit = 'true';
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); // OBRIGATÓRIO: Impede o recarregamento da página
+
+    const emailEl = document.getElementById('email');
+    const senhaEl = document.getElementById('senha') || document.getElementById('password');
+    const nomeEmpresaEl = document.getElementById('nomeEmpresa') || document.getElementById('companyName');
+
+    const email = emailEl ? emailEl.value : '';
+    const senha = senhaEl ? senhaEl.value : '';
+    const nomeEmpresa = nomeEmpresaEl ? nomeEmpresaEl.value : '';
+
+    try {
+      window.isCreatingAccount = true;
+      window.isRegistering = true;
+      const auth = window.auth;
+      const db = window.db;
+
+      // 1. Cria a conta no Auth
+      let user = null;
+      if (auth && senha) {
+        const { createUserWithEmailAndPassword } = window.firebaseAuth || (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'));
+        const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
+        user = userCredential.user;
+      } else {
+        user = { uid: 'company_' + Date.now(), email };
+      }
+
+      // 2. Aguarda OBRIGATORIAMENTE salvar o tipo 'empresa' no Firestore
+      if (db) {
+        const { doc, setDoc } = window.firebaseFirestore || (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'));
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          nome: nomeEmpresa,
+          email: email,
+          tipo: "empresa", // <--- Garantir que não está salvando "tecnico"
+          criadoEm: new Date()
+        });
+
+        await setDoc(doc(db, "companies", user.uid), {
+          userId: user.uid,
+          companyName: nomeEmpresa,
+          email: email,
+          tipo: "empresa",
+          criadoEm: new Date()
+        }, { merge: true });
+      }
+
+      window.isCreatingAccount = false;
+      window.isRegistering = false;
+
+      // 3. Redireciona EXPLICITAMENTE para o painel da empresa
+      window.location.replace("painel-empresa.html");
+
+    } catch (error) {
+      window.isCreatingAccount = false;
+      window.isRegistering = false;
+      console.error("Erro ao cadastrar empresa:", error);
+      alert("Erro ao criar conta: " + error.message);
+    }
+  });
+}
+
+// 2. AJUSTE NO LOGIN (login.js / auth.js / app.js):
+async function fazerLogin(email, senha) {
+  try {
+    const auth = window.auth;
+    const db = window.db;
+    if (!auth) throw new Error("Firebase Auth não inicializado.");
+
+    const { signInWithEmailAndPassword } = window.firebaseAuth || (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'));
+    const { doc, getDoc } = window.firebaseFirestore || (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'));
+
+    const userCredential = await signInWithEmailAndPassword(auth, email, senha);
+    const user = userCredential.user;
+
+    // Busca o perfil gravado no Firestore
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+
+      // REDIRECIONAMENTO DE LOGIN BASEADO NO TIPO:
+      if (userData.tipo === "empresa" || userData.role === "empresa" || userData.role === "company") {
+        window.location.replace("painel-empresa.html");
+      } else if (userData.tipo === "tecnico" || userData.role === "tecnico" || userData.role === "technician") {
+        window.location.replace("painel-tecnico.html");
+      } else if (userData.tipo === "cliente" || userData.role === "cliente" || userData.role === "client") {
+        window.location.replace("painel-cliente.html");
+      } else {
+        alert("Tipo de conta inválido ou não cadastrado.");
+      }
+    } else {
+      alert("Perfil do usuário não encontrado.");
+    }
+  } catch (error) {
+    console.error("Erro no login:", error);
+    alert("Falha ao efetuar login: " + error.message);
+  }
+}
+window.fazerLogin = fazerLogin;
+
+// Inicializa a escuta no carregamento e monitora o DOM para formulários dinâmicos
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupCadastroEmpresaForm);
+  } else {
+    setupCadastroEmpresaForm();
+  }
+  if (typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(() => {
+      setupCadastroEmpresaForm();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
+}
+
+// 3. MANUTENÇÃO DE SESSÃO AUTOMÁTICA (onAuthStateChanged em app.js):
+function initAuthListener(auth, db) {
+  if (!auth) return;
+  auth.onAuthStateChanged(async (user) => {
+    // Ignora se estiver no processo de criação de conta
+    if (window.isCreatingAccount || window.isRegistering) {
+      console.log('[Auth] Ignorando onAuthStateChanged durante cadastro');
+      return;
+    }
+
+    if (user) {
+      try {
+        const firestore = window.firebaseFirestore || (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'));
+        const dbInstance = db || window.db;
+        if (firestore && dbInstance) {
+          const { doc, getDoc } = firestore;
+
+          // Se o usuário JÁ ESTÁ logado, busca o perfil antes de tomar qualquer decisão de rota
+          const userDoc = await getDoc(doc(dbInstance, "users", user.uid));
+          
+          if (userDoc && userDoc.exists()) {
+            const userData = userDoc.data();
+            
+            // Se estiver na tela de login/cadastro ou na raiz, direciona para o painel correto
+            const paginaAtual = window.location.pathname;
+            if (paginaAtual.includes('login') || paginaAtual.includes('cadastro') || paginaAtual === '/' || paginaAtual.includes('index')) {
+              if (userData.tipo === "empresa" || userData.role === "empresa" || userData.role === "company") {
+                window.location.replace("painel-empresa.html");
+                return;
+              } else if (userData.tipo === "tecnico" || userData.role === "tecnico" || userData.role === "technician") {
+                window.location.replace("painel-tecnico.html");
+                return;
+              } else if (userData.tipo === "cliente" || userData.role === "cliente" || userData.role === "client") {
+                window.location.replace("painel-cliente.html");
+                return;
+              }
+            }
+
+            if (userData.tipo === "empresa" || userData.role === "empresa" || userData.role === "company") {
+              carregarPainelEmpresa(userData);
+            } else if (userData.tipo === "tecnico" || userData.role === "tecnico" || userData.role === "technician") {
+              carregarPainelTecnico(userData);
+            } else if (userData.tipo === "cliente" || userData.role === "cliente" || userData.role === "client") {
+              carregarPainelCliente(userData);
+            } else {
+              console.error("Tipo de conta desconhecido:", userData.tipo);
+              carregarPainelTecnico(userData);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('initAuthListener warning:', err);
+      }
+    }
+  });
+}
+window.initAuthListener = initAuthListener;
 
 // 6. CÁLCULO LENTO DE ESTRELAS E RANKING (app.js)
 // stars = Math.min(5, Math.floor(points / 200))
@@ -320,7 +610,7 @@ function renderAdminUserList(usersList) {
     const userId = user.id || user.uid || '';
     const userName = user.name || user.displayName || 'Usuário Sem Nome';
     const userEmail = user.email || 'Sem email';
-    const userRole = user.role || user.tipoConta || 'cliente';
+    const userRole = user.tipo || user.role || user.tipoConta || 'cliente';
     const isBanned = user.status === 'banned' || user.status === 'blocked' || user.statusConta === 'bloqueada';
     const hasSelo = user.hasSeloMZ === true || user.temSeloMZ === true || user.statusSelo === 'aprovado';
 
@@ -441,9 +731,68 @@ document.addEventListener('DOMContentLoaded', () => {
     const cachedUser = localStorage.getItem('tecnica_user');
     if (cachedUser) {
       const user = JSON.parse(cachedUser);
-      applyRoleBasedUI(user.role || user.tipoConta);
+      applyRoleBasedUI(user.tipo || user.role || user.tipoConta);
     }
   } catch (e) {
     console.debug('Role check initialization:', e);
+  }
+  initDashboardTabs();
+});
+
+// =========================================================================
+// NAVEGAÇÃO POR ABAS DO PAINEL DO PROFISSIONAL
+// =========================================================================
+function initDashboardTabs() {
+  const tabButtons = document.querySelectorAll('.dashboard-tabs .tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  if (!tabButtons.length) return;
+
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetTabId = btn.getAttribute('data-tab');
+      if (!targetTabId) return;
+
+      // Remove estado ativo de todos os botões e oculta os conteúdos
+      tabButtons.forEach(b => b.classList.remove('active'));
+      tabContents.forEach(c => {
+        c.classList.remove('active');
+        c.style.display = 'none';
+      });
+
+      // Ativa o botão clicado e mostra a seção correta
+      btn.classList.add('active');
+      const targetContent = document.getElementById(targetTabId);
+      if (targetContent) {
+        targetContent.classList.add('active');
+        targetContent.style.display = 'block';
+      }
+    });
+  });
+}
+window.initDashboardTabs = initDashboardTabs;
+
+// Delegação global de eventos para SPAs re-renderizadas dinamicamente
+document.addEventListener('click', (e) => {
+  const btn = e.target && e.target.closest ? e.target.closest('.dashboard-tabs .tab-btn') : null;
+  if (!btn) return;
+  const targetTabId = btn.getAttribute('data-tab');
+  if (!targetTabId) return;
+
+  const tabButtons = document.querySelectorAll('.dashboard-tabs .tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  tabButtons.forEach(b => b.classList.remove('active'));
+  tabContents.forEach(c => {
+    c.classList.remove('active');
+    c.style.display = 'none';
+  });
+
+  btn.classList.add('active');
+  const targetContent = document.getElementById(targetTabId);
+  if (targetContent) {
+    targetContent.classList.add('active');
+    targetContent.style.display = 'block';
   }
 });

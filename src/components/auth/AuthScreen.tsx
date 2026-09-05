@@ -148,14 +148,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       const res = await login(valorEmail, valorSenha);
       if (res.success && res.user) {
         setSuccess('Autenticação realizada com sucesso! Redirecionando...');
-        if (res.user.role === 'company' || res.user.tipoConta === 'empresa') {
-          window.location.hash = '#empresa';
-        } else if (res.user.role === 'technician' || res.user.tipoConta === 'tecnico') {
-          window.location.hash = '#tecnico';
+        if (res.user.tipo === 'empresa' || res.user.role === 'company' || res.user.tipoConta === 'empresa') {
+          window.location.replace("painel-empresa.html");
+        } else if (res.user.tipo === 'tecnico' || res.user.role === 'technician' || res.user.tipoConta === 'tecnico') {
+          window.location.replace("painel-tecnico.html");
+        } else if (res.user.tipo === 'cliente' || res.user.role === 'client' || res.user.tipoConta === 'cliente') {
+          window.location.replace("painel-cliente.html");
         } else if (res.user.role === 'super_admin' || res.user.role === 'admin') {
           window.location.hash = '#gestao-pro-mz';
         } else {
-          window.location.hash = '#tecnico';
+          window.location.replace("painel-tecnico.html");
         }
       } else {
         setError(res.error || 'Credenciais inválidas ou conta não encontrada.');
@@ -223,6 +225,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           phone: valorTelefone,
           password: valorSenha,
           role: 'technician',
+          tipo: 'tecnico',
           tipoConta: 'tecnico',
           idade: valorIdade,
           specialty: valorEspecialidade,
@@ -233,8 +236,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         if (res.success) {
           setSuccess('Cadastro de Técnico concluído com sucesso! Redirecionando...');
           setTimeout(() => {
-            window.location.hash = '#tecnico';
-          }, 500);
+            window.location.replace("painel-tecnico.html");
+          }, 400);
         } else {
           setError(res.error || 'Erro ao realizar o cadastro de técnico.');
         }
@@ -268,6 +271,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           phone: valorTelefone,
           password: valorSenha,
           role: 'company',
+          tipo: 'empresa', // FIX: Identificador estrito do tipo de conta
           tipoConta: 'empresa',
           province: valorProvincia,
           city: valorCidade,
@@ -279,8 +283,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         if (res.success) {
           setSuccess('Cadastro de Empresa concluído com sucesso! Redirecionando...');
           setTimeout(() => {
-            window.location.hash = '#empresa';
-          }, 500);
+            window.location.replace("painel-empresa.html");
+          }, 400);
         } else {
           setError(res.error || 'Erro ao realizar o cadastro de empresa.');
         }
@@ -588,7 +592,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
                   {/* PRO REGISTER FORM (CADASTRO EXCLUSIVO DE TÉCNICO OU EMPRESA) */}
                   {proMode === 'register' && (
-                    <form id="pro-register-form" onSubmit={handleProRegister} className="space-y-4">
+                    <form
+                      id={proRole === 'empresa' ? 'form-cadastro-empresa' : 'pro-register-form'}
+                      onSubmit={handleProRegister}
+                      className="space-y-4"
+                    >
                       {/* Selection: Técnico Individual vs Empresa de Engenharia */}
                       <div>
                         <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
@@ -765,7 +773,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         <div className="space-y-4 pt-1">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                              <label htmlFor="companyName" className="block text-xs font-bold text-slate-700 mb-1">
+                              <label htmlFor="nomeEmpresa" className="block text-xs font-bold text-slate-700 mb-1">
                                 Denominação Social *
                               </label>
                               <div className="relative">
@@ -773,8 +781,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                                   <Building2 className="w-4 h-4 text-blue-500" />
                                 </div>
                                 <input
-                                  id="companyName"
-                                  name="companyName"
+                                  id="nomeEmpresa"
+                                  name="nomeEmpresa"
+                                  data-id="companyName"
                                   type="text"
                                   required
                                   value={companyName}
@@ -936,7 +945,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                                 <Lock className="w-4 h-4 text-blue-500" />
                               </div>
                               <input
-                                id="password"
+                                id={proRole === 'empresa' ? 'senha' : 'password'}
                                 name="password"
                                 type={showPassword ? 'text' : 'password'}
                                 required
