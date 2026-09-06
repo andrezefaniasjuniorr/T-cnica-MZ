@@ -49,9 +49,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   const technicianNavItems = [
     { id: 'community', label: 'Mural', icon: Users },
-    { id: 'technicians_directory', label: 'Técnicos', icon: Wrench },
+    { id: 'technicians_directory', label: 'Técnicos', icon: Briefcase },
     { id: 'sara', label: 'Sara IA', icon: Sparkles, isSara: true },
-    { id: 'tools', label: 'Ferramentas', icon: Sliders }
+    { id: 'tools', label: 'Ferramentas', icon: Wrench, elementId: 'btn-nav-ferramentas' }
   ];
 
   const baseNavItems = isClient ? clientNavItems : technicianNavItems;
@@ -100,6 +100,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           return (
             <button
               key={item.id}
+              id={(item as any).elementId || (item.id === 'tools' ? 'btn-nav-ferramentas' : undefined)}
               onClick={() => handleTabClick(item.id)}
               className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-150 min-w-[54px] active:scale-95 ${
                 isActive

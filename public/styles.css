@@ -106,3 +106,17 @@ html, body {
   background-color: #2563eb !important;
   color: #ffffff !important;
 }
+
+/* =========================================================================
+   TELA FERRAMENTAS & SPA SCREENS (#screen-ferramentas)
+   ========================================================================= */
+.screen {
+  display: none;
+}
+.screen.active {
+  display: block !important;
+}
+#screen-ferramentas.active {
+  display: block !important;
+}
+

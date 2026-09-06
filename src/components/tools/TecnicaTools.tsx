@@ -32,15 +32,25 @@ import {
   Download,
   Plus,
   Trash2,
+  Building,
   Building2,
   User,
   Phone,
   Calendar,
   DollarSign,
-  ArrowRight
+  ArrowRight,
+  Search,
+  X,
+  ListPlus,
+  Users,
+  BookOpen,
+  Award,
+  ShoppingCart,
+  Grid
 } from 'lucide-react';
 import { MOZAMBIQUE_PROVINCES } from '../../types';
 import { TopBackNav } from '../common/TopBackNav';
+import { KitProModals, KitProModalId } from './KitProModals';
 
 interface TecnicaToolsProps {
   onNavigateTab?: (tab: string) => void;
@@ -50,6 +60,17 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
   const hasOSAccess = isAdmin || (!isTechnician && !isCompany) || temSeloMZ || isSubscriptionActive;
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // Filtros de busca rápida e abas por categoria
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<'todas' | 'existentes' | 'faturamento' | 'tecnica' | 'gestao' | 'comunidade'>('todas');
+  const [activeKitProModal, setActiveKitProModal] = useState<KitProModalId>(null);
+
+  useEffect(() => {
+    (window as any).abrirModal = (id: KitProModalId) => {
+      setActiveKitProModal(id);
+    };
+  }, []);
 
   const [activeTool, setActiveTool] = useState<
     'wall_level' | 'tape_measure' | 'solar' | 'ac' | 'cable' | 'grounding' | 'water_pump' | 'service_order'
@@ -367,7 +388,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const solarPanelsKwpForPump = Number((pumpPowerKw * 1.4).toFixed(2));
 
   return (
-    <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+    <div id="screen-ferramentas" className="screen-ferramentas active min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
         {/* Top Back Navigation Bar */}
         {onNavigateTab && (
@@ -395,185 +416,660 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
           </div>
         </div>
 
-        {/* Tool Navigation Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        {/* FILTRO DE BUSCA RÁPIDA & ABAS / PILLS */}
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3.5">
+          {/* Input de Busca Rápida + Botão Minha Marca */}
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                id="filtro-busca-ferramentas"
+                type="text"
+                value={searchTerm}
+                onChange={e => {
+                  const val = e.target.value;
+                  setSearchTerm(val);
+                  if (typeof (window as any).filtrarCardsFerramentas === 'function') {
+                    (window as any).filtrarCardsFerramentas(val, categoryFilter);
+                  }
+                }}
+                placeholder="Buscar ferramenta por nome ou palavra-chave (ex: disjuntor, cabo, OS, solar, orçamento, NR10)..."
+                className="w-full pl-10 pr-9 py-2.5 bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-2xl text-xs sm:text-sm font-semibold transition outline-none"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    if (typeof (window as any).filtrarCardsFerramentas === 'function') {
+                      (window as any).filtrarCardsFerramentas('', categoryFilter);
+                    }
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => setActiveKitProModal('perfil_tecnico')}
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-xs transition shrink-0 group active:scale-95"
+            >
+              <Building className="w-4 h-4 text-blue-200 group-hover:scale-110 transition" />
+              <span>Minha Marca (Logo & Perfil)</span>
+            </button>
+          </div>
+
+          {/* Abas / Pills de Categorização */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              { id: 'todas', label: 'Todas', count: 23 },
+              { id: 'existentes', label: 'Já Existentes', count: 8 },
+              { id: 'faturamento', label: 'Faturamento', count: 4 },
+              { id: 'tecnica', label: 'Técnica', count: 5 },
+              { id: 'gestao', label: 'Gestão', count: 4 },
+              { id: 'comunidade', label: 'Comunidade', count: 2 }
+            ].map(tab => {
+              const isSelected = categoryFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    const newCat = tab.id as any;
+                    setCategoryFilter(newCat);
+                    if (typeof (window as any).filtrarCardsFerramentas === 'function') {
+                      (window as any).filtrarCardsFerramentas(searchTerm, newCat);
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Tool Navigation Grid - Existing Tools + 15 Kit PRO Tools */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+          {/* =========================================================================
+              BLOCO DE FERRAMENTAS JÁ EXISTENTES (PRESERVADAS)
+             ========================================================================= */}
           {/* 1. Nível de Parede */}
-          <button
-            onClick={() => setActiveTool('wall_level')}
-            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
-              activeTool === 'wall_level'
-                ? 'bg-cyan-600 text-white border-cyan-500 shadow-md ring-2 ring-cyan-400/30'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              activeTool === 'wall_level' ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-700'
-            }`}>
-              <Compass className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black">Nível de Parede</h3>
-              <p className={`text-[10px] ${activeTool === 'wall_level' ? 'text-cyan-100' : 'text-slate-400'}`}>
-                Prumo & Bolha
-              </p>
-            </div>
-          </button>
+          {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
+           (!searchTerm || 'nível de parede prumo bolha'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="existentes"
+              data-tool-name="Nível de Parede"
+              onClick={() => setActiveTool('wall_level')}
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                activeTool === 'wall_level'
+                  ? 'bg-cyan-600 text-white border-cyan-500 shadow-md ring-2 ring-cyan-400/30'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                activeTool === 'wall_level' ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-700'
+              }`}>
+                <Compass className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black">Nível de Parede</h3>
+                <p className={`text-[10px] ${activeTool === 'wall_level' ? 'text-cyan-100' : 'text-slate-400'}`}>
+                  Prumo & Bolha
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* 2. Fita Métrica */}
-          <button
-            onClick={() => setActiveTool('tape_measure')}
-            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
-              activeTool === 'tape_measure'
-                ? 'bg-indigo-600 text-white border-indigo-500 shadow-md ring-2 ring-indigo-400/30'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              activeTool === 'tape_measure' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
-            }`}>
-              <Ruler className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black">Fita Métrica</h3>
-              <p className={`text-[10px] ${activeTool === 'tape_measure' ? 'text-indigo-100' : 'text-slate-400'}`}>
-                Régua & Área m²
-              </p>
-            </div>
-          </button>
+          {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
+           (!searchTerm || 'fita métrica régua área m2'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="existentes"
+              data-tool-name="Fita Métrica"
+              onClick={() => setActiveTool('tape_measure')}
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                activeTool === 'tape_measure'
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-md ring-2 ring-indigo-400/30'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                activeTool === 'tape_measure' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
+              }`}>
+                <Ruler className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black">Fita Métrica</h3>
+                <p className={`text-[10px] ${activeTool === 'tape_measure' ? 'text-indigo-100' : 'text-slate-400'}`}>
+                  Régua & Área m²
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* 3. Solar PV */}
-          <button
-            onClick={() => setActiveTool('solar')}
-            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
-              activeTool === 'solar'
-                ? 'bg-amber-600 text-white border-amber-500 shadow-md ring-2 ring-amber-400/30'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              activeTool === 'solar' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
-            }`}>
-              <Sun className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black">Solar PV</h3>
-              <p className={`text-[10px] ${activeTool === 'solar' ? 'text-amber-100' : 'text-slate-400'}`}>
-                Painéis & Bateria
-              </p>
-            </div>
-          </button>
+          {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
+           (!searchTerm || 'solar pv painéis bateria inversor'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="existentes"
+              data-tool-name="Solar PV"
+              onClick={() => setActiveTool('solar')}
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                activeTool === 'solar'
+                  ? 'bg-amber-600 text-white border-amber-500 shadow-md ring-2 ring-amber-400/30'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                activeTool === 'solar' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+              }`}>
+                <Sun className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black">Solar PV</h3>
+                <p className={`text-[10px] ${activeTool === 'solar' ? 'text-amber-100' : 'text-slate-400'}`}>
+                  Painéis & Bateria
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* 4. Bitola & Queda */}
-          <button
-            onClick={() => setActiveTool('cable')}
-            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
-              activeTool === 'cable'
-                ? 'bg-emerald-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-400/30'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              activeTool === 'cable' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
-            }`}>
-              <Zap className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black">Bitola EDM</h3>
-              <p className={`text-[10px] ${activeTool === 'cable' ? 'text-emerald-100' : 'text-slate-400'}`}>
-                Queda 220V/DC
-              </p>
-            </div>
-          </button>
+          {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
+           (!searchTerm || 'bitola edm queda 220v dc cabo condutor'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="existentes"
+              data-tool-name="Bitola EDM"
+              onClick={() => setActiveTool('cable')}
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                activeTool === 'cable'
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-400/30'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                activeTool === 'cable' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
+              }`}>
+                <Zap className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black">Bitola EDM</h3>
+                <p className={`text-[10px] ${activeTool === 'cable' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                  Queda 220V/DC
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* 5. Aterramento EDM */}
-          <button
-            onClick={() => setActiveTool('grounding')}
-            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
-              activeTool === 'grounding'
-                ? 'bg-teal-600 text-white border-teal-500 shadow-md ring-2 ring-teal-400/30'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              activeTool === 'grounding' ? 'bg-white/20 text-white' : 'bg-teal-100 text-teal-700'
-            }`}>
-              <Shield className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black">Aterramento</h3>
-              <p className={`text-[10px] ${activeTool === 'grounding' ? 'text-teal-100' : 'text-slate-400'}`}>
-                Solo &lt;10Ω
-              </p>
-            </div>
-          </button>
+          {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
+           (!searchTerm || 'aterramento haste solo ohm 10 eletrodo'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="existentes"
+              data-tool-name="Aterramento"
+              onClick={() => setActiveTool('grounding')}
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                activeTool === 'grounding'
+                  ? 'bg-teal-600 text-white border-teal-500 shadow-md ring-2 ring-teal-400/30'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                activeTool === 'grounding' ? 'bg-white/20 text-white' : 'bg-teal-100 text-teal-700'
+              }`}>
+                <Shield className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black">Aterramento</h3>
+                <p className={`text-[10px] ${activeTool === 'grounding' ? 'text-teal-100' : 'text-slate-400'}`}>
+                  Solo &lt;10Ω
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* 6. Ar Condicionado BTU */}
-          <button
-            onClick={() => setActiveTool('ac')}
-            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
-              activeTool === 'ac'
-                ? 'bg-blue-600 text-white border-blue-500 shadow-md ring-2 ring-blue-400/30'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              activeTool === 'ac' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
-            }`}>
-              <Wind className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black">Carga AC</h3>
-              <p className={`text-[10px] ${activeTool === 'ac' ? 'text-blue-100' : 'text-slate-400'}`}>
-                BTU & Disjuntor
-              </p>
-            </div>
-          </button>
+          {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
+           (!searchTerm || 'carga ac btu disjuntor ar condicionado climatização'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="existentes"
+              data-tool-name="Carga AC"
+              onClick={() => setActiveTool('ac')}
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                activeTool === 'ac'
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-md ring-2 ring-blue-400/30'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                activeTool === 'ac' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
+              }`}>
+                <Wind className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black">Carga AC</h3>
+                <p className={`text-[10px] ${activeTool === 'ac' ? 'text-blue-100' : 'text-slate-400'}`}>
+                  BTU & Disjuntor
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* 7. Bomba de Água */}
-          <button
-            onClick={() => setActiveTool('water_pump')}
-            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
-              activeTool === 'water_pump'
-                ? 'bg-sky-600 text-white border-sky-500 shadow-md ring-2 ring-sky-400/30'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              activeTool === 'water_pump' ? 'bg-white/20 text-white' : 'bg-sky-100 text-sky-700'
-            }`}>
-              <Droplets className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black">Bomba de Furo</h3>
-              <p className={`text-[10px] ${activeTool === 'water_pump' ? 'text-sky-100' : 'text-slate-400'}`}>
-                HMT & Vazão
-              </p>
-            </div>
-          </button>
+          {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
+           (!searchTerm || 'bomba de furo hmt vazão água poço'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="existentes"
+              data-tool-name="Bomba de Furo"
+              onClick={() => setActiveTool('water_pump')}
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                activeTool === 'water_pump'
+                  ? 'bg-sky-600 text-white border-sky-500 shadow-md ring-2 ring-sky-400/30'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                activeTool === 'water_pump' ? 'bg-white/20 text-white' : 'bg-sky-100 text-sky-700'
+              }`}>
+                <Droplets className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black">Bomba de Furo</h3>
+                <p className={`text-[10px] ${activeTool === 'water_pump' ? 'text-sky-100' : 'text-slate-400'}`}>
+                  HMT & Vazão
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* 8. Gerador de OS (PDF) */}
-          <button
-            id="btn_tab_service_order"
-            onClick={() => setActiveTool('service_order')}
-            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
-              activeTool === 'service_order'
-                ? 'bg-purple-600 text-white border-purple-500 shadow-md ring-2 ring-purple-400/30'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-              activeTool === 'service_order' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
-            }`}>
-              <FileText className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black">Gerador de OS</h3>
-              <p className={`text-[10px] ${activeTool === 'service_order' ? 'text-purple-100' : 'text-slate-400'}`}>
-                Ordem de Serviço PDF
-              </p>
-            </div>
-          </button>
+          {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
+           (!searchTerm || 'gerador de os ordem de serviço pdf contrato recibo'.includes(searchTerm.toLowerCase())) && (
+            <button
+              id="btn_tab_service_order"
+              data-tool-category="existentes"
+              data-tool-name="Gerador de OS"
+              onClick={() => setActiveTool('service_order')}
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                activeTool === 'service_order'
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-md ring-2 ring-purple-400/30'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                activeTool === 'service_order' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
+              }`}>
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black">Gerador de OS</h3>
+                <p className={`text-[10px] ${activeTool === 'service_order' ? 'text-purple-100' : 'text-slate-400'}`}>
+                  Ordem de Serviço PDF
+                </p>
+              </div>
+            </button>
+          )}
+
+          {/* =========================================================================
+              NOVAS 15 FERRAMENTAS DO KIT ELETRICISTA & TÉCNICO PRO (ANEXADAS AO GRID)
+             ========================================================================= */}
+
+          {/* BLOCO 1: FATURAMENTO E VENDAS */}
+
+          {/* 9. Gerador de OS + Contrato + Recibo (PRO) */}
+          {(categoryFilter === 'todas' || categoryFilter === 'faturamento') &&
+           (!searchTerm || 'os contrato recibo logotipo slogan garantia faturamento'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="faturamento"
+              data-tool-name="OS & Contrato PRO"
+              onClick={() => setActiveKitProModal('gerador_os')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-blue-600 text-white shadow-xs group-hover:scale-105 transition">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">OS & Contrato PRO</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded-md">PDF</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Logo + Slogan + Recibo</p>
+              </div>
+            </button>
+          )}
+
+          {/* 10. Calculadora de Preço de Serviço */}
+          {(categoryFilter === 'todas' || categoryFilter === 'faturamento') &&
+           (!searchTerm || 'calculadora preço serviço valor hora deslocamento lucro orçamento'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="faturamento"
+              data-tool-name="Preço de Serviço"
+              onClick={() => setActiveKitProModal('calculadora_preco')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-indigo-600 text-white shadow-xs group-hover:scale-105 transition">
+                <Calculator className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Preço de Serviço</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-100/70 px-1.5 py-0.5 rounded-md">Margem</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Hora + Custo + Lucro</p>
+              </div>
+            </button>
+          )}
+
+          {/* 11. Lista de Materiais Automática */}
+          {(categoryFilter === 'todas' || categoryFilter === 'faturamento') &&
+           (!searchTerm || 'lista materiais automática t1 t2 t3 comercial orçamento cabos disjuntores'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="faturamento"
+              data-tool-name="Lista de Materiais"
+              onClick={() => setActiveKitProModal('lista_materiais')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-emerald-600 text-white shadow-xs group-hover:scale-105 transition">
+                <ListPlus className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Lista de Materiais</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-100/70 px-1.5 py-0.5 rounded-md">Auto</span>
+                </div>
+                <p className="text-[10px] text-slate-500">T1, T2, T3 & Comercial</p>
+              </div>
+            </button>
+          )}
+
+          {/* 12. CRM de Clientes */}
+          {(categoryFilter === 'todas' || categoryFilter === 'faturamento') &&
+           (!searchTerm || 'crm clientes obras whatsapp histórico cadastro contatos'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="faturamento"
+              data-tool-name="CRM Clientes"
+              onClick={() => setActiveKitProModal('crm_clientes')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-violet-600 text-white shadow-xs group-hover:scale-105 transition">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">CRM de Clientes</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-violet-600 bg-violet-100/70 px-1.5 py-0.5 rounded-md">Whats</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Histórico de Obras</p>
+              </div>
+            </button>
+          )}
+
+          {/* BLOCO 2: TÉCNICA E NORMAS */}
+
+          {/* 13. Tabela do Quadro Geral (QG) */}
+          {(categoryFilter === 'todas' || categoryFilter === 'tecnica') &&
+           (!searchTerm || 'quadro geral qg porta painel circuitos identificação disjuntor tabela pdf'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="tecnica"
+              data-tool-name="Tabela do Quadro"
+              onClick={() => setActiveKitProModal('tabela_quadro')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-amber-600 text-white shadow-xs group-hover:scale-105 transition">
+                <Grid className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Tabela do QG</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-100/70 px-1.5 py-0.5 rounded-md">Porta</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Cartela para Painel PDF</p>
+              </div>
+            </button>
+          )}
+
+          {/* 14. Dimensionamento Elétrico Inteligente */}
+          {(categoryFilter === 'todas' || categoryFilter === 'tecnica') &&
+           (!searchTerm || 'dimensionamento ib corrente disjuntor queda de tensão cabo edm iec'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="tecnica"
+              data-tool-name="Dimensionamento PRO"
+              onClick={() => setActiveKitProModal('dimensionamento')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-orange-600 text-white shadow-xs group-hover:scale-105 transition">
+                <Zap className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Dimensionamento PRO</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-orange-600 bg-orange-100/70 px-1.5 py-0.5 rounded-md">Ib/ΔV</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Ib, Cabo & Disjuntor</p>
+              </div>
+            </button>
+          )}
+
+          {/* 15. Tabelas Normativas Rápidas */}
+          {(categoryFilter === 'todas' || categoryFilter === 'tecnica') &&
+           (!searchTerm || 'tabelas normativas awg mm2 ampacidade iec cores moçambique edm'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="tecnica"
+              data-tool-name="Tabelas Normativas"
+              onClick={() => setActiveKitProModal('tabelas_normativas')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-amber-700 text-white shadow-xs group-hover:scale-105 transition">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Tabelas Normativas</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded-md">IEC</span>
+                </div>
+                <p className="text-[10px] text-slate-500">AWG, mm² & Cores</p>
+              </div>
+            </button>
+          )}
+
+          {/* 16. Diagnóstico de Quadro por Foto */}
+          {(categoryFilter === 'todas' || categoryFilter === 'tecnica') &&
+           (!searchTerm || 'diagnóstico quadro foto sara ia inteligência artificial aquecimento disjuntor defeito'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="tecnica"
+              data-tool-name="Diagnóstico IA Foto"
+              onClick={() => setActiveKitProModal('diagnostico_foto')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-teal-600 text-white shadow-xs group-hover:scale-105 transition">
+                <Camera className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Diagnóstico IA</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-teal-600 bg-teal-100/70 px-1.5 py-0.5 rounded-md">Sara</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Análise por Foto</p>
+              </div>
+            </button>
+          )}
+
+          {/* 17. Checklist de Segurança NR10 */}
+          {(categoryFilter === 'todas' || categoryFilter === 'tecnica') &&
+           (!searchTerm || 'checklist segurança nr10 laudo epi desenergização inspeção pdf'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="tecnica"
+              data-tool-name="Checklist NR10"
+              onClick={() => setActiveKitProModal('checklist_nr10')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-emerald-700 text-white shadow-xs group-hover:scale-105 transition">
+                <Shield className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Checklist NR10</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded-md">Laudo</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Inspeção & EPIs PDF</p>
+              </div>
+            </button>
+          )}
+
+          {/* BLOCO 3: GESTÃO E ORGANIZAÇÃO */}
+
+          {/* 18. Agenda & WhatsApp */}
+          {(categoryFilter === 'todas' || categoryFilter === 'gestao') &&
+           (!searchTerm || 'agenda whatsapp lembretes visitas clientes mensagem agendamento'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="gestao"
+              data-tool-name="Agenda WhatsApp"
+              onClick={() => setActiveKitProModal('agenda_whatsapp')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-emerald-600 text-white shadow-xs group-hover:scale-105 transition">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Agenda & WhatsApp</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-100/70 px-1.5 py-0.5 rounded-md">Auto</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Lembrete de Visitas</p>
+              </div>
+            </button>
+          )}
+
+          {/* 19. Gestão Financeira por Obra */}
+          {(categoryFilter === 'todas' || categoryFilter === 'gestao') &&
+           (!searchTerm || 'gestão financeira lucro obra custos despesas margem balanço'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="gestao"
+              data-tool-name="Gestão Financeira"
+              onClick={() => setActiveKitProModal('gestao_financeira')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-green-600 text-white shadow-xs group-hover:scale-105 transition">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Gestão de Obra</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-green-600 bg-green-100/70 px-1.5 py-0.5 rounded-md">Lucro</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Custos & Lucro Real</p>
+              </div>
+            </button>
+          )}
+
+          {/* 20. Portfólio Digital Antes & Depois */}
+          {(categoryFilter === 'todas' || categoryFilter === 'gestao') &&
+           (!searchTerm || 'portfólio antes depois fotos galeria marca d água projetos'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="gestao"
+              data-tool-name="Portfólio Digital"
+              onClick={() => setActiveKitProModal('portfolio')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-teal-700 text-white shadow-xs group-hover:scale-105 transition">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Portfólio Digital</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-teal-700 bg-teal-100/70 px-1.5 py-0.5 rounded-md">Fotos</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Antes & Depois com Marca</p>
+              </div>
+            </button>
+          )}
+
+          {/* 21. Certificado de Garantia */}
+          {(categoryFilter === 'todas' || categoryFilter === 'gestao') &&
+           (!searchTerm || 'certificado de garantia termo assinatura técnico pdf segurança'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="gestao"
+              data-tool-name="Certificado Garantia"
+              onClick={() => setActiveKitProModal('certificado_garantia')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-blue-700 text-white shadow-xs group-hover:scale-105 transition">
+                <Award className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Certificado Garantia</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-blue-700 bg-blue-100/70 px-1.5 py-0.5 rounded-md">PDF</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Garantia Técnica Oficial</p>
+              </div>
+            </button>
+          )}
+
+          {/* BLOCO 4: COMUNIDADE E REDE DE APOIO */}
+
+          {/* 22. Socorro na Obra (SOS) */}
+          {(categoryFilter === 'todas' || categoryFilter === 'comunidade') &&
+           (!searchTerm || 'socorro na obra mural emergência duvida eletricista whatsapp ajuda'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="comunidade"
+              data-tool-name="Socorro na Obra"
+              onClick={() => setActiveKitProModal('socorro_obra')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-rose-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-rose-600 text-white shadow-xs group-hover:scale-105 transition">
+                <AlertCircle className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Socorro na Obra</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-rose-600 bg-rose-100/70 px-1.5 py-0.5 rounded-md">SOS</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Mural & Chamado WhatsApp</p>
+              </div>
+            </button>
+          )}
+
+          {/* 23. Cotação em Lojas Parceiras */}
+          {(categoryFilter === 'todas' || categoryFilter === 'comunidade') &&
+           (!searchTerm || 'cotação lojas parceiras materiais maputo matola fornecedores comparador pdf'.includes(searchTerm.toLowerCase())) && (
+            <button
+              data-tool-category="comunidade"
+              data-tool-name="Cotação de Lojas"
+              onClick={() => setActiveKitProModal('cotacao_material')}
+              className="card-ferramenta p-3.5 rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-rose-400 hover:shadow-md group active:scale-95"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-slate-800 text-white shadow-xs group-hover:scale-105 transition">
+                <ShoppingCart className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-900">Cotação de Lojas</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md">Maputo</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Comparativo & PDF</p>
+              </div>
+            </button>
+          )}
         </div>
+
+        {/* Modal Interativo do Kit PRO */}
+        <KitProModals
+          activeModal={activeKitProModal}
+          onClose={() => setActiveKitProModal(null)}
+          onOpenModal={(id) => setActiveKitProModal(id)}
+        />
 
         {/* WORKSPACE AREA */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs">
