@@ -796,3 +796,210 @@ document.addEventListener('click', (e) => {
     targetContent.style.display = 'block';
   }
 });
+
+/* =========================================================================
+   SISTEMA DE INTERCEPTAÇÃO E MODAL SELO MZ NECESSÁRIO (Vanilla JavaScript)
+   ========================================================================= */
+
+/**
+ * Checa no localStorage se o técnico possui o Selo MZ verificado
+ * @returns {boolean}
+ */
+function verificarTecnicoSeloMZ() {
+  try {
+    return localStorage.getItem('tecnico_verificado') === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+window.verificarTecnicoSeloMZ = verificarTecnicoSeloMZ;
+
+/**
+ * Abre o Modal "Selo MZ Necessário"
+ * @param {string} [featureName='Ferramentas & Recursos']
+ */
+function abrirModalSeloMZ(featureName) {
+  const nomeRecurso = featureName || 'Ferramentas & Recursos';
+
+  // 1. Dispara evento para componente React caso o app React esteja ativo
+  window.dispatchEvent(new CustomEvent('tecnicamz:abrir_selo_modal', {
+    detail: { featureName: nomeRecurso }
+  }));
+
+  // 2. Procura ou injeta o Modal Vanilla no DOM
+  let modal = document.getElementById('modal-selo-mz-overlay');
+  if (!modal) {
+    modal = criarEstruturaModalSeloVanilla(nomeRecurso);
+  } else {
+    const titleFeature = modal.querySelector('.feature-title-slot');
+    if (titleFeature) {
+      titleFeature.textContent = nomeRecurso.toUpperCase();
+    }
+  }
+
+  if (modal) {
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+}
+window.abrirModalSeloMZ = abrirModalSeloMZ;
+
+/**
+ * Fecha o Modal "Selo MZ Necessário"
+ */
+function fecharModalSeloMZ() {
+  window.dispatchEvent(new CustomEvent('tecnicamz:fechar_selo_modal'));
+  const modal = document.getElementById('modal-selo-mz-overlay');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  document.body.style.overflow = '';
+}
+window.fecharModalSeloMZ = fecharModalSeloMZ;
+
+/**
+ * Redireciona o usuário para as Definições da Conta para ativar o Selo MZ
+ */
+function navegarParaDefinicoesSelo() {
+  fecharModalSeloMZ();
+  window.dispatchEvent(new CustomEvent('tecnicamz:navegar', { detail: { tab: 'settings' } }));
+  if (typeof window !== 'undefined') {
+    window.location.hash = '#definicoes';
+  }
+}
+window.navegarParaDefinicoesSelo = navegarParaDefinicoesSelo;
+
+/**
+ * Cria a estrutura HTML semântica do Modal Selo MZ no DOM
+ * @param {string} featureName
+ * @returns {HTMLElement}
+ */
+function criarEstruturaModalSeloVanilla(featureName) {
+  const overlay = document.createElement('div');
+  overlay.id = 'modal-selo-mz-overlay';
+  overlay.className = 'modal-selo-mz-overlay';
+  overlay.innerHTML = `
+    <div class="modal-selo-mz-container" role="dialog" aria-modal="true" aria-labelledby="titulo-modal-selo">
+      <!-- CABEÇALHO (GRADIENTE AZUL PREMIUM) -->
+      <header class="modal-selo-header">
+        <button type="button" class="btn-fechar-modal-x" onclick="fecharModalSeloMZ()" aria-label="Fechar">✕</button>
+        <div class="header-content-wrapper">
+          <div class="escudo-badge-wrapper">
+            <svg class="escudo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+          </div>
+          <div class="header-text-group">
+            <span class="badge-verificacao-oficial">✨ VERIFICAÇÃO OFICIAL TÉCNICAMZ</span>
+            <h2 id="titulo-modal-selo" class="modal-selo-title">Selo MZ Necessário</h2>
+          </div>
+        </div>
+      </header>
+
+      <!-- CORPO DO MODAL (FUNDO BRANCO CLEAN) -->
+      <main class="modal-selo-body">
+        <!-- Caixa de Alerta (Amarelo Claro / Muted) -->
+        <div class="alerta-restricao-box">
+          <div class="alerta-lock-icon">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div class="alerta-texto">
+            <h3 class="alerta-titulo">ACESSO RESTRITO A '<span class="feature-title-slot">${(featureName || 'FERRAMENTAS & RECURSOS').toUpperCase()}</span>'</h3>
+            <p class="alerta-desc">
+              Ative o seu <strong>Selo MZ</strong> nas Definições da sua conta para liberar todas as ferramentas, solicitações de clientes e a Sara IA!
+            </p>
+          </div>
+        </div>
+
+        <!-- Lista de Benefícios Desbloqueados -->
+        <section class="beneficios-secao">
+          <h4 class="beneficios-titulo">O QUE VOCÊ DESBLOQUEIA COM O SELO MZ:</h4>
+          <div class="beneficios-grid">
+            <div class="beneficio-item">
+              <span class="check-icon">✓</span>
+              <span>Publicar no Mural & Mercado</span>
+            </div>
+            <div class="beneficio-item">
+              <span class="check-icon">✓</span>
+              <span>Solicitações & Contatos</span>
+            </div>
+            <div class="beneficio-item">
+              <span class="check-icon">✓</span>
+              <span>Status & Histórias 24h</span>
+            </div>
+            <div class="beneficio-item">
+              <span class="check-icon">✓</span>
+              <span>Ferramentas & Calculadoras</span>
+            </div>
+            <div class="beneficio-item beneficio-full">
+              <span class="check-icon">✓</span>
+              <span>Sara IA: Engenharia, Dimensionamento & Foto Análise</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Caixa de Pagamento / Taxa de Ativação -->
+        <div class="taxa-ativacao-card">
+          <div class="taxa-info">
+            <p class="taxa-label">Taxa Única de Ativação do Selo</p>
+            <p class="taxa-valor">50 MT <span class="taxa-metodo">via M-Pesa ou e-Mola</span></p>
+          </div>
+          <span class="badge-liberacao">Liberação Rápida</span>
+        </div>
+
+        <!-- BOTÕES DE AÇÃO -->
+        <footer class="modal-selo-actions">
+          <button type="button" class="btn-ativar-selo-principal" onclick="navegarParaDefinicoesSelo()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span>Ativar Selo MZ nas Definições</span>
+            <span class="seta-acao">→</span>
+          </button>
+          <button type="button" class="btn-fechar-discreto" onclick="fecharModalSeloMZ()">
+            Talvez depois
+          </button>
+        </footer>
+      </main>
+    </div>
+  `;
+
+  // Fechar ao clicar fora do conteúdo
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      fecharModalSeloMZ();
+    }
+  });
+
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+// 4. Interceptador Global de Acesso a Ferramentas e Recursos Restritos
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (!target) return;
+
+  const trigger = target.closest && (
+    target.closest('#btn-nav-ferramentas') ||
+    target.closest('[data-nav="tools"]') ||
+    target.closest('[data-tab="tools"]') ||
+    target.closest('[data-nav="ferramentas"]') ||
+    target.closest('.requires-selo-mz')
+  );
+
+  if (trigger) {
+    if (!verificarTecnicoSeloMZ()) {
+      e.preventDefault();
+      e.stopPropagation();
+      abrirModalSeloMZ('Ferramentas & Recursos');
+      return false;
+    }
+  }
+}, true);
+

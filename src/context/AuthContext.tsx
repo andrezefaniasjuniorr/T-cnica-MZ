@@ -2363,6 +2363,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return !temSeloMZ;
   }, [currentUser, temSeloMZ]);
 
+  // Sincronização automática com a chave 'tecnico_verificado' no localStorage
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('tecnico_verificado', temSeloMZ ? 'true' : 'false');
+      } catch {}
+    }
+  }, [temSeloMZ]);
+
   // SELO MZ ACTIONS
   const solicitarSeloMZ = async (
     operadora: 'mpesa' | 'emola',

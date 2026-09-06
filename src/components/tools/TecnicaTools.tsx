@@ -23,6 +23,7 @@ import {
   Lock,
   Unlock,
   Shield,
+  ShieldCheck,
   Droplets,
   Layers,
   Sparkles,
@@ -386,6 +387,55 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const pumpPowerKw = Number(((flowRateM3PerHour / 3600) * 1000 * 9.81 * totalHeadM / (0.5 * 1000)).toFixed(2));
   const pumpPowerHp = Number((pumpPowerKw * 1.341).toFixed(2));
   const solarPanelsKwpForPump = Number((pumpPowerKw * 1.4).toFixed(2));
+
+  // Checagem de verificação no localStorage: 'tecnico_verificado' (booleano)
+  const isTecnicoVerificado = (() => {
+    try {
+      return localStorage.getItem('tecnico_verificado') === 'true';
+    } catch {
+      return false;
+    }
+  })();
+
+  if (!isTecnicoVerificado) {
+    return (
+      <div id="screen-ferramentas" className="screen-ferramentas active min-h-screen bg-slate-900/5 py-12 px-3 sm:px-6 flex flex-col items-center justify-center">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl max-w-md w-full text-center space-y-4 animate-scaleUp">
+          <div className="w-16 h-16 rounded-2xl bg-blue-950/90 border-2 border-amber-400 shadow-lg shadow-amber-400/20 mx-auto flex items-center justify-center text-amber-400">
+            <ShieldCheck className="w-9 h-9 fill-amber-400/20" />
+          </div>
+          <h2 className="text-xl font-black text-slate-900 tracking-tight">Selo MZ Necessário</h2>
+          <p className="text-xs font-semibold text-slate-600 leading-relaxed">
+            O acesso a Ferramentas & Calculadoras Técnicas é exclusivo para técnicos verificados com Selo MZ ativo.
+          </p>
+          <button
+            onClick={() => {
+              if (onNavigateTab) onNavigateTab('settings');
+              else if (typeof window !== 'undefined') window.location.hash = '#definicoes';
+            }}
+            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition cursor-pointer active:scale-[0.98]"
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-300" />
+            <span>Ativar Selo MZ nas Definições</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <SeloMZModal
+          isOpen={true}
+          onClose={() => {
+            if (onNavigateTab) onNavigateTab('technician');
+            else if (typeof window !== 'undefined') window.location.hash = '#tecnico';
+          }}
+          onGoToSeloSettings={() => {
+            if (onNavigateTab) onNavigateTab('settings');
+            else if (typeof window !== 'undefined') window.location.hash = '#definicoes';
+          }}
+          featureName="Ferramentas & Recursos"
+        />
+      </div>
+    );
+  }
 
   return (
     <div id="screen-ferramentas" className="screen-ferramentas active min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">

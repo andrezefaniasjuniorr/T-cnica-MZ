@@ -31,6 +31,7 @@ import { MessagesModal } from './components/common/MessagesModal';
 import { NotificationsModal } from './components/common/NotificationsModal';
 import { WelcomeModal } from './components/common/WelcomeModal';
 import { AccessDeniedModal } from './components/common/AccessDeniedModal';
+import { SeloMZModal } from './components/common/SeloMZModal';
 import { SubscriptionPaywall } from './components/subscription/SubscriptionPaywall';
 import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
 
@@ -152,12 +153,48 @@ const AppContent: React.FC = () => {
   const [isAccessDeniedOpen, setIsAccessDeniedOpen] = useState(false);
   const [requiredRoleForDenied, setRequiredRoleForDenied] = useState<UserRole>('client');
 
+  // Selo MZ Interception Modal State
+  const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
+  const [seloFeatureName, setSeloFeatureName] = useState('Ferramentas & Recursos');
+
+  // Sincronização e escuta de eventos Vanilla para abertura/fechamento do Modal Selo MZ
+  useEffect(() => {
+    const handleOpen = (e: any) => {
+      setSeloFeatureName(e.detail?.featureName || 'Ferramentas & Recursos');
+      setIsSeloModalOpen(true);
+    };
+    const handleClose = () => setIsSeloModalOpen(false);
+    const handleNavegar = (e: any) => {
+      if (e.detail?.tab) handleNavigate(e.detail.tab);
+    };
+
+    window.addEventListener('tecnicamz:abrir_selo_modal', handleOpen);
+    window.addEventListener('tecnicamz:fechar_selo_modal', handleClose);
+    window.addEventListener('tecnicamz:navegar', handleNavegar);
+    return () => {
+      window.removeEventListener('tecnicamz:abrir_selo_modal', handleOpen);
+      window.removeEventListener('tecnicamz:fechar_selo_modal', handleClose);
+      window.removeEventListener('tecnicamz:navegar', handleNavegar);
+    };
+  }, []);
+
   // 1. History API & Browser Navigation Synchronization
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const syncTab = () => {
       const detected = resolveTabFromLocation();
+      if (detected === 'tools') {
+        let isVerificado = false;
+        try {
+          isVerificado = localStorage.getItem('tecnico_verificado') === 'true';
+        } catch {}
+        if (!isVerificado) {
+          setSeloFeatureName('Ferramentas & Recursos');
+          setIsSeloModalOpen(true);
+          return;
+        }
+      }
       if (detected) {
         setActiveTab(detected);
       }
@@ -308,6 +345,24 @@ const AppContent: React.FC = () => {
     if (tab === 'tecnico' || tab === 'painel-tecnico') targetTab = 'technician';
     if (tab === 'feed' || tab === 'mural') targetTab = 'community';
     if (tab === 'gestao-pro-mz' || tab === 'admin') targetTab = 'gestao-pro-mz';
+
+    // 1. LÓGICA DE INTERCEPTAÇÃO E VERIFICAÇÃO DO SELO MZ:
+    // Cheque no localStorage a chave: 'tecnico_verificado' (booleano).
+    // Ao tentar acessar a aba "Ferramentas" (ou qualquer recurso restrito), caso 'tecnico_verificado' seja 'false' ou inexistente:
+    // * Impede a abertura do conteúdo da aba.
+    // * Exibe o Modal "Selo MZ Necessário".
+    if (targetTab === 'tools') {
+      let isVerificado = false;
+      try {
+        isVerificado = localStorage.getItem('tecnico_verificado') === 'true';
+      } catch {}
+
+      if (!isVerificado) {
+        setSeloFeatureName('Ferramentas & Recursos');
+        setIsSeloModalOpen(true);
+        return; // Impede a abertura do conteúdo da aba!
+      }
+    }
 
     // RBAC Route Guard Checks
     if (isClient && (targetTab === 'tools' || targetTab === 'technician' || targetTab === 'company' || targetTab === 'gestao-pro-mz')) {
@@ -648,6 +703,17 @@ const AppContent: React.FC = () => {
         onClose={() => setIsAccessDeniedOpen(false)}
         requiredRole={requiredRoleForDenied}
         onOpenAuth={() => handleNavigate('settings')}
+      />
+
+      {/* Modal de Bloqueio de Verificação "Selo MZ Necessário" */}
+      <SeloMZModal
+        isOpen={isSeloModalOpen}
+        onClose={() => setIsSeloModalOpen(false)}
+        onGoToSeloSettings={() => {
+          setIsSeloModalOpen(false);
+          handleNavigate('settings');
+        }}
+        featureName={seloFeatureName}
       />
 
       {/* 5. Mobile Extra Menu Drawer (All Options Grid & Sound Settings) */}
