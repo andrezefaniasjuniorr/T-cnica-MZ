@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { SeloMZModal } from './SeloMZModal';
@@ -26,7 +26,6 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-// Obtém a chave da API via variável de ambiente (Vite)
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 
 interface SaraAiModalProps {
@@ -47,39 +46,63 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
   const [showSeloModal, setShowSeloModal] = useState(false);
 
-  // Selo MZ or Active Subscription grants access. Clients and Admins also have free access.
   const hasAccess = isAdmin || (!isTechnician && !isCompany) || temSeloMZ || isSubscriptionActive;
+  const userName = currentUser?.name || 'Usuário';
+  const storageKey = `sara_chat_history_${currentUser?.uid || 'guest'}`;
 
+  // Saudação curta e direta conforme solicitado
   const getInitialGreeting = () => {
-    if (!hasAccess) {
-      return `Olá! Sou a Sara IA, a inteligência técnica oficial da TécnicaMZ. Para técnicos e empresas, o acesso completo à Sara IA (dimensionamento solar, quadros elétricos EDM, ar condicionado e análise por foto) é exclusivo para membros com o Selo MZ ativo (50 MT via M-Pesa/e-Mola).`;
-    }
-    if (isCompany) {
-      return `Olá! Sou a Sara IA, assistente de engenharia e recrutamento da TécnicaMZ. Posso ajudar a sua empresa a elaborar descrições de vagas técnicas, analisar perfis de candidatos ou estimar custos de contratação técnica em Moçambique. Como posso ajudar hoje?`;
-    }
-    if (isTechnician) {
-      return `Olá colega técnico! Sou a Sara IA da TécnicaMZ. Posso auxiliar com dimensionamento solar fotovoltaico, tabelas de cabos e disjuntores da EDM, códigos de erro de ar condicionado ou analisar fotos de placas, esquemas e quadros elétricos pela câmara ou galeria. O que você gostaria de calcular ou analisar?`;
-    }
-    if (isAdmin) {
-      return `Olá Administrador! Sou a Sara IA. Estou pronta para auxiliar na auditoria de comprovativos M-Pesa / e-Mola, conformidade de NUITs e relatórios de métricas do sistema.`;
-    }
-    return `Olá! Sou a Sara IA, assistente inteligente da TécnicaMZ. Posso ajudar você a entender que tipo de profissional técnico contratar (eletricidade, climatização, energia solar, canalização, CCTV), tirar dúvidas sobre normas moçambicanas e estimar orçamentos médios em Meticais (MZN). Como posso ajudar?`;
+    return `Olá ${userName}, Sou Eng.Sara IA da TécnicaMZ Pro! Precisa de ajuda?`;
   };
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'init_msg',
-      sender: 'sara',
-      text: getInitialGreeting(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // Carrega histórico do localStorage ou inicia com a saudação curta
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar mensagens locais:', e);
     }
-  ]);
+    return [
+      {
+        id: 'init_msg',
+        sender: 'sara',
+        text: getInitialGreeting(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ];
+  });
 
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [isThinking, setIsThinking] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll sempre que as mensagens mudam
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom();
+    }
+  }, [messages, isOpen, isThinking]);
+
+  // Salva no LocalStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch (e) {
+      console.warn('Erro ao salvar mensagens no LocalStorage:', e);
+    }
+  }, [messages, storageKey]);
 
   if (!isOpen) return null;
 
@@ -103,6 +126,21 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setInputText(prompt);
   };
 
+  const handleClearChat = () => {
+    if (window.confirm('Deseja realmente limpar o histórico da conversa?')) {
+      const resetMsg: Message[] = [
+        {
+          id: `init_msg_${Date.now()}`,
+          sender: 'sara',
+          text: getInitialGreeting(),
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ];
+      setMessages(resetMsg);
+      localStorage.removeItem(storageKey);
+    }
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!inputText.trim() && !selectedImage) || isThinking) return;
@@ -113,7 +151,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         {
           id: `sara_${Date.now()}`,
           sender: 'sara',
-          text: 'Erro de Configuração: A chave da API do Gemini não foi encontrada nas variáveis de ambiente (VITE_GEMINI_API_KEY).',
+          text: 'Erro de Configuração: A chave da API não foi encontrada nas variáveis de ambiente.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -127,6 +165,8 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setSelectedImage(null);
 
     const userMessageId = `user_${Date.now()}`;
+    const saraMessageId = `sara_${Date.now()}`;
+
     const userMsg: Message = {
       id: userMessageId,
       sender: 'user',
@@ -136,12 +176,23 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     };
 
     const updatedHistory = [...messages, userMsg];
-    setMessages(updatedHistory);
+
+    setMessages([
+      ...updatedHistory,
+      {
+        id: saraMessageId,
+        sender: 'sara',
+        text: '',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+
     setIsThinking(true);
 
     try {
-      // Montagem do histórico para a API do Gemini
-      const contentsPayload = updatedHistory.map((m) => {
+      const recentHistory = updatedHistory.slice(-6);
+
+      const contentsPayload = recentHistory.map((m) => {
         const role = m.sender === 'user' ? 'user' : 'model';
         const parts: any[] = [{ text: m.text }];
 
@@ -158,15 +209,15 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         return { role, parts };
       });
 
-      const systemInstructionText = `Você é a Sara IA, a assistente técnica oficial da plataforma TécnicaMZ em Moçambique.
-Usuário atual: ${currentUser?.name || 'Cliente'} (Perfil: ${currentUser?.role || 'Cliente'}).
-Responda sempre em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
-Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações iniciais a cada mensagem.`;
+      const systemInstructionText = `Você é a Eng. Sara IA, assistente técnica de engenharia da plataforma TécnicaMZ Pro em Moçambique.
+Você está conversando com o usuário: ${userName} (Perfil: ${currentUser?.role || 'Técnico'}).
+IMPORTANTE: Trate o usuário pelo nome real dele ("${userName}") durante a conversa de forma natural e amigável.
+Responda em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
+Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais longas a cada mensagem.`;
 
-      // Atualizado para usar o modelo ativo gemini-3.6-flash
-      const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
 
-      const response = await fetch(GEMINI_URL, {
+      const response = await fetch(STREAM_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -179,32 +230,68 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || `Erro na API Gemini: ${response.status}`);
+        throw new Error(errorData.error?.message || `Erro na API: ${response.status}`);
       }
 
-      const data = await response.json();
-      const replyText =
-        data.candidates?.[0]?.content?.parts?.[0]?.text ||
-        'Não consegui processar a resposta técnica no momento. Por favor, tente novamente.';
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let fullText = '';
 
-      const saraMsg: Message = {
-        id: `sara_${Date.now()}`,
-        sender: 'sara',
-        text: replyText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
+      if (reader) {
+        setIsThinking(false);
+        let buffer = '';
 
-      setMessages(prev => [...prev, saraMsg]);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonString = line.replace('data: ', '').trim();
+              if (!jsonString) continue;
+
+              try {
+                const parsed = JSON.parse(jsonString);
+                const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                if (chunkText) {
+                  fullText += chunkText;
+
+                  setMessages(prev =>
+                    prev.map(msg =>
+                      msg.id === saraMessageId ? { ...msg, text: fullText } : msg
+                    )
+                  );
+                }
+              } catch (e) {
+                // Parse parcial
+              }
+            }
+          }
+        }
+      }
+
+      if (!fullText) {
+        fullText = `Desculpe, ${userName}. Não consegui processar a resposta técnica no momento. Por favor, tente novamente.`;
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === saraMessageId ? { ...msg, text: fullText } : msg
+          )
+        );
+      }
 
       if (isFirebaseConfigured && db) {
         try {
           const convoId = `ai_chat_${currentUser?.uid || 'client'}_${Date.now()}`;
           await setDoc(doc(db, 'ai_conversations', convoId), {
             userId: currentUser?.uid || 'guest',
-            userName: currentUser?.name || 'Cliente',
+            userName: userName,
             userRole: currentUser?.role || 'client',
             userPrompt: userText || 'Análise de Imagem Técnica',
-            aiReply: replyText,
+            aiReply: fullText,
             hasImage: !!currentImg,
             createdAt: new Date().toISOString()
           }, { merge: true });
@@ -214,15 +301,16 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
       }
     } catch (err: any) {
       console.warn('Erro na conexão com a Sara IA:', err);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `sara_${Date.now()}`,
-          sender: 'sara',
-          text: `Sara IA (Aviso de Conexão): Não foi possível obter resposta no momento. Detalhe: ${err.message || 'Verifique a conexão.'}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === saraMessageId
+            ? {
+                ...msg,
+                text: `Sara IA: Não foi possível obter resposta no momento. Detalhe: ${err.message || 'Verifique a conexão.'}`
+              }
+            : msg
+        )
+      );
     } finally {
       setIsThinking(false);
     }
@@ -237,7 +325,7 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs">
       <div className="relative w-full max-w-3xl h-[85vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
         
-        {/* Header */}
+        {/* Header limpo (Sem a badge do Gemini) */}
         <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white p-3.5 sm:p-5 flex items-center justify-between border-b border-blue-900/50">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <button
@@ -252,24 +340,29 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300 animate-pulse" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black text-white tracking-tight">Sara IA</h3>
-                <span className="text-[9px] sm:text-[10px] font-bold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Gemini 3.6 • Engenharia MZ
-                </span>
-              </div>
+              <h3 className="text-sm sm:text-base font-black text-white tracking-tight">Sara IA</h3>
               <p className="text-[11px] sm:text-xs text-blue-200 line-clamp-1">
-                Assistência técnica e análise visual multimodal para Moçambique
+                Assistência técnica e análise visual multimodal
               </p>
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition"
-            title="Fechar (X)"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleClearChat}
+              className="p-2 rounded-full bg-white/10 hover:bg-rose-500/30 text-white/80 hover:text-rose-200 transition"
+              title="Limpar histórico do chat"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleClose}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition"
+              title="Fechar (X)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Quick Suggestion Chips */}
@@ -299,7 +392,7 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
           </button>
         </div>
 
-        {/* Chat Feed */}
+        {/* Chat Feed com auto-scroll */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50">
           {messages.map((m) => (
             <div
@@ -330,7 +423,7 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
                   </div>
                 )}
                 <div className="leading-relaxed whitespace-pre-wrap font-normal">
-                  {m.text}
+                  {m.text || (m.sender === 'sara' && isThinking ? '...' : '')}
                 </div>
                 <div className={`text-[10px] text-right ${m.sender === 'user' ? 'text-slate-400' : 'text-slate-400'}`}>
                   {m.timestamp}
@@ -342,12 +435,15 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
           {isThinking && (
             <div className="flex items-center gap-3 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs text-xs text-slate-600 max-w-sm">
               <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
-              <span>Sara IA está a processar o raciocínio técnico...</span>
+              <span>Sara IA a processar para {userName}...</span>
             </div>
           )}
+
+          {/* Âncora invisível para o auto-scroll */}
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Image Preview before send */}
+        {/* Image Preview */}
         {selectedImage && (
           <div className="px-4 py-2 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -370,7 +466,7 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
           </div>
         )}
 
-        {/* Input Form or Locked Banner */}
+        {/* Input Form */}
         {!hasAccess ? (
           <div className="p-4 bg-slate-900 text-white border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-xs text-slate-300">
@@ -440,7 +536,7 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
               type="text"
               value={inputText}
               onChange={e => setInputText(e.target.value)}
-              placeholder="Pergunte à Sara IA ou envie uma foto de circuito, placa ou equipamento..."
+              placeholder={`Pergunte algo ou envie uma foto, ${userName}...`}
               className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
             />
 
