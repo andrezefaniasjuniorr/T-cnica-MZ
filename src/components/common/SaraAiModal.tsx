@@ -163,7 +163,8 @@ Usuário atual: ${currentUser?.name || 'Cliente'} (Perfil: ${currentUser?.role |
 Responda sempre em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
 Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações iniciais a cada mensagem.`;
 
-      const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+      // Atualizado para usar o modelo ativo gemini-3.6-flash
+      const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
 
       const response = await fetch(GEMINI_URL, {
         method: 'POST',
@@ -254,7 +255,7 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
               <div className="flex items-center gap-2">
                 <h3 className="text-sm sm:text-base font-black text-white tracking-tight">Sara IA</h3>
                 <span className="text-[9px] sm:text-[10px] font-bold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Gemini 2.5 • Engenharia MZ
+                  Gemini 3.6 • Engenharia MZ
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-blue-200 line-clamp-1">
