@@ -33,7 +33,6 @@ import { WelcomeModal } from './components/common/WelcomeModal';
 import { AccessDeniedModal } from './components/common/AccessDeniedModal';
 import { SeloMZModal } from './components/common/SeloMZModal';
 import { PWAInstallBanner } from './components/common/PWAInstallBanner';
-import { NetworkStatusIndicator } from './components/common/NetworkStatusIndicator';
 import { SubscriptionPaywall } from './components/subscription/SubscriptionPaywall';
 import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
 
@@ -732,8 +731,7 @@ const AppContent: React.FC = () => {
         onOpenNotifications={() => setIsNotificationsOpen(true)}
       />
 
-      {/* PWA: Offline / Online Network Indicator & In-App Installation Banner */}
-      <NetworkStatusIndicator />
+      {/* PWA: In-App Installation Banner */}
       <PWAInstallBanner />
     </div>
   );

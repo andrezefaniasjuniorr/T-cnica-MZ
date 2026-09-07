@@ -26,6 +26,7 @@ import {
   Download
 } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { NetworkStatusIndicator } from '../common/NetworkStatusIndicator';
 
 interface MobileExtraMenuDrawerProps {
   isOpen: boolean;
@@ -254,6 +255,9 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
+            {/* Status de Rede Compacto */}
+            <NetworkStatusIndicator />
+
             {/* Audio SFX Toggle Button */}
             <button
               onClick={handleToggleSound}
