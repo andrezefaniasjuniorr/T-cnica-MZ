@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { SeloMZModal } from './SeloMZModal';
-import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../firebase/config';
 import { soundFX } from '../../utils/audio';
 import {
@@ -26,6 +26,9 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+// URL do Proxy Cloudflare Worker
+const PROXY_WORKER_URL = 'https://sara-ia-proxy.andrezefaniasjuniorr.workers.dev';
+
 interface SaraAiModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -45,7 +48,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   const [showSeloModal, setShowSeloModal] = useState(false);
 
   // Selo MZ or Active Subscription grants access. Clients and Admins also have free access.
-  const hasAccess = isAdmin || !isTechnician && !isCompany || temSeloMZ || isSubscriptionActive;
+  const hasAccess = isAdmin || (!isTechnician && !isCompany) || temSeloMZ || isSubscriptionActive;
 
   const getInitialGreeting = () => {
     if (!hasAccess) {
@@ -124,98 +127,86 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setIsThinking(true);
 
     try {
-      if (currentImg) {
-        // Multi-modal Vision call to Gemini via server API
-        const response = await fetch('/api/sara/analyze-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: currentImg.base64,
-            mimeType: currentImg.mimeType,
-            prompt: userText,
-            userRole: currentUser?.role || 'client'
-          })
-        });
+      // Montagem do histórico para o modelo Gemini via Proxy
+      const contentsPayload = updatedHistory.map((m) => {
+        const role = m.sender === 'user' ? 'user' : 'model';
+        const parts: any[] = [{ text: m.text }];
 
-        const data = await response.json();
-        const replyText = data.analysis || data.fallback || 'Análise da foto técnica concluída.';
-        const saraMsg: Message = {
-          id: `sara_${Date.now()}`,
-          sender: 'sara',
-          text: replyText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-
-        setMessages(prev => [...prev, saraMsg]);
-
-        // Save conversation snapshot to Firestore
-        if (isFirebaseConfigured && db) {
-          try {
-            const convoId = `ai_chat_${currentUser?.uid || 'client'}_${Date.now()}`;
-            await setDoc(doc(db, 'ai_conversations', convoId), {
-              userId: currentUser?.uid || 'guest',
-              userName: currentUser?.name || 'Cliente',
-              userRole: currentUser?.role || 'client',
-              userPrompt: userText || 'Análise de Imagem Técnica',
-              aiReply: replyText,
-              hasImage: true,
-              createdAt: new Date().toISOString()
-            }, { merge: true });
-          } catch (fireErr) {
-            console.warn('Firestore AI save error:', fireErr);
-          }
+        // Anexa a imagem se for a mensagem atual com foto
+        if (m.id === userMessageId && currentImg) {
+          const pureBase64 = currentImg.base64.replace(/^data:image\/\w+;base64,/, '');
+          parts.unshift({
+            inline_data: {
+              mime_type: currentImg.mimeType,
+              data: pureBase64
+            }
+          });
         }
-      } else {
-        // Text chat call to Gemini via server API
-        const response = await fetch('/api/sara/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: userText,
-            history: messages.slice(-8),
-            userRole: currentUser?.role || 'client',
-            userName: currentUser?.name || 'Usuário'
-          })
-        });
 
-        const data = await response.json();
-        const replyText = data.reply || data.fallback || 'Resposta processada.';
-        const saraMsg: Message = {
-          id: `sara_${Date.now()}`,
-          sender: 'sara',
-          text: replyText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
+        return { role, parts };
+      });
 
-        setMessages(prev => [...prev, saraMsg]);
+      // Contexto / Instrução do Sistema para a Sara IA
+      const systemInstructionText = `Você é a Sara IA, a assistente técnica oficial da plataforma TécnicaMZ em Moçambique.
+Usuário atual: ${currentUser?.name || 'Cliente'} (Perfil: ${currentUser?.role || 'Cliente'}).
+Responda sempre em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
+Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações iniciais a cada mensagem.`;
 
-        // Save conversation snapshot to Firestore
-        if (isFirebaseConfigured && db) {
-          try {
-            const convoId = `ai_chat_${currentUser?.uid || 'client'}_${Date.now()}`;
-            await setDoc(doc(db, 'ai_conversations', convoId), {
-              userId: currentUser?.uid || 'guest',
-              userName: currentUser?.name || 'Cliente',
-              userRole: currentUser?.role || 'client',
-              userPrompt: userText,
-              aiReply: replyText,
-              hasImage: false,
-              createdAt: new Date().toISOString()
-            }, { merge: true });
-          } catch (fireErr) {
-            console.warn('Firestore AI save error:', fireErr);
+      // Chamada para o Cloudflare Worker Proxy
+      const response = await fetch(PROXY_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: contentsPayload,
+          system_instruction: {
+            parts: [{ text: systemInstructionText }]
           }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro no servidor Proxy: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const replyText =
+        data.candidates?.[0]?.content?.parts?.[0]?.text ||
+        'Não consegui processar a resposta técnica no momento. Por favor, tente novamente.';
+
+      const saraMsg: Message = {
+        id: `sara_${Date.now()}`,
+        sender: 'sara',
+        text: replyText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setMessages(prev => [...prev, saraMsg]);
+
+      // Salva snapshot no Firebase Firestore para histórico/auditoria
+      if (isFirebaseConfigured && db) {
+        try {
+          const convoId = `ai_chat_${currentUser?.uid || 'client'}_${Date.now()}`;
+          await setDoc(doc(db, 'ai_conversations', convoId), {
+            userId: currentUser?.uid || 'guest',
+            userName: currentUser?.name || 'Cliente',
+            userRole: currentUser?.role || 'client',
+            userPrompt: userText || 'Análise de Imagem Técnica',
+            aiReply: replyText,
+            hasImage: !!currentImg,
+            createdAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (fireErr) {
+          console.warn('Erro ao salvar conversa no Firestore:', fireErr);
         }
       }
     } catch (err: any) {
-      console.warn('Sara IA connection error:', err);
-      // Resilient fallback explanation
+      console.warn('Erro na conexão com a Sara IA:', err);
       setMessages(prev => [
         ...prev,
         {
           id: `sara_${Date.now()}`,
           sender: 'sara',
-          text: `Sara IA (Resposta Técnica de Apoio): Para dimensionamentos em Moçambique, siga sempre as recomendações da norma EDM e verifique aterramentos inferiores a 10 Ohms e disjuntores de curva C para motores e compressores. Como posso detalhar o seu cálculo?`,
+          text: `Sara IA (Aviso de Conexão): Não foi possível conectar ao servidor. Verifique sua conexão. Dica técnica: Para instalações elétricas em Moçambique, consulte sempre os padrões da EDM.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
