@@ -10,6 +10,17 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '25mb' }));
 
+// Middleware de CORS para permitir acesso de qualquer navegador / PWA sem bloqueio
+app.use((req: Request, res: Response, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-goog-api-key');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 // Lazy initialization of Gemini client
 let genAIClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
@@ -47,6 +58,110 @@ function toPlainText(text: string): string {
 // Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Endpoint Proxy Oficial Sara IA (/api/sara)
+// Compatível com o formato Gemini REST API ({ contents, system_instruction }) e clientBody ({ message, history })
+app.post('/api/sara', async (req: Request, res: Response) => {
+  try {
+    const { contents, system_instruction, message, history, userRole, userName } = req.body;
+
+    const defaultInstruction = `Você é a Sara IA, assistente técnica de engenharia elétrica e soluções da TécnicaMZ Pro em Moçambique.
+Especialista nas normas técnicas da EDM (Electricidade de Moçambique: 220V/380V a 50Hz), dimensionamento de cabos, disjuntores, quadros gerais, aterramentos e energia solar fotovoltaica.
+Responda de forma direta, clara, técnica e precisa em português de Moçambique. NUNCA repita respostas em loop. Forneça cálculos e dados práticos.`;
+
+    let finalInstruction = defaultInstruction;
+    if (system_instruction?.parts?.[0]?.text) {
+      finalInstruction = system_instruction.parts[0].text;
+    } else if (typeof system_instruction === 'string') {
+      finalInstruction = system_instruction;
+    }
+
+    const ai = getGenAI();
+
+    // Normalização dos conteúdos para a API do Gemini
+    let geminiContents: any[] = [];
+
+    if (Array.isArray(contents) && contents.length > 0) {
+      geminiContents = contents.map((c: any) => ({
+        role: c.role === 'user' ? 'user' : 'model',
+        parts: Array.isArray(c.parts) ? c.parts.map((p: any) => ({ text: toPlainText(p.text || '') })) : [{ text: toPlainText(c.text || '') }]
+      }));
+    } else if (message) {
+      if (Array.isArray(history)) {
+        for (const item of history) {
+          if (item.text || item.parts) {
+            geminiContents.push({
+              role: (item.sender === 'user' || item.role === 'user') ? 'user' : 'model',
+              parts: [{ text: toPlainText(item.text || item.parts?.[0]?.text || '') }]
+            });
+          }
+        }
+      }
+      geminiContents.push({
+        role: 'user',
+        parts: [{ text: toPlainText(message) }]
+      });
+    } else {
+      return res.status(400).json({ error: 'Nenhum conteúdo ou mensagem fornecida.' });
+    }
+
+    // Lista de modelos resilientes para alta disponibilidade
+    const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+    let response: any = null;
+    let lastError: any = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: geminiContents,
+          config: {
+            systemInstruction: finalInstruction,
+            temperature: 0.6,
+          }
+        });
+        if (response && response.text) {
+          break;
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[Sara IA] Tentativa com modelo ${modelName} falhou:`, err?.message || err);
+      }
+    }
+
+    if (!response || !response.text) {
+      throw lastError || new Error('Não foi possível obter resposta de nenhum dos modelos disponíveis.');
+    }
+
+    const replyText = toPlainText(response.text || 'Resposta processada pela Sara IA.');
+
+    // Retorna resposta em formato compatível tanto com o padrão Gemini quanto com o chat da aplicação
+    return res.json({
+      candidates: [
+        {
+          content: {
+            parts: [{ text: replyText }],
+            role: 'model'
+          }
+        }
+      ],
+      reply: replyText
+    });
+  } catch (error: any) {
+    console.error('Erro no endpoint /api/sara:', error);
+    return res.status(500).json({
+      error: error?.message || 'Falha ao processar requisição com a Sara IA.',
+      candidates: [
+        {
+          content: {
+            parts: [{ text: 'Houve uma instabilidade temporária ao conectar com o serviço da Sara IA. Por favor, tente novamente.' }],
+            role: 'model'
+          }
+        }
+      ]
+    });
+  }
 });
 
 // Sara AI: Chat endpoint

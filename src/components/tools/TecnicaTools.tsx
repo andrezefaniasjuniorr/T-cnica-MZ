@@ -89,6 +89,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const [osServiceType, setOsServiceType] = useState('Instalação e Manutenção Técnica');
   const [osDescription, setOsDescription] = useState('');
   const [osWarrantyDays, setOsWarrantyDays] = useState(30);
+  const [osExecutionTime, setOsExecutionTime] = useState('3 dias úteis');
   const [osItems, setOsItems] = useState<Array<{ id: string; desc: string; qty: number; unitPrice: number }>>([
     { id: '1', desc: 'Mão de Obra e Diagnóstico Técnico', qty: 1, unitPrice: 2500 },
     { id: '2', desc: 'Disjuntor Bipolar 32A DIN Schneider', qty: 1, unitPrice: 850 }
@@ -108,8 +109,29 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     setOsItems(prev => prev.filter(i => i.id !== id));
   };
 
-  const handlePrintOS = () => {
-    window.print();
+  const handlePrintOS = async () => {
+    try {
+      const g = (window as any).gerarPDF_OS || ((window as any).GeradorOS && (window as any).GeradorOS.gerarPDF);
+      if (typeof g === 'function') {
+        await g({
+          tipo: 'OS',
+          numeroOS: osNumber,
+          cliente: {
+            nome: osClientName || 'Cliente Particular',
+            telefone: osClientPhone,
+            endereco: osClientAddress
+          },
+          servicos: osItems.map(it => ({ id: it.id, descricao: it.desc, qtd: it.qty, precoUnit: it.unitPrice })),
+          materiais: [],
+          prazoExecucao: osExecutionTime,
+          garantiaTexto: `${osWarrantyDays} dias de Garantia Técnica`,
+          garantiaDias: osWarrantyDays,
+          observacoes: osDescription || osServiceType
+        }, 'download');
+      }
+    } catch (err: any) {
+      console.error('Erro ao gerar documento via pdfMake:', err);
+    }
   };
 
   // ==========================================
@@ -514,7 +536,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[
               { id: 'todas', label: 'Todas', count: 23 },
-              { id: 'existentes', label: 'Já Existentes', count: 8 },
               { id: 'faturamento', label: 'Faturamento', count: 4 },
               { id: 'tecnica', label: 'Técnica', count: 5 },
               { id: 'gestao', label: 'Gestão', count: 4 },
@@ -2242,14 +2263,26 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                           />
                         </div>
 
-                        <div>
-                          <label className="block font-bold text-slate-700 mb-1">Garantia Técnica (Dias):</label>
-                          <input
-                            type="number"
-                            value={osWarrantyDays}
-                            onChange={e => setOsWarrantyDays(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
-                          />
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">Prazo de Execução:</label>
+                            <input
+                              type="text"
+                              value={osExecutionTime}
+                              onChange={e => setOsExecutionTime(e.target.value)}
+                              placeholder="Ex: 3 dias úteis"
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">Garantia Técnica (Dias):</label>
+                            <input
+                              type="number"
+                              value={osWarrantyDays}
+                              onChange={e => setOsWarrantyDays(Number(e.target.value))}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                            />
+                          </div>
                         </div>
                       </div>
 

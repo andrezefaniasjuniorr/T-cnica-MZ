@@ -387,9 +387,9 @@ const GeradorOSView: React.FC<{ initialData?: any }> = ({ initialData }) => {
     setLoading(true);
     setStatusMsg('');
     try {
-      const g = (window as any).GeradorOS;
+      const g = (window as any).gerarPDF_OS || ((window as any).GeradorOS && (window as any).GeradorOS.gerarPDF);
       if (!g) throw new Error('Módulo GeradorOS não carregado.');
-      await g.gerarPDF({
+      await g({
         tipo,
         cliente,
         servicos,
@@ -397,6 +397,7 @@ const GeradorOSView: React.FC<{ initialData?: any }> = ({ initialData }) => {
         desconto,
         condicoesPagamento: condicoes,
         prazoExecucao: prazo,
+        garantiaTexto: typeof garantiaDias === 'string' ? garantiaDias : `${garantiaDias} dias`,
         garantiaDias,
         observacoes
       }, 'download');
@@ -562,6 +563,53 @@ const GeradorOSView: React.FC<{ initialData?: any }> = ({ initialData }) => {
               </button>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Prazos, Garantia & Condições Editáveis */}
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+        <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider block">
+          Prazos, Garantia & Condições (Editáveis)
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Prazo de Execução:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              placeholder="Ex: 2 dias úteis"
+              value={prazo}
+              onChange={e => setPrazo(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Garantia Técnica:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              placeholder="Ex: 90 dias de Garantia Técnica"
+              value={garantiaDias}
+              onChange={e => setGarantiaDias(e.target.value as any)}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Condições de Pagamento:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              placeholder="Ex: 50% na aprovação e 50% na vistoria final"
+              value={condicoes}
+              onChange={e => setCondicoes(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Observações / Normas EDM:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              placeholder="Ex: Serviço normatizado conforme regulamentos da EDM."
+              value={observacoes}
+              onChange={e => setObservacoes(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -780,6 +828,13 @@ interface ComodoItem {
   tue: number;
 }
 
+interface MaterialEditavelItem {
+  id: string;
+  descricao: string;
+  qtd: number;
+  unid: string;
+}
+
 const ListaMateriaisView: React.FC = () => {
   const [comodos, setComodos] = useState<ComodoItem[]>([
     { id: '1', nome: 'Sala de Estar', comp: 5, larg: 4, pontosLuz: 2, tug: 5, tue: 1 },
@@ -788,12 +843,51 @@ const ListaMateriaisView: React.FC = () => {
     { id: '4', nome: 'WC Geral', comp: 2.5, larg: 2, pontosLuz: 1, tug: 1, tue: 1 }
   ]);
 
+  const [nomeObra, setNomeObra] = useState('Instalação Residencial / Comercial');
+  const [prazo, setPrazo] = useState('5 dias úteis');
+  const [garantia, setGarantia] = useState('12 meses de garantia nos materiais');
   const [copiado, setCopiado] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const helper = (window as any).ListaMateriaisAutomatica;
   const quant = helper ? helper.calcularPorComodos(comodos) : {
     cabo1_5: 100, cabo2_5: 150, cabo4_0: 60, eletrodutos: 80, disjuntor10A: 2, disjuntor16A: 3, disjuntor20A: 4
+  };
+
+  const calcularItensIniciais = (): MaterialEditavelItem[] => [
+    { id: '1', descricao: 'Cabo Flexível 1.5mm² 750V (Iluminação)', qtd: quant.cabo1_5 || 100, unid: 'metros' },
+    { id: '2', descricao: 'Cabo Flexível 2.5mm² 750V (Tomadas TUG)', qtd: quant.cabo2_5 || 150, unid: 'metros' },
+    { id: '3', descricao: 'Cabo Flexível 4.0mm² 750V (Cargas Pesadas TUE)', qtd: quant.cabo4_0 || 60, unid: 'metros' },
+    { id: '4', descricao: 'Cabo Flexível 6.0mm² 750V (Alimentador Geral)', qtd: quant.caboAlim || 30, unid: 'metros' },
+    { id: '5', descricao: 'Eletroduto Corrugado Flexível 25mm (3/4")', qtd: quant.eletrodutos || 80, unid: 'metros' },
+    { id: '6', descricao: 'Disjuntores Monopolares DIN 10A / 16A', qtd: (quant.disjuntor10A || 2) + (quant.disjuntor16A || 3), unid: 'un' },
+    { id: '7', descricao: 'Disjuntores Monopolares DIN 20A / 25A', qtd: quant.disjuntor20A || 4, unid: 'un' },
+    { id: '8', descricao: 'Disjuntor Bipolar Geral 40A Curva C', qtd: 1, unid: 'un' },
+    { id: '9', descricao: 'Interruptor Diferencial Residual IDR 40A 30mA', qtd: 1, unid: 'un' },
+    { id: '10', descricao: 'Dispositivo de Proteção contra Surtos DPS 20kA', qtd: 2, unid: 'un' },
+    { id: '11', descricao: 'Haste de Aterramento Cobreada 5/8" x 2.4m', qtd: 1, unid: 'un' },
+    { id: '12', descricao: 'Caixas de Embutir 4x2 e 4x4 em PVC', qtd: 18, unid: 'un' }
+  ];
+
+  const [itensEditaveis, setItensEditaveis] = useState<MaterialEditavelItem[]>(calcularItensIniciais);
+
+  const recalcularItens = () => {
+    setItensEditaveis(calcularItensIniciais());
+  };
+
+  const adicionarItemMaterial = () => {
+    setItensEditaveis([
+      ...itensEditaveis,
+      { id: String(Date.now()), descricao: 'Novo Material Extra', qtd: 1, unid: 'un' }
+    ]);
+  };
+
+  const removerItemMaterial = (id: string) => {
+    setItensEditaveis(itensEditaveis.filter(i => i.id !== id));
+  };
+
+  const updateItemMaterial = (id: string, field: keyof MaterialEditavelItem, val: any) => {
+    setItensEditaveis(itensEditaveis.map(i => i.id === id ? { ...i, [field]: val } : i));
   };
 
   const adicionarComodo = () => {
@@ -844,18 +938,14 @@ const ListaMateriaisView: React.FC = () => {
   };
 
   const handleCopiarZap = () => {
+    const linhasItens = itensEditaveis.map(it => `• ${it.descricao}: ${it.qtd} ${it.unid}`).join('\n');
     const texto = `*LISTA DE MATERIAIS ELÉTRICOS - LEVANTAMENTO*\n` +
+      `Obra: *${nomeObra}*\n` +
       `Cômodos: ${comodos.map(c => c.nome).join(', ')}\n` +
       `---------------------------------\n` +
-      `• Cabo 1.5mm² (Luz): ${quant.cabo1_5} metros\n` +
-      `• Cabo 2.5mm² (Tomadas TUG): ${quant.cabo2_5} metros\n` +
-      `• Cabo 4.0mm² (TUE / Pesadas): ${quant.cabo4_0} metros\n` +
-      `• Cabo 6.0mm² (Alimentador): ${quant.caboAlim || 30} metros\n` +
-      `• Eletroduto Corrugado: ${quant.eletrodutos} metros\n` +
-      `• Disjuntores DIN: ${quant.disjuntor10A}x 10A, ${quant.disjuntor16A}x 16A, ${quant.disjuntor20A}x 20A\n` +
-      `• Proteção: Disjuntor Geral 40A + IDR 40A 30mA + 2x DPS\n` +
-      `• Aterramento: 1x Haste Copperweld 5/8"\n` +
+      `${linhasItens}\n` +
       `---------------------------------\n` +
+      `Prazo: ${prazo} | Garantia: ${garantia}\n` +
       `Levantamento técnico realizado com margem de segurança de 15%.`;
 
     navigator.clipboard.writeText(texto);
@@ -866,8 +956,13 @@ const ListaMateriaisView: React.FC = () => {
   const handleBaixarPDF = async () => {
     setLoading(true);
     try {
-      if (helper) {
-        await helper.gerarPDF({ nome: 'Levantamento de Instalação' }, comodos, 'download');
+      const g = (window as any).gerarListaMateriais || ((window as any).ListaMateriaisAutomatica && (window as any).ListaMateriaisAutomatica.gerarPDF);
+      if (g) {
+        await g({
+          nome: nomeObra,
+          prazoExecucao: prazo,
+          garantia: garantia
+        }, itensEditaveis, 'download');
       }
     } catch (e: any) {
       alert('Erro ao gerar PDF: ' + (e.message || e));
@@ -880,7 +975,7 @@ const ListaMateriaisView: React.FC = () => {
     <div className="space-y-4">
       {/* Botões de Modelo Rápido */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold text-slate-600">Modelos Rápidos:</span>
+        <span className="text-[11px] font-bold text-slate-600">Modelos Rápidos de Habitação:</span>
         <div className="flex gap-1.5">
           <button onClick={() => carregarPreset('T1')} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] font-bold">T1</button>
           <button onClick={() => carregarPreset('T2')} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] font-bold">T2</button>
@@ -900,7 +995,7 @@ const ListaMateriaisView: React.FC = () => {
           </button>
         </div>
 
-        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
           {comodos.map(c => {
             const area = (Number(c.comp || 0) * Number(c.larg || 0)).toFixed(1);
             return (
@@ -948,7 +1043,7 @@ const ListaMateriaisView: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="text-slate-500 block">TUG 10A</label>
+                    <label className="text-slate-500 block">TUG</label>
                     <input
                       type="number"
                       className="w-full p-1 border rounded bg-white text-center"
@@ -957,7 +1052,7 @@ const ListaMateriaisView: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="text-slate-500 block">TUE 20A</label>
+                    <label className="text-slate-500 block">TUE</label>
                     <input
                       type="number"
                       className="w-full p-1 border rounded bg-white text-center"
@@ -972,33 +1067,99 @@ const ListaMateriaisView: React.FC = () => {
         </div>
       </div>
 
-      {/* Resumo Quantitativo Calculado */}
-      <div className="p-3 bg-slate-900 text-white rounded-2xl space-y-2">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Quantitativo Estimado com +15% de Folga</span>
-        <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
-          <div className="p-1.5 bg-slate-800 rounded-lg">
-            <span className="text-slate-400 block text-[9px]">Cabo 1.5mm²</span>
-            <span className="font-bold text-amber-300">{quant.cabo1_5} m</span>
+      {/* SEÇÃO DE PRÉ-VISUALIZAÇÃO EDITÁVEL DA LISTA DE MATERIAIS */}
+      <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+              Pré-visualização & Edição de Materiais ({itensEditaveis.length})
+            </span>
+            <span className="text-[10px] text-slate-500">Edite descrições, quantidades e inclua itens extras antes de exportar</span>
           </div>
-          <div className="p-1.5 bg-slate-800 rounded-lg">
-            <span className="text-slate-400 block text-[9px]">Cabo 2.5mm²</span>
-            <span className="font-bold text-amber-300">{quant.cabo2_5} m</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={recalcularItens}
+              className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-[10px] transition"
+              title="Recalcular com base nos cômodos"
+            >
+              🔄 Recalcular
+            </button>
+            <button
+              onClick={adicionarItemMaterial}
+              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[11px] flex items-center gap-1 transition"
+            >
+              <Plus className="w-3.5 h-3.5" /> Adicionar Item
+            </button>
           </div>
-          <div className="p-1.5 bg-slate-800 rounded-lg">
-            <span className="text-slate-400 block text-[9px]">Cabo 4.0mm²</span>
-            <span className="font-bold text-amber-300">{quant.cabo4_0} m</span>
+        </div>
+
+        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+          {itensEditaveis.map(item => (
+            <div key={item.id} className="flex items-center gap-2 p-1.5 bg-white border border-slate-200 rounded-xl">
+              <input
+                className="flex-1 p-1 border border-slate-200 rounded-lg text-xs font-medium focus:border-blue-500 focus:outline-hidden"
+                value={item.descricao}
+                placeholder="Descrição do material"
+                onChange={e => updateItemMaterial(item.id, 'descricao', e.target.value)}
+              />
+              <input
+                type="number"
+                className="w-16 p-1 border border-slate-200 rounded-lg text-xs text-center font-mono font-bold focus:border-blue-500 focus:outline-hidden"
+                value={item.qtd}
+                placeholder="Qtd"
+                onChange={e => updateItemMaterial(item.id, 'qtd', Number(e.target.value))}
+              />
+              <input
+                type="text"
+                className="w-16 p-1 border border-slate-200 rounded-lg text-[11px] text-center text-slate-600 focus:border-blue-500 focus:outline-hidden"
+                value={item.unid}
+                placeholder="Unid"
+                onChange={e => updateItemMaterial(item.id, 'unid', e.target.value)}
+              />
+              <button
+                onClick={() => removerItemMaterial(item.id)}
+                className="p-1 text-slate-400 hover:text-rose-600 transition"
+                title="Excluir item"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Prazos e Garantia Editáveis da Lista de Materiais */}
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+        <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider block">
+          Identificação da Obra, Prazo & Garantia (Editáveis)
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Obra / Local:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              value={nomeObra}
+              onChange={e => setNomeObra(e.target.value)}
+              placeholder="Ex: Instalação Residencial"
+            />
           </div>
-          <div className="p-1.5 bg-slate-800 rounded-lg">
-            <span className="text-slate-400 block text-[9px]">Eletrodutos</span>
-            <span className="font-bold text-slate-200">{quant.eletrodutos} m</span>
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Prazo de Execução:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              value={prazo}
+              onChange={e => setPrazo(e.target.value)}
+              placeholder="Ex: 5 dias úteis"
+            />
           </div>
-          <div className="p-1.5 bg-slate-800 rounded-lg">
-            <span className="text-slate-400 block text-[9px]">Disj. 10A/16A</span>
-            <span className="font-bold text-slate-200">{quant.disjuntor10A + quant.disjuntor16A} un</span>
-          </div>
-          <div className="p-1.5 bg-slate-800 rounded-lg">
-            <span className="text-slate-400 block text-[9px]">Disj. 20A</span>
-            <span className="font-bold text-slate-200">{quant.disjuntor20A} un</span>
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Garantia Técnica:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              value={garantia}
+              onChange={e => setGarantia(e.target.value)}
+              placeholder="Ex: 12 meses de garantia"
+            />
           </div>
         </div>
       </div>
@@ -1007,7 +1168,7 @@ const ListaMateriaisView: React.FC = () => {
         <button
           onClick={handleBaixarPDF}
           disabled={loading}
-          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-1.5 transition"
+          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
         >
           <Download className="w-4 h-4" />
           <span>{loading ? 'Gerando...' : 'Exportar Lista em PDF (1 Pág A4)'}</span>
@@ -1015,7 +1176,7 @@ const ListaMateriaisView: React.FC = () => {
 
         <button
           onClick={handleCopiarZap}
-          className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl flex items-center gap-1.5 transition"
+          className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
         >
           <Copy className="w-4 h-4" />
           <span>{copiado ? 'Copiado!' : 'Copiar'}</span>
@@ -1043,6 +1204,8 @@ const TabelaQuadroView: React.FC<{ initialCircuito?: any }> = ({ initialCircuito
   const [idr, setIdr] = useState('IDR Bipolar 40A 30mA');
   const [dps, setDps] = useState('2x DPS 20kA 275V');
   const [aterramento, setAterramento] = useState('Haste Copperweld R < 10Ω');
+  const [prazo, setPrazo] = useState('Imediato / Concluído');
+  const [garantia, setGarantia] = useState('12 meses na montagem e conexões');
 
   const [circuitos, setCircuitos] = useState<CircuitoItem[]>([
     { id: '1', numero: '01', amperagem: '10A', bitola: '1.5 mm²', locais: 'Iluminação Quartos e Sala' },
@@ -1102,6 +1265,8 @@ const TabelaQuadroView: React.FC<{ initialCircuito?: any }> = ({ initialCircuito
         idr,
         dps,
         aterramento,
+        prazoExecucao: prazo,
+        garantia: garantia,
         circuitos
       }, 'download');
     } catch (e: any) {
@@ -1198,6 +1363,33 @@ const TabelaQuadroView: React.FC<{ initialCircuito?: any }> = ({ initialCircuito
               </button>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Prazo e Garantia Editáveis */}
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+        <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider block">
+          Prazo & Garantia da Montagem (Editáveis)
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Prazo de Conclusão:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              value={prazo}
+              onChange={e => setPrazo(e.target.value)}
+              placeholder="Ex: Concluído / 2 dias"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Garantia Técnica do QG:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              value={garantia}
+              onChange={e => setGarantia(e.target.value)}
+              placeholder="Ex: 12 meses na montagem"
+            />
+          </div>
         </div>
       </div>
 
@@ -1497,69 +1689,92 @@ const PortfolioView: React.FC = () => {
     }
 
     setProcessando(true);
-    const perfilHelper = (window as any).PerfilTecnico;
-    const perfil = perfilHelper ? perfilHelper.obter() : { nome: 'Eletricista Profissional', slogan: 'Serviços Especializados', telefone: '+258 84 000 0000' };
+    try {
+      const g = (window as any).gerarImagemPortfolio || ((window as any).PortfolioAntesDepois && (window as any).PortfolioAntesDepois.gerarImagem);
+      if (g) {
+        await g({ titulo, fotoAntes, fotoDepois });
+      } else {
+        const perfilHelper = (window as any).PerfilTecnico;
+        const perfil = perfilHelper ? perfilHelper.obter() : {
+          nome: localStorage.getItem('tecnico_nome') || 'Eletricista Profissional',
+          slogan: localStorage.getItem('tecnico_slogan') || 'Serviços Especializados',
+          telefone: localStorage.getItem('tecnico_telefone') || '+258 84 000 0000'
+        };
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 1200;
-    canvas.height = 750;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = 1200;
+        canvas.height = 800;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-    // Fundo
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Fundo
+        ctx.fillStyle = '#090d16';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const carregarImg = (src: string) => new Promise<HTMLImageElement>((res) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => res(img);
-      img.src = src;
-    });
+        // Header Superior com Título
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, 80);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(0, 78, canvas.width, 3);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText((titulo || 'TRANSFORMAÇÃO ELÉTRICA PROFISSIONAL').toUpperCase(), 40, 50);
 
-    const [imgAntes, imgDepois] = await Promise.all([carregarImg(fotoAntes), carregarImg(fotoDepois)]);
+        const carregarImg = (src: string) => new Promise<HTMLImageElement>((res) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => res(img);
+          img.src = src;
+        });
 
-    // Desenha foto Antes (lado esquerdo)
-    ctx.drawImage(imgAntes, 20, 20, 570, 560);
-    // Desenha foto Depois (lado direito)
-    ctx.drawImage(imgDepois, 610, 20, 570, 560);
+        const [imgAntes, imgDepois] = await Promise.all([carregarImg(fotoAntes), carregarImg(fotoDepois)]);
 
-    // Badges Antes e Depois
-    ctx.fillStyle = '#e11d48';
-    ctx.fillRect(40, 40, 140, 40);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.fillText('ANTES', 75, 68);
+        // Desenha foto Antes (lado esquerdo)
+        ctx.drawImage(imgAntes, 20, 100, 570, 540);
+        // Desenha foto Depois (lado direito)
+        ctx.drawImage(imgDepois, 610, 100, 570, 540);
 
-    ctx.fillStyle = '#059669';
-    ctx.fillRect(630, 40, 140, 40);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.fillText('DEPOIS', 660, 68);
+        // Badges Antes e Depois
+        ctx.fillStyle = '#e11d48';
+        ctx.fillRect(40, 120, 140, 40);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText('ANTES', 75, 148);
 
-    // Barra Inferior com a MARCA EXCLUSIVA DO TÉCNICO
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 600, 1200, 150);
+        ctx.fillStyle = '#059669';
+        ctx.fillRect(630, 120, 140, 40);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText('DEPOIS', 660, 148);
 
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 28px sans-serif';
-    ctx.fillText((perfil.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(), 40, 650);
+        // Barra Inferior com a MARCA EXCLUSIVA DO TÉCNICO
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 660, 1200, 140);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(0, 660, 1200, 3);
 
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = 'italic 18px sans-serif';
-    ctx.fillText(perfil.slogan || 'Qualidade e Segurança Elétrica', 40, 685);
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 26px sans-serif';
+        ctx.fillText((perfil.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(), 40, 715);
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText(`Tel / WhatsApp: ${perfil.telefone || ''}`, 800, 665);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = 'italic 16px sans-serif';
+        ctx.fillText(perfil.slogan || 'Qualidade, Normatização e Segurança', 40, 750);
 
-    setProcessando(false);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText(`Tel / WhatsApp: ${perfil.telefone || ''}`, 780, 730);
 
-    // Download da imagem gerada
-    const link = document.createElement('a');
-    link.download = `Portfolio_${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+        const link = document.createElement('a');
+        link.download = `Portfolio_${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }
+    } catch (e: any) {
+      alert('Erro ao gerar imagem de portfólio: ' + (e.message || e));
+    } finally {
+      setProcessando(false);
+    }
   };
 
   return (
@@ -1786,16 +2001,57 @@ const GestaoFinanceiraView: React.FC = () => {
 // ==========================================
 // 11. CHECKLIST NR10 (LAUDO EM PDF)
 // ==========================================
+interface ChecklistItemSeguranca {
+  id: string;
+  item: string;
+  conforme: boolean;
+}
+
 const ChecklistNR10View: React.FC = () => {
   const [local, setLocal] = useState('Edifício Jat 4 - Sala 201, Maputo');
+  const [prazo, setPrazo] = useState('Validade de 180 dias');
+  const [garantia, setGarantia] = useState('Atestado de Conformidade e Segurança Técnica');
+  const [itens, setItens] = useState<ChecklistItemSeguranca[]>([
+    { id: '1', item: 'Desenergização, bloqueio mecânico e etiquetagem (LOTO)', conforme: true },
+    { id: '2', item: 'Constatação e teste de ausência de tensão com multímetro calibrado', conforme: true },
+    { id: '3', item: 'Instalação de aterramento temporário e equipotencialização', conforme: true },
+    { id: '4', item: 'Uso obrigatório de EPIs (Luvas isolantes 1000V, óculos, calçado de segurança)', conforme: true },
+    { id: '5', item: 'Verificação da continuidade do condutor PE e malha de aterramento', conforme: true },
+    { id: '6', item: 'Inspeção visual e aperto de parafusos/bornes com torque nominal', conforme: true },
+    { id: '7', item: 'Instalação e integridade de Dispositivos Diferenciais Residuais (IDR 30mA) e DPS', conforme: true }
+  ]);
   const [loading, setLoading] = useState(false);
+
+  const toggleConforme = (id: string) => {
+    setItens(itens.map(it => it.id === id ? { ...it, conforme: !it.conforme } : it));
+  };
+
+  const updateItemTexto = (id: string, texto: string) => {
+    setItens(itens.map(it => it.id === id ? { ...it, item: texto } : it));
+  };
+
+  const adicionarItem = () => {
+    setItens([
+      ...itens,
+      { id: String(Date.now()), item: 'Novo ponto de inspeção de segurança', conforme: true }
+    ]);
+  };
+
+  const removerItem = (id: string) => {
+    setItens(itens.filter(it => it.id !== id));
+  };
 
   const handleGerarLaudo = async () => {
     setLoading(true);
     try {
-      const chk = (window as any).ChecklistSeguranca;
+      const chk = (window as any).gerarChecklistNR10 || ((window as any).ChecklistSeguranca && (window as any).ChecklistSeguranca.gerarRelatorioPDF);
       if (!chk) throw new Error('Módulo ChecklistSeguranca não carregado.');
-      await chk.gerarRelatorioPDF({ localObra: local }, 'download');
+      await chk({
+        localObra: local,
+        itens,
+        prazoExecucao: prazo,
+        garantia
+      }, 'download');
     } catch (e: any) {
       alert('Erro: ' + (e.message || e));
     } finally {
@@ -1810,18 +2066,81 @@ const ChecklistNR10View: React.FC = () => {
         <input className="w-full p-2 border border-slate-200 rounded-xl text-xs font-semibold" value={local} onChange={e => setLocal(e.target.value)} />
       </div>
 
-      <div className="space-y-1.5 p-3 bg-slate-50 border rounded-2xl text-[11px]">
-        <label className="flex items-center gap-2 text-slate-800"><input type="checkbox" defaultChecked className="rounded text-blue-600" /> Desenergização e bloqueio com cadeado</label>
-        <label className="flex items-center gap-2 text-slate-800"><input type="checkbox" defaultChecked className="rounded text-blue-600" /> Teste de ausência de tensão com multímetro</label>
-        <label className="flex items-center gap-2 text-slate-800"><input type="checkbox" defaultChecked className="rounded text-blue-600" /> EPIs completos (Luvas 1000V, óculos, calçado)</label>
-        <label className="flex items-center gap-2 text-slate-800"><input type="checkbox" defaultChecked className="rounded text-blue-600" /> Continuidade de aterramento e DPS verificados</label>
-        <label className="flex items-center gap-2 text-slate-800"><input type="checkbox" defaultChecked className="rounded text-blue-600" /> Aperto de parafusos e terminais nos disjuntores</label>
+      {/* Pontos de Inspeção Dinâmicos */}
+      <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+            Pontos de Inspeção e Conformidade ({itens.length})
+          </span>
+          <button
+            onClick={adicionarItem}
+            className="px-2 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg text-[11px] flex items-center gap-1 hover:bg-blue-100 transition cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" /> Adicionar Ponto
+          </button>
+        </div>
+
+        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          {itens.map(it => (
+            <div key={it.id} className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-xl">
+              <input
+                type="checkbox"
+                checked={it.conforme}
+                onChange={() => toggleConforme(it.id)}
+                className="w-4 h-4 rounded text-blue-600 cursor-pointer"
+                title={it.conforme ? 'Conforme' : 'Não Conforme'}
+              />
+              <input
+                className="flex-1 p-1 border border-slate-200 rounded-lg text-xs text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                value={it.item}
+                onChange={e => updateItemTexto(it.id, e.target.value)}
+              />
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${it.conforme ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                {it.conforme ? 'CONFORME' : 'NÃO CONFORME'}
+              </span>
+              <button
+                onClick={() => removerItem(it.id)}
+                className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                title="Excluir ponto"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Prazo e Garantia Editáveis */}
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+        <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider block">
+          Prazo & Validade da Inspeção (Editáveis)
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Prazo / Validade da Vistoria:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              value={prazo}
+              onChange={e => setPrazo(e.target.value)}
+              placeholder="Ex: Validade de 180 dias"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Atestado / Garantia Técnica:</label>
+            <input
+              className="w-full p-2 border rounded-xl text-xs bg-white"
+              value={garantia}
+              onChange={e => setGarantia(e.target.value)}
+              placeholder="Ex: Atestado de Conformidade"
+            />
+          </div>
+        </div>
       </div>
 
       <button
         onClick={handleGerarLaudo}
         disabled={loading}
-        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-2 shadow-sm transition"
+        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
       >
         <Download className="w-4 h-4" />
         <span>{loading ? 'Gerando...' : 'Emitir Laudo de Segurança em PDF (1 Pág A4)'}</span>
@@ -1836,6 +2155,8 @@ const ChecklistNR10View: React.FC = () => {
 const CertificadoGarantiaView: React.FC = () => {
   const [cliente, setCliente] = useState('Eng. Carlos Nhantumbo');
   const [meses, setMeses] = useState(6);
+  const [endereco, setEndereco] = useState('Bairro da Costa do Sol, Maputo');
+  const [servicos, setServicos] = useState('Instalação e adequação de circuitos elétricos, barramentos e dispositivos de proteção.');
   const [loading, setLoading] = useState(false);
 
   const handleGerar = async () => {
@@ -1846,8 +2167,9 @@ const CertificadoGarantiaView: React.FC = () => {
       await cert.gerarPDF({
         cliente,
         prazoDias: meses * 30,
-        enderecoObra: 'Bairro da Costa do Sol, Maputo',
-        servicosCobertos: 'Instalação e adequação de circuitos elétricos, barramentos e dispositivos de proteção.'
+        garantiaTexto: `${meses * 30} dias (${meses} meses)`,
+        enderecoObra: endereco,
+        servicosCobertos: servicos
       }, 'download');
     } catch (e: any) {
       alert('Erro: ' + (e.message || e));
@@ -1862,19 +2184,37 @@ const CertificadoGarantiaView: React.FC = () => {
         <label className="font-bold text-slate-700 block mb-1">Nome do Cliente / Contratante</label>
         <input className="w-full p-2 border border-slate-200 rounded-xl text-xs font-semibold" value={cliente} onChange={e => setCliente(e.target.value)} />
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label className="font-bold text-slate-700 block mb-1">Prazo de Garantia dos Serviços</label>
+          <select className="w-full p-2 border border-slate-200 rounded-xl text-xs font-semibold" value={meses} onChange={e => setMeses(Number(e.target.value))}>
+            <option value={3}>3 Meses (90 Dias - Padrão)</option>
+            <option value={6}>6 Meses (180 Dias - Recomendado)</option>
+            <option value={12}>1 Ano (365 Dias - Instalações Novas)</option>
+            <option value={24}>2 Anos (730 Dias - Serviços Industriais)</option>
+          </select>
+        </div>
+        <div>
+          <label className="font-bold text-slate-700 block mb-1">Local / Endereço da Obra</label>
+          <input className="w-full p-2 border border-slate-200 rounded-xl text-xs font-semibold" value={endereco} onChange={e => setEndereco(e.target.value)} />
+        </div>
+      </div>
+
       <div>
-        <label className="font-bold text-slate-700 block mb-1">Prazo de Garantia dos Serviços</label>
-        <select className="w-full p-2 border border-slate-200 rounded-xl text-xs font-semibold" value={meses} onChange={e => setMeses(Number(e.target.value))}>
-          <option value={3}>3 Meses (90 Dias - Padrão)</option>
-          <option value={6}>6 Meses (180 Dias - Recomendado)</option>
-          <option value={12}>1 Ano (365 Dias - Instalações Novas)</option>
-        </select>
+        <label className="font-bold text-slate-700 block mb-1">Serviços Cobertos pela Garantia</label>
+        <textarea
+          rows={2}
+          className="w-full p-2 border border-slate-200 rounded-xl text-xs"
+          value={servicos}
+          onChange={e => setServicos(e.target.value)}
+        />
       </div>
 
       <button
         onClick={handleGerar}
         disabled={loading}
-        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-2 shadow-sm transition"
+        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
       >
         <Award className="w-4 h-4 text-amber-300" />
         <span>{loading ? 'Gerando...' : 'Emitir Certificado de Garantia em PDF (1 Pág A4)'}</span>

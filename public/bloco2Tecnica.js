@@ -51,6 +51,8 @@ const TabelaQuadroGeral = {
     const dps = dadosQG.dps || '2x DPS 20kA 275V';
     const aterramento = dadosQG.aterramento || 'Haste Copperweld R < 10Ω';
     const dataInst = dadosQG.data || new Date().toLocaleDateString('pt-MZ');
+    const prazo = dadosQG.prazoExecucao || dadosQG.prazo || 'Concluído';
+    const garantia = dadosQG.garantia || dadosQG.garantiaTexto || '12 meses na montagem';
 
     const circuitos = Array.isArray(dadosQG.circuitos) && dadosQG.circuitos.length > 0 
       ? dadosQG.circuitos 
@@ -86,7 +88,7 @@ const TabelaQuadroGeral = {
 
     const cabecalhoPDF = perfilHelper ? perfilHelper.gerarCabecalhoPDF(
       'TABELA DO QUADRO DE DISTRIBUIÇÃO GERAL',
-      `Identificação: ${obra} | Tensão: ${tensao} | Data: ${dataInst}`
+      `Identificação: ${obra} | Tensão: ${tensao} | Prazo: ${prazo} | Garantia: ${garantia}`
     ) : [];
 
     const docDefinition = {
@@ -285,68 +287,204 @@ const TabelasTecnicas = {
 };
 
 /* ==========================================================================
-   9. CHECKLIST DE SEGURANÇA NR10 (LAUDO TÉCNICO 1 PÁGINA EM PDF)
+   9. CHECKLIST DE SEGURANÇA NR10 (LAUDO TÉCNICO 1 PÁGINA EM PDF DINÂMICO)
    ========================================================================== */
-const ChecklistSeguranca = {
-  async gerarRelatorioPDF(dadosChecklist, acao = 'download') {
-    await carregarPdfMakeSeNecessarioBloco2();
-    const perfilHelper = (typeof window !== 'undefined' && window.PerfilTecnico) ? window.PerfilTecnico : null;
-    const perfil = perfilHelper ? perfilHelper.obter() : { nome: 'Profissional Técnico', telefone: '' };
+async function gerarChecklistNR10(dadosChecklist = {}, acao = 'download') {
+  await carregarPdfMakeSeNecessarioBloco2();
+  const perfilHelper = (typeof window !== 'undefined' && window.PerfilTecnico) 
+    ? window.PerfilTecnico 
+    : (typeof require !== 'undefined' ? require('./perfilTecnico.js') : null);
 
-    const local = dadosChecklist.localObra || 'Instalação Elétrica Vistoriada';
-    const data = new Date().toLocaleDateString('pt-MZ');
+  const nomeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_nome')) || 'Profissional Técnico';
+  const sloganTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_slogan')) || 'Segurança, Instalações e Conformidade Técnica';
+  const logoTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_logo')) || null;
+  const telefoneTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_telefone')) || '+258 84 000 0000';
+  const cidadeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_cidade')) || 'Maputo';
 
-    const cabecalhoPDF = perfilHelper ? perfilHelper.gerarCabecalhoPDF(
-      'LAUDO TÉCNICO DE CONFORMIDADE E SEGURANÇA',
-      `Local: ${local} | Data da Inspeção: ${data}`
-    ) : [];
+  const perfil = {
+    nome: nomeTecnico,
+    slogan: sloganTecnico,
+    logoBase64: logoTecnico,
+    telefone: telefoneTecnico,
+    cidade: cidadeTecnico
+  };
 
-    const docDef = {
-      pageSize: 'A4',
-      pageMargins: [32, 24, 32, 24],
-      content: [
-        ...cabecalhoPDF,
-        { text: 'VERIFICAÇÃO DE PROCEDIMENTOS DE SEGURANÇA EM BAIXA TENSÃO', fontSize: 8, bold: true, color: '#0369a1', margin: [0, 0, 0, 4] },
-        {
-          table: {
-            widths: ['*', 70],
-            body: [
-              [{ text: 'Item Inspecionado', bold: true, fontSize: 7.5, fillColor: '#0f172a', color: '#ffffff' }, { text: 'Conformidade', bold: true, fontSize: 7.5, fillColor: '#0f172a', color: '#ffffff', alignment: 'center' }],
-              [{ text: '1. Desenergização do circuito com bloqueio e sinalização', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '2. Constatação de ausência de tensão através de multímetro/voltímetro', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '3. Utilização de EPIs adequados (Luvas isolantes 1000V, óculos e calçado)', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '4. Inspeção visual de aperto dos barramentos e parafusos de disjuntores', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '5. Verificação da atuação mecânica e teste (T) do Interruptor DR (IDR)', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '6. Integridade dos Dispositivos de Proteção contra Surtos (DPS)', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '7. Continuidade da malha de aterramento e ligação equipotencial', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '8. Bitolas de cabos compatíveis com a proteção térmica dos disjuntores', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '9. Identificação e legenda clara de todos os circuitos na porta do quadro', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }],
-              [{ text: '10. Fechamento seguro da tampa e proteção contra contatos acidentais', fontSize: 7 }, { text: '✓ CONFORME', bold: true, color: '#059669', fontSize: 7, alignment: 'center' }]
+  const local = dadosChecklist.localObra || dadosChecklist.local || 'Instalação Elétrica Inspecionada';
+  const cliente = dadosChecklist.cliente || 'Responsável / Gestor do Imóvel';
+  const data = dadosChecklist.data || new Date().toLocaleDateString('pt-MZ');
+  const prazoValidade = (dadosChecklist.prazoValidade || dadosChecklist.prazo || '12 meses (Inspeção Periódica)').toString().trim();
+  const garantia = (dadosChecklist.garantia || 'Garantia de Conformidade Técnica NR10').toString().trim();
+  const observacoes = dadosChecklist.observacoes || '';
+
+  const cabecalhoPDF = perfilHelper ? perfilHelper.gerarCabecalhoPDF(
+    'LAUDO TÉCNICO DE CONFORMIDADE E SEGURANÇA ELÉTRICA',
+    `Local: ${local} | Data da Inspeção: ${data}`
+  ) : [
+    { text: perfil.nome.toUpperCase(), fontSize: 13, bold: true, color: '#0f172a' },
+    { text: perfil.slogan, fontSize: 8, italics: true, color: '#0284c7', margin: [0, 1, 0, 4] },
+    { text: `Tel: ${perfil.telefone} | ${perfil.cidade}`, fontSize: 7.5, color: '#475569', margin: [0, 0, 0, 8] }
+  ];
+
+  // Itens dinâmicos verificados exclusivamente na tela
+  const itens = Array.isArray(dadosChecklist.itens) && dadosChecklist.itens.length > 0 
+    ? dadosChecklist.itens 
+    : [
+        { texto: 'Desenergização do circuito com bloqueio e sinalização (LOTO)', status: 'CONFORME' },
+        { texto: 'Constatação de ausência de tensão com multímetro/voltímetro testado', status: 'CONFORME' },
+        { texto: 'Utilização de EPIs adequados (Luvas isolantes 1000V, óculos e calçado)', status: 'CONFORME' },
+        { texto: 'Inspeção visual de aperto dos barramentos e parafusos de disjuntores', status: 'CONFORME' },
+        { texto: 'Verificação da atuação mecânica e teste (T) do Interruptor DR (IDR)', status: 'CONFORME' },
+        { texto: 'Integridade dos Dispositivos de Proteção contra Surtos (DPS)', status: 'CONFORME' },
+        { texto: 'Continuidade da malha de aterramento e ligação equipotencial', status: 'CONFORME' },
+        { texto: 'Bitolas de cabos compatíveis com a proteção térmica dos disjuntores', status: 'CONFORME' },
+        { texto: 'Identificação e legenda clara de todos os circuitos na porta do quadro', status: 'CONFORME' },
+        { texto: 'Fechamento seguro da tampa e proteção contra contatos acidentais', status: 'CONFORME' }
+      ];
+
+  const linhasTabela = [
+    [
+      { text: 'Nº', bold: true, fontSize: 7.5, fillColor: '#0f172a', color: '#ffffff', alignment: 'center' },
+      { text: 'Ponto / Procedimento Inspecionado', bold: true, fontSize: 7.5, fillColor: '#0f172a', color: '#ffffff' },
+      { text: 'Status da Inspeção', bold: true, fontSize: 7.5, fillColor: '#0f172a', color: '#ffffff', alignment: 'center' }
+    ]
+  ];
+
+  itens.forEach((it, idx) => {
+    const texto = typeof it === 'string' ? it : (it.texto || it.descricao || it.item || `Item ${idx + 1}`);
+    const st = typeof it === 'string' ? 'CONFORME' : (it.status || 'CONFORME').toUpperCase();
+
+    let statusTexto = '✓ CONFORME';
+    let statusCor = '#059669';
+    let statusBg = '#f0fdf4';
+
+    if (st.includes('NÃO CONFORME') || st.includes('NAO CONFORME')) {
+      statusTexto = '✕ NÃO CONFORME';
+      statusCor = '#dc2626';
+      statusBg = '#fef2f2';
+    } else if (st.includes('N/A') || st.includes('NÃO APLICÁVEL') || st.includes('NAO APLICAVEL')) {
+      statusTexto = '— NÃO APLICÁVEL';
+      statusCor = '#64748b';
+      statusBg = '#f8fafc';
+    }
+
+    linhasTabela.push([
+      { text: String(idx + 1), fontSize: 7, alignment: 'center' },
+      { text: texto, fontSize: 7 },
+      { text: statusTexto, bold: true, color: statusCor, fillColor: statusBg, fontSize: 6.8, alignment: 'center' }
+    ]);
+  });
+
+  const docDef = {
+    pageSize: 'A4',
+    pageOrientation: 'portrait',
+    pageMargins: [32, 24, 32, 24],
+    content: [
+      ...cabecalhoPDF,
+      {
+        table: {
+          widths: ['*'],
+          body: [[
+            {
+              fillColor: '#f8fafc',
+              stack: [
+                {
+                  columns: [
+                    { text: [{ text: 'LOCAL DA INSPEÇÃO: ', bold: true, color: '#0369a1' }, local], fontSize: 7.5 },
+                    { text: [{ text: 'SOLICITANTE / CLIENTE: ', bold: true, color: '#0369a1' }, cliente], fontSize: 7.5, alignment: 'right' }
+                  ]
+                }
+              ],
+              margin: [4, 3, 4, 3]
+            }
+          ]]
+        },
+        layout: 'noBorders',
+        margin: [0, 0, 0, 6]
+      },
+      {
+        text: `VERIFICAÇÃO DE SEGURANÇA E CONFORMIDADE (${itens.length} ITENS AVALIADOS EM CAMPO)`,
+        fontSize: 8,
+        bold: true,
+        color: '#0369a1',
+        margin: [0, 0, 0, 4]
+      },
+      {
+        table: {
+          widths: [20, '*', 110],
+          body: linhasTabela
+        },
+        layout: 'lightHorizontalLines',
+        margin: [0, 0, 0, 8]
+      },
+
+      // Bloco Prazo de Validade e Garantia Técnica capturados dinamicamente
+      {
+        table: {
+          widths: ['*'],
+          body: [[
+            {
+              fillColor: '#f1f5f9',
+              stack: [
+                {
+                  columns: [
+                    { text: [{ text: 'VALIDADE DO LAUDO: ', bold: true, color: '#0369a1' }, prazoValidade], fontSize: 7.5 },
+                    { text: [{ text: 'RESPONSABILIDADE TÉCNICA: ', bold: true, color: '#0369a1' }, garantia], fontSize: 7.5, alignment: 'right' }
+                  ]
+                },
+                observacoes ? { text: `Observações da Vistoria: ${observacoes}`, fontSize: 6.8, color: '#334155', margin: [0, 2, 0, 0] } : {
+                  text: 'Atesto para os devidos efeitos que os pontos acima foram inspecionados conforme as diretrizes de segurança aplicáveis a instalações em baixa tensão.',
+                  fontSize: 6.8,
+                  italics: true,
+                  color: '#475569',
+                  margin: [0, 2, 0, 0]
+                }
+              ],
+              margin: [6, 4, 6, 4]
+            }
+          ]]
+        },
+        layout: 'noBorders',
+        margin: [0, 0, 0, 10]
+      },
+
+      // Linha de Assinatura Dupla
+      {
+        columns: [
+          {
+            stack: [
+              { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 190, y2: 0, lineWidth: 0.8, lineColor: '#94a3b8' }] },
+              { text: perfil.nome, fontSize: 7.5, bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
+              { text: 'Profissional Técnico Inspetor', fontSize: 6.5, color: '#64748b', alignment: 'center' }
             ]
           },
-          layout: 'lightHorizontalLines',
-          margin: [0, 0, 0, 10]
-        },
-        {
-          text: `Atesto para os devidos efeitos que a instalação inspecionada preenche os requisitos fundamentais de segurança técnica. Responsável: ${perfil.nome}.`,
-          fontSize: 7,
-          italics: true,
-          color: '#475569',
-          alignment: 'center'
-        }
-      ]
-    };
+          {
+            stack: [
+              { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 190, y2: 0, lineWidth: 0.8, lineColor: '#94a3b8' }] },
+              { text: cliente, fontSize: 7.5, bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
+              { text: 'Responsável pelo Imóvel / Acompanhante', fontSize: 6.5, color: '#64748b', alignment: 'center' }
+            ]
+          }
+        ],
+        margin: [0, 10, 0, 0]
+      }
+    ]
+  };
 
-    const pdf = window.pdfMake.createPdf(docDef);
-    if (acao === 'download') {
-      pdf.download(`Laudo_Seguranca_${local.replace(/\s+/g, '_')}.pdf`);
-    } else {
-      pdf.open();
-    }
+  const pdf = window.pdfMake.createPdf(docDef);
+  if (acao === 'download') {
+    pdf.download(`Laudo_NR10_${local.replace(/\s+/g, '_')}.pdf`);
+  } else {
+    pdf.open();
   }
+  return docDef;
+}
+
+const ChecklistSeguranca = {
+  gerarRelatorioPDF: gerarChecklistNR10
 };
 
 if (typeof window !== 'undefined') {
+  window.gerarChecklistNR10 = gerarChecklistNR10;
   window.TabelaQuadroGeral = TabelaQuadroGeral;
   window.DimensionamentoEletrico = DimensionamentoEletrico;
   window.TabelasTecnicas = TabelasTecnicas;

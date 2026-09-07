@@ -365,8 +365,181 @@ const PortfolioDigital = {
         destaque: false
       }
     ];
+  },
+
+  async gerarImagemPortfolio(dados = {}) {
+    return gerarImagemPortfolio(dados);
   }
 };
+
+/* ==========================================================================
+   FUNÇÃO GLOBAL: gerarImagemPortfolio (CANVAS HTML5 COM TÍTULO E WHITE-LABEL)
+   ========================================================================== */
+async function gerarImagemPortfolio(dados = {}) {
+  const nomeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_nome')) || 'Profissional Técnico';
+  const sloganTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_slogan')) || 'Instalações Elétricas & Engenharia Especializada';
+  const logoTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_logo')) || null;
+  const telefoneTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_telefone')) || '+258 84 000 0000';
+  const cidadeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_cidade')) || 'Maputo';
+
+  const tituloObra = (dados.titulo || dados.tituloObra || 'Reforma e Modernização de Instalação Elétrica').trim();
+  const fotoAntes = dados.fotoAntes || dados.fotoAntesBase64;
+  const fotoDepois = dados.fotoDepois || dados.fotoDepoisBase64;
+
+  if (!fotoAntes || !fotoDepois) {
+    throw new Error('Por favor, forneça as fotos do ANTES e do DEPOIS para compor o portfólio.');
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 780;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Não foi possível obter o contexto 2D do Canvas.');
+
+  // Fundo Geral Escuro Premium
+  ctx.fillStyle = '#090d16';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 1. CABEÇALHO SUPERIOR COM O TÍTULO DA OBRA EM DESTAQUE
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, 1200, 95);
+
+  // Barra de acento azul no topo
+  const gradienteTopo = ctx.createLinearGradient(0, 0, 1200, 0);
+  gradienteTopo.addColorStop(0, '#0284c7');
+  gradienteTopo.addColorStop(0.5, '#38bdf8');
+  gradienteTopo.addColorStop(1, '#0284c7');
+  ctx.fillStyle = gradienteTopo;
+  ctx.fillRect(0, 0, 1200, 4);
+
+  // Tag Superior de Categoria
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillText('PORTFÓLIO TÉCNICO OFICIAL • ANTES & DEPOIS', 35, 28);
+
+  // TÍTULO DA OBRA CAPTURADO DO FORMULÁRIO DESENHADO NO CANVAS
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 24px sans-serif';
+  let tituloFormatado = tituloObra;
+  if (ctx.measureText(tituloFormatado).width > 850) {
+    while (ctx.measureText(tituloFormatado + '...').width > 850 && tituloFormatado.length > 10) {
+      tituloFormatado = tituloFormatado.slice(0, -1);
+    }
+    tituloFormatado += '...';
+  }
+  ctx.fillText(tituloFormatado.toUpperCase(), 35, 62);
+
+  // Data / Local no canto direito do cabeçalho
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '13px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(new Date().toLocaleDateString('pt-MZ') + ` | ${cidadeTecnico}`, 1165, 62);
+  ctx.textAlign = 'left';
+
+  // Divisor inferior do cabeçalho
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 95);
+  ctx.lineTo(1200, 95);
+  ctx.stroke();
+
+  // 2. FOTOS LADO A LADO
+  const carregarImg = (src) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = (e) => reject(new Error('Erro ao carregar imagem para fusão no Canvas.'));
+    img.src = src;
+  });
+
+  const [imgAntes, imgDepois] = await Promise.all([carregarImg(fotoAntes), carregarImg(fotoDepois)]);
+
+  const fotoW = 570;
+  const fotoH = 525;
+  const fotoY = 110;
+
+  // Foto Antes (Esquerda: X = 20)
+  ctx.drawImage(imgAntes, 20, fotoY, fotoW, fotoH);
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(20, fotoY, fotoW, fotoH);
+
+  // Badge ANTES
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(35, fotoY + 15, 130, 36);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('ANTES', 65, fotoY + 40);
+
+  // Foto Depois (Direita: X = 610)
+  ctx.drawImage(imgDepois, 610, fotoY, fotoW, fotoH);
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(610, fotoY, fotoW, fotoH);
+
+  // Badge DEPOIS
+  ctx.fillStyle = '#059669';
+  ctx.fillRect(625, fotoY + 15, 130, 36);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('DEPOIS', 655, fotoY + 40);
+
+  // 3. RODAPÉ INFERIOR WHITE-LABEL COM A MARCA DO TÉCNICO
+  const rodapeY = 650;
+  ctx.fillStyle = '#0b1120';
+  ctx.fillRect(0, rodapeY, 1200, 130);
+
+  // Linha divisória
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, rodapeY);
+  ctx.lineTo(1200, rodapeY);
+  ctx.stroke();
+
+  let offsetTextoX = 35;
+  if (logoTecnico) {
+    try {
+      const imgLogo = await carregarImg(logoTecnico);
+      ctx.drawImage(imgLogo, 35, rodapeY + 20, 80, 80);
+      offsetTextoX = 130;
+    } catch (e) {
+      offsetTextoX = 35;
+    }
+  }
+
+  // Nome do profissional / empresa
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillText(nomeTecnico.toUpperCase(), offsetTextoX, rodapeY + 52);
+
+  // Slogan
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'italic 15px sans-serif';
+  ctx.fillText(sloganTecnico, offsetTextoX, rodapeY + 84);
+
+  // Contato no canto direito
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`WhatsApp: ${telefoneTecnico}`, 1165, rodapeY + 54);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('Atendimento Técnico Profissional Especializado', 1165, rodapeY + 82);
+  ctx.textAlign = 'left';
+
+  const dataUrl = canvas.toDataURL('image/png');
+  if (dados.acao !== 'no-download') {
+    const link = document.createElement('a');
+    link.download = `Portfolio_${(tituloObra).replace(/\s+/g, '_')}_${Date.now()}.png`;
+    link.href = dataUrl;
+    link.click();
+  }
+
+  return { dataUrl, canvas };
+}
 
 /* ==========================================================================
    FERRAMENTA 13: GERADOR DE CERTIFICADO DE GARANTIA EM PDF
@@ -542,6 +715,7 @@ const CertificadoGarantia = {
 
 // Exporta globalmente para uso direto em Vanilla JS e Módulos
 if (typeof window !== 'undefined') {
+  window.gerarImagemPortfolio = gerarImagemPortfolio;
   window.AgendaTecnica = AgendaTecnica;
   window.ControleFinanceiroObra = ControleFinanceiroObra;
   window.PortfolioDigital = PortfolioDigital;
