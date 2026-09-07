@@ -10,7 +10,6 @@ import {
   Search,
   Bell,
   MessageSquare,
-  Sparkles,
   User,
   Settings,
   LogOut,
@@ -114,18 +113,18 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-3 sm:px-6">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
           {/* Left: Brand Logo & Quick Search */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
             <button
               onClick={() => onNavigateTab('community')}
-              className="flex items-center gap-2 text-left focus:outline-none group"
+              className="flex items-center gap-1.5 sm:gap-2 text-left focus:outline-none group shrink-0"
               title="TécnicaMZ Pro - Início"
             >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-500 flex items-center justify-center text-white shadow-md shadow-blue-500/25 group-hover:scale-105 transition-transform">
-                <Wrench className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-500 flex items-center justify-center text-white shadow-md shadow-blue-500/25 group-hover:scale-105 transition-transform shrink-0">
+                <Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <div className="hidden min-[380px]:block">
+              <div className="hidden min-[450px]:block">
                 <div className="flex items-center gap-1">
-                  <span className="text-base sm:text-lg font-black tracking-tight text-slate-900">
+                  <span className="text-sm sm:text-lg font-black tracking-tight text-slate-900">
                     Técnica<span className="text-blue-600">MZ</span>
                   </span>
                   <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-blue-600 text-white">
@@ -139,13 +138,13 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Quick Search Bar */}
-            <div className="relative ml-1">
+            <div className="relative shrink-0">
               <button
                 onClick={() => {
                   soundFX.playModalOpen();
                   onOpenSearch();
                 }}
-                className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-slate-100 hover:bg-slate-200/70 rounded-full text-slate-500 text-xs font-medium transition cursor-pointer"
+                className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-3 sm:py-2 bg-slate-100 hover:bg-slate-200/70 rounded-full text-slate-500 text-xs font-medium transition cursor-pointer shrink-0"
                 title="Pesquisa Geral"
               >
                 <Search className="w-4 h-4 text-slate-400 shrink-0" />
@@ -254,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* Right Action Icons */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Botão "Mais" Exclusivo para Mobile Header (@media max-width: 768px) */}
             {onOpenMobileMenu && !isClient && (
               <button
@@ -264,7 +263,7 @@ export const Header: React.FC<HeaderProps> = ({
                   soundFX.playModalOpen();
                   onOpenMobileMenu();
                 }}
-                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 md:hidden flex items-center justify-center transition active:scale-95 cursor-pointer"
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 md:hidden flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0"
                 title="Abrir todas as opções do sistema"
                 aria-label="Mais Opções"
               >
@@ -272,14 +271,14 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Painel Direct Button (Top Bar for Mobile & PC) */}
+            {/* Painel Direct Button (Top Bar para Tablet & PC - no Mobile o acesso é via avatar/drawer) */}
             {currentUser && (
               <button
                 onClick={() => {
                   soundFX.playClick();
                   onNavigateTab(roleInfo.panelTab);
                 }}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer ${
+                className={`hidden sm:flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer shrink-0 ${
                   activeTab === roleInfo.panelTab
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
@@ -291,31 +290,16 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* PWA In-App Install Button */}
+            {/* PWA In-App Install Button (Visível a partir de telas médias) */}
             <PWAInstallHeaderButton />
 
-            {/* Sara IA Button (Técnico / Empresa / Admin Only) */}
-            {!isClient && (
-              <button
-                onClick={() => {
-                  soundFX.playModalOpen();
-                  onOpenSaraAi();
-                }}
-                className="px-2.5 sm:px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
-                title="Assistente Sara IA (Visão Computacional & Normas)"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
-                <span className="text-[11px] hidden sm:inline">Sara IA</span>
-              </button>
-            )}
-
             {/* Status de Rede Compacto no Topo (Online / Offline) */}
-            <NetworkStatusIndicator />
+            <NetworkStatusIndicator className="shrink-0" />
 
-            {/* Daily Streak Counter: "🔥 X Dias na Bancada" */}
+            {/* Daily Streak Counter: "🔥 X Dias na Bancada" (Oculto em celular estreito para não espremer o perfil) */}
             {currentUser && (
               <div
-                className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-linear-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-orange-200 dark:border-orange-800/60 text-orange-600 dark:text-orange-400 text-xs font-black shadow-2xs group cursor-default transition-all hover:scale-105 select-none"
+                className="hidden sm:flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-linear-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-orange-200 dark:border-orange-800/60 text-orange-600 dark:text-orange-400 text-xs font-black shadow-2xs group cursor-default transition-all hover:scale-105 select-none shrink-0"
                 title={`Ofensiva Diária: ${currentUser.streakCount || 1} dias na bancada (+10 pontos/dia)!`}
               >
                 <span className="relative flex h-2 w-2">
@@ -338,12 +322,12 @@ export const Header: React.FC<HeaderProps> = ({
                 soundFX.playModalOpen();
                 onOpenNotifications();
               }}
-              className="relative p-2 rounded-full hover:bg-slate-100 text-slate-700 transition active:scale-95 cursor-pointer"
+              className="relative p-1.5 sm:p-2 rounded-full hover:bg-slate-100 text-slate-700 transition active:scale-95 cursor-pointer shrink-0"
               title="Notificações em Tempo Real"
             >
-              <Bell className="w-5 h-5 text-slate-700" />
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white animate-pulse">
+                <span className="absolute top-0.5 right-0.5 min-w-[15px] h-3.5 sm:min-w-[16px] sm:h-4 px-1 rounded-full bg-red-500 text-white text-[8px] sm:text-[9px] font-black flex items-center justify-center ring-2 ring-white animate-pulse">
                   {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                 </span>
               )}
@@ -355,26 +339,27 @@ export const Header: React.FC<HeaderProps> = ({
                 soundFX.playModalOpen();
                 onOpenMessages();
               }}
-              className="relative p-2 rounded-full hover:bg-slate-100 text-slate-700 transition active:scale-95"
+              className="relative p-1.5 sm:p-2 rounded-full hover:bg-slate-100 text-slate-700 transition active:scale-95 shrink-0"
               title="Mensagens Diretas"
             >
-              <MessageSquare className="w-5 h-5 text-slate-700" />
+              <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
               {unreadMessagesCount > 0 && (
-                <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-white"></span>
+                <span className="absolute top-0.5 right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-blue-600 ring-2 ring-white"></span>
               )}
             </button>
 
-            {/* User Profile & Dropdown */}
-            <div className="relative" ref={profileMenuRef}>
+            {/* User Profile & Dropdown (SEMPRE visível no canto direito no mobile e desktop) */}
+            <div className="relative shrink-0 ml-0.5 sm:ml-1" ref={profileMenuRef}>
               <button
                 onClick={() => {
                   soundFX.playClick();
                   setIsProfileMenuOpen(!isProfileMenuOpen);
                 }}
-                className="flex items-center gap-1.5 p-1 sm:p-1.5 rounded-full hover:bg-slate-100 transition focus:outline-none cursor-pointer"
+                className="flex items-center gap-1 p-0.5 sm:p-1 rounded-full hover:bg-slate-100 transition focus:outline-none cursor-pointer shrink-0 active:scale-95"
                 title="Meu Perfil & Menu"
+                aria-label="Meu Perfil"
               >
-                <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200 text-blue-800 font-black text-xs flex items-center justify-center overflow-hidden">
+                <div className="w-8 h-8 rounded-full bg-blue-100 border-2 border-blue-500/40 text-blue-800 font-black text-xs flex items-center justify-center overflow-hidden shrink-0 shadow-2xs ring-2 ring-white">
                   {currentUser?.avatarUrl ? (
                     <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
                   ) : (

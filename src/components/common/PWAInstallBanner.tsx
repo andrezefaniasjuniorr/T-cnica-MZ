@@ -168,7 +168,7 @@ export const PWAInstallHeaderButton: React.FC = () => {
       <button
         id="headerBtnInstallPwa"
         onClick={handleClick}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 text-xs font-bold transition active:scale-95 cursor-pointer"
+        className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 text-xs font-bold transition active:scale-95 cursor-pointer shrink-0"
         title="Instalar App TécnicaMZ Pro"
       >
         <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 animate-bounce" />
