@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { soundFX } from '../../utils/audio';
 import { UserRankBadge } from '../../utils/gamification';
+import { PWAInstallHeaderButton } from '../common/PWAInstallBanner';
 import {
   Wrench,
   Search,
@@ -288,6 +289,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[11px] font-bold">Painel</span>
               </button>
             )}
+
+            {/* PWA In-App Install Button */}
+            <PWAInstallHeaderButton />
 
             {/* Sara IA Button (Técnico / Empresa / Admin Only) */}
             {!isClient && (

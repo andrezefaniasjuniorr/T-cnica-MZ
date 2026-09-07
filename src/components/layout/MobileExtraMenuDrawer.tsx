@@ -22,8 +22,10 @@ import {
   Volume2,
   VolumeX,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  Download
 } from 'lucide-react';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface MobileExtraMenuDrawerProps {
   isOpen: boolean;
@@ -46,6 +48,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
 }) => {
   const { currentUser, isClient, isTechnician, isCompany, isAdmin } = useAuth();
   const [soundEnabled, setSoundEnabled] = useState(() => soundFX.isEnabled());
+  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
 
   if (!isOpen) return null;
 
@@ -344,6 +347,38 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
               );
             })}
           </div>
+
+          {/* PWA Install App Button for Mobile Drawer */}
+          {!isInstalled && (isInstallable || isIOS) && (
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <button
+                onClick={async () => {
+                  soundFX.playClick();
+                  if (isIOS) {
+                    alert('Para instalar no Safari iOS:\n1. Toque no botão Compartilhar (Share) abaixo\n2. Escolha "Adicionar à Tela de Início"');
+                    return;
+                  }
+                  await install();
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white shadow-md shadow-blue-500/20 transition active:scale-95 text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-white">
+                      Instalar App TécnicaMZ Pro
+                    </p>
+                    <p className="text-[10px] text-blue-100">
+                      Uso 100% offline de calculadoras e bancada
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-white/80" />
+              </button>
+            </div>
+          )}
 
           {/* Direct Support WhatsApp Section */}
           <div className="mt-4 pt-3 border-t border-slate-100">
