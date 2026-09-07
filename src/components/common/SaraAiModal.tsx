@@ -26,8 +26,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-// URL do Proxy Cloudflare Worker
-const PROXY_WORKER_URL = 'https://sara-ia-proxy.andrezefaniasjuniorr.workers.dev';
+// Obtém a chave da API via variável de ambiente (Vite)
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 
 interface SaraAiModalProps {
   isOpen: boolean;
@@ -107,6 +107,19 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     e.preventDefault();
     if ((!inputText.trim() && !selectedImage) || isThinking) return;
 
+    if (!GEMINI_API_KEY) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `sara_${Date.now()}`,
+          sender: 'sara',
+          text: 'Erro de Configuração: A chave da API do Gemini não foi encontrada nas variáveis de ambiente (VITE_GEMINI_API_KEY).',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+      return;
+    }
+
     const userText = inputText.trim();
     const currentImg = selectedImage;
 
@@ -127,12 +140,11 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setIsThinking(true);
 
     try {
-      // Montagem do histórico para o modelo Gemini via Proxy
+      // Montagem do histórico para a API do Gemini
       const contentsPayload = updatedHistory.map((m) => {
         const role = m.sender === 'user' ? 'user' : 'model';
         const parts: any[] = [{ text: m.text }];
 
-        // Anexa a imagem se for a mensagem atual com foto
         if (m.id === userMessageId && currentImg) {
           const pureBase64 = currentImg.base64.replace(/^data:image\/\w+;base64,/, '');
           parts.unshift({
@@ -146,14 +158,14 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         return { role, parts };
       });
 
-      // Contexto / Instrução do Sistema para a Sara IA
       const systemInstructionText = `Você é a Sara IA, a assistente técnica oficial da plataforma TécnicaMZ em Moçambique.
 Usuário atual: ${currentUser?.name || 'Cliente'} (Perfil: ${currentUser?.role || 'Cliente'}).
 Responda sempre em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
 Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações iniciais a cada mensagem.`;
 
-      // Chamada para o Cloudflare Worker Proxy
-      const response = await fetch(PROXY_WORKER_URL, {
+      const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+      const response = await fetch(GEMINI_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -165,7 +177,8 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
       });
 
       if (!response.ok) {
-        throw new Error(`Erro no servidor Proxy: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `Erro na API Gemini: ${response.status}`);
       }
 
       const data = await response.json();
@@ -182,7 +195,6 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
 
       setMessages(prev => [...prev, saraMsg]);
 
-      // Salva snapshot no Firebase Firestore para histórico/auditoria
       if (isFirebaseConfigured && db) {
         try {
           const convoId = `ai_chat_${currentUser?.uid || 'client'}_${Date.now()}`;
@@ -206,7 +218,7 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
         {
           id: `sara_${Date.now()}`,
           sender: 'sara',
-          text: `Sara IA (Aviso de Conexão): Não foi possível conectar ao servidor. Verifique sua conexão. Dica técnica: Para instalações elétricas em Moçambique, consulte sempre os padrões da EDM.`,
+          text: `Sara IA (Aviso de Conexão): Não foi possível obter resposta no momento. Detalhe: ${err.message || 'Verifique a conexão.'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -278,7 +290,7 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
           </button>
 
           <button
-            onClick={() => handleQuickPrompt('Como calcular a bitola (seção) do cabo elétrico e disjuntor para uma distância de 45 metros a 220V?')}
+            onClick={() => handleQuickPrompt('Como calcular a bitola (seção) do cabo elétrico e disjuntores para uma distância de 45 metros a 220V?')}
             className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-medium transition flex items-center gap-1.5 shadow-2xs shrink-0"
           >
             <Zap className="w-3.5 h-3.5 text-blue-600" />
@@ -389,7 +401,6 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
           </div>
         ) : (
           <form onSubmit={handleSend} className="p-3 sm:p-4 bg-white border-t border-slate-200 flex items-center gap-2">
-            {/* Hidden inputs for camera and gallery */}
             <input
               type="file"
               ref={fileInputRef}
@@ -406,7 +417,6 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
               className="hidden"
             />
 
-            {/* Camera Button */}
             <button
               type="button"
               onClick={() => cameraInputRef.current?.click()}
@@ -416,7 +426,6 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
               <Camera className="w-4 h-4" />
             </button>
 
-            {/* Gallery Button */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -445,7 +454,6 @@ Mantenha o tom profissional, direto e prestativo. NUNCA repita saudações inici
         )}
       </div>
 
-      {/* Selo MZ Modal fallback */}
       {showSeloModal && (
         <SeloMZModal
           isOpen={showSeloModal}
