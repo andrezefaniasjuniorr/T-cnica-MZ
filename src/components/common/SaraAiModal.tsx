@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 // URL do Proxy Cloudflare Worker
-const PROXY_WORKER_URL = 'https://sara-ia-proxy.andrezefaniasjuniorr.workers.dev';
+const PROXY_WORKER_URL = 'https://sara-ia-proxy.andrezefaniasjuniorr.workers.dev/';
 
 interface SaraAiModalProps {
   isOpen: boolean;
