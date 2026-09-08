@@ -226,16 +226,29 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
                       </div>
 
                       <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={async () => {
-                            await giveTechnicianLike(tech.userId);
-                          }}
-                          className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition text-xs flex items-center gap-1 font-bold active:scale-95"
-                          title="Curtir técnico"
-                        >
-                          <Heart className="w-3.5 h-3.5 fill-rose-500" />
-                          <span>+1</span>
-                        </button>
+                        {(() => {
+                          const isLiked = Boolean(
+                            currentUser &&
+                            Array.isArray(tech.likedByUsers) &&
+                            tech.likedByUsers.includes(currentUser.uid)
+                          );
+                          return (
+                            <button
+                              onClick={async () => {
+                                await giveTechnicianLike(tech.userId);
+                              }}
+                              className={`p-1.5 rounded-xl border transition text-xs flex items-center gap-1 font-bold active:scale-95 cursor-pointer ${
+                                isLiked
+                                  ? 'bg-rose-100 text-rose-700 border-rose-300'
+                                  : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200'
+                              }`}
+                              title={isLiked ? 'Desfazer curtida' : 'Curtir perfil profissional'}
+                            >
+                              <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-rose-600 text-rose-600' : 'fill-rose-500 text-rose-500'}`} />
+                              <span>{tech.totalLikes || 0}</span>
+                            </button>
+                          );
+                        })()}
 
                         {tech.showWhatsappButton && tech.whatsapp && (
                           <a

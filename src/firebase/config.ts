@@ -1,6 +1,12 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  setLogLevel
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 export const firebaseConfig = {
@@ -16,25 +22,34 @@ export const firebaseConfig = {
 
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
+// Suprimir logs informativos/debug de sincronização interna e clock drift do Firestore
+try {
+  setLogLevel('error');
+} catch {
+  // no-op
+}
+
 // 1. INICIALIZAÇÃO CORRETA DOS SERVIÇOS (Firebase SDK v9+)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
-const db = getFirestore(app);
+
+// Inicializar Firestore com cache persistente multi-aba moderno
+let dbInstance;
+try {
+  dbInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  });
+} catch {
+  dbInstance = getFirestore(app);
+}
+
+const db = dbInstance;
 const storage = getStorage(app);
 
-// Ativar persistência offline no Firestore (enableIndexedDbPersistence)
 if (typeof window !== 'undefined' && db) {
-  enableIndexedDbPersistence(db).catch((err: any) => {
-    if (err?.code === 'failed-precondition') {
-      console.warn('[Firestore] Persistência offline ativa em outra aba/janela.');
-    } else if (err?.code === 'unimplemented') {
-      console.warn('[Firestore] O navegador atual não suporta IndexedDb persistence.');
-    } else {
-      console.warn('[Firestore] Aviso ao ativar persistência offline:', err?.message || err);
-    }
-  });
-
-  // Disponibilizar globalmente para app.js e utilitários
+  // Disponibilizar globalmente para utilitários e depuração segura
   (window as any).firebaseApp = app;
   (window as any).db = db;
   (window as any).auth = auth;

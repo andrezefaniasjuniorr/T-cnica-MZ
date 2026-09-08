@@ -11,7 +11,8 @@ import {
   sendPasswordResetEmail,
   updatePassword as fbUpdatePassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs, serverTimestamp, increment, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs, serverTimestamp, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { giveHeartOrLike, recalculateUserStarsAndRanking } from '../services/engagement';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -81,7 +82,8 @@ interface AuthContextType {
   updateCurrentUserProfile: (data: Partial<User>) => Promise<void>;
   updateCurrentTechProfile: (data: Partial<TechnicianProfile>) => Promise<void>;
   updateCurrentCompanyProfile: (data: Partial<CompanyProfile>) => Promise<void>;
-  giveTechnicianLike: (techUserId: string) => Promise<{ success: boolean; totalLikes: number }>;
+  giveTechnicianLike: (techUserId: string) => Promise<{ success: boolean; totalLikes: number; hasLiked?: boolean; error?: string }>;
+  toggleTechnicianLike: (techUserId: string) => Promise<{ success: boolean; totalLikes: number; hasLiked: boolean; error?: string }>;
   switchUserRole: (newRole: UserRole) => Promise<void>;
   updateUserStatus: (userId: string, status: UserStatus) => Promise<void>;
   deleteUserAccount: (userId: string) => Promise<void>;
@@ -1724,11 +1726,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateCurrentUserProfile = async (data: Partial<User>) => {
     if (!currentUser) return;
-    const updated = { ...currentUser, ...data, updatedAt: new Date().toISOString() };
+    const nowIso = new Date().toISOString();
+    const updated = { ...currentUser, ...data, updatedAt: nowIso };
     setCurrentUser(updated);
     setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updated : u)));
 
-    if (currentUser.role === 'technician') {
+    const isTech = currentUser.role === 'technician' || currentUser.tipoConta === 'tecnico';
+
+    if (isTech) {
       const techUpdate: Partial<TechnicianProfile> = {};
       if (data.name) techUpdate.name = data.name;
       if (data.phone) techUpdate.phone = data.phone;
@@ -1750,7 +1755,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'users', currentUser.uid), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+        const payload = {
+          ...data,
+          nome: data.name || currentUser.name,
+          updatedAt: nowIso
+        };
+        // Gravação instantânea no Firestore em 'users' e 'usuarios'
+        await setDoc(doc(db, 'users', currentUser.uid), payload, { merge: true });
+        await setDoc(doc(db, 'usuarios', currentUser.uid), payload, { merge: true });
+
+        if (isTech) {
+          const techDocPayload: Record<string, any> = { updatedAt: nowIso };
+          if (data.name) techDocPayload.name = data.name;
+          if (data.phone) techDocPayload.phone = data.phone;
+          if (data.avatarUrl !== undefined) {
+            techDocPayload.avatarUrl = data.avatarUrl;
+            techDocPayload.photoURL = data.avatarUrl;
+          }
+          if (data.photoURL !== undefined) {
+            techDocPayload.photoURL = data.photoURL;
+            techDocPayload.avatarUrl = data.photoURL;
+          }
+          if (data.idade !== undefined) techDocPayload.idade = data.idade;
+          if (data.province) techDocPayload.province = data.province;
+          if (data.city) techDocPayload.city = data.city;
+          await setDoc(doc(db, 'technicians', currentUser.uid), techDocPayload, { merge: true });
+        }
       } catch (err) {
         console.warn('Firestore user update error:', err);
       }
@@ -1759,12 +1789,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateCurrentTechProfile = async (data: Partial<TechnicianProfile>) => {
     if (!currentUser || (currentUser.role !== 'technician' && currentUser.tipoConta !== 'tecnico')) return;
+    const nowIso = new Date().toISOString();
     const existing = currentTechProfile || ({} as TechnicianProfile);
     const updated: TechnicianProfile = {
       ...existing,
       ...data,
       userId: currentUser.uid,
-      updatedAt: new Date().toISOString()
+      updatedAt: nowIso
     };
     setCurrentTechProfile(updated);
     setTechList(prev => {
@@ -1777,7 +1808,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'technicians', currentUser.uid), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+        const techPayload = {
+          ...data,
+          userId: currentUser.uid,
+          updatedAt: nowIso
+        };
+        // Grava instantaneamente no documento do técnico
+        await setDoc(doc(db, 'technicians', currentUser.uid), techPayload, { merge: true });
+
+        // Espelha dados nos documentos de usuário
+        const userPayload: Record<string, any> = { updatedAt: nowIso };
+        if (data.name) {
+          userPayload.name = data.name;
+          userPayload.nome = data.name;
+        }
+        if (data.phone) userPayload.phone = data.phone;
+        if (data.avatarUrl !== undefined) {
+          userPayload.avatarUrl = data.avatarUrl;
+          userPayload.photoURL = data.avatarUrl;
+        }
+        if (data.photoURL !== undefined) {
+          userPayload.photoURL = data.photoURL;
+          userPayload.avatarUrl = data.photoURL;
+        }
+        if (data.idade !== undefined) userPayload.idade = data.idade;
+        if (data.province) userPayload.province = data.province;
+        if (data.city) userPayload.city = data.city;
+        if (data.bio) userPayload.bio = data.bio;
+
+        await setDoc(doc(db, 'users', currentUser.uid), userPayload, { merge: true });
+        await setDoc(doc(db, 'usuarios', currentUser.uid), userPayload, { merge: true });
       } catch (err) {
         console.warn('Firestore tech update error:', err);
       }
@@ -1811,10 +1871,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const giveTechnicianLike = async (techUserId: string): Promise<{ success: boolean; totalLikes: number; error?: string }> => {
-    if (!techUserId) return { success: false, totalLikes: 0, error: 'ID de técnico inválido.' };
-    
-    // Check if client/user has already liked this technician
+  // 1 VOTO ÚNICO POR USUÁRIO COM PERSISTÊNCIA REAL-TIME NO FIRESTORE & TOGGLE (DESFAZ VOTO)
+  const toggleTechnicianLike = async (
+    techUserId: string
+  ): Promise<{ success: boolean; totalLikes: number; hasLiked: boolean; error?: string }> => {
+    if (!techUserId) return { success: false, totalLikes: 0, hasLiked: false, error: 'ID de técnico inválido.' };
+
+    // Determina o UID do votante (ou ID persistente de convidado se anónimo)
+    const currentVoterId = currentUser?.uid || (() => {
+      let guestId = localStorage.getItem('tecnicamz_voter_uid');
+      if (!guestId) {
+        guestId = 'guest_' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('tecnicamz_voter_uid', guestId);
+      }
+      return guestId;
+    })();
+
     const LIKE_STORAGE_KEY = 'tecnicamz_liked_techs_list';
     let likedList: string[] = [];
     try {
@@ -1827,67 +1899,137 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       likedList = [];
     }
 
-    if (likedList.includes(techUserId)) {
-      const existingTech = techList.find(t => t.userId === techUserId);
-      return { 
-        success: false, 
-        totalLikes: existingTech?.totalLikes || 0,
-        error: 'Você já curtiu este perfil profissional!' 
-      };
-    }
+    const targetTech = techList.find(t => t.userId === techUserId);
+    const techLikedUsers = Array.isArray(targetTech?.likedByUsers) ? targetTech.likedByUsers : [];
 
-    // Add to liked list
-    likedList.push(techUserId);
+    // Verificação estrita de voto único por UID
+    const alreadyLiked = techLikedUsers.includes(currentVoterId) || likedList.includes(techUserId);
+    const willLike = !alreadyLiked;
+
+    // Atualiza armazenamento local
+    if (willLike) {
+      if (!likedList.includes(techUserId)) likedList.push(techUserId);
+    } else {
+      likedList = likedList.filter(id => id !== techUserId);
+    }
     try {
       localStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(likedList));
     } catch (e) {
       console.warn('Storage save error:', e);
     }
 
-    const targetTech = techList.find(t => t.userId === techUserId);
-    const currentLikes = targetTech?.totalLikes || 0;
-    const newLikes = currentLikes + 1;
-    const newScore = (targetTech?.scoreEngajamento || 0) + 1;
-
-    setTechList(prev => prev.map(t => t.userId === techUserId ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t));
-    setUsersList(prev => prev.map(u => u.uid === techUserId ? { ...u, totalLikes: newLikes, scoreEngajamento: newScore } : u));
-    if (currentUser?.uid === techUserId) {
-      setCurrentUser(prev => prev ? { ...prev, totalLikes: newLikes, scoreEngajamento: newScore } : null);
-      setCurrentTechProfile(prev => prev ? { ...prev, totalLikes: newLikes, scoreEngajamento: newScore } : null);
+    // Chama o serviço de engajamento atômico (Firestore transaction + recálculo de estrelas e ranking)
+    let newLikes = targetTech?.totalLikes || 0;
+    let newScore = targetTech?.scoreEngajamento || 0;
+    try {
+      const heartRes = await giveHeartOrLike(techUserId, willLike);
+      if (heartRes.success) {
+        newLikes = heartRes.likesCount;
+        newScore = heartRes.points;
+      } else {
+        const delta = willLike ? 1 : -1;
+        newLikes = Math.max(0, newLikes + delta);
+        newScore = Math.max(0, newScore + delta);
+      }
+    } catch (err) {
+      const delta = willLike ? 1 : -1;
+      newLikes = Math.max(0, newLikes + delta);
+      newScore = Math.max(0, newScore + delta);
     }
 
-    if (isFirebaseConfigured && db) {
-      try {
-        await setDoc(doc(db, 'usuarios', techUserId), {
+    // Atualização otimista de estado React em tempo real
+    setTechList(prev =>
+      prev.map(t => {
+        if (t.userId !== techUserId) return t;
+        const currentVoters = Array.isArray(t.likedByUsers) ? t.likedByUsers : [];
+        const updatedVoters = willLike
+          ? currentVoters.includes(currentVoterId)
+            ? currentVoters
+            : [...currentVoters, currentVoterId]
+          : currentVoters.filter(id => id !== currentVoterId);
+        return {
+          ...t,
           totalLikes: newLikes,
           scoreEngajamento: newScore,
           pontos: newScore,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-        await setDoc(doc(db, 'users', techUserId), {
-          totalLikes: newLikes,
-          scoreEngajamento: newScore,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-        await setDoc(doc(db, 'technicians', techUserId), {
-          totalLikes: newLikes,
-          scoreEngajamento: newScore,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+          points: newScore,
+          likedByUsers: updatedVoters
+        };
+      })
+    );
 
-        // Save like audit in Firestore
-        const likeDocId = `${techUserId}_${currentUser?.uid || 'client_' + Date.now()}`;
-        await setDoc(doc(db, 'technician_likes', likeDocId), {
-          techUserId,
-          likedBy: currentUser?.uid || localStorage.getItem('clienteNome') || 'Cliente Anónimo',
-          likedAt: new Date().toISOString()
-        }, { merge: true });
+    setUsersList(prev =>
+      prev.map(u =>
+        u.uid === techUserId
+          ? {
+              ...u,
+              totalLikes: newLikes,
+              scoreEngajamento: newScore,
+              pontos: newScore,
+              points: newScore
+            }
+          : u
+      )
+    );
+
+    if (currentUser?.uid === techUserId) {
+      setCurrentUser(prev =>
+        prev
+          ? { ...prev, totalLikes: newLikes, scoreEngajamento: newScore, pontos: newScore, points: newScore }
+          : null
+      );
+      setCurrentTechProfile(prev =>
+        prev
+          ? { ...prev, totalLikes: newLikes, scoreEngajamento: newScore, pontos: newScore, points: newScore }
+          : null
+      );
+    }
+
+    // Persistência robusta no Firestore com verificação por UID
+    if (isFirebaseConfigured && db) {
+      try {
+        const likeDocId = `${techUserId}_${currentVoterId}`;
+        const likeDocRef = doc(db, 'technician_likes', likeDocId);
+
+        if (willLike) {
+          await setDoc(likeDocRef, {
+            techUserId,
+            likedBy: currentVoterId,
+            voterName: currentUser?.name || 'Cliente',
+            likedAt: new Date().toISOString()
+          }, { merge: true });
+
+          await updateDoc(doc(db, 'technicians', techUserId), {
+            likedByUsers: arrayUnion(currentVoterId),
+            totalLikes: newLikes,
+            scoreEngajamento: newScore,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+        } else {
+          await deleteDoc(likeDocRef).catch(() => {});
+
+          await updateDoc(doc(db, 'technicians', techUserId), {
+            likedByUsers: arrayRemove(currentVoterId),
+            totalLikes: newLikes,
+            scoreEngajamento: newScore,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+        }
+
+        // Recalcula a pontuação do técnico e a posição no ranking em tempo real
+        await recalculateUserStarsAndRanking(techUserId);
       } catch (err) {
-        console.warn('Firestore update technician like error:', err);
+        console.warn('Firestore toggle technician like error:', err);
       }
     }
 
-    return { success: true, totalLikes: newLikes };
+    return { success: true, hasLiked: willLike, totalLikes: newLikes };
+  };
+
+  const giveTechnicianLike = async (
+    techUserId: string
+  ): Promise<{ success: boolean; totalLikes: number; hasLiked?: boolean; error?: string }> => {
+    return toggleTechnicianLike(techUserId);
   };
 
   const switchUserRole = async (newRole: UserRole) => {
@@ -2684,6 +2826,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateCurrentTechProfile,
         updateCurrentCompanyProfile,
         giveTechnicianLike,
+        toggleTechnicianLike,
         switchUserRole,
         updateUserStatus,
         deleteUserAccount,

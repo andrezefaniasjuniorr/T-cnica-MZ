@@ -66,6 +66,11 @@ service cloud.firestore {
       allow delete: if isOwner(techId) || isSuperAdmin();
     }
 
+    match /technician_likes/{likeId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
     // 3. Companies Public Profiles
     match /companies/{companyId} {
       allow read: if true;

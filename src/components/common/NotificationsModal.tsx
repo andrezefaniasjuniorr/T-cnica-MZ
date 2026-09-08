@@ -49,7 +49,17 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   };
 
   // Filter notifications for current user or broadcast ('all', or role match)
+  // FILTRO: Remove e bloqueia notificações de mensagens comuns de chat da central geral
   const userNotifications = notifications.filter(n => {
+    if (
+      n.linkTab === 'messages' ||
+      n.deeplink === 'messages' ||
+      (n.title && n.title.toLowerCase().includes('nova mensagem')) ||
+      (n.title && n.title.toLowerCase().includes('mensagem de'))
+    ) {
+      return false;
+    }
+
     if (!currentUser) return n.userId === 'all';
     return (
       n.userId === currentUser.uid ||
@@ -58,6 +68,8 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
       n.userId === currentUser.tipoConta
     );
   });
+
+  const modalUnreadCount = userNotifications.filter(n => !n.read).length;
 
   const displayedNotifications = filter === 'unread'
     ? userNotifications.filter(n => !n.read)
@@ -135,21 +147,21 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
             </button>
             <div className="relative w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
               <Bell className="w-4 h-4" />
-              {unreadNotificationsCount > 0 && (
+              {modalUnreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
               )}
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                 Central de Notificações
-                {unreadNotificationsCount > 0 && (
+                {modalUnreadCount > 0 && (
                   <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
-                    {unreadNotificationsCount} nova{unreadNotificationsCount > 1 ? 's' : ''}
+                    {modalUnreadCount} nova{modalUnreadCount > 1 ? 's' : ''}
                   </span>
                 )}
               </h2>
               <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
-                Pontos, soluções técnicas e atualizações em tempo real
+                Pontos, soluções técnicas e avisos oficiais do sistema
               </p>
             </div>
           </div>
@@ -183,11 +195,11 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
               }`}
             >
-              Não Lidas ({unreadNotificationsCount})
+              Não Lidas ({modalUnreadCount})
             </button>
           </div>
 
-          {unreadNotificationsCount > 0 && (
+          {modalUnreadCount > 0 && (
             <button
               onClick={handleMarkAllRead}
               className="text-blue-600 dark:text-blue-400 hover:text-blue-700 text-xs font-bold flex items-center gap-1 transition cursor-pointer"

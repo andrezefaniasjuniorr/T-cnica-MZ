@@ -67,6 +67,12 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   React.useEffect(() => {
     if (technician) {
       setLikeCount(technician.totalLikes ?? 0);
+      const voterId = currentUser?.uid;
+      const likedInArray = Boolean(voterId && Array.isArray(technician.likedByUsers) && technician.likedByUsers.includes(voterId));
+      if (likedInArray) {
+        setHasLiked(true);
+        return;
+      }
       try {
         const raw = localStorage.getItem('tecnicamz_liked_techs_list');
         if (raw) {
@@ -75,22 +81,25 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
         }
       } catch {}
     }
-  }, [technician?.totalLikes, technician?.userId]);
+  }, [technician?.totalLikes, technician?.likedByUsers, technician?.userId, currentUser?.uid]);
 
   if (!technician) return null;
 
   const handleGiveLike = async () => {
-    if (isLiking || hasLiked) return;
+    if (isLiking) return;
     setIsLiking(true);
-    setHasLiked(true);
-    setLikeCount(prev => prev + 1);
+    const willBeLiked = !hasLiked;
+    setHasLiked(willBeLiked);
+    setLikeCount(prev => Math.max(0, prev + (willBeLiked ? 1 : -1)));
+
     try {
-      // Atualiza permanentemente no Firestore via giveHeartOrLike (+1 like, +1 point, recalcula ranking)
-      const res = await giveHeartOrLike(technician.userId, true);
-      if (res.likesCount !== undefined) {
-        setLikeCount(res.likesCount);
+      const res = await giveTechnicianLike(technician.userId);
+      if (res.totalLikes !== undefined) {
+        setLikeCount(res.totalLikes);
       }
-      giveTechnicianLike(technician.userId).catch(() => {});
+      if (typeof res.hasLiked === 'boolean') {
+        setHasLiked(res.hasLiked);
+      }
     } catch (err) {
       console.warn('Like error:', err);
     } finally {

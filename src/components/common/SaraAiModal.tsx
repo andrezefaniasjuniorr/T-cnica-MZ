@@ -1,4 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { SeloMZModal } from './SeloMZModal';
@@ -26,7 +32,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.VITE_GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY : '') || '';
 
 interface SaraAiModalProps {
   isOpen: boolean;
@@ -151,7 +157,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         {
           id: `sara_${Date.now()}`,
           sender: 'sara',
-          text: 'Erro de Configuração: A chave da API não foi encontrada nas variáveis de ambiente.',
+          text: 'Erro de Configuração: A chave da API Gemini não foi encontrada. Por favor, configure a variável VITE_GEMINI_API_KEY no arquivo .env para ativar a Sara IA.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -209,7 +215,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         return { role, parts };
       });
 
-      const systemInstructionText = `Você é a Eng. Sara IA, assistente técnica de engenharia da plataforma TécnicaMZ Pro em Moçambique.
+      const systemInstructionText = `Você é a Eng. Sara IA da TécnicaMZ Pro em Moçambique. Sempre formate suas respostas técnicas utilizando tabelas em Markdown, destaques em negrito usando asteriscos (**exemplo**), listas organizadas e equações em LaTeX para fórmulas e cálculos de engenharia.
 Você está conversando com o usuário: ${userName} (Perfil: ${currentUser?.role || 'Técnico'}).
 IMPORTANTE: Trate o usuário pelo nome real dele ("${userName}") durante a conversa de forma natural e amigável.
 Responda em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
@@ -422,9 +428,72 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
                     />
                   </div>
                 )}
-                <div className="leading-relaxed whitespace-pre-wrap font-normal">
-                  {m.text || (m.sender === 'sara' && isThinking ? '...' : '')}
-                </div>
+                {m.sender === 'user' ? (
+                  <div className="leading-relaxed whitespace-pre-wrap font-normal">
+                    {m.text}
+                  </div>
+                ) : (
+                  <div className="leading-relaxed font-normal text-slate-800">
+                    {m.text ? (
+                      <div className="sara-markdown prose prose-sm max-w-none prose-table:border-collapse prose-th:border prose-th:p-2 prose-td:border prose-td:p-2 text-slate-800 text-xs sm:text-sm">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            h1: ({ children }) => <h1 className="text-base font-black text-slate-900 mt-3 mb-1.5 pb-1 border-b border-slate-200">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-sm sm:text-base font-black text-slate-900 mt-2.5 mb-1">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-xs sm:text-sm font-bold text-blue-950 mt-2 mb-1">{children}</h3>,
+                            h4: ({ children }) => <h4 className="text-xs font-bold text-slate-800 mt-1.5 mb-0.5">{children}</h4>,
+                            p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed text-slate-800">{children}</p>,
+                            strong: ({ children }) => <strong className="font-bold text-slate-950">{children}</strong>,
+                            em: ({ children }) => <em className="italic text-slate-700">{children}</em>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 my-2 space-y-1 text-slate-800">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 my-2 space-y-1 text-slate-800">{children}</ol>,
+                            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                            blockquote: ({ children }) => (
+                              <blockquote className="border-l-4 border-blue-600 pl-3 py-1.5 my-2 bg-blue-50/70 rounded-r-lg italic text-slate-800 text-xs sm:text-sm">
+                                {children}
+                              </blockquote>
+                            ),
+                            code: ({ className, children, ...props }: any) => {
+                              const isInline = !className && typeof children === 'string' && !children.includes('\n');
+                              if (isInline) {
+                                return (
+                                  <code className="bg-slate-100 text-blue-800 font-mono text-[11px] sm:text-xs px-1.5 py-0.5 rounded border border-slate-200 font-medium" {...props}>
+                                    {children}
+                                  </code>
+                                );
+                              }
+                              return (
+                                <code className="block bg-slate-900 text-slate-100 p-3 rounded-xl overflow-x-auto my-2 font-mono text-[11px] sm:text-xs leading-relaxed" {...props}>
+                                  {children}
+                                </code>
+                              );
+                            },
+                            pre: ({ children }) => <pre className="my-2 rounded-xl overflow-hidden shadow-xs">{children}</pre>,
+                            table: ({ children }) => (
+                              <div className="overflow-x-auto my-3 rounded-xl border border-slate-300 shadow-2xs">
+                                <table className="min-w-full divide-y divide-slate-200 text-xs border-collapse">{children}</table>
+                              </div>
+                            ),
+                            thead: ({ children }) => <thead className="bg-slate-100 text-slate-900 font-bold">{children}</thead>,
+                            th: ({ children }) => <th className="border border-slate-300 p-2 text-left font-bold text-slate-900 bg-slate-100/90 whitespace-nowrap">{children}</th>,
+                            td: ({ children }) => <td className="border border-slate-200 p-2 text-slate-700 bg-white">{children}</td>,
+                            hr: () => <hr className="my-3 border-slate-200" />
+                          }}
+                        >
+                          {m.text}
+                        </ReactMarkdown>
+                      </div>
+                    ) : isThinking ? (
+                      <div className="flex items-center gap-1.5 py-1 text-slate-400">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse delay-100" />
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse delay-200" />
+                      </div>
+                    ) : null}
+                  </div>
+                )}
                 <div className={`text-[10px] text-right ${m.sender === 'user' ? 'text-slate-400' : 'text-slate-400'}`}>
                   {m.timestamp}
                 </div>

@@ -10,6 +10,8 @@ import {
   MessageSquare,
   Send,
   Search,
+  Check,
+  CheckCheck,
   CheckCircle2,
   Clock,
   User,
@@ -35,7 +37,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
   initialTargetRole
 }) => {
   const { currentUser } = useAuth();
-  const { conversations, messages, sendMessage, startOrGetConversation } = useData();
+  const { conversations, messages, sendMessage, markConversationAsRead, startOrGetConversation } = useData();
 
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
@@ -63,10 +65,19 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
     }
   }, [isOpen, initialTargetUserId, currentUser]);
 
-  // Scroll to bottom of message list on updates
+  // Ao abrir ou receber mensagem na conversa ativa, marca como lida e remove os badges
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeConvId]);
+    if (activeConvId && markConversationAsRead) {
+      markConversationAsRead(activeConvId);
+    }
+  }, [activeConvId, messages.length]);
+
+  // Scroll to bottom of message list on updates (auto-scroll suave)
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages.length, activeConvId]);
 
   if (!isOpen || !currentUser) return null;
 
@@ -202,9 +213,16 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                           {new Date(c.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <p className={`text-[11px] truncate mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                        {c.lastMessage}
-                      </p>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <p className={`text-[11px] truncate flex-1 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                          {c.lastMessage}
+                        </p>
+                        {!isSelected && (c.unreadCount ?? 0) > 0 && (
+                          <span className="min-w-[18px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center shrink-0">
+                            {c.unreadCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 );
@@ -285,7 +303,13 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                           isMe ? 'text-blue-200' : 'text-slate-400'
                         }`}>
                           <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          {isMe && <CheckCircle2 className="w-3 h-3 text-blue-200" />}
+                          {isMe && (
+                            (msg.read || msg.status === 'read') ? (
+                              <span title="Mensagem lida"><CheckCheck className="w-3.5 h-3.5 text-sky-300 inline shrink-0" /></span>
+                            ) : (
+                              <span title="Mensagem enviada / entregue"><CheckCheck className="w-3.5 h-3.5 text-blue-200 inline shrink-0" /></span>
+                            )
+                          )}
                         </div>
                       </div>
                     </div>

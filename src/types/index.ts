@@ -198,6 +198,7 @@ export interface TechnicianProfile {
   rating: number;
   reviewsCount: number;
   completedJobsCount: number;
+  likedByUsers?: string[];
   availability: AvailabilityStatus;
   featured?: boolean;
   status: UserStatus;
@@ -447,6 +448,8 @@ export interface MessageItem {
   senderRole: UserRole;
   text: string;
   createdAt: string;
+  read?: boolean;
+  status?: 'sending' | 'sent' | 'delivered' | 'read';
 }
 
 export interface ConversationItem {

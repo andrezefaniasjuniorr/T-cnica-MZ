@@ -24,7 +24,7 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
   rank
 }) => {
   const { isFavorite, toggleFavorite } = useData();
-  const { giveTechnicianLike } = useAuth();
+  const { giveTechnicianLike, currentUser } = useAuth();
   const [likeCount, setLikeCount] = useState<number>(technician.totalLikes ?? 0);
   const [isLiking, setIsLiking] = useState(false);
   const [hasLiked, setHasLiked] = useState(() => {
@@ -42,6 +42,12 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
 
   useEffect(() => {
     setLikeCount(technician.totalLikes ?? 0);
+    const voterId = currentUser?.uid;
+    const likedInArray = Boolean(voterId && Array.isArray(technician.likedByUsers) && technician.likedByUsers.includes(voterId));
+    if (likedInArray) {
+      setHasLiked(true);
+      return;
+    }
     try {
       const raw = localStorage.getItem('tecnicamz_liked_techs_list');
       if (raw) {
@@ -49,7 +55,7 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
         setHasLiked(Array.isArray(list) && list.includes(technician.userId));
       }
     } catch {}
-  }, [technician.totalLikes, technician.userId]);
+  }, [technician.totalLikes, technician.likedByUsers, technician.userId, currentUser?.uid]);
 
   const isFav = isFavorite(technician.userId);
   const isVerified = technician.verificationStatus === 'approved';
@@ -57,15 +63,20 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
 
   const handleGiveLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isLiking || hasLiked) return;
+    if (isLiking) return;
     soundFX.playLike();
     setIsLiking(true);
-    setHasLiked(true);
-    setLikeCount(prev => prev + 1);
+    const willBeLiked = !hasLiked;
+    setHasLiked(willBeLiked);
+    setLikeCount(prev => Math.max(0, prev + (willBeLiked ? 1 : -1)));
+
     try {
       const res = await giveTechnicianLike(technician.userId);
       if (res.totalLikes !== undefined) {
         setLikeCount(res.totalLikes);
+      }
+      if (typeof res.hasLiked === 'boolean') {
+        setHasLiked(res.hasLiked);
       }
     } catch (err) {
       console.warn('Like error:', err);

@@ -48,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMobileMenu
 }) => {
   const { currentUser, isClient, isTechnician, isCompany, isAdmin, logout } = useAuth();
-  const { conversations } = useData();
+  const { conversations, unreadSystemNotificationsCount, unreadMessagesCount } = useData();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -67,13 +67,6 @@ export const Header: React.FC<HeaderProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Unread messages count
-  const unreadMessagesCount = currentUser
-    ? (conversations || []).filter(
-        c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid) && ((c.unreadCount ?? 0) > 0)
-      ).length
-    : 0;
 
   const getRoleBadge = () => {
     if (isAdmin) return { label: 'Admin', color: 'bg-purple-100 text-purple-800 border-purple-200', panelTab: 'gestao-pro-mz' };
@@ -316,24 +309,24 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
 
-            {/* Notifications Bell */}
+            {/* Notifications Bell (Apenas avisos do sistema / mensagens de administradores) */}
             <button
               onClick={() => {
                 soundFX.playModalOpen();
                 onOpenNotifications();
               }}
               className="relative p-1.5 sm:p-2 rounded-full hover:bg-slate-100 text-slate-700 transition active:scale-95 cursor-pointer shrink-0"
-              title="Notificações em Tempo Real"
+              title="Notificações e Avisos do Sistema"
             >
               <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
-              {unreadNotificationsCount > 0 && (
+              {unreadSystemNotificationsCount > 0 && (
                 <span className="absolute top-0.5 right-0.5 min-w-[15px] h-3.5 sm:min-w-[16px] sm:h-4 px-1 rounded-full bg-red-500 text-white text-[8px] sm:text-[9px] font-black flex items-center justify-center ring-2 ring-white animate-pulse">
-                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  {unreadSystemNotificationsCount > 9 ? '9+' : unreadSystemNotificationsCount}
                 </span>
               )}
             </button>
 
-            {/* Messages Chat Trigger */}
+            {/* Messages Chat Trigger (Badge vermelho para novas mensagens não lidas) */}
             <button
               onClick={() => {
                 soundFX.playModalOpen();
@@ -344,7 +337,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
               {unreadMessagesCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-blue-600 ring-2 ring-white"></span>
+                <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-white animate-pulse"></span>
               )}
             </button>
 

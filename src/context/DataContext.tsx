@@ -213,7 +213,9 @@ interface DataContextType {
 
   // Messaging
   sendMessage: (conversationId: string, text: string) => void;
+  markConversationAsRead: (conversationId: string) => Promise<void>;
   startOrGetConversation: (targetUserId: string, targetUserName: string, targetUserRole: any, context?: { type: 'job' | 'request' | 'direct'; title: string }) => string;
+  unreadMessagesCount: number;
 
   // Budget Estimates Generator
   saveBudgetEstimate: (estimate: Omit<BudgetEstimate, 'id' | 'createdAt'>) => BudgetEstimate;
@@ -222,6 +224,7 @@ interface DataContextType {
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   unreadNotificationsCount: number;
+  unreadSystemNotificationsCount: number;
   sendAdminNotification: (
     target: 'all' | 'client' | 'technician' | 'company' | string,
     title: string,
@@ -1976,36 +1979,46 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Update post author's score & totalLikes if author is a technician
         if (authorIdToUpdate && authorIdToUpdate !== userId) {
-          const delta = isReactionAdded ? 1 : -1;
-          const targetTech = technicians.find(t => t.userId === authorIdToUpdate);
-          const currentLikes = targetTech?.totalLikes || 0;
-          const newLikes = Math.max(0, currentLikes + delta);
-          const newScore = Math.max(0, (targetTech?.scoreEngajamento || 0) + delta);
+          const isScoreReaction = reactionType === 'useful' || reactionType === 'insightful' || reactionType === 'applause';
 
-          setTechnicians(prev => prev.map(t => t.userId === authorIdToUpdate ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t));
-          
-          // Integração com sistema unificado de engajamento
-          if (isReactionAdded) {
-            const reactionBadge = reactionType === 'insightful' ? 'tecnico' : (reactionType === 'applause' ? 'excelente' : 'util');
-            reactToPost(authorIdToUpdate, reactionBadge).catch(() => {});
-          } else {
-            giveHeartOrLike(authorIdToUpdate, false).catch(() => {});
+          if (isScoreReaction) {
+            const delta = isReactionAdded ? 1 : -1;
+            const targetTech = technicians.find(t => t.userId === authorIdToUpdate);
+            const currentLikes = targetTech?.totalLikes || 0;
+            const newLikes = Math.max(0, currentLikes + delta);
+            const newScore = Math.max(0, (targetTech?.scoreEngajamento || 0) + delta);
+
+            setTechnicians(prev =>
+              prev.map(t => (t.userId === authorIdToUpdate ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t))
+            );
+
+            // Integração com sistema unificado de engajamento e recálculo de ranking
+            if (isReactionAdded) {
+              const reactionBadge = reactionType === 'insightful' ? 'tecnico' : (reactionType === 'applause' ? 'excelente' : 'util');
+              await reactToPost(authorIdToUpdate, reactionBadge).catch(() => {});
+            } else {
+              await giveHeartOrLike(authorIdToUpdate, false).catch(() => {});
+            }
+
+            await updateDoc(doc(db, 'technicians', authorIdToUpdate), {
+              totalLikes: newLikes,
+              scoreEngajamento: newScore,
+              updatedAt: new Date().toISOString()
+            }).catch(() => {});
+            await updateDoc(doc(db, 'usuarios', authorIdToUpdate), {
+              totalLikes: newLikes,
+              scoreEngajamento: newScore,
+              updatedAt: new Date().toISOString()
+            }).catch(() => {});
+            await updateDoc(doc(db, 'users', authorIdToUpdate), {
+              totalLikes: newLikes,
+              scoreEngajamento: newScore,
+              updatedAt: new Date().toISOString()
+            }).catch(() => {});
+
+            // Sincroniza o ranking de técnicos para subir/descer instantaneamente no ranking
+            await recalculateUserStarsAndRanking(authorIdToUpdate).catch(() => {});
           }
-          await updateDoc(doc(db, 'technicians', authorIdToUpdate), {
-            totalLikes: newLikes,
-            scoreEngajamento: newScore,
-            updatedAt: new Date().toISOString()
-          }).catch(() => {});
-          await updateDoc(doc(db, 'usuarios', authorIdToUpdate), {
-            totalLikes: newLikes,
-            scoreEngajamento: newScore,
-            updatedAt: new Date().toISOString()
-          }).catch(() => {});
-          await updateDoc(doc(db, 'users', authorIdToUpdate), {
-            totalLikes: newLikes,
-            scoreEngajamento: newScore,
-            updatedAt: new Date().toISOString()
-          }).catch(() => {});
 
           if (isReactionAdded) {
             const reactionLabels: Record<string, string> = {
@@ -2619,6 +2632,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       senderName: currentUser.name,
       senderRole: currentUser.role,
       text: text.trim(),
+      read: false,
+      status: 'sent',
       createdAt: now.toISOString()
     };
 
@@ -2626,7 +2641,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const updatedConvData = {
       lastMessage: text.trim(),
-      lastMessageAt: now.toISOString()
+      lastMessageAt: now.toISOString(),
+      unreadCount: increment(1)
     };
 
     // Update conversation metadata
@@ -2635,7 +2651,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         c.id === conversationId
           ? {
               ...c,
-              ...updatedConvData
+              lastMessage: text.trim(),
+              lastMessageAt: now.toISOString(),
+              unreadCount: (c.unreadCount || 0) + 1
             }
           : c
       )
@@ -2651,23 +2669,52 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Firestore send message error:', err);
       }
     }
+  };
 
-    // Notify other participant
-    const conv = conversations.find(c => c.id === conversationId);
-    if (conv && Array.isArray(conv.participantIds)) {
-      const otherId = conv.participantIds.find(id => id !== currentUser.uid);
-      if (otherId) {
-        createNotification(
-          otherId,
-          `Nova Mensagem de ${currentUser.name}`,
-          text.trim().substring(0, 60) + (text.length > 60 ? '...' : ''),
-          'info',
-          'messages',
-          conversationId
-        );
+  const markConversationAsRead = async (conversationId: string) => {
+    if (!currentUser || !conversationId) return;
+
+    // Reset unread count in conversations state
+    setConversations(prev =>
+      prev.map(c => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
+    );
+
+    // Mark messages as read in messages state
+    setMessages(prev =>
+      prev.map(m =>
+        m.conversationId === conversationId && m.senderId !== currentUser.uid
+          ? { ...m, read: true, status: 'read' }
+          : m
+      )
+    );
+
+    // Sync to Firestore
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'conversations', conversationId), {
+          unreadCount: 0,
+          updatedAt: new Date().toISOString()
+        }).catch(() => {});
+        await updateDoc(doc(db, 'chats', conversationId), {
+          unreadCount: 0,
+          updatedAt: new Date().toISOString()
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('Error marking conversation read in Firestore:', err);
       }
     }
   };
+
+  // Contagem de conversas ou mensagens diretas não lidas para o usuário atual
+  const unreadMessagesCount = currentUser
+    ? (conversations || []).filter(c => {
+        if (!Array.isArray(c?.participantIds) || !c.participantIds.includes(currentUser.uid)) return false;
+        if ((c.unreadCount ?? 0) > 0) return true;
+        return (messages || []).some(
+          m => m.conversationId === c.id && m.senderId !== currentUser.uid && !m.read && m.status !== 'read'
+        );
+      }).length
+    : 0;
 
   const startOrGetConversation = (
     targetUserId: string,
@@ -2743,6 +2790,47 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
   };
+
+  const isSystemNotification = (n: NotificationItem) => {
+    // Bloqueia e descarta notificações de mensagens comuns entre usuários/técnicos
+    if (
+      n.linkTab === 'messages' ||
+      n.deeplink === 'messages' ||
+      (n.title && n.title.toLowerCase().includes('nova mensagem')) ||
+      (n.title && n.title.toLowerCase().includes('mensagem de'))
+    ) {
+      return false;
+    }
+
+    const t = (n.title || '').toLowerCase();
+    return (
+      n.type === 'alert' ||
+      n.type === 'warning' ||
+      n.userId === 'all' ||
+      n.userId === 'admin' ||
+      t.includes('sistema') ||
+      t.includes('admin') ||
+      t.includes('aviso') ||
+      t.includes('segurança') ||
+      t.includes('manutenção') ||
+      t.includes('conta') ||
+      t.includes('selo') ||
+      t.includes('oficial') ||
+      t.includes('atualização')
+    );
+  };
+
+  const unreadSystemNotificationsCount = currentUser
+    ? notifications.filter(
+        n =>
+          (n.userId === currentUser.uid ||
+            n.userId === 'all' ||
+            n.userId === currentUser.role ||
+            n.userId === currentUser.tipoConta) &&
+          !n.read &&
+          isSystemNotification(n)
+      ).length
+    : 0;
 
   const unreadNotificationsCount = currentUser
     ? notifications.filter(
@@ -2916,11 +3004,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addAcademyArticle,
         verifyAcademyArticle,
         sendMessage,
+        markConversationAsRead,
         startOrGetConversation,
+        unreadMessagesCount,
         saveBudgetEstimate,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         unreadNotificationsCount,
+        unreadSystemNotificationsCount,
         sendAdminNotification,
         toggleFavorite,
         isFavorite,
