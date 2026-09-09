@@ -682,11 +682,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ? data.likes
             : (typeof data.pontos === 'number' ? data.pontos : 0)));
 
-      const scoreEngajamento = typeof data.scoreEngajamento === 'number'
-        ? data.scoreEngajamento
-        : (typeof data.pontos === 'number'
-          ? data.pontos
-          : totalLikes);
+      const effectivePoints = typeof data.points === 'number'
+        ? data.points
+        : (typeof data.scoreEngajamento === 'number'
+          ? data.scoreEngajamento
+          : (typeof data.pontos === 'number'
+            ? data.pontos
+            : totalLikes));
+
+      const scoreEngajamento = effectivePoints;
 
       return {
         userId: docSnap.id,
@@ -706,7 +710,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         photoURL: data.photoURL || data.avatarUrl || data.foto || '',
         totalLikes,
         scoreEngajamento,
-        pontos: typeof data.pontos === 'number' ? data.pontos : scoreEngajamento,
+        pontos: effectivePoints,
+        points: effectivePoints,
         streakCount: typeof data.streakCount === 'number' ? data.streakCount : 1,
         lastLoginDate: data.lastLoginDate || data.ultimoAcesso || '',
         verificationStatus: data.verificationStatus || (data.isVerified ? 'approved' : 'none'),

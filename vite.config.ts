@@ -71,6 +71,31 @@ export default defineConfig(() => {
           navigateFallbackDenylist: [/^\/api/],
           runtimeCaching: [
             {
+              urlPattern: ({ request }) => request.destination === 'script' || request.destination === 'style',
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'static-resources-cache',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 dias
+                },
+              },
+            },
+            {
+              urlPattern: ({ request }) => request.destination === 'image',
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'images-cache',
+                expiration: {
+                  maxEntries: 60,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',
               options: {

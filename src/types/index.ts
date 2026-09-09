@@ -75,6 +75,9 @@ export interface User {
   mensagemTransacaoSelo?: string;
   operadoraSelo?: 'mpesa' | 'emola';
   specialty?: string;
+  specialties?: string[];
+  bio?: string;
+  whatsapp?: string;
   province?: string;
   city?: string;
   statusAssinatura?: 'ativa' | 'inativa' | 'expirada' | 'pendente' | string;

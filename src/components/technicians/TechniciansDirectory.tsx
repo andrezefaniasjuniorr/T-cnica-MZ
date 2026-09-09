@@ -27,6 +27,7 @@ import { DigitalBusinessCard } from '../common/DigitalBusinessCard';
 import { TopBackNav } from '../common/TopBackNav';
 import { TechnicianCard } from './TechnicianCard';
 import { TechnicianDetailModal } from './TechnicianDetailModal';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface TechniciansDirectoryProps {
   onNavigateTab: (tab: string) => void;
@@ -49,17 +50,17 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
   const [selectedTechForCard, setSelectedTechForCard] = useState<TechnicianProfile | null>(null);
   const [selectedTechForDetail, setSelectedTechForDetail] = useState<TechnicianProfile | null>(null);
 
-  // Active technicians sorted descending by engagement (totalLikes / scoreEngajamento)
+  // Active technicians sorted descending by engagement score / points / totalLikes
   const activeTechsSorted = useMemo(() => {
     return technicians
       .filter(t => t.status === 'active')
       .sort((a, b) => {
+        const scoreA = (a.points ?? a.pontos ?? a.scoreEngajamento ?? a.totalLikes ?? 0);
+        const scoreB = (b.points ?? b.pontos ?? b.scoreEngajamento ?? b.totalLikes ?? 0);
+        if (scoreB !== scoreA) return scoreB - scoreA;
         const likesA = a.totalLikes ?? 0;
         const likesB = b.totalLikes ?? 0;
         if (likesB !== likesA) return likesB - likesA;
-        const scoreA = a.scoreEngajamento ?? 0;
-        const scoreB = b.scoreEngajamento ?? 0;
-        if (scoreB !== scoreA) return scoreB - scoreA;
         return (b.rating ?? 0) - (a.rating ?? 0);
       });
   }, [technicians]);
@@ -182,14 +183,11 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
                     {/* Circular Photo with Like Badge */}
                     <div className="flex items-center gap-3.5 mb-3">
                       <div className="relative shrink-0">
-                        <img
-                          src={
-                            tech.avatarUrl ||
-                            tech.photoURL ||
-                            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
-                          }
-                          alt={tech.name}
-                          className="w-16 h-16 rounded-full object-cover bg-slate-100 border-2 border-amber-300 shadow-sm group-hover:scale-105 transition-transform"
+                        <UserAvatar
+                          name={tech.name}
+                          photoURL={tech.photoURL || tech.avatarUrl}
+                          size="xl"
+                          className="border-2 border-amber-300 shadow-sm group-hover:scale-105 transition-transform"
                         />
                         {/* Likes Badge attached to Photo */}
                         <div

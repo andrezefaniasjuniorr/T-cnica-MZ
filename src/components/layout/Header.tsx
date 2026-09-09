@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { soundFX } from '../../utils/audio';
+import { UserAvatar } from '../common/UserAvatar';
 import { UserRankBadge } from '../../utils/gamification';
 import { PWAInstallHeaderButton } from '../common/PWAInstallBanner';
 import { NetworkStatusIndicator } from '../common/NetworkStatusIndicator';
@@ -352,13 +353,12 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Meu Perfil & Menu"
                 aria-label="Meu Perfil"
               >
-                <div className="w-8 h-8 rounded-full bg-blue-100 border-2 border-blue-500/40 text-blue-800 font-black text-xs flex items-center justify-center overflow-hidden shrink-0 shadow-2xs ring-2 ring-white">
-                  {currentUser?.avatarUrl ? (
-                    <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
-                  ) : (
-                    currentUser?.name?.charAt(0).toUpperCase() || 'U'
-                  )}
-                </div>
+                <UserAvatar
+                  name={currentUser?.name}
+                  photoURL={currentUser?.photoURL || currentUser?.avatarUrl}
+                  size="sm"
+                  className="ring-2 ring-white border-2 border-blue-500/40"
+                />
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
               </button>
 

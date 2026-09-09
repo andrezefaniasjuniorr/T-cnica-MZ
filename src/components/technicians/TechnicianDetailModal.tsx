@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { WhatsAppButton } from './WhatsAppButton';
 import { Badge } from '../common/Badge';
 import { UserRankBadge } from '../../utils/gamification';
+import { UserAvatar } from '../common/UserAvatar';
 import { giveHeartOrLike, renderProfileEngagement } from '../../services/engagement';
 import {
   X,
@@ -180,13 +181,11 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
         <div className="px-6 sm:px-8 pb-4 relative">
           <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-16 sm:-mt-20 mb-4">
             <div className="relative">
-              <img
-                src={
-                  technician.avatarUrl ||
-                  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'
-                }
-                alt={technician.name}
-                className="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl object-cover border-4 border-white shadow-xl bg-slate-100"
+              <UserAvatar
+                name={technician.name}
+                photoURL={technician.photoURL || technician.avatarUrl}
+                size="custom"
+                className="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl border-4 border-white shadow-xl text-3xl sm:text-4xl"
               />
               {isVerified && (
                 <div
@@ -473,13 +472,11 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <img
-                          src={
-                            rev.clientAvatar ||
-                            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-                          }
-                          alt={rev.clientName}
-                          className="w-7 h-7 rounded-full object-cover"
+                        <UserAvatar
+                          name={rev.clientName}
+                          photoURL={rev.clientAvatar}
+                          size="xs"
+                          className="w-7 h-7"
                         />
                         <span className="font-bold text-slate-900">{rev.clientName}</span>
                       </div>

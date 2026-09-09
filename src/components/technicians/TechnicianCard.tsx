@@ -7,6 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { soundFX } from '../../utils/audio';
 import { UserRankBadge } from '../../utils/gamification';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface TechnicianCardProps {
   technician: TechnicianProfile;
@@ -150,14 +151,11 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
       {/* Main Info */}
       <div className="flex items-start gap-3.5 mb-4">
         <div className="relative shrink-0">
-          <img
-            src={
-              technician.avatarUrl ||
-              technician.photoURL ||
-              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
-            }
-            alt={technician?.name || 'Técnico Especialista'}
-            className="w-16 h-16 sm:w-18 sm:h-18 rounded-full object-cover bg-slate-100 border-2 border-slate-200 shadow-xs"
+          <UserAvatar
+            name={technician?.name}
+            photoURL={technician?.photoURL || technician?.avatarUrl}
+            size="xl"
+            className="border-2 border-slate-200 shadow-xs"
           />
           {/* Like Count Badge on Circular Photo */}
           <div

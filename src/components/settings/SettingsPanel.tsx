@@ -28,6 +28,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { TopBackNav } from '../common/TopBackNav';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface SettingsPanelProps {
   onNavigateTab: (tab: string) => void;
@@ -129,6 +130,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         name: name.trim(),
         phone: phone.trim(),
         idade: parsedAge,
+        province,
+        city: city.trim(),
+        specialties: [specialty],
+        bio: bio.trim(),
         avatarUrl: avatarUrl.trim() || undefined,
         photoURL: avatarUrl.trim() || undefined
       });
@@ -328,13 +333,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </label>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="relative group">
-                <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-200 overflow-hidden flex items-center justify-center font-black text-slate-700 text-lg shadow-sm shrink-0">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    currentUser?.name?.charAt(0).toUpperCase() || 'U'
-                  )}
-                </div>
+                <UserAvatar
+                  name={name || currentUser?.name}
+                  photoURL={avatarUrl}
+                  size="xl"
+                  className="border-2 border-slate-200 shadow-sm shrink-0"
+                />
                 {isUploadingPhoto && (
                   <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
                     <Loader2 className="w-5 h-5 text-white animate-spin" />

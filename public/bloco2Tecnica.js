@@ -351,21 +351,27 @@ async function gerarChecklistNR10(dadosChecklist = {}, acao = 'download') {
 
   itens.forEach((it, idx) => {
     const texto = typeof it === 'string' ? it : (it.texto || it.descricao || it.item || `Item ${idx + 1}`);
-    const st = typeof it === 'string' ? 'CONFORME' : (it.status || 'CONFORME').toUpperCase();
-
-    let statusTexto = '✓ CONFORME';
-    let statusCor = '#059669';
-    let statusBg = '#f0fdf4';
-
-    if (st.includes('NÃO CONFORME') || st.includes('NAO CONFORME')) {
-      statusTexto = '✕ NÃO CONFORME';
-      statusCor = '#dc2626';
-      statusBg = '#fef2f2';
-    } else if (st.includes('N/A') || st.includes('NÃO APLICÁVEL') || st.includes('NAO APLICAVEL')) {
-      statusTexto = '— NÃO APLICÁVEL';
-      statusCor = '#64748b';
-      statusBg = '#f8fafc';
+    
+    // Leitura dinâmica rigorosa: se for booleano conforme/checked ou texto de status
+    let isConforme = true;
+    if (typeof it === 'object' && it !== null) {
+      if (typeof it.conforme === 'boolean') {
+        isConforme = it.conforme;
+      } else if (typeof it.checked === 'boolean') {
+        isConforme = it.checked;
+      } else if (typeof it.status === 'string') {
+        const upper = it.status.toUpperCase();
+        if (upper.includes('NÃO') || upper.includes('NAO') || upper.includes('REPROV') || upper.includes('PEND')) {
+          isConforme = false;
+        } else {
+          isConforme = true;
+        }
+      }
     }
+
+    const statusTexto = isConforme ? '✓ CONFORME' : '✕ NÃO CONFORME';
+    const statusCor = isConforme ? '#059669' : '#dc2626';
+    const statusBg = isConforme ? '#f0fdf4' : '#fef2f2';
 
     linhasTabela.push([
       { text: String(idx + 1), fontSize: 7, alignment: 'center' },

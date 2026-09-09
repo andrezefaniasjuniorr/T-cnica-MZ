@@ -2048,7 +2048,13 @@ const ChecklistNR10View: React.FC = () => {
       if (!chk) throw new Error('Módulo ChecklistSeguranca não carregado.');
       await chk({
         localObra: local,
-        itens,
+        itens: itens.map(it => ({
+          item: it.item,
+          texto: it.item,
+          conforme: it.conforme,
+          checked: it.conforme,
+          status: it.conforme ? 'CONFORME' : 'NÃO CONFORME'
+        })),
         prazoExecucao: prazo,
         garantia
       }, 'download');

@@ -720,7 +720,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
               }
 
-              // Sincronização em tempo real caso o Firestore reconecte ou haja atualização
+              // Sincronização em tempo real caso o Firestore reconecte ou haja atualização no perfil do usuário
               try {
                 profileUnsub = onSnapshot(usersRef, (liveSnap) => {
                   if (liveSnap.exists()) {
@@ -733,6 +733,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         phone: live.phone || live.telefone || prev.phone,
                         avatarUrl: live.avatarUrl || live.photoURL || prev.avatarUrl,
                         photoURL: live.photoURL || live.avatarUrl || prev.photoURL,
+                        idade: typeof live.idade === 'number' ? live.idade : prev.idade,
+                        province: live.province || live.provincia || prev.province,
+                        city: live.city || live.cidade || prev.city,
+                        specialties: Array.isArray(live.specialties) ? live.specialties : (live.especialidade ? [live.especialidade] : prev.specialties),
+                        bio: live.bio || prev.bio,
+                        whatsapp: live.whatsapp || prev.whatsapp,
                         temSeloMZ: Boolean(live.temSeloMZ || live.statusSelo === 'aprovado' || prev.temSeloMZ),
                         statusSelo: live.statusSelo || prev.statusSelo,
                         statusAprovacao: live.statusAprovacao || prev.statusAprovacao,
@@ -1748,6 +1754,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.idade !== undefined) techUpdate.idade = data.idade;
       if (data.province) techUpdate.province = data.province;
       if (data.city) techUpdate.city = data.city;
+      if (data.specialties) techUpdate.specialties = data.specialties;
+      if (data.bio) techUpdate.bio = data.bio;
+      if (data.whatsapp) techUpdate.whatsapp = data.whatsapp;
       if (Object.keys(techUpdate).length > 0) {
         updateCurrentTechProfile(techUpdate);
       }
@@ -1779,6 +1788,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (data.idade !== undefined) techDocPayload.idade = data.idade;
           if (data.province) techDocPayload.province = data.province;
           if (data.city) techDocPayload.city = data.city;
+          if (data.specialties) techDocPayload.specialties = data.specialties;
+          if (data.bio) techDocPayload.bio = data.bio;
+          if (data.whatsapp) techDocPayload.whatsapp = data.whatsapp;
           await setDoc(doc(db, 'technicians', currentUser.uid), techDocPayload, { merge: true });
         }
       } catch (err) {
@@ -1835,6 +1847,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.province) userPayload.province = data.province;
         if (data.city) userPayload.city = data.city;
         if (data.bio) userPayload.bio = data.bio;
+        if (data.specialties) {
+          userPayload.specialties = data.specialties;
+          userPayload.especialidade = data.specialties[0];
+        }
+        if (data.whatsapp) userPayload.whatsapp = data.whatsapp;
 
         await setDoc(doc(db, 'users', currentUser.uid), userPayload, { merge: true });
         await setDoc(doc(db, 'usuarios', currentUser.uid), userPayload, { merge: true });

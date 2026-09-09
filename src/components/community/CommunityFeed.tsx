@@ -7,6 +7,7 @@ import { SeloMZModal } from '../common/SeloMZModal';
 import { compressImageToDataUrl } from '../../utils/imageUpload';
 import { soundFX } from '../../utils/audio';
 import { UserRankBadge } from '../../utils/gamification';
+import { UserAvatar } from '../common/UserAvatar';
 import {
   MessageSquare,
   Sparkles,
@@ -384,15 +385,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                     {/* Author Header */}
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
-                          {post.authorAvatar ? (
-                            <img src={post.authorAvatar} alt={post.authorName || 'Usuário'} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-indigo-100 text-indigo-700 font-black text-base">
-                              {(post.authorName || 'U').charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                        </div>
+                        <UserAvatar
+                          name={post.authorName}
+                          photoURL={post.authorAvatar}
+                          size="lg"
+                          className="border border-slate-200"
+                        />
 
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -866,6 +864,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                           }`}>
                             {idx + 1}
                           </span>
+                          <UserAvatar
+                            name={tech.name}
+                            photoURL={tech.photoURL || tech.avatarUrl}
+                            size="sm"
+                            className="shrink-0"
+                          />
                           <div className="min-w-0">
                             <p className="text-xs font-black text-slate-900 truncate">{tech.name}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
