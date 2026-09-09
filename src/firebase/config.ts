@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import {
   getFirestore,
   initializeFirestore,
@@ -33,7 +33,14 @@ try {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 
-// Inicializar Firestore com cache persistente multi-aba moderno
+// 1. Definir explicitamente a persistência de autenticação do usuário para browserLocalPersistence
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.warn('[FirebaseAuth] Erro ao configurar persistência local da sessão:', err);
+  });
+}
+
+// 2. Inicializar Firestore com gerenciador de cache offline persistentLocalCache e persistentMultipleTabManager
 let dbInstance;
 try {
   dbInstance = initializeFirestore(app, {
