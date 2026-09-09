@@ -82,6 +82,43 @@ const formatTimestampToIso = (val: any): string => {
   return new Date().toISOString();
 };
 
+/**
+ * Sanitiza recursivamente objetos antes de salvar no Firestore,
+ * garantindo que NENHUM campo contenha o valor 'undefined',
+ * que é estritamente proibido pelo SDK do Firestore (lançando 'Unsupported field value: undefined').
+ */
+export function sanitizeFirestorePayload<T>(data: T): T {
+  if (data === undefined) {
+    return null as any;
+  }
+  if (data === null || typeof data !== 'object') {
+    return data;
+  }
+  // Preserva tipos especiais do Firestore (FieldValue, Timestamp, etc.)
+  if (
+    typeof (data as any)?._methodName === 'string' ||
+    (data as any)?.constructor?.name === 'FieldValue' ||
+    (data as any)?.constructor?.name === 'Timestamp' ||
+    typeof (data as any)?.isEqual === 'function'
+  ) {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => sanitizeFirestorePayload(item)) as any;
+  }
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) {
+      clean[key] = null;
+    } else {
+      clean[key] = sanitizeFirestorePayload(value);
+    }
+  }
+  return clean as T;
+}
+
 interface DataContextType {
   technicians: TechnicianProfile[];
   companies: CompanyProfile[];
@@ -451,12 +488,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   authorAvatar: cData.autorFoto || cData.authorAvatar || cData.authorPhoto || '',
                   authorSpecialty: cData.authorSpecialty || cData.especialidade || '',
                   text: cData.texto || cData.text || '',
-                  replyToId: cData.replyToId || undefined,
-                  replyToName: cData.replyToName || undefined,
+                  replyToId: cData.replyToId || null,
+                  replyToName: cData.replyToName || null,
                   likes: Array.isArray(cData.likes) ? cData.likes : [],
                   isAcceptedSolution: Boolean(cData.isAcceptedSolution || cData.solucaoAceita),
                   solucaoAceita: Boolean(cData.solucaoAceita || cData.isAcceptedSolution),
-                  acceptedSolutionAt: cData.acceptedSolutionAt || undefined,
+                  acceptedSolutionAt: cData.acceptedSolutionAt || null,
                   createdAt: formatTimestampToIso(cData.criadoEm || cData.createdAt || cData.createdAtIso)
                 });
               });
@@ -521,7 +558,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }))
           : [],
         solucaoAceita: Boolean(data.solucaoAceita),
-        comentarioSolucaoId: data.comentarioSolucaoId || undefined,
+        comentarioSolucaoId: data.comentarioSolucaoId || null,
         pinned: Boolean(data.pinned),
         createdAt: formatTimestampToIso(data.createdAt || data.data || data.dataEnvio || data.createdAtIso)
       };
@@ -1881,18 +1918,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const newPost: CommunityPost = {
       id: newPostId,
-      authorId: currentUser.uid,
-      authorName: currentUser.name,
-      authorRole: currentUser.role,
+      authorId: currentUser.uid || '',
+      authorName: currentUser.name || 'Usuário',
+      authorRole: currentUser.role || 'client',
       authorAvatar: currentUser.avatarUrl || techProfile?.avatarUrl || compProfile?.logoUrl || '',
       authorSpecialty: techProfile?.specialties?.[0] || (currentUser.role === 'company' ? 'Empresa / Indústria' : 'TécnicaMZ Profissional'),
       authorProvince: techProfile?.province || currentUser.province || 'Maputo',
       authorWhatsapp: techProfile?.whatsapp || currentUser.phone || '',
-      title: postData.title.trim(),
-      content: postData.content.trim(),
-      category: postData.category,
-      tags: postData.tags || [],
-      images: postData.images || [],
+      title: (postData.title || '').trim(),
+      content: (postData.content || '').trim(),
+      category: postData.category || 'Geral',
+      tags: Array.isArray(postData.tags) ? postData.tags : [],
+      images: Array.isArray(postData.images) ? postData.images : [],
       reactions: {
         useful: [],
         insightful: [],
@@ -1902,6 +1939,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       commentsCount: 0,
       comments: [],
       pinned: false,
+      solucaoAceita: false,
+      comentarioSolucaoId: null,
       createdAt: isoNow
     };
 
@@ -1909,28 +1948,51 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        const firestoreData = {
-          ...newPost,
-          autorId: currentUser.uid,
-          autor: currentUser.name,
-          autorNome: currentUser.name,
-          autorTipo: currentUser.role,
+        const firestoreData = sanitizeFirestorePayload({
+          id: newPost.id,
+          authorId: newPost.authorId || currentUser.uid || '',
+          authorName: newPost.authorName || currentUser.name || 'Usuário',
+          authorRole: newPost.authorRole || currentUser.role || 'client',
+          authorAvatar: newPost.authorAvatar || '',
+          authorSpecialty: newPost.authorSpecialty || '',
+          authorProvince: newPost.authorProvince || 'Maputo',
+          authorWhatsapp: newPost.authorWhatsapp || '',
+          title: (newPost.title || '').trim(),
+          content: (newPost.content || '').trim(),
+          category: newPost.category || 'Geral',
+          tags: Array.isArray(newPost.tags) ? newPost.tags : [],
+          images: Array.isArray(newPost.images) ? newPost.images : [],
+          reactions: {
+            useful: [],
+            insightful: [],
+            applause: [],
+            question: []
+          },
+          commentsCount: 0,
+          comments: [],
+          pinned: false,
+          solucaoAceita: false,
+          comentarioSolucaoId: null,
+          autorId: currentUser.uid || '',
+          autor: currentUser.name || 'Usuário',
+          autorNome: currentUser.name || 'Usuário',
+          autorTipo: currentUser.role || 'client',
           autorFoto: currentUser.avatarUrl || techProfile?.avatarUrl || '',
-          foto: postData.images?.[0] || '',
-          titulo: postData.title.trim(),
-          conteudo: postData.content.trim(),
-          categoria: postData.category,
+          foto: newPost.images?.[0] || '',
+          titulo: (newPost.title || '').trim(),
+          conteudo: (newPost.content || '').trim(),
+          categoria: newPost.category || 'Geral',
           likes: [],
           curtidas: [],
           data: serverTimestamp(),
           createdAt: serverTimestamp(),
           createdAtIso: isoNow
-        };
+        });
 
         // Salvar diretamente na coleção mural_posts
         await setDoc(doc(db, 'mural_posts', newPost.id), firestoreData);
         // Também salvar na coleção community_posts para máxima retrocompatibilidade
-        await setDoc(doc(db, 'community_posts', newPost.id), firestoreData);
+        await setDoc(doc(db, 'community_posts', newPost.id), firestoreData).catch(() => {});
       } catch (err) {
         console.warn('Firestore add community post error:', err);
       }
@@ -1972,14 +2034,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isFirebaseConfigured && db && updatedPost) {
       try {
         const usefulLikes = (updatedPost as CommunityPost).reactions?.useful || [];
-        const payloadToUpdate = {
+        const payloadToUpdate = sanitizeFirestorePayload({
           ...updatedPost,
+          solucaoAceita: updatedPost.solucaoAceita || false,
+          comentarioSolucaoId: updatedPost.comentarioSolucaoId || null,
           likes: usefulLikes,
           curtidas: usefulLikes,
           updatedAt: new Date().toISOString()
-        };
+        });
 
-        await setDoc(doc(db, 'mural_posts', postId), payloadToUpdate, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'mural_posts', postId), payloadToUpdate, { merge: true }).catch((e) => console.warn('setDoc mural_posts reaction error:', e));
         await setDoc(doc(db, 'community_posts', postId), payloadToUpdate, { merge: true }).catch(() => {});
 
         // Update post author's score & totalLikes if author is a technician
@@ -2064,15 +2128,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const newComment: CommunityComment = {
       id: commentId,
-      postId,
-      authorId: currentUser.uid,
-      authorName: currentUser.name,
-      authorRole: currentUser.role,
+      postId: postId || '',
+      authorId: currentUser.uid || '',
+      authorName: currentUser.name || 'Usuário',
+      authorRole: currentUser.role || 'client',
       authorAvatar: currentUser.avatarUrl || techProfile?.avatarUrl || '',
       authorSpecialty: techProfile?.specialties?.[0] || (currentUser.role === 'company' ? 'Empresa' : 'Técnico Especialista'),
-      text: text.trim(),
-      replyToId,
-      replyToName,
+      text: (text || '').trim(),
+      replyToId: replyToId || null,
+      replyToName: replyToName || null,
       likes: [],
       createdAt: nowIso
     };
@@ -2094,20 +2158,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        const commentFirestoreData = {
+        const commentFirestoreData = sanitizeFirestorePayload({
           id: commentId,
-          postId,
-          texto: text.trim(),
-          text: text.trim(),
-          autorId: currentUser.uid,
-          authorId: currentUser.uid,
-          autorNome: currentUser.name,
-          authorName: currentUser.name,
-          autorFoto: newComment.authorAvatar,
-          authorAvatar: newComment.authorAvatar,
-          authorPhoto: newComment.authorAvatar,
-          authorRole: currentUser.role,
-          authorSpecialty: newComment.authorSpecialty,
+          postId: postId || '',
+          texto: (text || '').trim(),
+          text: (text || '').trim(),
+          autorId: currentUser.uid || '',
+          authorId: currentUser.uid || '',
+          autorNome: currentUser.name || 'Usuário',
+          authorName: currentUser.name || 'Usuário',
+          autorFoto: newComment.authorAvatar || '',
+          authorAvatar: newComment.authorAvatar || '',
+          authorPhoto: newComment.authorAvatar || '',
+          authorRole: currentUser.role || 'client',
+          authorSpecialty: newComment.authorSpecialty || '',
           replyToId: replyToId || null,
           replyToName: replyToName || null,
           likes: [],
@@ -2115,7 +2179,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           criadoEm: serverTimestamp(),
           createdAt: serverTimestamp(),
           createdAtIso: nowIso
-        };
+        });
 
         // Salvar na subcoleção comentarios de mural_posts e community_posts
         await setDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), commentFirestoreData);
@@ -2123,8 +2187,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Atualizar documento pai
         if (updatedPost) {
-          await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
-          await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
+          const sanitizedPost = sanitizeFirestorePayload(updatedPost);
+          await setDoc(doc(db, 'mural_posts', postId), sanitizedPost, { merge: true }).catch((e) => console.warn('setDoc mural_posts comment error:', e));
+          await setDoc(doc(db, 'community_posts', postId), sanitizedPost, { merge: true }).catch(() => {});
         }
       } catch (err: any) {
         console.warn('Firestore add comment error:', err);
@@ -2133,11 +2198,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Notificar autor do post se for outra pessoa
-    if (updatedPost && updatedPost.authorId && updatedPost.authorId !== currentUser.uid) {
+    if (updatedPost && (updatedPost as any).authorId && (updatedPost as any).authorId !== currentUser.uid) {
       createNotification(
-        updatedPost.authorId,
+        (updatedPost as any).authorId,
         'Novo Comentário no Mural',
-        `${currentUser.name} comentou no seu post "${updatedPost.title}".`,
+        `${currentUser.name || 'Usuário'} comentou no seu post "${(updatedPost as any).title || ''}".`,
         'info',
         'community',
         postId
@@ -2177,21 +2242,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db && updatedPost) {
       try {
-        await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
-        await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
+        const sanitizedPost = sanitizeFirestorePayload(updatedPost);
+        await setDoc(doc(db, 'mural_posts', postId), sanitizedPost, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'community_posts', postId), sanitizedPost, { merge: true }).catch(() => {});
         // Atualizar também na subcoleção se existir
         const currentComm = updatedPost.comments.find(c => c.id === commentId);
         if (currentComm) {
-          await updateDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), {
-            likes: currentComm.likes,
-            curtidas: currentComm.likes.length
-          }).catch(() => {});
+          const commentLikesPayload = sanitizeFirestorePayload({
+            likes: currentComm.likes || [],
+            curtidas: (currentComm.likes || []).length
+          });
+          await updateDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), commentLikesPayload).catch(() => {});
+          await updateDoc(doc(db, 'community_posts', postId, 'comentarios', commentId), commentLikesPayload).catch(() => {});
 
           if (currentComm.likes.includes(userId) && currentComm.authorId && currentComm.authorId !== userId) {
             createNotification(
               currentComm.authorId,
               'Curtida no seu Comentário',
-              `${currentUser.name} curtiu seu comentário técnico no mural.`,
+              `${currentUser.name || 'Usuário'} curtiu seu comentário técnico no mural.`,
               'info',
               'community',
               postId
@@ -2212,7 +2280,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const comments = p.comments.filter(comm => comm.id !== commentId);
         const postUpdated = {
           ...p,
-          commentsCount: Math.max(0, p.commentsCount - 1),
+          commentsCount: Math.max(0, (p.commentsCount || 1) - 1),
           comments
         };
         updatedPost = postUpdated;
@@ -2225,8 +2293,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await deleteDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId)).catch(() => {});
         await deleteDoc(doc(db, 'community_posts', postId, 'comentarios', commentId)).catch(() => {});
         if (updatedPost) {
-          await setDoc(doc(db, 'mural_posts', postId), updatedPost, { merge: true }).catch(() => {});
-          await setDoc(doc(db, 'community_posts', postId), updatedPost, { merge: true }).catch(() => {});
+          const sanitizedPost = sanitizeFirestorePayload(updatedPost);
+          await setDoc(doc(db, 'mural_posts', postId), sanitizedPost, { merge: true }).catch(() => {});
+          await setDoc(doc(db, 'community_posts', postId), sanitizedPost, { merge: true }).catch(() => {});
         }
       } catch (err) {
         console.warn('Firestore delete comment error:', err);
@@ -2280,14 +2349,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...c,
             solucaoAceita: isThis,
             isAcceptedSolution: isThis,
-            acceptedSolutionAt: isThis ? nowIso : undefined
+            acceptedSolutionAt: isThis ? nowIso : null
           };
         });
 
         return {
           ...p,
           solucaoAceita: true,
-          comentarioSolucaoId: commentId,
+          comentarioSolucaoId: commentId || null,
           comments: updatedComments
         };
       })
@@ -2304,31 +2373,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const commentAuthorId = targetComment.authorId;
     if (isFirebaseConfigured && db) {
       try {
-        // Atualizar documento do post
-        await setDoc(doc(db, 'mural_posts', postId), {
+        const postSolutionPayload = sanitizeFirestorePayload({
           solucaoAceita: true,
-          comentarioSolucaoId: commentId,
+          comentarioSolucaoId: commentId || null,
           updatedAt: serverTimestamp()
-        }, { merge: true }).catch(() => {});
+        });
 
-        await setDoc(doc(db, 'community_posts', postId), {
-          solucaoAceita: true,
-          comentarioSolucaoId: commentId,
-          updatedAt: serverTimestamp()
-        }, { merge: true }).catch(() => {});
+        // Atualizar documento do post
+        await setDoc(doc(db, 'mural_posts', postId), postSolutionPayload, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'community_posts', postId), postSolutionPayload, { merge: true }).catch(() => {});
 
         // Atualizar comentário na subcoleção
-        await setDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), {
+        const commentSolutionPayload = sanitizeFirestorePayload({
           solucaoAceita: true,
           isAcceptedSolution: true,
-          acceptedSolutionAt: nowIso
-        }, { merge: true }).catch(() => {});
+          acceptedSolutionAt: nowIso || new Date().toISOString()
+        });
 
-        await setDoc(doc(db, 'community_posts', postId, 'comentarios', commentId), {
-          solucaoAceita: true,
-          isAcceptedSolution: true,
-          acceptedSolutionAt: nowIso
-        }, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), commentSolutionPayload, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'community_posts', postId, 'comentarios', commentId), commentSolutionPayload, { merge: true }).catch(() => {});
 
         // Incrementar +50 pontos para o autor da resposta usando increment(50)
         if (commentAuthorId) {

@@ -162,8 +162,8 @@ export async function markCommentAsUseful(
       // a) Salva no post: solvedCommentId: commentId
       if (postDoc.exists()) {
         transaction.update(postRef, {
-          solvedCommentId: commentId,
-          comentarioSolucaoId: commentId,
+          solvedCommentId: commentId || null,
+          comentarioSolucaoId: commentId || null,
           solucaoAceita: true,
           updatedAt: serverTimestamp()
         });
