@@ -404,13 +404,13 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     return `Olá ${userName}, Sou Eng.Sara IA da TécnicaMZ Pro! Precisa de ajuda?`;
   }, [userName]);
 
-  // Carrega histórico do localStorage ou inicia com a saudação curta
+  // Carrega histórico do localStorage ou inicia com a saudação curta (mantendo no máximo as últimas 10 mensagens)
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(-10);
       }
     } catch (e) {
       console.warn('Erro ao carregar mensagens locais:', e);
@@ -441,20 +441,43 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   }, [messages, isOpen, isThinking, scrollToBottom]);
 
-  // Salva no LocalStorage com proteção de cota (omite dados pesados de imagens base64 para preservar o limite de 5MB)
-  useEffect(() => {
+  // Salva no LocalStorage APENAS ao enviar/receber mensagem, mantendo no máximo as últimas 10 mensagens
+  // O input de digitação NUNCA aciona o localStorage, evitando travamentos na digitação
+  const saveMessagesToStorage = useCallback((msgs: Message[]) => {
     try {
-      const sanitized = messages.slice(-30).map(m => {
-        if (m.imageUrl && m.imageUrl.startsWith('data:') && m.imageUrl.length > 2000) {
+      const sanitized = msgs.slice(-10).map(m => {
+        if (m.imageUrl && m.imageUrl.startsWith('data:') && m.imageUrl.length > 1000) {
           return { ...m, imageUrl: undefined };
         }
         return m;
       });
       localStorage.setItem(storageKey, JSON.stringify(sanitized));
-    } catch (e) {
-      console.warn('Erro ao salvar mensagens no LocalStorage:', e);
+    } catch (e: any) {
+      // Tratamento para QuotaExceededError
+      if (
+        e?.name === 'QuotaExceededError' ||
+        e?.code === 22 ||
+        e?.code === 1014 ||
+        e?.number === -2147024882 ||
+        String(e).toLowerCase().includes('quota')
+      ) {
+        console.warn('QuotaExceededError no Sara IA. Tentando salvar apenas as últimas 5 mensagens sem anexos.');
+        try {
+          const minimal = msgs.slice(-5).map(m => ({
+            id: m.id,
+            sender: m.sender,
+            text: m.text,
+            timestamp: m.timestamp
+          }));
+          localStorage.setItem(storageKey, JSON.stringify(minimal));
+        } catch {
+          // Se ainda falhar, não quebra a interface
+        }
+      } else {
+        console.warn('Erro ao salvar mensagens do Sara IA no LocalStorage:', e);
+      }
     }
-  }, [messages, storageKey]);
+  }, [storageKey]);
 
   if (!isOpen) return null;
 
@@ -474,7 +497,11 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         }
       ];
       setMessages(resetMsg);
-      localStorage.removeItem(storageKey);
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (e) {
+        console.warn('Erro ao remover histórico do LocalStorage:', e);
+      }
     }
   };
 
@@ -483,15 +510,14 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     if ((!trimmedText && !currentImg) || isThinking) return;
 
     if (!GEMINI_API_KEY) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `sara_${Date.now()}`,
-          sender: 'sara',
-          text: 'Erro de Configuração: A chave da API Gemini não foi encontrada. Por favor, configure a variável VITE_GEMINI_API_KEY no arquivo .env para ativar a Sara IA.',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+      const noKeyMsg: Message = {
+        id: `sara_${Date.now()}`,
+        sender: 'sara',
+        text: 'Erro de Configuração: A chave da API Gemini não foi encontrada. Por favor, configure a variável VITE_GEMINI_API_KEY no arquivo .env para ativar a Sara IA.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, noKeyMsg]);
+      saveMessagesToStorage([...messages, noKeyMsg]);
       return;
     }
 
@@ -517,6 +543,9 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ]);
+
+    // Salva no localStorage APENAS ao enviar a mensagem
+    saveMessagesToStorage(updatedHistory);
 
     setIsThinking(true);
 
@@ -607,12 +636,23 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
 
       if (!fullText) {
         fullText = `Desculpe, ${userName}. Não consegui processar a resposta técnica no momento. Por favor, tente novamente.`;
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === saraMessageId ? { ...msg, text: fullText } : msg
-          )
-        );
       }
+
+      const finalSaraMsg: Message = {
+        id: saraMessageId,
+        sender: 'sara',
+        text: fullText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === saraMessageId ? finalSaraMsg : msg
+        )
+      );
+
+      // Salva no localStorage APENAS ao receber a mensagem
+      saveMessagesToStorage([...updatedHistory, finalSaraMsg]);
 
       if (isFirebaseConfigured && db) {
         try {
@@ -632,16 +672,21 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
       }
     } catch (err: any) {
       console.warn('Erro na conexão com a Sara IA:', err);
+      const errorMsgText = `Sara IA: Não foi possível obter resposta no momento. Detalhe: ${err.message || 'Verifique a conexão.'}`;
+      const finalErrorMsg: Message = {
+        id: saraMessageId,
+        sender: 'sara',
+        text: errorMsgText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
       setMessages(prev =>
         prev.map(msg =>
-          msg.id === saraMessageId
-            ? {
-                ...msg,
-                text: `Sara IA: Não foi possível obter resposta no momento. Detalhe: ${err.message || 'Verifique a conexão.'}`
-              }
-            : msg
+          msg.id === saraMessageId ? finalErrorMsg : msg
         )
       );
+
+      saveMessagesToStorage([...updatedHistory, finalErrorMsg]);
     } finally {
       setIsThinking(false);
     }

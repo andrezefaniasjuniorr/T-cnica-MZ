@@ -6,18 +6,49 @@ function cleanupStorageQuota(): void {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
     const keysToRemove: string[] = [];
+    const heavyKeys = [
+      'tecnicamz_stories',
+      'tecnicamz_portfolio',
+      'tecnicamz_market',
+      'tecnicamz_community_posts',
+      'tecnicamz_admin_logs',
+      'tecnicamz_messages',
+      'tecnicamz_conversations',
+      'tecnicamz_technicians',
+      'tecnicamz_companies',
+      'tecnicamz_reports',
+      'tecnicamz_requests',
+      'tecnicamz_proposals',
+      'tecnicamz_reviews',
+      'tecnicamz_job_applications',
+      'tecnicamz_jobs',
+      'tecnicamz_payments',
+      'tecnicamz_users'
+    ];
+
     for (let i = 0; i < window.localStorage.length; i++) {
       const k = window.localStorage.key(i);
-      if (
-        k &&
-        (k.startsWith('firestore_') ||
-          k.startsWith('tecnicamz_admin_logs') ||
-          k.startsWith('tecnicamz_stories') ||
-          k.startsWith('sara_chat_history_'))
-      ) {
+      if (!k) continue;
+
+      // NUNCA remover chaves internas do Firestore ou de autenticação
+      if (k.startsWith('firestore_') || k.startsWith('firebase:')) continue;
+
+      if (heavyKeys.some((h) => k === h || k.startsWith(h))) {
         keysToRemove.push(k);
+        continue;
+      }
+
+      // Se valor for muito grande (> 25KB) e não for essencial
+      try {
+        const val = window.localStorage.getItem(k);
+        if (val && val.length > 25000) {
+          keysToRemove.push(k);
+        }
+      } catch {
+        // no-op
       }
     }
+
     keysToRemove.forEach((k) => {
       try {
         window.localStorage.removeItem(k);
@@ -45,7 +76,13 @@ export function safeGetStorageItem<T>(key: string, defaultValue: T): T {
 export function safeSetStorageItem<T>(key: string, value: T): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    const serialized = JSON.stringify(value);
+    // Não salvar objetos gigantes (> 40KB) no localStorage para proteger a cota de 5MB
+    // Dados extensos são geridos pelo Firestore via persistentLocalCache (IndexedDB)
+    if (serialized.length > 40000) {
+      return;
+    }
+    window.localStorage.setItem(key, serialized);
   } catch (err: any) {
     // Tratamento robusto para QuotaExceededError
     if (
@@ -54,10 +91,12 @@ export function safeSetStorageItem<T>(key: string, value: T): void {
       err?.number === -2147024882 ||
       String(err).includes('quota')
     ) {
-      console.warn(`[LocalStorage] Cota de armazenamento atingida ao salvar "${key}". Limpando chaves temporárias...`);
       cleanupStorageQuota();
       try {
-        window.localStorage.setItem(key, JSON.stringify(value));
+        const serialized = JSON.stringify(value);
+        if (serialized.length <= 30000) {
+          window.localStorage.setItem(key, serialized);
+        }
       } catch {
         // Falha graciosa sem interromper o funcionamento do aplicativo
       }

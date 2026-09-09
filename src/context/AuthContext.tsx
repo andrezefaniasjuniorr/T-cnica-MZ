@@ -322,21 +322,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser?.uid, currentUser?.role, techList, companyList]);
 
-  // Keep local storage synchronized with current lists
+  // Keep local storage synchronized with current lists (somente como fallback se Firebase não estiver ativo)
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_users', usersList);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_users', usersList);
+    }
   }, [usersList]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_technicians', techList);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_technicians', techList);
+    }
   }, [techList]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_companies', companyList);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_companies', companyList);
+    }
   }, [companyList]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_solicitacoes_selo', solicitacoesSelo);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_solicitacoes_selo', solicitacoesSelo);
+    }
   }, [solicitacoesSelo]);
 
   // Helper: Login / Access as Client (Guest with Name stored in localStorage)
@@ -447,19 +455,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Firebase auth state listener - runs once on mount
   useEffect(() => {
     let profileUnsub: (() => void) | null = null;
+    let isMounted = true;
+
+    // Watchdog de segurança: garante que isLoading NUNCA fique travado em true
+    const watchdogTimer = setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }, 3000);
 
     if (isFirebaseConfigured && auth) {
-      const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-        // Se estiver no processo de criação de conta, aguarda o setDoc terminar
-        if (typeof window !== 'undefined' && (window.isCreatingAccount || window.isRegistering)) {
-          console.log('[Auth] Cadastro em andamento (isCreatingAccount || isRegistering). Ignorando onAuthStateChanged temporariamente para evitar race condition.');
-          return;
-        }
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        async (fbUser) => {
+          try {
+            // Se estiver no processo de criação de conta, aguarda o setDoc terminar
+            if (typeof window !== 'undefined' && (window.isCreatingAccount || window.isRegistering)) {
+              console.log('[Auth] Cadastro em andamento (isCreatingAccount || isRegistering). Ignorando onAuthStateChanged temporariamente para evitar race condition.');
+              return;
+            }
 
-        if (profileUnsub) {
-          profileUnsub();
-          profileUnsub = null;
-        }
+            if (profileUnsub) {
+              profileUnsub();
+              profileUnsub = null;
+            }
 
         if (fbUser) {
           const normalizedEmail = (fbUser.email || '').trim().toLowerCase();
@@ -837,16 +856,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCurrentUser(null);
           }
         }
-        setIsLoading(false);
-      });
-      return () => {
-        unsubscribe();
-        if (profileUnsub) {
-          profileUnsub();
+      } catch (unhandledAuthErr) {
+        console.warn('[Auth] Erro inesperado em onAuthStateChanged:', unhandledAuthErr);
+      } finally {
+        if (isMounted) {
+          clearTimeout(watchdogTimer);
+          setIsLoading(false);
         }
-      };
-    } else {
-      // Offline / unconfigured: check saved client name
+      }
+    },
+    (authError) => {
+      console.warn('[Auth] Erro no listener onAuthStateChanged:', authError);
+      if (isMounted) {
+        clearTimeout(watchdogTimer);
+        setIsLoading(false);
+      }
+    }
+  );
+
+  return () => {
+    isMounted = false;
+    clearTimeout(watchdogTimer);
+    unsubscribe();
+    if (profileUnsub) {
+      profileUnsub();
+    }
+  };
+} else {
+  clearTimeout(watchdogTimer);
+  // Offline / unconfigured: check saved client name
       const savedClientName = typeof window !== 'undefined' ? localStorage.getItem('clienteNome') : null;
       if (savedClientName) {
         const clientUser: User = {

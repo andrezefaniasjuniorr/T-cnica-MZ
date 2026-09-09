@@ -935,81 +935,119 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Sync to localStorage
+  // Sync to localStorage (apenas preferências e fallbacks quando Firebase não estiver ativo)
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_stories', stories);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_stories', stories);
+    }
   }, [stories]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_technicians', technicians);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_technicians', technicians);
+    }
   }, [technicians]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_companies', companies);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_companies', companies);
+    }
   }, [companies]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_jobs', jobs);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_jobs', jobs);
+    }
   }, [jobs]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_job_applications', applications);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_job_applications', applications);
+    }
   }, [applications]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_plans', plans);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_plans', plans);
+    }
   }, [plans]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_payments', payments);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_payments', payments);
+    }
   }, [payments]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_requests', serviceRequests);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_requests', serviceRequests);
+    }
   }, [serviceRequests]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_proposals', proposals);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_proposals', proposals);
+    }
   }, [proposals]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_reviews', reviews);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_reviews', reviews);
+    }
   }, [reviews]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_portfolio', portfolio);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_portfolio', portfolio);
+    }
   }, [portfolio]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_market', marketItems);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_market', marketItems);
+    }
   }, [marketItems]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_community_posts', communityPosts);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_community_posts', communityPosts);
+    }
   }, [communityPosts]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_academy', academyArticles);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_academy', academyArticles);
+    }
   }, [academyArticles]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_conversations', conversations);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_conversations', conversations);
+    }
   }, [conversations]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_messages', messages);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_messages', messages);
+    }
   }, [messages]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_notifications', notifications);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_notifications', notifications);
+    }
   }, [notifications]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_reports', reports);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_reports', reports);
+    }
   }, [reports]);
 
   useEffect(() => {
-    safeSetStorageItem('tecnicamz_admin_logs', adminLogs);
+    if (!isFirebaseConfigured) {
+      safeSetStorageItem('tecnicamz_admin_logs', adminLogs);
+    }
   }, [adminLogs]);
 
   useEffect(() => {
