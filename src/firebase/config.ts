@@ -3,8 +3,7 @@ import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import {
   getFirestore,
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  memoryLocalCache,
   setLogLevel
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -29,6 +28,33 @@ try {
   // no-op
 }
 
+// Limpeza preventiva de chaves órfãs do Firestore que sobrecarregavam o localStorage
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (
+        k &&
+        (k.startsWith('firestore_') ||
+          k.startsWith('firestore:') ||
+          k.startsWith('firebase:firestore:'))
+      ) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => {
+      try {
+        window.localStorage.removeItem(k);
+      } catch {
+        // no-op
+      }
+    });
+  } catch {
+    // no-op
+  }
+}
+
 // 1. INICIALIZAÇÃO CORRETA DOS SERVIÇOS (Firebase SDK v9+)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
@@ -40,15 +66,16 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// 2. Inicializar Firestore com gerenciador de cache offline persistentLocalCache e persistentMultipleTabManager
+// 2. Inicializar Firestore com cache em memória (memoryLocalCache)
+// Isso evita que o Firestore use WebStorageSharedClientState (window.localStorage),
+// eliminando completamente o QuotaExceededError e falhas de asserção interna.
 let dbInstance;
 try {
   dbInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
+    localCache: memoryLocalCache()
   });
-} catch {
+} catch (err) {
+  console.warn('[Firestore] Falha ao inicializar com memoryLocalCache, fallback para getFirestore:', err);
   dbInstance = getFirestore(app);
 }
 

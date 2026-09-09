@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo, forwardRef, useImperativeHandle } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -6,7 +6,6 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useAuth } from '../../context/AuthContext';
-import { useData } from '../../context/DataContext';
 import { SeloMZModal } from './SeloMZModal';
 import { doc, setDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../firebase/config';
@@ -17,17 +16,13 @@ import {
   Sparkles,
   Send,
   Bot,
-  User,
   Camera,
   Image as ImageIcon,
   Loader2,
   Trash2,
-  HelpCircle,
   Zap,
   Sun,
   FileSpreadsheet,
-  AlertTriangle,
-  CheckCircle2,
   Lock,
   ArrowRight
 } from 'lucide-react';
@@ -48,6 +43,354 @@ interface Message {
   timestamp: string;
 }
 
+export interface ChatInputFormHandle {
+  setInputText: (text: string) => void;
+  focus: () => void;
+}
+
+// Definição estática e memoizada dos componentes do Markdown para evitar re-criação de nós na árvore virtual
+const MARKDOWN_COMPONENTS = {
+  h1: ({ children }: any) => <h1 className="text-base font-black text-slate-900 mt-3 mb-1.5 pb-1 border-b border-slate-200">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-sm sm:text-base font-black text-slate-900 mt-2.5 mb-1">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-xs sm:text-sm font-bold text-blue-950 mt-2 mb-1">{children}</h3>,
+  h4: ({ children }: any) => <h4 className="text-xs font-bold text-slate-800 mt-1.5 mb-0.5">{children}</h4>,
+  p: ({ children }: any) => <p className="mb-2 last:mb-0 leading-relaxed text-slate-800">{children}</p>,
+  strong: ({ children }: any) => <strong className="font-bold text-slate-950">{children}</strong>,
+  em: ({ children }: any) => <em className="italic text-slate-700">{children}</em>,
+  ul: ({ children }: any) => <ul className="list-disc pl-5 my-2 space-y-1 text-slate-800">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-5 my-2 space-y-1 text-slate-800">{children}</ol>,
+  li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-4 border-blue-600 pl-3 py-1.5 my-2 bg-blue-50/70 rounded-r-lg italic text-slate-800 text-xs sm:text-sm">
+      {children}
+    </blockquote>
+  ),
+  code: ({ className, children, ...props }: any) => {
+    const isInline = !className && typeof children === 'string' && !children.includes('\n');
+    if (isInline) {
+      return (
+        <code className="bg-slate-100 text-blue-800 font-mono text-[11px] sm:text-xs px-1.5 py-0.5 rounded border border-slate-200 font-medium" {...props}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code className="block bg-slate-900 text-slate-100 p-3 rounded-xl overflow-x-auto my-2 font-mono text-[11px] sm:text-xs leading-relaxed" {...props}>
+        {children}
+      </code>
+    );
+  },
+  pre: ({ children }: any) => <pre className="my-2 rounded-xl overflow-hidden shadow-xs">{children}</pre>,
+  table: ({ children }: any) => (
+    <div className="overflow-x-auto my-3 rounded-xl border border-slate-300 shadow-2xs">
+      <table className="min-w-full divide-y divide-slate-200 text-xs border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: any) => <thead className="bg-slate-100 text-slate-900 font-bold">{children}</thead>,
+  th: ({ children }: any) => <th className="border border-slate-300 p-2 text-left font-bold text-slate-900 bg-slate-100/90 whitespace-nowrap">{children}</th>,
+  td: ({ children }: any) => <td className="border border-slate-200 p-2 text-slate-700 bg-white">{children}</td>,
+  hr: () => <hr className="my-3 border-slate-200" />
+};
+
+const MARKDOWN_REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMath];
+const MARKDOWN_REHYPE_PLUGINS = [rehypeKatex];
+
+// Item individual da mensagem memoizado: NUNCA re-renderiza quando o usuário digita na caixa de texto
+const ChatMessageItem = memo<{
+  message: Message;
+  isThinkingThisMessage?: boolean;
+}>(({ message, isThinkingThisMessage }) => {
+  return (
+    <div
+      className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+    >
+      {message.sender === 'sara' && (
+        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs shrink-0 shadow-sm">
+          <Bot className="w-4 h-4" />
+        </div>
+      )}
+
+      <div
+        className={`max-w-[85%] sm:max-w-[80%] p-4 rounded-2xl text-xs sm:text-sm space-y-2 shadow-xs ${
+          message.sender === 'user'
+            ? 'bg-slate-900 text-white rounded-br-none'
+            : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
+        }`}
+      >
+        {message.imageUrl && (
+          <div className="rounded-xl overflow-hidden border border-slate-300/40 max-h-52 bg-slate-950 flex items-center justify-center">
+            <img
+              src={message.imageUrl}
+              alt="Upload técnico"
+              className="max-h-52 object-contain"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        )}
+
+        {message.sender === 'user' ? (
+          <div className="leading-relaxed whitespace-pre-wrap font-normal">
+            {message.text}
+          </div>
+        ) : (
+          <div className="leading-relaxed font-normal text-slate-800">
+            {message.text ? (
+              <div className="sara-markdown prose prose-sm max-w-none prose-table:border-collapse prose-th:border prose-th:p-2 prose-td:border prose-td:p-2 text-slate-800 text-xs sm:text-sm">
+                <ReactMarkdown
+                  remarkPlugins={MARKDOWN_REMARK_PLUGINS}
+                  rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
+                  components={MARKDOWN_COMPONENTS}
+                >
+                  {message.text}
+                </ReactMarkdown>
+              </div>
+            ) : isThinkingThisMessage ? (
+              <div className="flex items-center gap-1.5 py-1 text-slate-400">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse delay-100" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse delay-200" />
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        <div className="text-[10px] text-right text-slate-400">
+          {message.timestamp}
+        </div>
+      </div>
+    </div>
+  );
+}, (prev, next) => {
+  return (
+    prev.message.id === next.message.id &&
+    prev.message.text === next.message.text &&
+    prev.message.imageUrl === next.message.imageUrl &&
+    prev.message.timestamp === next.message.timestamp &&
+    prev.isThinkingThisMessage === next.isThinkingThisMessage
+  );
+});
+
+ChatMessageItem.displayName = 'ChatMessageItem';
+
+// Lista de mensagens isolada e memoizada
+const ChatMessagesList = memo<{
+  messages: Message[];
+  isThinking: boolean;
+  userName: string;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+}>(({ messages, isThinking, userName, messagesEndRef }) => {
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50">
+      {messages.map((m, idx) => {
+        const isLastSara = m.sender === 'sara' && idx === messages.length - 1;
+        return (
+          <ChatMessageItem
+            key={m.id}
+            message={m}
+            isThinkingThisMessage={isLastSara && isThinking && !m.text}
+          />
+        );
+      })}
+
+      {isThinking && (
+        <div className="flex items-center gap-3 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs text-xs text-slate-600 max-w-sm">
+          <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+          <span>Sara IA a processar para {userName}...</span>
+        </div>
+      )}
+
+      {/* Âncora invisível para o auto-scroll */}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+});
+
+ChatMessagesList.displayName = 'ChatMessagesList';
+
+// Barra de entrada isolada: seu estado local impede que cada digitação cause re-renderização do feed de mensagens
+interface ChatInputFormProps {
+  onSend: (text: string, image: { base64: string; mimeType: string; preview: string } | null) => void;
+  isThinking: boolean;
+  userName: string;
+  hasAccess: boolean;
+  onOpenSeloModal: () => void;
+  onGoToSettings?: () => void;
+  onClose: () => void;
+}
+
+const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>(({
+  onSend,
+  isThinking,
+  userName,
+  hasAccess,
+  onOpenSeloModal,
+  onGoToSettings,
+  onClose
+}, ref) => {
+  const [inputText, setInputText] = useState('');
+  const [selectedImage, setSelectedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    setInputText: (text: string) => {
+      setInputText(text);
+    },
+    focus: () => {
+      inputRef.current?.focus();
+    }
+  }), []);
+
+  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setSelectedImage({
+        base64: result,
+        mimeType: file.type || 'image/jpeg',
+        preview: result
+      });
+    };
+    reader.readAsDataURL(file);
+    // Limpa o valor do input para permitir selecionar o mesmo arquivo se desejado
+    e.target.value = '';
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if ((!inputText.trim() && !selectedImage) || isThinking) return;
+
+    const textToSend = inputText;
+    const imageToSend = selectedImage;
+
+    setInputText('');
+    setSelectedImage(null);
+
+    onSend(textToSend, imageToSend);
+  };
+
+  return (
+    <>
+      {/* Image Preview */}
+      {selectedImage && (
+        <div className="px-4 py-2 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img
+              src={selectedImage.preview}
+              alt="Prévia"
+              className="w-12 h-12 object-cover rounded-lg border border-slate-300 shadow-xs"
+            />
+            <div className="text-xs">
+              <p className="font-bold text-slate-800">Foto técnica anexada</p>
+              <p className="text-slate-500">Sara IA analisará com visão computacional</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedImage(null)}
+            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+            title="Remover anexo"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Input Form or Locked Badge */}
+      {!hasAccess ? (
+        <div className="p-4 bg-slate-900 text-white border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 text-xs text-slate-300">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-white">Sara IA Bloqueada (Selo MZ Necessário)</p>
+              <p className="text-[11px] text-slate-400">Ative o seu Selo MZ (50 MT via M-Pesa/e-Mola) para desbloquear.</p>
+            </div>
+          </div>
+          <button
+            id="btn_upgrade_sara_ai"
+            type="button"
+            onClick={() => {
+              if (onGoToSettings) {
+                onClose();
+                onGoToSettings();
+              } else {
+                onOpenSeloModal();
+              }
+            }}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 transition-all shrink-0 cursor-pointer"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Ativar Selo MZ (50 MT)
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="p-3 sm:p-4 bg-white border-t border-slate-200 flex items-center gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageSelected}
+            accept="image/*"
+            className="hidden"
+          />
+          <input
+            type="file"
+            ref={cameraInputRef}
+            onChange={handleImageSelected}
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            title="Tirar foto com a câmara"
+            className="p-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-xl transition border border-slate-200 shrink-0 cursor-pointer"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Anexar imagem da galeria"
+            className="p-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-xl transition border border-slate-200 shrink-0 cursor-pointer"
+          >
+            <ImageIcon className="w-4 h-4" />
+          </button>
+
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputText}
+            onChange={e => setInputText(e.target.value)}
+            placeholder={`Pergunte algo ou envie uma foto, ${userName}...`}
+            className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+          />
+
+          <button
+            type="submit"
+            disabled={(!inputText.trim() && !selectedImage) || isThinking}
+            className="p-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl transition shadow-xs shrink-0 cursor-pointer"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </form>
+      )}
+    </>
+  );
+}));
+
+ChatInputForm.displayName = 'ChatInputForm';
+
 export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoToSettings }) => {
   const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
   const [showSeloModal, setShowSeloModal] = useState(false);
@@ -56,10 +399,10 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   const userName = currentUser?.name || 'Usuário';
   const storageKey = `sara_chat_history_${currentUser?.uid || 'guest'}`;
 
-  // Saudação curta e direta conforme solicitado
-  const getInitialGreeting = () => {
+  // Saudação curta e direta
+  const getInitialGreeting = useCallback(() => {
     return `Olá ${userName}, Sou Eng.Sara IA da TécnicaMZ Pro! Precisa de ajuda?`;
-  };
+  }, [userName]);
 
   // Carrega histórico do localStorage ou inicia com a saudação curta
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -76,35 +419,38 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
       {
         id: 'init_msg',
         sender: 'sara',
-        text: getInitialGreeting(),
+        text: `Olá ${userName}, Sou Eng.Sara IA da TécnicaMZ Pro! Precisa de ajuda?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ];
   });
 
-  const [inputText, setInputText] = useState('');
-  const [selectedImage, setSelectedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [isThinking, setIsThinking] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-scroll sempre que as mensagens mudam
-  const scrollToBottom = () => {
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const chatInputRef = useRef<ChatInputFormHandle | null>(null);
+
+  // Auto-scroll sempre que as mensagens mudam ou quando o modal é aberto
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       scrollToBottom();
     }
-  }, [messages, isOpen, isThinking]);
+  }, [messages, isOpen, isThinking, scrollToBottom]);
 
-  // Salva no LocalStorage
+  // Salva no LocalStorage com proteção de cota (omite dados pesados de imagens base64 para preservar o limite de 5MB)
   useEffect(() => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(messages));
+      const sanitized = messages.slice(-30).map(m => {
+        if (m.imageUrl && m.imageUrl.startsWith('data:') && m.imageUrl.length > 2000) {
+          return { ...m, imageUrl: undefined };
+        }
+        return m;
+      });
+      localStorage.setItem(storageKey, JSON.stringify(sanitized));
     } catch (e) {
       console.warn('Erro ao salvar mensagens no LocalStorage:', e);
     }
@@ -112,24 +458,9 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
 
   if (!isOpen) return null;
 
-  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setSelectedImage({
-        base64: result,
-        mimeType: file.type || 'image/jpeg',
-        preview: result
-      });
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleQuickPrompt = (prompt: string) => {
-    setInputText(prompt);
+    chatInputRef.current?.setInputText(prompt);
+    chatInputRef.current?.focus();
   };
 
   const handleClearChat = () => {
@@ -147,9 +478,9 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!inputText.trim() && !selectedImage) || isThinking) return;
+  const handleSend = async (userText: string, currentImg: { base64: string; mimeType: string; preview: string } | null) => {
+    const trimmedText = userText.trim();
+    if ((!trimmedText && !currentImg) || isThinking) return;
 
     if (!GEMINI_API_KEY) {
       setMessages(prev => [
@@ -164,19 +495,13 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
       return;
     }
 
-    const userText = inputText.trim();
-    const currentImg = selectedImage;
-
-    setInputText('');
-    setSelectedImage(null);
-
     const userMessageId = `user_${Date.now()}`;
     const saraMessageId = `sara_${Date.now()}`;
 
     const userMsg: Message = {
       id: userMessageId,
       sender: 'user',
-      text: userText || 'Analise esta imagem técnica, por favor.',
+      text: trimmedText || 'Analise esta imagem técnica, por favor.',
       imageUrl: currentImg?.preview,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
@@ -296,7 +621,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
             userId: currentUser?.uid || 'guest',
             userName: userName,
             userRole: currentUser?.role || 'client',
-            userPrompt: userText || 'Análise de Imagem Técnica',
+            userPrompt: trimmedText || 'Análise de Imagem Técnica',
             aiReply: fullText,
             hasImage: !!currentImg,
             createdAt: new Date().toISOString()
@@ -331,12 +656,12 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs">
       <div className="relative w-full max-w-3xl h-[85vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
         
-        {/* Header limpo (Sem a badge do Gemini) */}
+        {/* Header limpo */}
         <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white p-3.5 sm:p-5 flex items-center justify-between border-b border-blue-900/50">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <button
               onClick={handleClose}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1 text-xs font-bold"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1 text-xs font-bold cursor-pointer"
               title="Sair / Voltar"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -356,14 +681,14 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleClearChat}
-              className="p-2 rounded-full bg-white/10 hover:bg-rose-500/30 text-white/80 hover:text-rose-200 transition"
+              className="p-2 rounded-full bg-white/10 hover:bg-rose-500/30 text-white/80 hover:text-rose-200 transition cursor-pointer"
               title="Limpar histórico do chat"
             >
               <Trash2 className="w-4 h-4" />
             </button>
             <button
               onClick={handleClose}
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition"
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
               title="Fechar (X)"
             >
               <X className="w-5 h-5" />
@@ -375,7 +700,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
         <div className="p-2.5 bg-slate-100/90 border-b border-slate-200 overflow-x-auto flex gap-2 no-scrollbar text-xs">
           <button
             onClick={() => handleQuickPrompt('Como dimensionar um sistema solar fotovoltaico para uma residência em Maputo com geladeira, TV, 10 lâmpadas e 1 AC 12000 BTU?')}
-            className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-medium transition flex items-center gap-1.5 shadow-2xs shrink-0"
+            className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-medium transition flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer"
           >
             <Sun className="w-3.5 h-3.5 text-amber-500" />
             <span>Dimensionamento Solar Fotovoltaico</span>
@@ -383,7 +708,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
 
           <button
             onClick={() => handleQuickPrompt('Quais são as faixas de preços de mão de obra técnica mais praticadas em Moçambique para instalação elétrica, AC e canalização?')}
-            className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-medium transition flex items-center gap-1.5 shadow-2xs shrink-0"
+            className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-medium transition flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Tabela de Preços Mão de Obra MZN</span>
@@ -391,233 +716,32 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
 
           <button
             onClick={() => handleQuickPrompt('Como calcular a bitola (seção) do cabo elétrico e disjuntores para uma distância de 45 metros a 220V?')}
-            className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-medium transition flex items-center gap-1.5 shadow-2xs shrink-0"
+            className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-medium transition flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer"
           >
             <Zap className="w-3.5 h-3.5 text-blue-600" />
             <span>Cálculo de Cabos e Queda de Tensão EDM</span>
           </button>
         </div>
 
-        {/* Chat Feed com auto-scroll */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50">
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`flex gap-3 ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              {m.sender === 'sara' && (
-                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs shrink-0 shadow-sm">
-                  <Bot className="w-4 h-4" />
-                </div>
-              )}
-              
-              <div
-                className={`max-w-[85%] sm:max-w-[80%] p-4 rounded-2xl text-xs sm:text-sm space-y-2 shadow-xs ${
-                  m.sender === 'user'
-                    ? 'bg-slate-900 text-white rounded-br-none'
-                    : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
-                }`}
-              >
-                {m.imageUrl && (
-                  <div className="rounded-xl overflow-hidden border border-slate-300/40 max-h-52 bg-slate-950 flex items-center justify-center">
-                    <img
-                      src={m.imageUrl}
-                      alt="Upload técnico"
-                      className="max-h-52 object-contain"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                )}
-                {m.sender === 'user' ? (
-                  <div className="leading-relaxed whitespace-pre-wrap font-normal">
-                    {m.text}
-                  </div>
-                ) : (
-                  <div className="leading-relaxed font-normal text-slate-800">
-                    {m.text ? (
-                      <div className="sara-markdown prose prose-sm max-w-none prose-table:border-collapse prose-th:border prose-th:p-2 prose-td:border prose-td:p-2 text-slate-800 text-xs sm:text-sm">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                          components={{
-                            h1: ({ children }) => <h1 className="text-base font-black text-slate-900 mt-3 mb-1.5 pb-1 border-b border-slate-200">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-sm sm:text-base font-black text-slate-900 mt-2.5 mb-1">{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-xs sm:text-sm font-bold text-blue-950 mt-2 mb-1">{children}</h3>,
-                            h4: ({ children }) => <h4 className="text-xs font-bold text-slate-800 mt-1.5 mb-0.5">{children}</h4>,
-                            p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed text-slate-800">{children}</p>,
-                            strong: ({ children }) => <strong className="font-bold text-slate-950">{children}</strong>,
-                            em: ({ children }) => <em className="italic text-slate-700">{children}</em>,
-                            ul: ({ children }) => <ul className="list-disc pl-5 my-2 space-y-1 text-slate-800">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal pl-5 my-2 space-y-1 text-slate-800">{children}</ol>,
-                            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                            blockquote: ({ children }) => (
-                              <blockquote className="border-l-4 border-blue-600 pl-3 py-1.5 my-2 bg-blue-50/70 rounded-r-lg italic text-slate-800 text-xs sm:text-sm">
-                                {children}
-                              </blockquote>
-                            ),
-                            code: ({ className, children, ...props }: any) => {
-                              const isInline = !className && typeof children === 'string' && !children.includes('\n');
-                              if (isInline) {
-                                return (
-                                  <code className="bg-slate-100 text-blue-800 font-mono text-[11px] sm:text-xs px-1.5 py-0.5 rounded border border-slate-200 font-medium" {...props}>
-                                    {children}
-                                  </code>
-                                );
-                              }
-                              return (
-                                <code className="block bg-slate-900 text-slate-100 p-3 rounded-xl overflow-x-auto my-2 font-mono text-[11px] sm:text-xs leading-relaxed" {...props}>
-                                  {children}
-                                </code>
-                              );
-                            },
-                            pre: ({ children }) => <pre className="my-2 rounded-xl overflow-hidden shadow-xs">{children}</pre>,
-                            table: ({ children }) => (
-                              <div className="overflow-x-auto my-3 rounded-xl border border-slate-300 shadow-2xs">
-                                <table className="min-w-full divide-y divide-slate-200 text-xs border-collapse">{children}</table>
-                              </div>
-                            ),
-                            thead: ({ children }) => <thead className="bg-slate-100 text-slate-900 font-bold">{children}</thead>,
-                            th: ({ children }) => <th className="border border-slate-300 p-2 text-left font-bold text-slate-900 bg-slate-100/90 whitespace-nowrap">{children}</th>,
-                            td: ({ children }) => <td className="border border-slate-200 p-2 text-slate-700 bg-white">{children}</td>,
-                            hr: () => <hr className="my-3 border-slate-200" />
-                          }}
-                        >
-                          {m.text}
-                        </ReactMarkdown>
-                      </div>
-                    ) : isThinking ? (
-                      <div className="flex items-center gap-1.5 py-1 text-slate-400">
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse delay-100" />
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse delay-200" />
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-                <div className={`text-[10px] text-right ${m.sender === 'user' ? 'text-slate-400' : 'text-slate-400'}`}>
-                  {m.timestamp}
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* Chat Feed com auto-scroll isolado */}
+        <ChatMessagesList
+          messages={messages}
+          isThinking={isThinking}
+          userName={userName}
+          messagesEndRef={messagesEndRef}
+        />
 
-          {isThinking && (
-            <div className="flex items-center gap-3 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs text-xs text-slate-600 max-w-sm">
-              <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
-              <span>Sara IA a processar para {userName}...</span>
-            </div>
-          )}
-
-          {/* Âncora invisível para o auto-scroll */}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Image Preview */}
-        {selectedImage && (
-          <div className="px-4 py-2 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img
-                src={selectedImage.preview}
-                alt="Prévia"
-                className="w-12 h-12 object-cover rounded-lg border border-slate-300 shadow-xs"
-              />
-              <div className="text-xs">
-                <p className="font-bold text-slate-800">Foto técnica anexada</p>
-                <p className="text-slate-500">Sara IA analisará com visão computacional</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Input Form */}
-        {!hasAccess ? (
-          <div className="p-4 bg-slate-900 text-white border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 text-xs text-slate-300">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
-                <Lock className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="font-bold text-white">Sara IA Bloqueada (Selo MZ Necessário)</p>
-                <p className="text-[11px] text-slate-400">Ative o seu Selo MZ (50 MT via M-Pesa/e-Mola) para desbloquear.</p>
-              </div>
-            </div>
-            <button
-              id="btn_upgrade_sara_ai"
-              type="button"
-              onClick={() => {
-                if (onGoToSettings) {
-                  onClose();
-                  onGoToSettings();
-                } else {
-                  setShowSeloModal(true);
-                }
-              }}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 transition-all shrink-0 cursor-pointer"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              Ativar Selo MZ (50 MT)
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleSend} className="p-3 sm:p-4 bg-white border-t border-slate-200 flex items-center gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageSelected}
-              accept="image/*"
-              className="hidden"
-            />
-            <input
-              type="file"
-              ref={cameraInputRef}
-              onChange={handleImageSelected}
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-            />
-
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              title="Tirar foto com a câmara"
-              className="p-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-xl transition border border-slate-200 shrink-0"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              title="Anexar imagem da galeria"
-              className="p-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-xl transition border border-slate-200 shrink-0"
-            >
-              <ImageIcon className="w-4 h-4" />
-            </button>
-
-            <input
-              type="text"
-              value={inputText}
-              onChange={e => setInputText(e.target.value)}
-              placeholder={`Pergunte algo ou envie uma foto, ${userName}...`}
-              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-            />
-
-            <button
-              type="submit"
-              disabled={(!inputText.trim() && !selectedImage) || isThinking}
-              className="p-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl transition shadow-xs shrink-0"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-        )}
+        {/* Barra de Entrada de Texto Isolada e Fluida */}
+        <ChatInputForm
+          ref={chatInputRef}
+          onSend={handleSend}
+          isThinking={isThinking}
+          userName={userName}
+          hasAccess={hasAccess}
+          onOpenSeloModal={() => setShowSeloModal(true)}
+          onGoToSettings={onGoToSettings}
+          onClose={onClose}
+        />
       </div>
 
       {showSeloModal && (
