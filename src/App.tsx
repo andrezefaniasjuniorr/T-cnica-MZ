@@ -133,10 +133,21 @@ const resolveTabFromLocation = (): string | null => {
 const AppContent: React.FC = () => {
   const { currentUser, isLoading, isClient, isTechnician, isCompany, isAdmin, isSubscriptionActive } = useAuth();
 
-  // Navigation State initialized from URL location
+  // Navigation State initialized from URL location or cached lastRoute (Instant WhatsApp-style opening)
   const [activeTab, setActiveTab] = useState<string>(() => {
     const detected = resolveTabFromLocation();
-    return detected || 'community';
+    if (detected && VALID_TABS.includes(detected)) {
+      return detected;
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('tecnicamz_last_route') || localStorage.getItem('lastRoute');
+        if (saved && VALID_TABS.includes(saved)) {
+          return saved;
+        }
+      } catch {}
+    }
+    return 'community';
   });
 
   // Dark Mode State
@@ -157,6 +168,16 @@ const AppContent: React.FC = () => {
   // Selo MZ Interception Modal State
   const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
   const [seloFeatureName, setSeloFeatureName] = useState('Ferramentas & Recursos');
+
+  // Persistência contínua da última rota navegada (ocupando < 50 bytes)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeTab) {
+      try {
+        localStorage.setItem('tecnicamz_last_route', activeTab);
+        localStorage.setItem('lastRoute', activeTab);
+      } catch {}
+    }
+  }, [activeTab]);
 
   // Sincronização e escuta de eventos Vanilla para abertura/fechamento do Modal Selo MZ
   useEffect(() => {
@@ -198,6 +219,10 @@ const AppContent: React.FC = () => {
       }
       if (detected) {
         setActiveTab(detected);
+        try {
+          localStorage.setItem('tecnicamz_last_route', detected);
+          localStorage.setItem('lastRoute', detected);
+        } catch {}
       }
     };
 
@@ -206,10 +231,18 @@ const AppContent: React.FC = () => {
         const sTab = event.state.tab;
         if (sTab === 'gestao-pro-mz' || sTab === 'admin') {
           setActiveTab('gestao-pro-mz');
+          try {
+            localStorage.setItem('tecnicamz_last_route', 'gestao-pro-mz');
+            localStorage.setItem('lastRoute', 'gestao-pro-mz');
+          } catch {}
           return;
         }
         if (VALID_TABS.includes(sTab)) {
           setActiveTab(sTab);
+          try {
+            localStorage.setItem('tecnicamz_last_route', sTab);
+            localStorage.setItem('lastRoute', sTab);
+          } catch {}
           return;
         }
       }
@@ -261,14 +294,20 @@ const AppContent: React.FC = () => {
       }
     }
 
-    const detected = resolveTabFromLocation();
+    const detected = resolveTabFromLocation() || (() => {
+      try {
+        const saved = localStorage.getItem('tecnicamz_last_route') || localStorage.getItem('lastRoute');
+        if (saved && VALID_TABS.includes(saved)) return saved;
+      } catch {}
+      return null;
+    })();
 
     // 2. Dynamic Redirection and Role Alignment upon Login and Session Refresh (F5)
     // If Admin
     if (isAdmin) {
-      if (detected === 'gestao-pro-mz' || detected === 'admin') {
-        setActiveTab('gestao-pro-mz');
-      } else if (!detected) {
+      if (detected && VALID_TABS.includes(detected)) {
+        setActiveTab(detected);
+      } else {
         setActiveTab('gestao-pro-mz');
         try {
           window.history.replaceState({ tab: 'gestao-pro-mz' }, '', '#gestao-pro-mz');
@@ -397,6 +436,10 @@ const AppContent: React.FC = () => {
     }
 
     setActiveTab(targetTab);
+    try {
+      localStorage.setItem('tecnicamz_last_route', targetTab);
+      localStorage.setItem('lastRoute', targetTab);
+    } catch {}
 
     if (addToHistory && typeof window !== 'undefined' && window.history) {
       try {
@@ -424,7 +467,10 @@ const AppContent: React.FC = () => {
   // =========================================================================
   // STRICT ACCESS CONTROL: IF NOT AUTHENTICATED, SHOW MINIMAL AUTH SCREEN ONLY
   // =========================================================================
-  if (isLoading) {
+  // Se houver currentUser (vindo de cache local instantâneo ou sessão anterior),
+  // renderiza IMEDIATAMENTE (Estilo WhatsApp) sem bloquear com tela de carregamento!
+  // A verificação do Firebase roda silenciosamente em segundo plano (background).
+  if (isLoading && !currentUser) {
     return (
       <div className="min-h-screen bg-[#F0F2F5] flex flex-col items-center justify-center p-4">
         <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 mb-4 animate-bounce">

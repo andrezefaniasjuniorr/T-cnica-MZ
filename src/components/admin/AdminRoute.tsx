@@ -12,8 +12,16 @@ interface AdminRouteProps {
 
 export const AdminRoute: React.FC<AdminRouteProps> = ({ children, onRedirectToFeed }) => {
   const { currentUser, isLoading: isAuthLoading } = useAuth();
-  const [isVerifyingRole, setIsVerifyingRole] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  
+  const isInitialAdmin = Boolean(
+    currentUser?.email?.toLowerCase() === 'andrezefaniasjuniorr@gmail.com' ||
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'super_admin' ||
+    currentUser?.adminSubRole === 'super_admin'
+  );
+
+  const [isVerifyingRole, setIsVerifyingRole] = useState(!isInitialAdmin);
+  const [isAuthorized, setIsAuthorized] = useState(isInitialAdmin);
 
   useEffect(() => {
     let isMounted = true;

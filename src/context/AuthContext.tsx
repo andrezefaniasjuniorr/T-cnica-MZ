@@ -96,6 +96,104 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_USER_KEY = 'tecnicamz_auth_user_id';
+export const CACHED_USER_KEY = 'tecnicamz_cached_user';
+export const CACHED_TECH_PROFILE_KEY = 'tecnicamz_cached_tech_profile';
+export const CACHED_COMPANY_PROFILE_KEY = 'tecnicamz_cached_company_profile';
+export const LAST_ROUTE_KEY = 'tecnicamz_last_route';
+
+export const sanitizeUserForCache = (u: User | null): Partial<User> | null => {
+  if (!u) return null;
+  return {
+    uid: u.uid,
+    name: u.name,
+    nome: u.nome,
+    email: u.email,
+    role: u.role,
+    tipo: u.tipo,
+    tipoConta: u.tipoConta,
+    phone: u.phone,
+    province: u.province,
+    city: u.city,
+    avatarUrl: u.avatarUrl && !u.avatarUrl.startsWith('data:') ? u.avatarUrl : undefined,
+    photoURL: u.photoURL && !u.photoURL.startsWith('data:') ? u.photoURL : undefined,
+    status: u.status,
+    statusConta: u.statusConta,
+    statusAprovacao: u.statusAprovacao,
+    temSeloMZ: u.temSeloMZ,
+    isVerified: u.isVerified,
+    statusSelo: u.statusSelo,
+    adminSubRole: u.adminSubRole,
+    activePlanId: u.activePlanId,
+    subscriptionStatus: u.subscriptionStatus,
+    subscriptionExpiresAt: u.subscriptionExpiresAt,
+    stars: u.stars,
+    pontos: u.pontos,
+    points: u.points,
+    totalLikes: u.totalLikes,
+    likesCount: u.likesCount,
+    createdAt: u.createdAt
+  };
+};
+
+export const sanitizeTechProfileForCache = (t: TechnicianProfile | null): Partial<TechnicianProfile> | null => {
+  if (!t) return null;
+  return {
+    userId: t.userId,
+    name: t.name,
+    email: t.email,
+    phone: t.phone,
+    whatsapp: t.whatsapp,
+    province: t.province,
+    city: t.city,
+    district: t.district,
+    specialties: t.specialties,
+    bio: t.bio,
+    rating: t.rating,
+    reviewsCount: t.reviewsCount,
+    completedJobsCount: t.completedJobsCount,
+    availability: t.availability,
+    avatarUrl: t.avatarUrl && !t.avatarUrl.startsWith('data:') ? t.avatarUrl : undefined,
+    photoURL: t.photoURL && !t.photoURL.startsWith('data:') ? t.photoURL : undefined,
+    status: t.status,
+    statusAprovacao: t.statusAprovacao,
+    isVerified: t.isVerified,
+    temSeloMZ: t.temSeloMZ,
+    statusSelo: t.statusSelo,
+    pontos: t.pontos,
+    points: t.points,
+    totalLikes: t.totalLikes,
+    createdAt: t.createdAt
+  };
+};
+
+export const sanitizeCompanyProfileForCache = (c: CompanyProfile | null): Partial<CompanyProfile> | null => {
+  if (!c) return null;
+  return {
+    userId: c.userId,
+    companyName: c.companyName,
+    commercialName: c.commercialName,
+    nuit: c.nuit,
+    email: c.email,
+    phone: c.phone,
+    whatsapp: c.whatsapp,
+    province: c.province,
+    city: c.city,
+    district: c.district,
+    address: c.address,
+    industry: c.industry,
+    description: c.description,
+    rating: c.rating,
+    reviewsCount: c.reviewsCount,
+    avatarUrl: c.avatarUrl && !c.avatarUrl.startsWith('data:') ? c.avatarUrl : undefined,
+    logoUrl: c.logoUrl && !c.logoUrl.startsWith('data:') ? c.logoUrl : undefined,
+    status: c.status,
+    statusAprovacao: c.statusAprovacao,
+    isVerified: c.isVerified,
+    temSeloMZ: c.temSeloMZ,
+    statusSelo: c.statusSelo,
+    createdAt: c.createdAt
+  };
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [usersList, setUsersList] = useState<User[]>(() => {
@@ -114,7 +212,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return safeGetStorageItem<SolicitacaoSelo[]>('tecnicamz_solicitacoes_selo', []);
   });
 
+  // Abertura Instantânea estilo WhatsApp: lê o cachedUser imediatamente em 0ms
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const cached = safeGetStorageItem<User | null>(CACHED_USER_KEY, null);
+    if (cached && cached.uid) {
+      return cached;
+    }
+    const savedClientName = typeof window !== 'undefined' ? localStorage.getItem('clienteNome') : null;
+    if (savedClientName) {
+      return {
+        uid: `client_${savedClientName.toLowerCase().replace(/\s+/g, '_')}`,
+        name: savedClientName,
+        email: '',
+        phone: '',
+        role: 'client',
+        tipoConta: 'cliente',
+        statusAprovacao: 'aprovado',
+        statusConta: 'ativa',
+        status: 'active',
+        createdAt: new Date().toISOString()
+      };
+    }
     const savedId = safeGetStorageItem<string | null>(LOCAL_STORAGE_USER_KEY, null);
     if (savedId) {
       const initialUsers = safeGetStorageItem<User[]>('tecnicamz_users', []);
@@ -124,9 +242,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   });
 
-  const [currentTechProfile, setCurrentTechProfile] = useState<TechnicianProfile | null>(null);
-  const [currentCompanyProfile, setCurrentCompanyProfile] = useState<CompanyProfile | null>(null);
+  const [currentTechProfile, setCurrentTechProfile] = useState<TechnicianProfile | null>(() => {
+    return safeGetStorageItem<TechnicianProfile | null>(CACHED_TECH_PROFILE_KEY, null);
+  });
+
+  const [currentCompanyProfile, setCurrentCompanyProfile] = useState<CompanyProfile | null>(() => {
+    return safeGetStorageItem<CompanyProfile | null>(CACHED_COMPANY_PROFILE_KEY, null);
+  });
+
   const [isLoading, setIsLoading] = useState<boolean>(() => {
+    // Se o usuário ou cliente já está em cache, libera a montagem imediata (isLoading = false)
+    const cached = safeGetStorageItem<User | null>(CACHED_USER_KEY, null);
+    if (cached && cached.uid) return false;
+    const savedClientName = typeof window !== 'undefined' ? localStorage.getItem('clienteNome') : null;
+    if (savedClientName) return false;
+    const savedId = safeGetStorageItem<string | null>(LOCAL_STORAGE_USER_KEY, null);
+    if (savedId) return false;
+
     return isFirebaseConfigured && !!auth;
   });
 
@@ -303,13 +435,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (currentUser) {
       safeSetStorageItem(LOCAL_STORAGE_USER_KEY, currentUser.uid);
-      if (currentUser.role === 'technician') {
-        const tech = techList.find(t => t.userId === currentUser.uid) || null;
-        setCurrentTechProfile(tech);
+      const sanitizedUser = sanitizeUserForCache(currentUser);
+      if (sanitizedUser) {
+        safeSetStorageItem(CACHED_USER_KEY, sanitizedUser);
+      }
+      if (currentUser.role === 'technician' || currentUser.tipo === 'tecnico' || currentUser.tipoConta === 'tecnico') {
+        const tech = techList.find(t => t.userId === currentUser.uid);
+        if (tech) {
+          setCurrentTechProfile(tech);
+          safeSetStorageItem(CACHED_TECH_PROFILE_KEY, sanitizeTechProfileForCache(tech));
+        }
         setCurrentCompanyProfile(null);
-      } else if (currentUser.role === 'company') {
-        const comp = companyList.find(c => c.userId === currentUser.uid) || null;
-        setCurrentCompanyProfile(comp);
+      } else if (currentUser.role === 'company' || currentUser.tipo === 'empresa' || currentUser.tipoConta === 'empresa') {
+        const comp = companyList.find(c => c.userId === currentUser.uid);
+        if (comp) {
+          setCurrentCompanyProfile(comp);
+          safeSetStorageItem(CACHED_COMPANY_PROFILE_KEY, sanitizeCompanyProfileForCache(comp));
+        }
         setCurrentTechProfile(null);
       } else {
         setCurrentTechProfile(null);
@@ -317,10 +459,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } else {
       safeRemoveStorageItem(LOCAL_STORAGE_USER_KEY);
+      safeRemoveStorageItem(CACHED_USER_KEY);
+      safeRemoveStorageItem(CACHED_TECH_PROFILE_KEY);
+      safeRemoveStorageItem(CACHED_COMPANY_PROFILE_KEY);
       setCurrentTechProfile(null);
       setCurrentCompanyProfile(null);
     }
-  }, [currentUser?.uid, currentUser?.role, techList, companyList]);
+  }, [currentUser?.uid, currentUser?.role, currentUser?.tipo, currentUser?.tipoConta, techList, companyList]);
 
   // Keep local storage synchronized with current lists (somente como fallback se Firebase não estiver ativo)
   useEffect(() => {
@@ -412,6 +557,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const liberarAcessoApp = (user: User) => {
     setCurrentUser(user);
     safeSetStorageItem(LOCAL_STORAGE_USER_KEY, user.uid);
+    const sanitized = sanitizeUserForCache(user);
+    if (sanitized) {
+      safeSetStorageItem(CACHED_USER_KEY, sanitized);
+    }
     setUsersList(prev => {
       const existingIndex = prev.findIndex(u => u.uid === user.uid || (u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()));
       if (existingIndex >= 0) {
@@ -425,6 +574,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Auto-redirecionamento de rota/aba se estiver na raiz ou tela de login
     if (typeof window !== 'undefined') {
       const currentHash = (window.location.hash || '').replace(/^#/, '');
+      // Se não houver rota explícita no hash, tenta preservar a última rota navegada (estilo WhatsApp)
+      const savedLastRoute = localStorage.getItem('tecnicamz_last_route');
+      if (savedLastRoute && !currentHash) {
+        window.location.hash = `#${savedLastRoute}`;
+        return;
+      }
       if (!currentHash || currentHash === 'login' || currentHash === 'auth') {
         const rawTipo = user.tipo || (user.role === 'company' || user.tipoConta === 'empresa' ? 'empresa' : user.role === 'client' || user.tipoConta === 'cliente' ? 'cliente' : 'tecnico');
         switch (rawTipo) {
@@ -836,6 +991,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             liberarAcessoApp(fallbackUser);
           }
         } else {
+          // Se estiver 100% offline, mantenha o usuário dentro da plataforma navegando pelos dados cacheados (Estilo WhatsApp)
+          const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+          const cached = safeGetStorageItem<User | null>(CACHED_USER_KEY, null);
+          if (isOffline && cached && cached.uid) {
+            console.log('[Auth] Modo offline ativo: mantendo sessão cacheada do usuário.');
+            return;
+          }
+
           // exibirTelaLogin()
           const savedClientName = typeof window !== 'undefined' ? localStorage.getItem('clienteNome') : null;
           if (savedClientName) {
@@ -854,6 +1017,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCurrentUser(clientUser);
           } else {
             setCurrentUser(null);
+            safeRemoveStorageItem(LOCAL_STORAGE_USER_KEY);
+            safeRemoveStorageItem(CACHED_USER_KEY);
+            safeRemoveStorageItem(CACHED_TECH_PROFILE_KEY);
+            safeRemoveStorageItem(CACHED_COMPANY_PROFILE_KEY);
           }
         }
       } catch (unhandledAuthErr) {
@@ -1728,9 +1895,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(null);
       setCurrentTechProfile(null);
       setCurrentCompanyProfile(null);
+      safeRemoveStorageItem(LOCAL_STORAGE_USER_KEY);
+      safeRemoveStorageItem(CACHED_USER_KEY);
+      safeRemoveStorageItem(CACHED_TECH_PROFILE_KEY);
+      safeRemoveStorageItem(CACHED_COMPANY_PROFILE_KEY);
+      safeRemoveStorageItem(LAST_ROUTE_KEY);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('clienteNome');
         localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+        localStorage.removeItem(CACHED_USER_KEY);
+        localStorage.removeItem(CACHED_TECH_PROFILE_KEY);
+        localStorage.removeItem(CACHED_COMPANY_PROFILE_KEY);
+        localStorage.removeItem(LAST_ROUTE_KEY);
         window.location.hash = '';
       }
       setIsLoading(false);

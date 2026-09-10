@@ -69,7 +69,15 @@ if (typeof window !== 'undefined' && window.localStorage) {
       }
 
       // Se qualquer valor individual não essencial ultrapassar 30KB
-      if (!k.startsWith('firestore_') && !k.startsWith('firebase:')) {
+      if (
+        !k.startsWith('firestore_') &&
+        !k.startsWith('firebase:') &&
+        k !== 'tecnicamz_cached_user' &&
+        k !== 'tecnicamz_last_route' &&
+        k !== 'tecnicamz_auth_user_id' &&
+        k !== 'tecnicamz_cached_tech_profile' &&
+        k !== 'tecnicamz_cached_company_profile'
+      ) {
         try {
           const val = window.localStorage.getItem(k);
           if (val && val.length > 30000) {
