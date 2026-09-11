@@ -27,7 +27,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   const [formData, setFormData] = useState({
     mpesaNumber: settings.paymentMethods?.mpesaNumber || settings.paymentMethods?.mpesa?.number || settings.mpesaNumber || '851949159',
     mpesaName: settings.paymentMethods?.mpesaName || settings.paymentMethods?.mpesa?.name || settings.mpesaName || 'André Zefanias Júnior',
-    emolaNumber: settings.paymentMethods?.emolaNumber || settings.paymentMethods?.emola?.number || '874329159',
+    emolaNumber: settings.paymentMethods?.emolaNumber || settings.paymentMethods?.emola?.number || '872943159',
     emolaName: settings.paymentMethods?.emolaName || settings.paymentMethods?.emola?.name || 'André Zefanias Júnior',
     supportPhone: settings.supportPhone || '+258851949159',
     supportWhatsapp: settings.supportWhatsapp || settings.whatsappSupport || '+258851949159',

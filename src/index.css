@@ -12,43 +12,64 @@ html, body {
 }
 *, *:before, *:after { box-sizing: inherit; }
 
-.app-container, .main-container {
-  width: 100%;
-  max-width: 500px; /* Sensação de App nativo centralizado em telas grandes */
-  margin: 0 auto;
-  padding: 8px;
+/* REQUISITO 1: MOBILE INTACTO (< 768px) - NÃO ALTERAR REGRAS MOBILE */
+@media (max-width: 767px) {
+  .app-container, .main-container {
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 8px;
+  }
+
+  .card, .post-card, .product-card, .ranking-item, .story-card {
+    padding: 10px !important;
+    margin-bottom: 8px !important;
+    border-radius: 10px !important;
+  }
+
+  .user-avatar {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .post-header, .ranking-header {
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .post-title, .ranking-name {
+    font-size: 14px !important;
+    font-weight: 600;
+  }
+
+  .post-body, .ranking-stats {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+  }
+
+  .story-container {
+    gap: 6px !important;
+    padding: 4px 0 !important;
+  }
 }
 
-/* 2. COMPACTAÇÃO DE CARDS (Mural, Stories, Mercado, Ranking e Painel) */
-.card, .post-card, .product-card, .ranking-item, .story-card {
-  padding: 10px !important;
-  margin-bottom: 8px !important;
-  border-radius: 10px !important;
-}
+/* REQUISITO 2: LAYOUT DESKTOP AJUSTADO (md: >= 768px e lg: >= 1024px) */
+@media (min-width: 768px) {
+  .app-container, .main-container {
+    width: 100%;
+    max-width: 1280px; /* Limite de largura confortável no desktop (max-w-7xl) */
+    margin: 0 auto;
+    padding: 20px 24px;
+  }
 
-.user-avatar {
-  width: 36px !important;
-  height: 36px !important;
-}
-
-.post-header, .ranking-header {
-  gap: 8px !important;
-  margin-bottom: 6px !important;
-}
-
-.post-title, .ranking-name {
-  font-size: 14px !important;
-  font-weight: 600;
-}
-
-.post-body, .ranking-stats {
-  font-size: 12px !important;
-  line-height: 1.3 !important;
-}
-
-.story-container {
-  gap: 6px !important;
-  padding: 4px 0 !important;
+  /* Cards com altura fluida e overflow-hidden para não deformar nem encavalar textos/botões */
+  .card, .post-card, .product-card, .ranking-item, .story-card {
+    height: auto;
+    overflow: hidden;
+    padding: 16px;
+    margin-bottom: 16px;
+    border-radius: 16px;
+  }
 }
 
 /* 3. FORMULÁRIOS E TELAS DE AUTH (Login/Cadastro em 2 Colunas Compactas) */

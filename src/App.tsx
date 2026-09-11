@@ -37,7 +37,8 @@ import { SubscriptionPaywall } from './components/subscription/SubscriptionPaywa
 import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
 
 import { UserRole } from './types';
-import { Wrench, Phone, Mail, ShieldCheck, Heart } from 'lucide-react';
+import { Wrench, Phone, Mail, ShieldCheck, Heart, Sparkles } from 'lucide-react';
+import { soundFX } from './utils/audio';
 
 // Navigation Helper to map URL path or hash to an internal tab id
 const VALID_TABS = [
@@ -554,7 +555,7 @@ const AppContent: React.FC = () => {
       />
 
       {/* 2. Main Content Body */}
-      <main className="app-container main-container flex-1 pb-16 md:pb-8">
+      <main className="app-container main-container flex-1 w-full md:max-w-7xl md:mx-auto md:px-6 pb-16 md:pb-8">
         {activeTab === 'community' && (
           <CommunityFeed onNavigateTab={handleNavigate} />
         )}
@@ -634,7 +635,26 @@ const AppContent: React.FC = () => {
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
       />
 
-      {/* 4. Global Official Footer */}
+      {/* 4. Desktop Floating Quick Launcher for Sara IA (Apenas telas PC / md:flex) */}
+      <button
+        id="btnSaraAiDesktopFloating"
+        onClick={() => {
+          soundFX.playClick();
+          setIsSaraAiOpen(true);
+        }}
+        className="hidden md:flex fixed bottom-6 right-6 z-30 items-center gap-2.5 px-4 py-3 rounded-full bg-linear-to-r from-blue-600 via-indigo-600 to-sky-500 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xl shadow-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/40 transition-all transform hover:-translate-y-1 active:translate-y-0 cursor-pointer border border-white/25 group"
+        title="Abrir Assistente Técnica Sara IA"
+      >
+        <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-12 transition-transform">
+          <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
+        </div>
+        <div className="text-left">
+          <span className="block text-xs font-black tracking-tight leading-tight">Sara IA</span>
+          <span className="block text-[10px] text-blue-100 font-medium">Assistente Técnica</span>
+        </div>
+      </button>
+
+      {/* 5. Global Official Footer */}
       <footer className="bg-slate-950 text-slate-400 border-t border-slate-800 text-xs mt-auto hidden md:block">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-800/80">

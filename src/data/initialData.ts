@@ -31,7 +31,7 @@ export const INITIAL_SETTINGS: PlatformSettings = {
   paymentMethods: {
     mpesaNumber: '851949159',
     mpesaName: 'André Zefanias Júnior',
-    emolaNumber: '874329159',
+    emolaNumber: '872943159',
     emolaName: 'André Zefanias Júnior',
     bankName: 'Millennium BIM',
     bankAccount: '1234567890',

@@ -923,7 +923,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...(data.paymentMethods || {}),
               mpesaNumber: data.paymentMethods?.mpesaNumber || (data as any).mpesaNumber || prev.paymentMethods?.mpesaNumber || '851949159',
               mpesaName: data.paymentMethods?.mpesaName || (data as any).mpesaName || prev.paymentMethods?.mpesaName || 'André Zefanias Júnior',
-              emolaNumber: data.paymentMethods?.emolaNumber || (data as any).emolaNumber || prev.paymentMethods?.emolaNumber || '874329159',
+              emolaNumber: data.paymentMethods?.emolaNumber || (data as any).emolaNumber || prev.paymentMethods?.emolaNumber || '872943159',
               emolaName: data.paymentMethods?.emolaName || (data as any).emolaName || prev.paymentMethods?.emolaName || 'André Zefanias Júnior',
             }
           }));

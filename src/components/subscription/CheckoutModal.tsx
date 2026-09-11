@@ -29,7 +29,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
 
   const mpesaNumber = settings?.paymentMethods?.mpesaNumber || '851949159';
   const mpesaName = settings?.paymentMethods?.mpesaName || 'André Zefanias Júnior';
-  const emolaNumber = settings?.paymentMethods?.emolaNumber || '874329159';
+  const emolaNumber = settings?.paymentMethods?.emolaNumber || '872943159';
   const emolaName = settings?.paymentMethods?.emolaName || 'André Zefanias Júnior';
 
   if (!isOpen) return null;

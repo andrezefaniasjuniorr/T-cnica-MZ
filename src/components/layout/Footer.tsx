@@ -158,7 +158,7 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               <div>
                 <p className="text-[10px] text-slate-500 font-bold uppercase">e-Mola Oficial</p>
-                <p className="text-amber-400 font-black">{settings?.paymentMethods?.emolaNumber || '874329159'}</p>
+                <p className="text-amber-400 font-black">{settings?.paymentMethods?.emolaNumber || '872943159'}</p>
                 <p className="text-[10px] text-slate-400">{settings?.paymentMethods?.emolaName || 'André Zefanias Júnior'}</p>
               </div>
               <div className="pt-1 border-t border-slate-800 flex items-center gap-1.5 text-[10px] text-emerald-400">

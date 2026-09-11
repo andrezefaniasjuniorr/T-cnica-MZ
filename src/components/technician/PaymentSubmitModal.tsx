@@ -198,7 +198,7 @@ export const PaymentSubmitModal: React.FC<PaymentSubmitModalProps> = ({
                 <div className="space-y-1 bg-white p-3 rounded-xl border border-slate-200">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Número e-Mola:</span>
-                    <strong className="text-slate-900 font-black">{settings?.paymentMethods?.emolaNumber || '874329159'}</strong>
+                    <strong className="text-slate-900 font-black">{settings?.paymentMethods?.emolaNumber || '872943159'}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Titular da Conta:</span>

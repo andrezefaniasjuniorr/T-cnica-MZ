@@ -1186,7 +1186,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   <div className="flex justify-between items-center py-1 border-b border-white/10">
                     <span className="text-slate-400">e-Mola Oficial:</span>
                     <strong className="text-amber-400 font-mono text-sm">
-                      {settings?.paymentMethods?.emolaNumber || '874329159'} ({settings?.paymentMethods?.emolaName || 'André Zefanias Júnior'})
+                      {settings?.paymentMethods?.emolaNumber || '872943159'} ({settings?.paymentMethods?.emolaName || 'André Zefanias Júnior'})
                     </strong>
                   </div>
                   <div className="flex justify-between items-center py-1">

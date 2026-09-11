@@ -204,11 +204,11 @@ export const JobsSection: React.FC<JobsSectionProps> = ({ onNavigateTab, onOpenM
         </div>
 
         {/* Jobs Feed Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredJobs.map(job => (
             <div
               key={job.id}
-              className="bg-white rounded-3xl p-6 border border-slate-200 hover:border-purple-300 hover:shadow-xl transition-all duration-200 flex flex-col justify-between space-y-4"
+              className="bg-white rounded-3xl p-6 border border-slate-200 hover:border-purple-300 hover:shadow-xl transition-all duration-200 flex flex-col justify-between space-y-4 overflow-hidden h-auto"
             >
               <div className="space-y-3">
                 {/* Top Badge & Company Name */}

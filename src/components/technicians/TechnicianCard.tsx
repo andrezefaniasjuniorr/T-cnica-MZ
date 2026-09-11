@@ -108,7 +108,7 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
   } : technician;
 
   return (
-    <div className={`rounded-3xl border bg-white p-5 sm:p-6 transition-all duration-200 hover:shadow-xl flex flex-col justify-between relative group ${
+    <div className={`rounded-3xl border bg-white p-5 sm:p-6 transition-all duration-200 hover:shadow-xl flex flex-col justify-between relative group overflow-hidden h-auto ${
       technician.featured ? 'border-amber-300 ring-1 ring-amber-300/50 shadow-amber-100/50' : 'border-slate-200 hover:border-blue-300'
     }`}>
       {/* Top badges & Actions */}
@@ -246,7 +246,7 @@ export const TechnicianCard: React.FC<TechnicianCardProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1 flex-wrap sm:flex-nowrap">
         <WhatsAppButton
           phone={technician.whatsapp || technician.phone}
           technicianName={technician.name}
