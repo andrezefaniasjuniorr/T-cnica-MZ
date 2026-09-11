@@ -32,6 +32,9 @@ interface AdminUsersTabProps {
   onToggleVerification: (userId: string, currentStatus?: boolean) => Promise<{ success: boolean; error?: string }>;
   onUpdateStatus: (userId: string, status: UserStatus, reason?: string) => Promise<{ success: boolean; error?: string }>;
   onDeleteUser: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  onGrantTrial3Days?: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  onRevokeTrial?: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  onGrantSelo30Days?: (userId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
@@ -39,7 +42,10 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   onGrant30Days,
   onToggleVerification,
   onUpdateStatus,
-  onDeleteUser
+  onDeleteUser,
+  onGrantTrial3Days,
+  onRevokeTrial,
+  onGrantSelo30Days
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'client' | 'technician' | 'company' | 'admin'>('all');
@@ -125,10 +131,76 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
       if (res.success) {
         setFeedback({
           type: 'success',
-          message: `Selo de Verificação ${newStatus ? 'ativado' : 'removido'} para "${user.name}".`
+          message: `Selo de Verificação ${newStatus ? 'ativado (30 dias)' : 'removido'} para "${user.name}".`
         });
       } else {
         setFeedback({ type: 'error', message: res.error || 'Erro ao alterar verificação.' });
+      }
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleGrantSelo30Days = async (user: User) => {
+    setProcessingId(user.uid);
+    setFeedback(null);
+    try {
+      if (onGrantSelo30Days) {
+        const res = await onGrantSelo30Days(user.uid);
+        if (res.success) {
+          setFeedback({
+            type: 'success',
+            message: `Selo MZ (30 dias) concedido com sucesso para "${user.name}".`
+          });
+        } else {
+          setFeedback({ type: 'error', message: res.error || 'Erro ao conceder Selo MZ.' });
+        }
+      } else {
+        await onToggleVerification(user.uid, true);
+        setFeedback({
+          type: 'success',
+          message: `Selo MZ concedido para "${user.name}".`
+        });
+      }
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleGrantTrial3Days = async (user: User) => {
+    setProcessingId(user.uid);
+    setFeedback(null);
+    try {
+      if (onGrantTrial3Days) {
+        const res = await onGrantTrial3Days(user.uid);
+        if (res.success) {
+          setFeedback({
+            type: 'success',
+            message: `+3 Dias de Teste Grátis concedidos para "${user.name}".`
+          });
+        } else {
+          setFeedback({ type: 'error', message: res.error || 'Erro ao conceder dias de teste.' });
+        }
+      }
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRevokeTrial = async (user: User) => {
+    setProcessingId(user.uid);
+    setFeedback(null);
+    try {
+      if (onRevokeTrial) {
+        const res = await onRevokeTrial(user.uid);
+        if (res.success) {
+          setFeedback({
+            type: 'success',
+            message: `Teste Grátis revogado para "${user.name}".`
+          });
+        } else {
+          setFeedback({ type: 'error', message: res.error || 'Erro ao revogar teste.' });
+        }
       }
     } finally {
       setProcessingId(null);
@@ -295,8 +367,42 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             const isCompany = user.role === 'company' || (user as any).tipoConta === 'empresa';
             const isClient = user.role === 'client' || (user as any).tipoConta === 'cliente';
             const isAdmin = user.role === 'admin';
-            const isVerified = Boolean(user.isVerified || (user as any).hasSeloMZ || (user as any).temSeloMZ || (user as any).statusSelo === 'aprovado');
             const isBlocked = user.status === 'blocked' || user.status === 'banned' || (user as any).statusConta === 'bloqueada' || (user as any).statusConta === 'suspensa' || user.status === 'suspended';
+
+            // Selo MZ 30 Days calculation
+            const rawVerified = Boolean(user.isVerified || (user as any).hasSeloMZ || (user as any).temSeloMZ || (user as any).statusSelo === 'aprovado');
+            let isSeloExpired = false;
+            let seloDays = 0;
+            if (rawVerified) {
+              if (user.statusSelo === 'expirado') {
+                isSeloExpired = true;
+              } else if (user.verifiedUntil) {
+                const diff = new Date(user.verifiedUntil).getTime() - now;
+                if (diff <= 0) {
+                  isSeloExpired = true;
+                } else {
+                  seloDays = Math.max(1, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+                }
+              } else if (user.verifiedAt || (user as any).dataSeloAprovacao) {
+                const at = new Date(user.verifiedAt || (user as any).dataSeloAprovacao).getTime();
+                const diff = (at + 30 * 24 * 60 * 60 * 1000) - now;
+                if (diff <= 0) {
+                  isSeloExpired = true;
+                } else {
+                  seloDays = Math.max(1, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+                }
+              } else {
+                seloDays = 30;
+              }
+            }
+            const isVerified = rawVerified && !isSeloExpired;
+
+            // Free Trial (3 Days) calculation
+            const isTrialActive = user.isTrialActive !== false;
+            const createdMs = user.createdAt ? new Date(user.createdAt).getTime() : now;
+            const trialDiffMs = (createdMs + 3 * 24 * 60 * 60 * 1000) - now;
+            const isTrialValid = isTrialActive && trialDiffMs > 0;
+            const trialDaysLeft = isTrialValid ? Math.max(1, Math.ceil(trialDiffMs / (24 * 60 * 60 * 1000))) : 0;
 
             // Subscription Calculation
             const exp = user.dataExpiracao || user.subscriptionExpiresAt;
@@ -364,12 +470,38 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                           {isAdmin ? 'Admin' : isCompany ? 'Empresa' : isClient ? 'Cliente' : 'Técnico Pro'}
                         </span>
 
-                        {/* Verified Badge */}
+                        {/* Verified / Selo MZ Badge with Countdown */}
                         {isVerified && (
                           <span className="px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-blue-400" />
-                            Verificado
+                            Selo MZ: {seloDays} {seloDays === 1 ? 'dia' : 'dias'}
                           </span>
+                        )}
+
+                        {/* Selo Expirado Badge */}
+                        {isSeloExpired && (
+                          <span className="px-2 py-0.5 rounded-full bg-rose-600/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 text-rose-400" />
+                            Selo Expirado
+                          </span>
+                        )}
+
+                        {/* Teste Grátis (3 Dias) Badge */}
+                        {!isClient && !isAdmin && (
+                          isTrialValid ? (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-400" />
+                              Teste: {trialDaysLeft} {trialDaysLeft === 1 ? 'dia' : 'dias'}
+                            </span>
+                          ) : !isTrialActive ? (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-semibold">
+                              Teste Revogado
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-500 border border-slate-700 text-[10px]">
+                              Teste Expirado
+                            </span>
+                          )
                         )}
 
                         {/* Blocked Badge */}
@@ -433,6 +565,49 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                       </a>
                     )}
 
+                    {/* Teste Grátis: Conceder +3 Dias */}
+                    {!isClient && !isAdmin && (
+                      <button
+                        onClick={() => handleGrantTrial3Days(user)}
+                        disabled={isProcessing}
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1 transition-colors disabled:opacity-50"
+                        title="Conceder +3 Dias de Teste Grátis"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        <span>+3 Dias</span>
+                      </button>
+                    )}
+
+                    {/* Teste Grátis: Revogar Teste */}
+                    {!isClient && !isAdmin && isTrialActive && (
+                      <button
+                        onClick={() => handleRevokeTrial(user)}
+                        disabled={isProcessing}
+                        className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                        title="Revogar Teste Grátis do Usuário"
+                      >
+                        <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Revogar Teste</span>
+                      </button>
+                    )}
+
+                    {/* Selo MZ (30 Dias) */}
+                    {!isClient && (
+                      <button
+                        onClick={() => isVerified ? handleToggleVerified(user) : handleGrantSelo30Days(user)}
+                        disabled={isProcessing}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border disabled:opacity-50 ${
+                          isVerified
+                            ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 hover:bg-blue-600/30'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500 shadow-sm'
+                        }`}
+                        title={isVerified ? "Remover Selo MZ" : "Conceder Selo MZ (30 Dias)"}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>{isVerified ? 'Remover Selo' : 'Conceder Selo (30d)'}</span>
+                      </button>
+                    )}
+
                     {/* Add 30 Days (50 MT Plan) */}
                     {!isClient && !isAdmin && (
                       <button
@@ -442,24 +617,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                         title="Conceder ou Estender 30 Dias de Assinatura Pro"
                       >
                         <Gift className="w-3.5 h-3.5 text-purple-400" />
-                        <span>+30 Dias</span>
-                      </button>
-                    )}
-
-                    {/* Toggle Verified / Selo MZ Badge */}
-                    {!isClient && (
-                      <button
-                        onClick={() => handleToggleVerified(user)}
-                        disabled={isProcessing}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border disabled:opacity-50 ${
-                          isVerified
-                            ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 hover:bg-blue-600/30'
-                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                        }`}
-                        title={isVerified ? "Remover Selo MZ" : "Conceder Selo MZ"}
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-                        <span>{isVerified ? 'Remover Selo' : 'Conceder Selo'}</span>
+                        <span>+30d Pro</span>
                       </button>
                     )}
 

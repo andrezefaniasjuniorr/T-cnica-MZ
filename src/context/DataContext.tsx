@@ -910,6 +910,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.warn('Realtime notifications notice:', err)
     );
 
+    const unsubSettings = onSnapshot(
+      doc(db, 'settings', 'general'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as Partial<PlatformSettings>;
+          setSettings((prev) => ({
+            ...prev,
+            ...data,
+            paymentMethods: {
+              ...prev.paymentMethods,
+              ...(data.paymentMethods || {}),
+              mpesaNumber: data.paymentMethods?.mpesaNumber || (data as any).mpesaNumber || prev.paymentMethods?.mpesaNumber || '851949159',
+              mpesaName: data.paymentMethods?.mpesaName || (data as any).mpesaName || prev.paymentMethods?.mpesaName || 'André Zefanias Júnior',
+              emolaNumber: data.paymentMethods?.emolaNumber || (data as any).emolaNumber || prev.paymentMethods?.emolaNumber || '874329159',
+              emolaName: data.paymentMethods?.emolaName || (data as any).emolaName || prev.paymentMethods?.emolaName || 'André Zefanias Júnior',
+            }
+          }));
+        }
+      },
+      (err) => console.warn('Realtime settings notice:', err)
+    );
+
     return () => {
       unsubHistorias();
       unsubStories();
@@ -932,6 +954,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubPayments();
       unsubPortfolio();
       unsubNotifications();
+      unsubSettings();
     };
   }, []);
 
@@ -1061,6 +1084,95 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     safeSetStorageItem('tecnicamz_budget_estimates', budgetEstimates);
   }, [budgetEstimates]);
+
+  // Propagação e sincronização total do perfil do usuário em tempo real
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // 1. Sincroniza cards de técnicos / Ranking
+    setTechnicians(prev => {
+      let changed = false;
+      const next = prev.map(t => {
+        if (t.userId === currentUser.uid) {
+          changed = true;
+          return {
+            ...t,
+            name: currentUser.name || t.name,
+            photoURL: currentUser.avatarUrl || currentUser.photoURL || t.photoURL,
+            avatarUrl: currentUser.avatarUrl || currentUser.photoURL || t.avatarUrl,
+            city: currentUser.city || t.city,
+            province: currentUser.province || t.province,
+            idade: currentUser.idade !== undefined ? currentUser.idade : t.idade,
+            specialties: currentUser.specialties || (currentUser.specialty ? [currentUser.specialty] : t.specialties),
+            bio: currentUser.bio || t.bio,
+            phone: currentUser.phone || t.phone,
+          };
+        }
+        return t;
+      });
+      return changed ? next : prev;
+    });
+
+    // 2. Sincroniza posts e comentários do Mural
+    setCommunityPosts(prev => {
+      let changed = false;
+      const next = prev.map(post => {
+        const isAuthor = post.authorId === currentUser.uid;
+        let postChanged = false;
+        let updatedComments = post.comments;
+
+        if (Array.isArray(post.comments)) {
+          updatedComments = post.comments.map(c => {
+            if (c.authorId === currentUser.uid) {
+              postChanged = true;
+              changed = true;
+              return {
+                ...c,
+                authorName: currentUser.name || c.authorName,
+                authorAvatar: currentUser.avatarUrl || currentUser.photoURL || c.authorAvatar,
+                authorSpecialty: currentUser.specialty || currentUser.specialties?.[0] || c.authorSpecialty,
+              };
+            }
+            return c;
+          });
+        }
+
+        if (isAuthor) {
+          changed = true;
+          return {
+            ...post,
+            authorName: currentUser.name || post.authorName,
+            authorAvatar: currentUser.avatarUrl || currentUser.photoURL || post.authorAvatar,
+            authorProvince: currentUser.province || post.authorProvince,
+            authorSpecialty: currentUser.specialty || currentUser.specialties?.[0] || post.authorSpecialty,
+            comments: updatedComments
+          };
+        }
+
+        if (postChanged) {
+          return {
+            ...post,
+            comments: updatedComments
+          };
+        }
+
+        return post;
+      });
+      return changed ? next : prev;
+    });
+  }, [
+    currentUser?.uid,
+    currentUser?.name,
+    currentUser?.avatarUrl,
+    currentUser?.photoURL,
+    currentUser?.city,
+    currentUser?.province,
+    currentUser?.idade,
+    currentUser?.specialty,
+    currentUser?.specialties,
+    currentUser?.bio,
+    currentUser?.phone
+  ]);
 
   // Helper log generator
   const addAdminLog = (action: string, targetId?: string, targetName?: string, details?: string) => {
@@ -2997,9 +3109,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isFavorite = (targetId: string) => favorites.includes(targetId);
 
   // Settings
-  const updateSettings = (newSettings: Partial<PlatformSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+  const updateSettings = async (newSettings: Partial<PlatformSettings>) => {
+    setSettings(prev => {
+      const merged = { ...prev, ...newSettings };
+      safeSetStorageItem('tecnicamz_settings', merged);
+      return merged;
+    });
     addAdminLog('Atualização de configurações da plataforma');
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'settings', 'general'), newSettings, { merge: true });
+      } catch (err) {
+        console.warn('Error saving settings to Firestore:', err);
+      }
+    }
   };
 
   // Reports

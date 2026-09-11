@@ -210,7 +210,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const valorEspecialidade = (specialty || 'Eletricidade').toString().trim();
         const valorProvincia = (province || 'Maputo Cidade').toString().trim();
         const valorCidade = (city || 'Maputo').toString().trim();
-        const valorIdade = Number(idade) || 25;
+        const valorIdade = idade !== '' && !isNaN(Number(idade)) ? Number(idade) : undefined;
 
         if (!valorNome) {
           setError('Por favor, insira o seu nome completo.');
@@ -674,16 +674,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                         <div className="form-group">
                           <label htmlFor="idade" className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Idade *
+                            Idade (Opcional)
                           </label>
                           <input
                             type="number"
                             id="idade"
                             name="idade"
-                            placeholder="Ex: 20"
+                            placeholder="Ex: 24"
                             min="16"
                             max="100"
-                            required
                             value={idade}
                             onChange={(e) => setIdade(e.target.value)}
                             className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"

@@ -47,7 +47,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
     approveUserAccount,
     rejectUserAccount,
     toggleUserVerification,
-    grantManualSubscription30Days
+    grantManualSubscription30Days,
+    grantTrial3Days,
+    revokeTrial,
+    grantSelo30Days
   } = useAuth();
 
   const {
@@ -306,6 +309,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateTab }) => {
               onToggleVerification={async (id) => { await toggleUserVerification(id); return { success: true }; }}
               onUpdateStatus={async (id, status) => { await updateUserStatus(id, status); return { success: true }; }}
               onDeleteUser={async (id) => { await deleteUserAccount(id); return { success: true }; }}
+              onGrantTrial3Days={grantTrial3Days}
+              onRevokeTrial={revokeTrial}
+              onGrantSelo30Days={grantSelo30Days}
             />
           )}
 

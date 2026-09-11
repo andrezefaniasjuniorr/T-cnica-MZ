@@ -52,7 +52,17 @@ interface TechnicianDashboardProps {
 }
 
 export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavigateTab, onOpenMessages }) => {
-  const { currentUser, currentTechProfile, updateCurrentTechProfile } = useAuth();
+  const {
+    currentUser,
+    currentTechProfile,
+    updateCurrentTechProfile,
+    temSeloMZ,
+    seloDaysRemaining,
+    isSeloExpired,
+    isTrialActive,
+    trialDaysRemaining,
+    isTrialValid
+  } = useAuth();
   const {
     serviceRequests,
     proposals,
@@ -209,7 +219,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
   if (myPortfolio.length > 0) completionScore += 15;
   completionScore = Math.min(100, completionScore);
 
-  const isVerified = currentTechProfile?.verificationStatus === 'approved';
+  const isVerified = Boolean(temSeloMZ && !isSeloExpired);
   const isSubActive = currentTechProfile?.subscriptionStatus === 'active';
 
   // Budget calculations
@@ -379,7 +389,20 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   {isVerified ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-300 bg-blue-950/80 px-3 py-0.5 rounded-full border border-blue-500/50">
                       <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Selo Verificado Oficial</span>
+                      <span>Selo MZ: {seloDaysRemaining} {seloDaysRemaining === 1 ? 'dia' : 'dias'}</span>
+                    </span>
+                  ) : isSeloExpired ? (
+                    <button
+                      onClick={(e) => handleTabClick('tab-assinatura', e)}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-300 bg-rose-950/80 px-3 py-0.5 rounded-full border border-rose-500/50 hover:bg-rose-900/50 transition cursor-pointer"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Selo Expirado</span>
+                    </button>
+                  ) : isTrialValid ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-500/40">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Teste Grátis: {trialDaysRemaining} {trialDaysRemaining === 1 ? 'dia' : 'dias'}</span>
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-300 bg-slate-800 px-2.5 py-0.5 rounded-full">
@@ -615,9 +638,21 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                     <span>Selo Oficial de Técnico Verificado TécnicaMZ</span>
                   </h3>
                   <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                    isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                    isVerified
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : isSeloExpired
+                      ? 'bg-rose-100 text-rose-700'
+                      : isTrialValid
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-slate-100 text-slate-700'
                   }`}>
-                    {isVerified ? '✓ Selo MZ Ativo' : 'Pendente de Documentação'}
+                    {isVerified
+                      ? `✓ Selo MZ Ativo (${seloDaysRemaining} ${seloDaysRemaining === 1 ? 'dia' : 'dias'})`
+                      : isSeloExpired
+                      ? '✕ Selo Expirado'
+                      : isTrialValid
+                      ? `⏳ Teste Grátis (${trialDaysRemaining} ${trialDaysRemaining === 1 ? 'dia' : 'dias'})`
+                      : 'Pendente de Documentação'}
                   </span>
                 </div>
 
@@ -1143,12 +1178,20 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                     <strong className="text-white">M-Pesa (Vodacom) / e-Mola (Movitel)</strong>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-white/10">
-                    <span className="text-slate-400">Número Oficial:</span>
-                    <strong className="text-emerald-400 font-mono text-sm">{settings.mpesaNumber || '84 123 4567'}</strong>
+                    <span className="text-slate-400">M-Pesa Oficial:</span>
+                    <strong className="text-emerald-400 font-mono text-sm">
+                      {settings?.paymentMethods?.mpesaNumber || settings?.mpesaNumber || '851949159'} ({settings?.paymentMethods?.mpesaName || settings?.mpesaName || 'André Zefanias Júnior'})
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-white/10">
+                    <span className="text-slate-400">e-Mola Oficial:</span>
+                    <strong className="text-amber-400 font-mono text-sm">
+                      {settings?.paymentMethods?.emolaNumber || '874329159'} ({settings?.paymentMethods?.emolaName || 'André Zefanias Júnior'})
+                    </strong>
                   </div>
                   <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-400">Titular da Conta:</span>
-                    <strong className="text-white">{settings.mpesaName || 'TécnicaMZ Pro Oficial'}</strong>
+                    <span className="text-slate-400">Titular das Contas:</span>
+                    <strong className="text-white">{settings?.paymentMethods?.mpesaName || 'André Zefanias Júnior'}</strong>
                   </div>
                 </div>
 

@@ -251,10 +251,12 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
                 </span>
               )}
               {/* Age badge */}
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1 border border-slate-200">
-                <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                <span>{technician.idade ? `${technician.idade} anos` : '28 anos'}</span>
-              </span>
+              {technician.idade ? (
+                <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1 border border-slate-200">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{technician.idade} anos</span>
+                </span>
+              ) : null}
               {isVerified && (
                 <Badge variant="primary" icon={<CheckCircle2 className="w-3.5 h-3.5" />}>
                   Técnico Verificado

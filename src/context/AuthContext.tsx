@@ -33,12 +33,22 @@ interface AuthContextType {
 
   // Selo MZ & Permissions
   temSeloMZ: boolean;
-  statusSelo: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
+  statusSelo: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado' | 'expirado';
+  seloDaysRemaining: number;
+  isSeloExpired: boolean;
+  isTrialActive: boolean;
+  trialDaysRemaining: number;
+  isTrialValid: boolean;
+  isTrialExpired: boolean;
+  hasAccess: boolean;
   isRestrictedTechnician: boolean;
   solicitacoesSelo: SolicitacaoSelo[];
   solicitarSeloMZ: (operadora: 'mpesa' | 'emola', mensagemTransacao: string) => Promise<{ success: boolean; error?: string }>;
   aprovarSeloMZ: (solicitacaoId: string, userId: string) => Promise<{ success: boolean; error?: string }>;
   rejeitarSeloMZ: (solicitacaoId: string, userId: string, motivo?: string) => Promise<{ success: boolean; error?: string }>;
+  grantTrial3Days: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  revokeTrial: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  grantSelo30Days: (userId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Paywall & Subscription State
   isSubscriptionActive: boolean;
@@ -793,8 +803,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 city: rawData.city || rawData.cidade || 'Maputo',
                 avatarUrl: rawData.avatarUrl || rawData.photoURL || rawData.fotoUrl || rawData.foto || fbUser.photoURL || undefined,
                 photoURL: rawData.photoURL || rawData.avatarUrl || rawData.fotoUrl || rawData.foto || fbUser.photoURL || undefined,
+                isVerified: isSuper ? true : Boolean(rawData.isVerified || rawData.verificationStatus === 'approved' || rawData.statusSelo === 'aprovado'),
                 temSeloMZ: isSuper ? true : Boolean(rawData.temSeloMZ || rawData.statusSelo === 'aprovado'),
                 statusSelo: isSuper ? 'aprovado' : (rawData.statusSelo || (rawData.temSeloMZ ? 'aprovado' : 'nenhum')),
+                verifiedAt: rawData.verifiedAt || rawData.dataSeloAprovacao,
+                verifiedUntil: rawData.verifiedUntil,
+                isTrialActive: rawData.isTrialActive !== undefined ? Boolean(rawData.isTrialActive) : true,
                 dataSeloEnvio: rawData.dataSeloEnvio,
                 dataSeloAprovacao: rawData.dataSeloAprovacao,
                 motivoRejeicaoSelo: rawData.motivoRejeicaoSelo,
@@ -1220,8 +1234,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 city: docData.city || docData.cidade || 'Maputo',
                 avatarUrl: docData.avatarUrl || docData.photoURL || docData.fotoUrl || docData.foto || fbUser.photoURL || undefined,
                 photoURL: docData.photoURL || docData.avatarUrl || docData.fotoUrl || docData.foto || fbUser.photoURL || undefined,
+                isVerified: isSuper ? true : Boolean(docData.isVerified || docData.verificationStatus === 'approved' || docData.statusSelo === 'aprovado'),
                 temSeloMZ: isSuper ? true : Boolean(docData.temSeloMZ || docData.statusSelo === 'aprovado'),
                 statusSelo: isSuper ? 'aprovado' : (docData.statusSelo || (docData.temSeloMZ ? 'aprovado' : 'nenhum')),
+                verifiedAt: docData.verifiedAt || docData.dataSeloAprovacao,
+                verifiedUntil: docData.verifiedUntil,
+                isTrialActive: docData.isTrialActive !== undefined ? Boolean(docData.isTrialActive) : true,
                 dataSeloEnvio: docData.dataSeloEnvio,
                 dataSeloAprovacao: docData.dataSeloAprovacao,
                 motivoRejeicaoSelo: docData.motivoRejeicaoSelo,
@@ -1508,7 +1526,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const statusAprovacao = isAutoApproved ? 'aprovado' : 'pendente';
       const status: UserStatus = isAutoApproved ? 'active' : 'pending_approval';
 
-      const userAge = data.idade ? Number(data.idade) : 25;
+      const userAge = data.idade && !isNaN(Number(data.idade)) ? Number(data.idade) : undefined;
       const userPhoto = data.photoURL || data.avatarUrl || undefined;
 
       const newUser: User = {
@@ -1531,6 +1549,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         statusAprovacao: statusAprovacao,
         statusConta: 'ativa',
         isVerified: false,
+        temSeloMZ: false,
+        statusSelo: 'nenhum',
+        isTrialActive: true,
         specialty: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
         province: data.province || 'Maputo Cidade',
         city: data.city || 'Maputo',
@@ -1555,6 +1576,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             status: status,
             statusConta: 'ativa',
             statusAprovacao: statusAprovacao,
+            isTrialActive: true,
+            isVerified: false,
+            temSeloMZ: false,
+            statusSelo: 'nenhum',
             criadoEm: serverTimestamp(),
             createdAt: serverTimestamp(),
             createdAtIso: new Date().toISOString()
@@ -1563,6 +1588,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const usuarioPayload = {
             ...userDocPayload,
             idade: userAge,
+            isTrialActive: true,
             especialidade: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
             specialty: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
             provincia: data.province || 'Maputo Cidade',
@@ -1613,6 +1639,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           statusAprovacao: 'pendente',
           statusConta: 'ativa',
           isVerified: false,
+          isTrialActive: true,
           subscriptionStatus: 'none',
           rating: 5.0,
           reviewsCount: 0,
@@ -1668,6 +1695,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           statusAprovacao: 'pendente',
           statusConta: 'ativa',
           isVerified: false,
+          isTrialActive: true,
           rating: 5.0,
           reviewsCount: 0,
           hiredTechniciansCount: 0,
@@ -1791,6 +1819,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         statusAprovacao: 'pendente',
         statusConta: 'ativa',
         isVerified: false,
+        isTrialActive: true,
         createdAt: new Date().toISOString()
       };
 
@@ -1812,6 +1841,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         statusAprovacao: 'pendente',
         statusConta: 'ativa',
         isVerified: false,
+        isTrialActive: true,
         rating: 5.0,
         reviewsCount: 0,
         hiredTechniciansCount: 0,
@@ -1835,6 +1865,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: 'company',
           status: 'pending_approval',
           statusConta: 'ativa',
+          isTrialActive: true,
           criadoEm: serverTimestamp(),
           createdAt: serverTimestamp(),
           createdAtIso: new Date().toISOString()
@@ -2425,52 +2456,270 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const toggleUserVerification = async (userId: string) => {
     const target = usersList.find(u => u.uid === userId);
     if (!target) return;
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
     const newVerified = !target.isVerified;
+    const verifiedUntilIso = newVerified ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined;
 
     setUsersList(prev =>
-      prev.map(u => (u.uid === userId ? { ...u, isVerified: newVerified, updatedAt: nowIso } : u))
+      prev.map(u => (u.uid === userId ? {
+        ...u,
+        isVerified: newVerified,
+        temSeloMZ: newVerified,
+        statusSelo: newVerified ? 'aprovado' : 'nenhum',
+        verifiedAt: newVerified ? nowIso : undefined,
+        verifiedUntil: verifiedUntilIso,
+        dataSeloAprovacao: newVerified ? nowIso : undefined,
+        updatedAt: nowIso
+      } : u))
     );
     setTechList(prev =>
       prev.map(t =>
         t.userId === userId
-          ? { ...t, isVerified: newVerified, verificationStatus: newVerified ? 'approved' : 'none', updatedAt: nowIso }
+          ? {
+              ...t,
+              isVerified: newVerified,
+              temSeloMZ: newVerified,
+              statusSelo: newVerified ? 'aprovado' : 'nenhum',
+              verifiedAt: newVerified ? nowIso : undefined,
+              verifiedUntil: verifiedUntilIso,
+              verificationStatus: newVerified ? 'approved' : 'none',
+              updatedAt: nowIso
+            }
           : t
       )
     );
     setCompanyList(prev =>
       prev.map(c =>
         c.userId === userId
-          ? { ...c, isVerified: newVerified, verificationStatus: newVerified ? 'verified' : 'unverified', updatedAt: nowIso }
+          ? {
+              ...c,
+              isVerified: newVerified,
+              temSeloMZ: newVerified,
+              statusSelo: newVerified ? 'aprovado' : 'nenhum',
+              verifiedAt: newVerified ? nowIso : undefined,
+              verifiedUntil: verifiedUntilIso,
+              verificationStatus: newVerified ? 'verified' : 'unverified',
+              updatedAt: nowIso
+            }
           : c
       )
     );
 
     if (currentUser?.uid === userId) {
-      setCurrentUser(prev => (prev ? { ...prev, isVerified: newVerified, updatedAt: nowIso } : null));
+      setCurrentUser(prev => (prev ? {
+        ...prev,
+        isVerified: newVerified,
+        temSeloMZ: newVerified,
+        statusSelo: newVerified ? 'aprovado' : 'nenhum',
+        verifiedAt: newVerified ? nowIso : undefined,
+        verifiedUntil: verifiedUntilIso,
+        dataSeloAprovacao: newVerified ? nowIso : undefined,
+        updatedAt: nowIso
+      } : null));
     }
 
     if (isFirebaseConfigured && db) {
       try {
-        await updateDoc(doc(db, 'users', userId), { isVerified: newVerified, updatedAt: nowIso });
+        const updatePayload: any = {
+          isVerified: newVerified,
+          temSeloMZ: newVerified,
+          statusSelo: newVerified ? 'aprovado' : 'nenhum',
+          updatedAt: nowIso
+        };
+        if (newVerified) {
+          updatePayload.verifiedAt = nowIso;
+          updatePayload.verifiedUntil = verifiedUntilIso;
+          updatePayload.dataSeloAprovacao = nowIso;
+        } else {
+          updatePayload.verifiedUntil = null;
+        }
+        await updateDoc(doc(db, 'users', userId), updatePayload);
       } catch (err) {
         console.warn('Firestore toggle user verified error:', err);
       }
       try {
         await updateDoc(doc(db, 'technicians', userId), {
           isVerified: newVerified,
+          temSeloMZ: newVerified,
+          statusSelo: newVerified ? 'aprovado' : 'nenhum',
           verificationStatus: newVerified ? 'approved' : 'none',
+          verifiedAt: newVerified ? nowIso : null,
+          verifiedUntil: verifiedUntilIso || null,
           updatedAt: nowIso
         });
       } catch {}
       try {
         await updateDoc(doc(db, 'companies', userId), {
           isVerified: newVerified,
+          temSeloMZ: newVerified,
+          statusSelo: newVerified ? 'aprovado' : 'nenhum',
           verificationStatus: newVerified ? 'verified' : 'unverified',
+          verifiedAt: newVerified ? nowIso : null,
+          verifiedUntil: verifiedUntilIso || null,
           updatedAt: nowIso
         });
       } catch {}
     }
+  };
+
+  const grantTrial3Days = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+    const nowIso = new Date().toISOString();
+    setUsersList(prev =>
+      prev.map(u => (u.uid === userId ? { ...u, isTrialActive: true, createdAt: nowIso, updatedAt: nowIso } : u))
+    );
+    setTechList(prev =>
+      prev.map(t => (t.userId === userId ? { ...t, isTrialActive: true, createdAt: nowIso, updatedAt: nowIso } : t))
+    );
+    setCompanyList(prev =>
+      prev.map(c => (c.userId === userId ? { ...c, isTrialActive: true, createdAt: nowIso, updatedAt: nowIso } : c))
+    );
+    if (currentUser?.uid === userId) {
+      setCurrentUser(prev => (prev ? { ...prev, isTrialActive: true, createdAt: nowIso, updatedAt: nowIso } : null));
+    }
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', userId), { isTrialActive: true, createdAt: serverTimestamp(), createdAtIso: nowIso, updatedAt: nowIso });
+        await updateDoc(doc(db, 'technicians', userId), { isTrialActive: true, createdAt: serverTimestamp(), createdAtIso: nowIso, updatedAt: nowIso }).catch(() => {});
+        await updateDoc(doc(db, 'companies', userId), { isTrialActive: true, createdAt: serverTimestamp(), createdAtIso: nowIso, updatedAt: nowIso }).catch(() => {});
+      } catch (err) {
+        console.warn('grantTrial3Days error:', err);
+      }
+    }
+    return { success: true };
+  };
+
+  const revokeTrial = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+    const nowIso = new Date().toISOString();
+    setUsersList(prev =>
+      prev.map(u => (u.uid === userId ? { ...u, isTrialActive: false, updatedAt: nowIso } : u))
+    );
+    setTechList(prev =>
+      prev.map(t => (t.userId === userId ? { ...t, isTrialActive: false, updatedAt: nowIso } : t))
+    );
+    setCompanyList(prev =>
+      prev.map(c => (c.userId === userId ? { ...c, isTrialActive: false, updatedAt: nowIso } : c))
+    );
+    if (currentUser?.uid === userId) {
+      setCurrentUser(prev => (prev ? { ...prev, isTrialActive: false, updatedAt: nowIso } : null));
+    }
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', userId), { isTrialActive: false, updatedAt: nowIso });
+        await updateDoc(doc(db, 'technicians', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
+        await updateDoc(doc(db, 'companies', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
+      } catch (err) {
+        console.warn('revokeTrial error:', err);
+      }
+    }
+    return { success: true };
+  };
+
+  const grantSelo30Days = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const verifiedUntilIso = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    setUsersList(prev =>
+      prev.map(u =>
+        u.uid === userId
+          ? {
+              ...u,
+              isVerified: true,
+              temSeloMZ: true,
+              statusSelo: 'aprovado',
+              verifiedAt: nowIso,
+              verifiedUntil: verifiedUntilIso,
+              dataSeloAprovacao: nowIso,
+              updatedAt: nowIso
+            }
+          : u
+      )
+    );
+    setTechList(prev =>
+      prev.map(t =>
+        t.userId === userId
+          ? {
+              ...t,
+              isVerified: true,
+              temSeloMZ: true,
+              statusSelo: 'aprovado',
+              verifiedAt: nowIso,
+              verifiedUntil: verifiedUntilIso,
+              verificationStatus: 'approved',
+              updatedAt: nowIso
+            }
+          : t
+      )
+    );
+    setCompanyList(prev =>
+      prev.map(c =>
+        c.userId === userId
+          ? {
+              ...c,
+              isVerified: true,
+              temSeloMZ: true,
+              statusSelo: 'aprovado',
+              verifiedAt: nowIso,
+              verifiedUntil: verifiedUntilIso,
+              verificationStatus: 'verified',
+              updatedAt: nowIso
+            }
+          : c
+      )
+    );
+
+    if (currentUser?.uid === userId) {
+      setCurrentUser(prev =>
+        prev
+          ? {
+              ...prev,
+              isVerified: true,
+              temSeloMZ: true,
+              statusSelo: 'aprovado',
+              verifiedAt: nowIso,
+              verifiedUntil: verifiedUntilIso,
+              dataSeloAprovacao: nowIso,
+              updatedAt: nowIso
+            }
+          : null
+      );
+    }
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await updateDoc(doc(db, 'users', userId), {
+          isVerified: true,
+          temSeloMZ: true,
+          statusSelo: 'aprovado',
+          verifiedAt: nowIso,
+          verifiedUntil: verifiedUntilIso,
+          dataSeloAprovacao: nowIso,
+          updatedAt: nowIso
+        });
+        await updateDoc(doc(db, 'technicians', userId), {
+          isVerified: true,
+          temSeloMZ: true,
+          statusSelo: 'aprovado',
+          verifiedAt: nowIso,
+          verifiedUntil: verifiedUntilIso,
+          verificationStatus: 'approved',
+          updatedAt: nowIso
+        }).catch(() => {});
+        await updateDoc(doc(db, 'companies', userId), {
+          isVerified: true,
+          temSeloMZ: true,
+          statusSelo: 'aprovado',
+          verifiedAt: nowIso,
+          verifiedUntil: verifiedUntilIso,
+          verificationStatus: 'verified',
+          updatedAt: nowIso
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('grantSelo30Days error:', err);
+      }
+    }
+    return { success: true };
   };
 
   const grantManualSubscription30Days = async (userId: string) => {
@@ -2706,8 +2955,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isFinanceAdmin = isSuperAdmin || currentUser?.adminSubRole === 'finance_admin';
   const isModerator = isSuperAdmin || currentUser?.adminSubRole === 'moderator';
 
-  // SELO MZ CALCULATION & ACCESS CONTROL
-  const temSeloMZ = React.useMemo<boolean>(() => {
+  // =========================================================================
+  // SELO MZ CALCULATION, 30-DAY COUNTDOWN, 3-DAY TRIAL & ACCESS CONTROL
+  // =========================================================================
+
+  // 1. Selo MZ 30 Dias: Validade e Contagem Regressiva
+  const isSeloValid = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
     if (
       currentUser.role === 'super_admin' ||
@@ -2717,33 +2970,230 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) {
       return true;
     }
-    return Boolean(currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
+
+    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
+    if (!hasSeloFlag) return false;
+
+    if (currentUser.statusSelo === 'expirado') return false;
+
+    // Checagem de expiração da data
+    if (currentUser.verifiedUntil) {
+      const untilMs = new Date(currentUser.verifiedUntil).getTime();
+      return Date.now() < untilMs;
+    }
+    if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
+      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      return Date.now() < (atMs + thirtyDaysMs);
+    }
+    return true;
   }, [currentUser]);
 
-  const statusSelo = React.useMemo<'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado'>(() => {
+  const seloDaysRemaining = React.useMemo<number>(() => {
+    if (!currentUser) return 0;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
+    ) {
+      return 30;
+    }
+
+    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
+    if (!hasSeloFlag || currentUser.statusSelo === 'expirado') return 0;
+
+    let targetUntilMs: number | null = null;
+    if (currentUser.verifiedUntil) {
+      targetUntilMs = new Date(currentUser.verifiedUntil).getTime();
+    } else if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
+      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
+      targetUntilMs = atMs + 30 * 24 * 60 * 60 * 1000;
+    }
+
+    if (!targetUntilMs) return 30;
+    const diffMs = targetUntilMs - Date.now();
+    if (diffMs <= 0) return 0;
+    return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+  }, [currentUser]);
+
+  const isSeloExpired = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return false;
+    }
+    if (currentUser.statusSelo === 'expirado') return true;
+    if (currentUser.verifiedUntil) {
+      const untilMs = new Date(currentUser.verifiedUntil).getTime();
+      return Date.now() >= untilMs;
+    }
+    if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
+      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      return Date.now() >= (atMs + thirtyDaysMs);
+    }
+    return false;
+  }, [currentUser]);
+
+  const temSeloMZ = React.useMemo<boolean>(() => {
+    return isSeloValid;
+  }, [isSeloValid]);
+
+  const statusSelo = React.useMemo<'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado' | 'expirado'>(() => {
     if (!currentUser) return 'nenhum';
-    if (temSeloMZ) return 'aprovado';
-    return currentUser.statusSelo || 'nenhum';
-  }, [currentUser, temSeloMZ]);
+    if (isSeloValid) return 'aprovado';
+    if (isSeloExpired) return 'expirado';
+    return (currentUser.statusSelo as any) || 'nenhum';
+  }, [currentUser, isSeloValid, isSeloExpired]);
+
+  // 2. Teste Grátis (3 Dias)
+  const isTrialActive = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    return currentUser.isTrialActive !== false;
+  }, [currentUser]);
+
+  const trialDaysRemaining = React.useMemo<number>(() => {
+    if (!currentUser) return 0;
+    if (currentUser.isTrialActive === false) return 0;
+    const createdMs = currentUser.createdAt ? new Date(currentUser.createdAt).getTime() : Date.now();
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    const diffMs = (createdMs + threeDaysMs) - Date.now();
+    if (diffMs <= 0) return 0;
+    return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+  }, [currentUser]);
+
+  const isTrialValid = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return true;
+    }
+    if (currentUser.isTrialActive === false) return false;
+    const createdMs = currentUser.createdAt ? new Date(currentUser.createdAt).getTime() : Date.now();
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    return (Date.now() - createdMs) <= threeDaysMs;
+  }, [currentUser]);
+
+  const isTrialExpired = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (currentUser.isTrialActive === false) return false;
+    const createdMs = currentUser.createdAt ? new Date(currentUser.createdAt).getTime() : Date.now();
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    return (Date.now() - createdMs) > threeDaysMs;
+  }, [currentUser]);
+
+  // 3. Regra de Acesso:
+  // "Acesso liberado se: isVerified === true OU (isTrialActive === true E tempo desde createdAt <= 3 dias)."
+  const hasAccess = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      currentUser.role === 'client' ||
+      currentUser.tipoConta === 'cliente'
+    ) {
+      return true;
+    }
+    return isSeloValid || isTrialValid;
+  }, [currentUser, isSeloValid, isTrialValid]);
 
   const isRestrictedTechnician = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
-    if (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.adminSubRole === 'super_admin') {
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
       return false;
     }
     const isTech = currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician';
     if (!isTech) return false;
-    return !temSeloMZ;
-  }, [currentUser, temSeloMZ]);
+    return !hasAccess;
+  }, [currentUser, hasAccess]);
+
+  // Auto-expiração do Selo MZ quando verifiedUntil for atingido
+  React.useEffect(() => {
+    if (!currentUser?.uid) return;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return;
+    }
+
+    if (currentUser.verifiedUntil) {
+      const untilMs = new Date(currentUser.verifiedUntil).getTime();
+      if (Date.now() >= untilMs && (currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado')) {
+        const nowIso = new Date().toISOString();
+        setCurrentUser(prev =>
+          prev
+            ? {
+                ...prev,
+                isVerified: false,
+                temSeloMZ: false,
+                statusSelo: 'expirado',
+                updatedAt: nowIso
+              }
+            : null
+        );
+
+        setUsersList(prev =>
+          prev.map(u =>
+            u.uid === currentUser.uid
+              ? {
+                  ...u,
+                  isVerified: false,
+                  temSeloMZ: false,
+                  statusSelo: 'expirado',
+                  updatedAt: nowIso
+                }
+              : u
+          )
+        );
+
+        if (isFirebaseConfigured && db) {
+          updateDoc(doc(db, 'users', currentUser.uid), {
+            isVerified: false,
+            temSeloMZ: false,
+            statusSelo: 'expirado',
+            updatedAt: nowIso
+          }).catch(() => {});
+          updateDoc(doc(db, 'technicians', currentUser.uid), {
+            isVerified: false,
+            temSeloMZ: false,
+            verificationStatus: 'none',
+            statusSelo: 'expirado',
+            updatedAt: nowIso
+          }).catch(() => {});
+          updateDoc(doc(db, 'companies', currentUser.uid), {
+            isVerified: false,
+            temSeloMZ: false,
+            verificationStatus: 'unverified',
+            statusSelo: 'expirado',
+            updatedAt: nowIso
+          }).catch(() => {});
+        }
+      }
+    }
+  }, [currentUser?.uid, currentUser?.verifiedUntil, currentUser?.isVerified, currentUser?.temSeloMZ, currentUser?.statusSelo]);
 
   // Sincronização automática com a chave 'tecnico_verificado' no localStorage
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('tecnico_verificado', temSeloMZ ? 'true' : 'false');
+        localStorage.setItem('tecnico_verificado', hasAccess ? 'true' : 'false');
       } catch {}
     }
-  }, [temSeloMZ]);
+  }, [hasAccess]);
 
   // SELO MZ ACTIONS
   const solicitarSeloMZ = async (
@@ -2819,7 +3269,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     solicitacaoId: string,
     userId: string
   ): Promise<{ success: boolean; error?: string }> => {
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const verifiedUntilIso = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     // Update solicitacoes list
     setSolicitacoesSelo(prev =>
@@ -2844,6 +3296,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               temSeloMZ: true,
               statusSelo: 'aprovado',
               isVerified: true,
+              verifiedAt: nowIso,
+              verifiedUntil: verifiedUntilIso,
               statusAprovacao: 'aprovado',
               statusConta: 'ativa',
               status: 'active',
@@ -2865,6 +3319,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               temSeloMZ: true,
               statusSelo: 'aprovado',
               isVerified: true,
+              verifiedAt: nowIso,
+              verifiedUntil: verifiedUntilIso,
               statusAprovacao: 'aprovado',
               statusConta: 'ativa',
               status: 'active',
@@ -2893,6 +3349,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           temSeloMZ: true,
           statusSelo: 'aprovado',
           isVerified: true,
+          verifiedAt: nowIso,
+          verifiedUntil: verifiedUntilIso,
           statusAprovacao: 'aprovado',
           statusConta: 'ativa',
           status: 'active',
@@ -2910,11 +3368,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           temSeloMZ: true,
           statusSelo: 'aprovado',
           isVerified: true,
+          verifiedAt: nowIso,
+          verifiedUntil: verifiedUntilIso,
           verificationStatus: 'approved',
           statusAprovacao: 'aprovado',
           statusConta: 'ativa',
           status: 'active',
           subscriptionStatus: 'active',
+          updatedAt: nowIso
+        });
+      } catch {
+        // may not exist
+      }
+
+      try {
+        await updateDoc(doc(db, 'companies', userId), {
+          temSeloMZ: true,
+          statusSelo: 'aprovado',
+          isVerified: true,
+          verifiedAt: nowIso,
+          verifiedUntil: verifiedUntilIso,
+          verificationStatus: 'verified',
+          statusAprovacao: 'aprovado',
+          statusConta: 'ativa',
+          status: 'active',
           updatedAt: nowIso
         });
       } catch {
@@ -3029,11 +3506,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         temSeloMZ,
         statusSelo,
+        seloDaysRemaining,
+        isSeloExpired,
+        isTrialActive,
+        trialDaysRemaining,
+        isTrialValid,
+        isTrialExpired,
+        hasAccess,
         isRestrictedTechnician,
         solicitacoesSelo,
         solicitarSeloMZ,
         aprovarSeloMZ,
         rejeitarSeloMZ,
+        grantSelo30Days,
+        grantTrial3Days,
+        revokeTrial,
 
         isSubscriptionActive,
         activePlanTier,

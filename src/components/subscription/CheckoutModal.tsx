@@ -25,7 +25,12 @@ interface CheckoutModalProps {
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = true, onClose, onSuccess }) => {
   const { currentUser, activateUserSubscription } = useAuth();
-  const { submitPayment } = useData();
+  const { submitPayment, settings } = useData();
+
+  const mpesaNumber = settings?.paymentMethods?.mpesaNumber || '851949159';
+  const mpesaName = settings?.paymentMethods?.mpesaName || 'André Zefanias Júnior';
+  const emolaNumber = settings?.paymentMethods?.emolaNumber || '874329159';
+  const emolaName = settings?.paymentMethods?.emolaName || 'André Zefanias Júnior';
 
   if (!isOpen) return null;
 
@@ -312,7 +317,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
                     </p>
                     <p>
                       Envie <strong>{plan.priceMZN} MT</strong> para a conta TécnicaMZ Oficial:{' '}
-                      <strong>{method === 'mpesa' ? '+258 84 999 0001 (M-Pesa)' : '+258 86 999 0001 (e-Mola)'}</strong>.
+                      <strong>{method === 'mpesa' ? `${mpesaNumber} (${mpesaName} - M-Pesa)` : `${emolaNumber} (${emolaName} - e-Mola)`}</strong>.
                     </p>
                     <p className="text-[11px] text-amber-700">
                       Depois, copie o código da transação da mensagem SMS e cole abaixo.

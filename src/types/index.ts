@@ -68,7 +68,10 @@ export interface User {
   statusConta?: AccountStatus;
   isVerified?: boolean;
   temSeloMZ?: boolean;
-  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
+  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado' | 'expirado';
+  verifiedAt?: string;
+  verifiedUntil?: string;
+  isTrialActive?: boolean;
   dataSeloEnvio?: string;
   dataSeloAprovacao?: string;
   motivoRejeicaoSelo?: string;
@@ -192,7 +195,10 @@ export interface TechnicianProfile {
   verificationRejectionReason?: string;
   isVerified?: boolean;
   temSeloMZ?: boolean;
-  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
+  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado' | 'expirado';
+  verifiedAt?: string;
+  verifiedUntil?: string;
+  isTrialActive?: boolean;
   statusAprovacao?: ApprovalStatus;
   statusConta?: AccountStatus;
   subscriptionStatus: SubscriptionStatus;
@@ -247,7 +253,10 @@ export interface CompanyProfile {
   verificationRejectionReason?: string;
   isVerified?: boolean;
   temSeloMZ?: boolean;
-  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado';
+  statusSelo?: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado' | 'expirado';
+  verifiedAt?: string;
+  verifiedUntil?: string;
+  isTrialActive?: boolean;
   statusAprovacao?: ApprovalStatus;
   statusConta?: AccountStatus;
   privacy?: CompanyPrivacySettings;

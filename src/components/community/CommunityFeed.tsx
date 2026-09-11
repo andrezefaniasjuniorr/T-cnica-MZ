@@ -363,6 +363,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
 
               const isCommentOpen = activeCommentPostId === post.id;
 
+              const postDisplayName = isPostAuthor ? (currentUser?.name || post.authorName || 'Usuário') : (post.authorName || 'Usuário');
+              const postDisplayAvatar = isPostAuthor ? (currentUser?.avatarUrl || currentUser?.photoURL || post.authorAvatar) : post.authorAvatar;
+              const postDisplayProvince = isPostAuthor ? (currentUser?.province || post.authorProvince || 'Moçambique') : (post.authorProvince || 'Moçambique');
+              const postDisplaySpecialty = isPostAuthor ? (currentUser?.specialty || currentUser?.specialties?.[0] || post.authorSpecialty) : post.authorSpecialty;
+              const postWhatsappNumber = isPostAuthor ? (currentUser?.whatsapp || currentUser?.phone || post.authorWhatsapp) : post.authorWhatsapp;
+
               return (
                 <article
                   key={post.id}
@@ -386,15 +392,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3.5">
                         <UserAvatar
-                          name={post.authorName}
-                          photoURL={post.authorAvatar}
+                          name={postDisplayName}
+                          photoURL={postDisplayAvatar}
                           size="lg"
                           className="border border-slate-200"
                         />
 
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm sm:text-base font-black text-slate-900">{post.authorName || 'Usuário'}</h3>
+                            <h3 className="text-sm sm:text-base font-black text-slate-900">{postDisplayName}</h3>
                             <UserRankBadge points={getAuthorPoints(post.authorId)} size="xs" />
                             {post.authorRole === 'super_admin' && (
                               <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black">
@@ -415,11 +421,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                           </div>
 
                           <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
-                            {post.authorSpecialty && (
-                              <span className="font-semibold text-slate-600">{post.authorSpecialty}</span>
+                            {postDisplaySpecialty && (
+                              <span className="font-semibold text-slate-600">{postDisplaySpecialty}</span>
                             )}
                             <span>•</span>
-                            <span>📍 {post.authorProvince}</span>
+                            <span>📍 {postDisplayProvince}</span>
                             <span>•</span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3 text-slate-400" />
@@ -597,10 +603,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                           <span>Comentários ({post.commentsCount || 0})</span>
                         </button>
 
-                        {post.authorWhatsapp && (
+                        {postWhatsappNumber && (
                           <a
-                            href={`https://wa.me/${(post.authorWhatsapp || '').replace(/\D/g, '')}?text=${encodeURIComponent(
-                              `Olá ${post.authorName}, vi a sua publicação no Mural Técnico da TécnicaMZ ("${post.title}") e gostaria de conversar.`
+                            href={`https://wa.me/${(postWhatsappNumber || '').replace(/\D/g, '')}?text=${encodeURIComponent(
+                              `Olá ${postDisplayName}, vi a sua publicação no Mural Técnico da TécnicaMZ ("${post.title}") e gostaria de conversar.`
                             )}`}
                             target="_blank"
                             rel="noreferrer"
@@ -640,6 +646,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                           <div className="space-y-3">
                             {post.comments.map(comment => {
                               const isCommentAuthor = currentUser && currentUser.uid === comment.authorId;
+                              const commentDisplayName = isCommentAuthor ? (currentUser?.name || comment.authorName || 'Usuário') : (comment.authorName || 'Usuário');
+                              const commentDisplaySpecialty = isCommentAuthor ? (currentUser?.specialty || currentUser?.specialties?.[0] || comment.authorSpecialty) : comment.authorSpecialty;
                               const isPostOwner = comment.authorId === post.authorId;
                               const hasLikedComment = currentUser && comment.likes?.includes(currentUser.uid);
                               const canDeleteComment = isCommentAuthor || isPostAuthor || isAdmin;
@@ -660,7 +668,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                                 >
                                   <div className="flex items-center justify-between text-xs flex-wrap gap-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-black text-slate-900">{comment.authorName || 'Usuário'}</span>
+                                      <span className="font-black text-slate-900">{commentDisplayName}</span>
                                       <UserRankBadge points={getAuthorPoints(comment.authorId)} size="xs" />
                                       {isAcceptedSolution && (
                                         <span className="text-[10px] px-2.5 py-0.5 bg-emerald-600 text-white rounded-full font-black flex items-center gap-1 shadow-xs animate-pulse">
@@ -673,9 +681,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                                           ★ Autor da Publicação
                                         </span>
                                       )}
-                                      {comment.authorSpecialty && !isPostOwner && (
+                                      {commentDisplaySpecialty && !isPostOwner && (
                                         <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md font-semibold">
-                                          {comment.authorSpecialty}
+                                          {commentDisplaySpecialty}
                                         </span>
                                       )}
                                     </div>
@@ -846,7 +854,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                   .sort((a, b) => ((b.points ?? b.pontos ?? b.scoreEngajamento ?? 0) - (a.points ?? a.pontos ?? a.scoreEngajamento ?? 0)))
                   .slice(0, 4)
                   .map((tech, idx) => {
-                    const techPoints = tech.points ?? tech.pontos ?? tech.scoreEngajamento ?? 0;
+                    const isRankMe = Boolean(currentUser && tech.userId === currentUser.uid);
+                    const rankName = isRankMe ? (currentUser?.name || tech.name) : tech.name;
+                    const rankAvatar = isRankMe ? (currentUser?.avatarUrl || currentUser?.photoURL || tech.photoURL || tech.avatarUrl) : (tech.photoURL || tech.avatarUrl);
+                    const techPoints = isRankMe ? (currentUser?.pontos ?? currentUser?.scoreEngajamento ?? tech.points ?? tech.pontos ?? 0) : (tech.points ?? tech.pontos ?? tech.scoreEngajamento ?? 0);
                     const stars = tech.stars ?? Math.min(5, Math.floor(techPoints / 200));
                     return (
                       <div
@@ -865,13 +876,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                             {idx + 1}
                           </span>
                           <UserAvatar
-                            name={tech.name}
-                            photoURL={tech.photoURL || tech.avatarUrl}
+                            name={rankName}
+                            photoURL={rankAvatar}
                             size="sm"
                             className="shrink-0"
                           />
                           <div className="min-w-0">
-                            <p className="text-xs font-black text-slate-900 truncate">{tech.name}</p>
+                            <p className="text-xs font-black text-slate-900 truncate">{rankName}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-[11px] select-none text-amber-500 font-bold" title={`${stars}/5 estrelas`}>
                                 {'⭐'.repeat(stars)}

@@ -29,13 +29,13 @@ export const INITIAL_SETTINGS: PlatformSettings = {
   supportEmail: 'suporte@tecnicamz.co.mz',
   whatsappSupport: '+258851949159',
   paymentMethods: {
-    mpesaNumber: '85 194 9159',
-    mpesaName: 'TécnicaMZ Serviços Lda',
-    emolaNumber: '86 194 9159',
-    emolaName: 'TécnicaMZ Serviços Lda',
+    mpesaNumber: '851949159',
+    mpesaName: 'André Zefanias Júnior',
+    emolaNumber: '874329159',
+    emolaName: 'André Zefanias Júnior',
     bankName: 'Millennium BIM',
     bankAccount: '1234567890',
-    bankHolder: 'TécnicaMZ Serviços Lda',
+    bankHolder: 'André Zefanias Júnior',
     bankNIB: '000100000123456789012',
     instructions: 'Envie o valor exato do plano via M-Pesa ou e-Mola. No descritivo da transação, coloque seu nome e número de telefone. Anexe o comprovativo ou informe o código da transação.'
   },

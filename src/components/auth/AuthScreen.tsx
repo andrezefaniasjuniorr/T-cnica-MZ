@@ -207,7 +207,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         const valorEspecialidade = (specialty || 'Eletricidade').toString().trim();
         const valorProvincia = (province || 'Maputo Cidade').toString().trim();
         const valorCidade = (city || 'Maputo').toString().trim();
-        const valorIdade = Number(idade) || 25;
+        const valorIdade = idade !== '' && !isNaN(Number(idade)) ? Number(idade) : undefined;
 
         if (!valorNome) {
           setError('Por favor, insira o seu nome completo.');
@@ -712,16 +712,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
                           <div className="form-group">
                             <label htmlFor="idade" className="block text-xs font-bold text-slate-700 mb-1">
-                              Idade *
+                              Idade (Opcional)
                             </label>
                             <input
                               id="idade"
                               name="idade"
                               type="number"
-                              placeholder="Ex: 20"
+                              placeholder="Ex: 24"
                               min="16"
                               max="100"
-                              required
                               value={idade}
                               onChange={(e) => setIdade(e.target.value)}
                               className="form-control w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"

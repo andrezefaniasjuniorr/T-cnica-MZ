@@ -181,11 +181,11 @@ export const PaymentSubmitModal: React.FC<PaymentSubmitModalProps> = ({
                 <div className="space-y-1 bg-white p-3 rounded-xl border border-slate-200">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Número M-Pesa:</span>
-                    <strong className="text-slate-900 font-black">{settings.paymentMethods.mpesaNumber}</strong>
+                    <strong className="text-slate-900 font-black">{settings?.paymentMethods?.mpesaNumber || '851949159'}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Titular da Conta:</span>
-                    <strong className="text-slate-900">{settings.paymentMethods.mpesaName}</strong>
+                    <strong className="text-slate-900">{settings?.paymentMethods?.mpesaName || 'André Zefanias Júnior'}</strong>
                   </div>
                   <div className="flex justify-between text-blue-700 font-bold">
                     <span>Valor a Enviar:</span>
@@ -198,11 +198,11 @@ export const PaymentSubmitModal: React.FC<PaymentSubmitModalProps> = ({
                 <div className="space-y-1 bg-white p-3 rounded-xl border border-slate-200">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Número e-Mola:</span>
-                    <strong className="text-slate-900 font-black">{settings.paymentMethods.emolaNumber}</strong>
+                    <strong className="text-slate-900 font-black">{settings?.paymentMethods?.emolaNumber || '874329159'}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Titular da Conta:</span>
-                    <strong className="text-slate-900">{settings.paymentMethods.emolaName}</strong>
+                    <strong className="text-slate-900">{settings?.paymentMethods?.emolaName || 'André Zefanias Júnior'}</strong>
                   </div>
                   <div className="flex justify-between text-amber-700 font-bold">
                     <span>Valor a Enviar:</span>

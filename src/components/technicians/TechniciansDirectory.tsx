@@ -152,11 +152,17 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
               {top5Techs.map((tech, idx) => {
                 const rankNum = idx + 1;
                 const likes = tech.totalLikes ?? 0;
+                const isMe = currentUser && currentUser.uid === tech.userId;
+                const displayName = isMe ? (currentUser.name || tech.name) : tech.name;
+                const displayAvatar = isMe ? (currentUser.avatarUrl || currentUser.photoURL || tech.avatarUrl || tech.photoURL) : (tech.avatarUrl || tech.photoURL);
+                const displaySpecialty = isMe ? (currentUser.specialty || currentUser.specialties?.[0] || tech.specialties?.[0] || 'Eletricidade') : (tech.specialties?.[0] || 'Eletricidade');
+                const displayCity = isMe ? (currentUser.city || tech.city) : tech.city;
+                const displayAge = isMe ? (currentUser.idade !== undefined ? currentUser.idade : tech.idade) : tech.idade;
 
                 return (
                   <div
                     key={tech.userId}
-                    onClick={() => setSelectedTechForDetail(tech)}
+                    onClick={() => setSelectedTechForDetail(isMe ? { ...tech, name: displayName, avatarUrl: displayAvatar, photoURL: displayAvatar, city: displayCity, idade: displayAge, specialties: [displaySpecialty] } : tech)}
                     className="min-w-[280px] sm:min-w-[320px] max-w-[320px] shrink-0 bg-white rounded-3xl p-5 border border-slate-200 hover:border-amber-400 hover:shadow-xl transition-all duration-200 flex flex-col justify-between relative snap-start group cursor-pointer"
                   >
                     {/* Rank Badge */}
@@ -184,8 +190,8 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
                     <div className="flex items-center gap-3.5 mb-3">
                       <div className="relative shrink-0">
                         <UserAvatar
-                          name={tech.name}
-                          photoURL={tech.photoURL || tech.avatarUrl}
+                          name={displayName}
+                          photoURL={displayAvatar}
                           size="xl"
                           className="border-2 border-amber-300 shadow-sm group-hover:scale-105 transition-transform"
                         />
@@ -201,16 +207,18 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
 
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-black text-slate-900 truncate group-hover:text-blue-600 transition">
-                          {tech.name}
+                          {displayName}
                         </h3>
                         <p className="text-xs font-semibold text-blue-700 truncate mt-0.5">
-                          {tech.specialties[0]}
+                          {displaySpecialty}
                         </p>
                         <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
-                          <span>📍 {tech.city}</span>
-                          <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded">
-                            {tech.idade ? `${tech.idade} anos` : '28 anos'}
-                          </span>
+                          <span>📍 {displayCity}</span>
+                          {displayAge ? (
+                            <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded">
+                              {displayAge} anos
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>

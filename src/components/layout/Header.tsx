@@ -24,7 +24,10 @@ import {
   LayoutDashboard,
   ChevronDown,
   MoreHorizontal,
-  LayoutGrid
+  LayoutGrid,
+  ShieldCheck,
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -48,7 +51,20 @@ export const Header: React.FC<HeaderProps> = ({
   unreadNotificationsCount,
   onOpenMobileMenu
 }) => {
-  const { currentUser, isClient, isTechnician, isCompany, isAdmin, logout } = useAuth();
+  const {
+    currentUser,
+    isClient,
+    isTechnician,
+    isCompany,
+    isAdmin,
+    temSeloMZ,
+    seloDaysRemaining,
+    isSeloExpired,
+    isTrialActive,
+    trialDaysRemaining,
+    isTrialValid,
+    logout
+  } = useAuth();
   const { conversations, unreadSystemNotificationsCount, unreadMessagesCount } = useData();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -310,6 +326,37 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
 
+            {/* Dynamic Selo MZ / Teste Grátis Status in Header */}
+            {currentUser && !isClient && (
+              temSeloMZ ? (
+                <button
+                  onClick={() => onNavigateTab('comprar-selo-mz')}
+                  className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 hover:bg-blue-500/20 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-bold transition shadow-2xs shrink-0 cursor-pointer"
+                  title={`Selo MZ Ativo: ${seloDaysRemaining} ${seloDaysRemaining === 1 ? 'dia restante' : 'dias restantes'}`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-[11px] font-black">Selo MZ: {seloDaysRemaining} {seloDaysRemaining === 1 ? 'dia' : 'dias'}</span>
+                </button>
+              ) : isSeloExpired ? (
+                <button
+                  onClick={() => onNavigateTab('comprar-selo-mz')}
+                  className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 hover:bg-rose-500/25 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold transition shadow-2xs shrink-0 cursor-pointer animate-pulse"
+                  title="Selo MZ Expirado. Clique para regularizar e recuperar recursos!"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                  <span className="text-[11px] font-black">Selo Expirado</span>
+                </button>
+              ) : isTrialValid ? (
+                <div
+                  className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0"
+                  title={`Teste Grátis: ${trialDaysRemaining} ${trialDaysRemaining === 1 ? 'dia restante' : 'dias restantes'}`}
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span className="text-[11px] font-black">Teste: {trialDaysRemaining} {trialDaysRemaining === 1 ? 'dia' : 'dias'}</span>
+                </div>
+              ) : null
+            )}
+
             {/* Notifications Bell (Apenas avisos do sistema / mensagens de administradores) */}
             <button
               onClick={() => {
@@ -390,6 +437,49 @@ export const Header: React.FC<HeaderProps> = ({
                         <span>Meu Painel</span>
                       </button>
                     </div>
+
+                    {/* Selo MZ / Teste Grátis Status in Dropdown */}
+                    {!isClient && !isAdmin && (
+                      <div className="mt-2.5 pt-2 border-t border-slate-100">
+                        {temSeloMZ ? (
+                          <div className="flex items-center justify-between p-2 rounded-xl bg-blue-50/80 border border-blue-200/80">
+                            <div className="flex items-center gap-1.5">
+                              <ShieldCheck className="w-4 h-4 text-blue-600" />
+                              <span className="text-[11px] font-bold text-blue-950">Selo MZ</span>
+                            </div>
+                            <span className="text-[10px] font-black text-blue-700 bg-blue-100/90 px-2 py-0.5 rounded-md">
+                              {seloDaysRemaining} {seloDaysRemaining === 1 ? 'dia' : 'dias'}
+                            </span>
+                          </div>
+                        ) : isSeloExpired ? (
+                          <div className="flex items-center justify-between p-2 rounded-xl bg-rose-50/80 border border-rose-200/80">
+                            <div className="flex items-center gap-1.5">
+                              <AlertCircle className="w-4 h-4 text-rose-600" />
+                              <span className="text-[11px] font-bold text-rose-950">Selo Expirado</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                onNavigateTab('comprar-selo-mz');
+                                setIsProfileMenuOpen(false);
+                              }}
+                              className="text-[10px] font-black text-white bg-rose-600 hover:bg-rose-700 px-2 py-0.5 rounded-md transition"
+                            >
+                              Renovar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between p-2 rounded-xl bg-amber-50/80 border border-amber-200/80">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-4 h-4 text-amber-600" />
+                              <span className="text-[11px] font-bold text-amber-950">Teste Grátis</span>
+                            </div>
+                            <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                              {trialDaysRemaining > 0 ? `${trialDaysRemaining} ${trialDaysRemaining === 1 ? 'dia' : 'dias'}` : 'Expirado'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="py-1 text-xs font-semibold text-slate-700">

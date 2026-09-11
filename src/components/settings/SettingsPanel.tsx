@@ -64,7 +64,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // Profile Form States
   const [name, setName] = useState(currentUser?.name || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
-  const [idade, setIdade] = useState<number | string>(currentUser?.idade || 28);
+  const [idade, setIdade] = useState<number | string>(currentUser?.idade !== undefined && currentUser?.idade !== null ? currentUser.idade : '');
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || currentUser?.photoURL || '');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [province, setProvince] = useState(currentTechProfile?.province || 'Maputo Cidade');
@@ -124,7 +124,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setProfileSuccess(null);
 
     try {
-      const parsedAge = Number(idade) || 28;
+      const parsedAge = idade !== '' && !isNaN(Number(idade)) ? Number(idade) : undefined;
 
       await updateCurrentUserProfile({
         name: name.trim(),
@@ -413,15 +413,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1">Idade (Anos)</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Idade (Anos - Opcional)</label>
               <input
                 type="number"
-                required
-                min={18}
+                min={16}
                 max={99}
                 value={idade}
                 onChange={e => setIdade(e.target.value)}
-                placeholder="28"
+                placeholder="Ex: 24"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
               />
             </div>
