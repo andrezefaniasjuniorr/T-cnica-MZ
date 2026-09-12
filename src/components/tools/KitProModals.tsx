@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { BrandModalContent, BrandModal } from './BrandModal';
+import { PortfolioModalContent, PortfolioModal } from './PortfolioModal';
 import {
   X,
   FileText,
@@ -68,26 +70,28 @@ export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose
     }
   };
 
+  const isWideModal = activeModal === 'perfil_tecnico' || activeModal === 'portfolio';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fade-in">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/90">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-blue-50 text-blue-600 font-bold">
-              {getIcon(activeModal)}
-            </span>
-            <div>
-              <h3 className="text-base font-black text-slate-900 leading-tight">
-                {getTitle(activeModal)}
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                {getSubTitle(activeModal)}
-              </p>
+      <div className={`relative w-full ${isWideModal ? 'max-w-5xl' : 'max-w-2xl'} bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col`}>
+        {/* Modal Header for standard modals */}
+        {!isWideModal && (
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/90 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-blue-50 text-blue-600 font-bold">
+                {getIcon(activeModal)}
+              </span>
+              <div>
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  {getTitle(activeModal)}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {getSubTitle(activeModal)}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {activeModal !== 'perfil_tecnico' && (
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => handleNavigate('perfil_tecnico')}
                 title="Configurar Logotipo e Marca Própria"
@@ -96,19 +100,19 @@ export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose
                 <Building className="w-3.5 h-3.5 text-blue-600" />
                 <span className="hidden sm:inline">Minha Marca</span>
               </button>
-            )}
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto flex-1 space-y-4 text-xs text-slate-700">
-          {activeModal === 'perfil_tecnico' && <PerfilTecnicoView />}
+        <div className={isWideModal ? "overflow-hidden flex-1 flex flex-col" : "p-5 overflow-y-auto flex-1 space-y-4 text-xs text-slate-700"}>
+          {activeModal === 'perfil_tecnico' && <BrandModalContent onClose={onClose} />}
           {activeModal === 'gerador_os' && <GeradorOSView initialData={injectedOSData} />}
           {activeModal === 'calculadora_preco' && (
             <CalculadoraPrecoView
@@ -138,7 +142,7 @@ export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose
           {activeModal === 'checklist_nr10' && <ChecklistNR10View />}
           {activeModal === 'agenda_whatsapp' && <AgendaWhatsAppView />}
           {activeModal === 'gestao_financeira' && <GestaoFinanceiraView />}
-          {activeModal === 'portfolio' && <PortfolioView />}
+          {activeModal === 'portfolio' && <PortfolioModalContent onClose={onClose} />}
           {activeModal === 'certificado_garantia' && <CertificadoGarantiaView />}
           {activeModal === 'socorro_obra' && <SocorroObraView />}
           {activeModal === 'cotacao_material' && <CotacaoMaterialView />}
@@ -2423,3 +2427,5 @@ function getSubTitle(id: KitProModalId): string {
     default: return 'Kit Eletricista & Técnico PRO';
   }
 }
+
+export { BrandModal, BrandModalContent, PortfolioModal, PortfolioModalContent };

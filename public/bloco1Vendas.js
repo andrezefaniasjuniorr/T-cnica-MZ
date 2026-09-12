@@ -298,6 +298,10 @@ async function gerarPDF_OS(dados, acao = 'download') {
     ]
   };
 
+  if (perfilHelper && typeof perfilHelper.aplicarTemaDoc === 'function') {
+    perfilHelper.aplicarTemaDoc(docDefinition);
+  }
+
   const pdfGenerator = window.pdfMake.createPdf(docDefinition);
   if (acao === 'download') {
     pdfGenerator.download(`${numeroDoc}.pdf`);
@@ -610,6 +614,10 @@ async function gerarListaMateriais(dadosObra = {}, itensOuComodos = [], acao = '
       }
     ]
   };
+
+  if (perfilHelper && typeof perfilHelper.aplicarTemaDoc === 'function') {
+    perfilHelper.aplicarTemaDoc(docDef);
+  }
 
   const pdf = window.pdfMake.createPdf(docDef);
   if (acao === 'download') {

@@ -703,6 +703,10 @@ const CertificadoGarantia = {
       ]
     };
 
+    if (perfilHelper && typeof perfilHelper.aplicarTemaDoc === 'function') {
+      perfilHelper.aplicarTemaDoc(docDef);
+    }
+
     const pdf = window.pdfMake.createPdf(docDef);
     if (acao === 'download') {
       pdf.download(`Certificado_Garantia_${g.numeroCertificado}.pdf`);

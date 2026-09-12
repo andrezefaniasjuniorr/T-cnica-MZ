@@ -389,6 +389,10 @@ const CotacaoMaterial = {
       ]
     };
 
+    if (perfilHelper && typeof perfilHelper.aplicarTemaDoc === 'function') {
+      perfilHelper.aplicarTemaDoc(docDef);
+    }
+
     const pdf = window.pdfMake.createPdf(docDef);
     if (acao === 'download') {
       pdf.download(`Cotacao_Materiais_${Date.now()}.pdf`);

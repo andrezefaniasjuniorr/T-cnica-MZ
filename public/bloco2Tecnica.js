@@ -165,6 +165,10 @@ const TabelaQuadroGeral = {
       ]
     };
 
+    if (perfilHelper && typeof perfilHelper.aplicarTemaDoc === 'function') {
+      perfilHelper.aplicarTemaDoc(docDefinition);
+    }
+
     const pdf = window.pdfMake.createPdf(docDefinition);
     if (acao === 'download') {
       pdf.download(`Tabela_Quadro_${obra.replace(/\s+/g, '_')}.pdf`);
@@ -475,6 +479,10 @@ async function gerarChecklistNR10(dadosChecklist = {}, acao = 'download') {
       }
     ]
   };
+
+  if (perfilHelper && typeof perfilHelper.aplicarTemaDoc === 'function') {
+    perfilHelper.aplicarTemaDoc(docDef);
+  }
 
   const pdf = window.pdfMake.createPdf(docDef);
   if (acao === 'download') {

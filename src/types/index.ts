@@ -52,6 +52,18 @@ export type AccountType = 'cliente' | 'tecnico' | 'empresa';
 export type ApprovalStatus = 'pendente' | 'aprovado' | 'rejeitado';
 export type AccountStatus = 'ativa' | 'bloqueada' | 'suspensa';
 
+export type PdfTemplateType =
+  | 'corporate_blue'       // 1. "Corporativo Azul" (Visual empresarial clássico e limpo)
+  | 'modern_dark'          // 2. "Moderno Tech/Dark" (Cabeçalho escuro com acentos coloridos)
+  | 'minimalist_green'     // 3. "Minimalista Verde" (Estilo clean, focado em linhas finas)
+  | 'premium_gold'         // 4. "Premium Dourado & Grafite" (Visual luxo/sofisticado)
+  | 'executive_elegant'    // 5. "Executivo Elegante" (Estilo compacto com contraste acentuado)
+  | 'industrial_contrast'  // 6. "Industrial High-Contrast" (Foco em legibilidade rápida de campo)
+  | 'clean_edm';           // 7. "Clean Padrão EDM" (Inspirado nas fichas técnicas operacionais)
+
+export type PdfOrientationType = 'portrait' | 'landscape';
+export type PdfFontSizeType = 'small' | 'medium' | 'large';
+
 export interface User {
   uid: string;
   name: string;
@@ -83,6 +95,13 @@ export interface User {
   whatsapp?: string;
   province?: string;
   city?: string;
+  // Personalização Visual de Marca e PDFs
+  pdfTemplate?: PdfTemplateType;
+  pdfOrientation?: PdfOrientationType;
+  pdfFontSize?: PdfFontSizeType;
+  borderColor?: string;
+  brandLogo?: string;
+  brandSlogan?: string;
   statusAssinatura?: 'ativa' | 'inativa' | 'expirada' | 'pendente' | string;
   dataExpiracao?: string; // ISO date string e.g. "2026-09-28T00:00:00.000Z"
   planoAtivo?: '50mt' | string;
