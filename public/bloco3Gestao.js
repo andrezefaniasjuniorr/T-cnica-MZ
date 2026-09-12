@@ -664,37 +664,52 @@ const CertificadoGarantia = {
           margin: [0, 0, 0, 25]
         },
 
-        // Bloco de Assinaturas e Autenticação
+        // Bloco de Assinaturas e Autenticação 100% White-Label e Centralizado
         {
           columns: [
             {
-              stack: [
-                { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 200, y2: 0, lineWidth: 1, lineColor: '#94a3b8' }] },
-                { text: perfil.nome, fontSize: 8, bold: true, alignment: 'center', margin: [0, 4, 0, 0] },
-                { text: 'Técnico Responsável Credenciado', fontSize: 7, color: '#64748b', alignment: 'center' },
-                { text: `Contato: ${perfil.telefone}`, fontSize: 7, color: '#0284c7', alignment: 'center' }
-              ]
-            },
-            {
+              width: '*',
+              alignment: 'center',
               stack: [
                 {
                   table: {
-                    widths: ['*'],
+                    widths: [220],
+                    body: [[
+                      {
+                        border: [false, true, false, false],
+                        borderColor: ['#94a3b8', '#94a3b8', '#94a3b8', '#94a3b8'],
+                        stack: [
+                          { text: perfil.nome, fontSize: 8, bold: true, alignment: 'center', margin: [0, 4, 0, 1] },
+                          { text: 'Técnico Responsável Credenciado', fontSize: 6.8, color: '#64748b', alignment: 'center' },
+                          { text: `Contacto: ${perfil.telefone}`, fontSize: 6.5, color: '#0284c7', alignment: 'center' }
+                        ]
+                      }
+                    ]]
+                  },
+                  layout: { defaultBorder: false }
+                }
+              ]
+            },
+            {
+              width: '*',
+              alignment: 'center',
+              stack: [
+                {
+                  table: {
+                    widths: [180],
                     body: [[
                       {
                         fillColor: '#f1f5f9',
                         stack: [
                           { text: 'SELADO E REGISTRADO', bold: true, fontSize: 7.5, color: '#166534', alignment: 'center' },
-                          { text: 'TÉCNICAMZ PRO - MOÇAMBIQUE', fontSize: 7, color: '#15803d', alignment: 'center' },
+                          { text: (perfil.nome || 'PROFISSIONAL CREDENCIADO').toUpperCase(), fontSize: 7, color: '#15803d', bold: true, alignment: 'center' },
                           { text: `Data: ${g.dataInicio}`, fontSize: 6.5, color: '#64748b', alignment: 'center' }
                         ],
-                        margin: [2, 2, 2, 2]
+                        margin: [4, 4, 4, 4]
                       }
                     ]]
                   },
-                  layout: 'noBorders',
-                  width: 150,
-                  alignment: 'center'
+                  layout: 'noBorders'
                 }
               ]
             }

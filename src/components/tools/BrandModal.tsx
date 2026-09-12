@@ -703,119 +703,300 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
                 settings.pdfOrientation === 'landscape' ? 'max-w-3xl aspect-[16/10]' : 'max-w-xl aspect-[1/1.3]'
               }`}
             >
-              {/* Document Header */}
-              <div className="flex items-center justify-between pb-3">
-                {/* Logo or Monogram */}
-                <div className="flex items-center gap-4">
-                  {settings.logoBase64 ? (
-                    <img
-                      src={settings.logoBase64}
-                      alt="Logo"
-                      className="w-16 h-12 object-contain"
-                    />
-                  ) : (
-                    <div
-                      className="w-14 h-12 rounded flex items-center justify-center font-black text-sm text-white shadow-sm"
-                      style={{
-                        backgroundColor: currentTemplate.primaryColor,
-                        border: `1.5px solid ${activeBorderColor}`
-                      }}
-                    >
-                      ⚡ {(settings.nome || 'EP').slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
+              {/* RENDERIZAÇÃO ESTRUTURAL DIFERENCIADA POR TEMPLATE */}
 
-                  <div>
-                    <h2
-                      className="text-sm sm:text-base font-black tracking-tight"
-                      style={{ color: currentTemplate.primaryColor }}
-                    >
-                      {(settings.nome || 'SERVIÇOS TÉCNICOS').toUpperCase()}
-                    </h2>
-                    <p
-                      className="text-xs italic font-semibold"
-                      style={{ color: currentTemplate.secondaryColor }}
-                    >
-                      "{settings.slogan || 'Instalações, Manutenção e Soluções Elétricas'}"
-                    </p>
-                    <div className="flex flex-wrap gap-x-3 text-[10px] text-slate-500 mt-1">
+              {/* TEMPLATE 2: MODERNO DARK (Cabeçalho escuro centralizado com grade de serviços dividida em 2 colunas) */}
+              {settings.pdfTemplate === 'modern_dark' ? (
+                <div>
+                  {/* Cabeçalho Escuro Centralizado */}
+                  <div className="bg-slate-900 text-white rounded-xl p-4 text-center border-2" style={{ borderColor: activeBorderColor }}>
+                    <div className="flex justify-center mb-2">
+                      {settings.logoBase64 ? (
+                        <img src={settings.logoBase64} alt="Logo" className="w-14 h-12 object-contain bg-white rounded-lg p-1" />
+                      ) : (
+                        <div className="w-12 h-10 rounded-lg flex items-center justify-center font-black text-xs text-white" style={{ backgroundColor: activeBorderColor }}>
+                          ⚡ {(settings.nome || 'EP').slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <h2 className="text-sm font-black tracking-tight text-white uppercase">{settings.nome || 'SERVIÇOS TÉCNICOS'}</h2>
+                    <p className="text-[11px] italic font-medium" style={{ color: currentTemplate.secondaryColor }}>"{settings.slogan || 'Alta Tecnologia em Engenharia Elétrica'}"</p>
+                    <div className="flex justify-center flex-wrap gap-x-3 text-[9px] text-slate-400 mt-1">
                       <span>Tel: {settings.telefone || '+258 84 000 0000'}</span>
-                      {settings.email && <span>Email: {settings.email}</span>}
                       <span>{settings.cidade || 'Maputo'}</span>
+                      {settings.nuit && <span>NUIT: {settings.nuit}</span>}
+                    </div>
+                  </div>
+
+                  {/* Faixa Título Dark */}
+                  <div className="bg-slate-800 text-center py-1.5 px-3 rounded-lg my-3 border text-xs font-black uppercase text-cyan-300" style={{ borderColor: activeBorderColor }}>
+                    ORÇAMENTO TÉCNICO • SISTEMA DE ALTA TENSÃO & AUTOMAÇÃO
+                  </div>
+
+                  {/* Grade de Serviços Dividida em 2 Colunas */}
+                  <div className="grid grid-cols-2 gap-3 mt-2 text-[10px]">
+                    <div className="border border-slate-200 rounded-lg p-2.5 bg-slate-50/50">
+                      <div className="font-black text-slate-900 uppercase border-b border-slate-200 pb-1 mb-1.5 flex items-center justify-between">
+                        <span>1. Mão de Obra Técnica</span>
+                        <span className="text-[9px] text-blue-600 font-bold">Serviço</span>
+                      </div>
+                      <p className="font-semibold text-slate-800">Montagem de QG + Barramentos</p>
+                      <p className="text-[9px] text-slate-500">Aperto calibrado com torquímetro</p>
+                      <div className="mt-2 text-right font-black text-blue-600">8.500,00 MZN</div>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-lg p-2.5 bg-slate-50/50">
+                      <div className="font-black text-slate-900 uppercase border-b border-slate-200 pb-1 mb-1.5 flex items-center justify-between">
+                        <span>2. Proteção & Dispositivos</span>
+                        <span className="text-[9px] text-emerald-600 font-bold">Materiais</span>
+                      </div>
+                      <p className="font-semibold text-slate-800">Disjuntor Bipolar + IDR 30mA</p>
+                      <p className="text-[9px] text-slate-500">Schneider / ABB Certificado</p>
+                      <div className="mt-2 text-right font-black text-emerald-600">6.200,00 MZN</div>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Accent Line */}
-              <div
-                className="h-[3px] w-full rounded-full my-2"
-                style={{ backgroundColor: activeBorderColor }}
-              ></div>
-
-              {/* Document Banner */}
-              <div
-                className="py-2 px-4 rounded text-center my-3"
-                style={{
-                  backgroundColor: currentTemplate.headerBg,
-                  color: currentTemplate.headerText,
-                  border: `1px solid ${activeBorderColor}`
-                }}
-              >
-                <div className="text-xs font-black tracking-wider uppercase">
-                  ORÇAMENTO TÉCNICO & PROPOSTA COMERCIAL
-                </div>
-                <div className="text-[10px] opacity-80 mt-0.5">
-                  Nº: ORC-2026-084 | Emissão: {new Date().toLocaleDateString('pt-MZ')} | Validade: 15 Dias
-                </div>
-              </div>
-
-              {/* Mock Client Box */}
-              <div className="p-2.5 bg-slate-50 rounded border border-slate-200 text-[10px] text-slate-600 flex justify-between">
+              ) : settings.pdfTemplate === 'minimalist_green' ? (
+                /* TEMPLATE 3: MINIMALISTA (Linhas divisórias, sem blocos de fundo pesados, foco em tabelas limpas) */
                 <div>
-                  <span className="font-bold text-slate-800">CLIENTE: </span>
-                  <span>Empresa ou Residência do Contratante</span>
+                  {/* Cabeçalho Minimalista com Linha Fina */}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                    <div className="flex items-center gap-3">
+                      {settings.logoBase64 ? (
+                        <img src={settings.logoBase64} alt="Logo" className="w-12 h-10 object-contain" />
+                      ) : (
+                        <div className="w-10 h-10 rounded border border-slate-300 flex items-center justify-center font-black text-xs text-slate-700">
+                          ⚡{(settings.nome || 'EP').slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <h2 className="text-sm font-bold text-slate-900 uppercase">{settings.nome || 'SERVIÇOS TÉCNICOS'}</h2>
+                        <p className="text-[10px] text-slate-500">{settings.slogan || 'Instalações & Manutenções'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right text-[9px] text-slate-400">
+                      <p>{settings.telefone}</p>
+                      <p>{settings.cidade}</p>
+                    </div>
+                  </div>
+
+                  {/* Título sem fundo pesado */}
+                  <div className="flex items-center justify-between py-2 border-b-2 my-2 text-xs font-bold uppercase text-slate-800" style={{ borderColor: activeBorderColor }}>
+                    <span>Proposta Técnica & Orçamento</span>
+                    <span className="text-[9px] text-slate-400 font-normal">Nº ORC-2026</span>
+                  </div>
+
+                  {/* Tabela Limpa Minimalista */}
+                  <div className="mt-3 text-[10px]">
+                    <div className="grid grid-cols-4 py-1 border-b border-slate-300 font-bold text-slate-600 text-[9px] uppercase">
+                      <div className="col-span-2">Descrição dos Serviços</div>
+                      <div className="text-center">Qtd</div>
+                      <div className="text-right">Total</div>
+                    </div>
+                    <div className="grid grid-cols-4 py-2 border-b border-slate-100 text-slate-800">
+                      <div className="col-span-2 font-medium">Revisão Completa de Quadro e Disjuntores</div>
+                      <div className="text-center text-slate-500">1 un</div>
+                      <div className="text-right font-bold">7.800,00 MZN</div>
+                    </div>
+                    <div className="grid grid-cols-4 py-2 border-b border-slate-100 text-slate-800">
+                      <div className="col-span-2 font-medium">Instalação de DPS Classe II e Aterramento</div>
+                      <div className="text-center text-slate-500">1 kit</div>
+                      <div className="text-right font-bold">5.400,00 MZN</div>
+                    </div>
+                  </div>
                 </div>
+              ) : settings.pdfTemplate === 'executive_elegant' || settings.pdfOrientation === 'landscape' ? (
+                /* TEMPLATE 4: EXECUTIVO / LANDSCAPE (Layout horizontal otimizado em 3 colunas) */
                 <div>
-                  <span className="font-bold text-slate-800">LOCAL: </span>
-                  <span>Maputo / Moçambique</span>
-                </div>
-              </div>
+                  {/* Cabeçalho Executivo */}
+                  <div className="flex items-center justify-between pb-2 border-b-2" style={{ borderColor: activeBorderColor }}>
+                    <div className="flex items-center gap-3">
+                      {settings.logoBase64 ? (
+                        <img src={settings.logoBase64} alt="Logo" className="w-14 h-11 object-contain" />
+                      ) : (
+                        <div className="w-11 h-11 rounded-lg flex items-center justify-center font-black text-xs text-white" style={{ backgroundColor: currentTemplate.primaryColor }}>
+                          ⚡{(settings.nome || 'EP').slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <h2 className="text-sm font-black text-slate-900 uppercase">{settings.nome || 'SERVIÇOS TÉCNICOS EXECUTIVOS'}</h2>
+                        <p className="text-[10px] text-slate-500 font-medium">{settings.slogan || 'Soluções Corporativas'}</p>
+                      </div>
+                    </div>
+                    <div className="px-3 py-1 bg-slate-100 rounded-lg text-right text-[9px] text-slate-600 border border-slate-200">
+                      <p className="font-bold">TEL: {settings.telefone}</p>
+                      <p>{settings.cidade} • NUIT: {settings.nuit || '---'}</p>
+                    </div>
+                  </div>
 
-              {/* Mock Table */}
-              <div className="mt-3 border border-slate-200 rounded overflow-hidden text-[10px]">
-                <div
-                  className="grid grid-cols-4 p-1.5 font-bold"
-                  style={{
-                    backgroundColor: currentTemplate.headerBg,
-                    color: currentTemplate.headerText
-                  }}
-                >
-                  <div className="col-span-2">Descrição do Serviço</div>
-                  <div className="text-center">Qtd</div>
-                  <div className="text-right">Total (MZN)</div>
-                </div>
-                <div className="grid grid-cols-4 p-1.5 border-t border-slate-100 bg-white">
-                  <div className="col-span-2 font-medium">Instalação de Quadro QG com IDR e DPS</div>
-                  <div className="text-center">1 un</div>
-                  <div className="text-right font-bold">12.500,00</div>
-                </div>
-                <div className="grid grid-cols-4 p-1.5 border-t border-slate-100 bg-slate-50">
-                  <div className="col-span-2 font-medium">Passagem de Circuitos e Aterramento</div>
-                  <div className="text-center">1 sv</div>
-                  <div className="text-right font-bold">4.800,00</div>
-                </div>
-              </div>
+                  {/* Banner Executivo */}
+                  <div className="py-1 px-3 rounded text-center my-2 text-white font-black text-xs uppercase" style={{ backgroundColor: currentTemplate.primaryColor }}>
+                    RELATÓRIO TÉCNICO EXECUTIVO & ESPECIFICAÇÃO DE SERVIÇOS
+                  </div>
 
-              {/* Mock Signature Line */}
-              <div className="mt-6 pt-4 border-t border-slate-200 flex justify-between text-[9px] text-slate-500">
-                <div className="text-center">
-                  <div className="w-28 border-b border-slate-400 mb-1"></div>
-                  <span>{settings.nome} (Responsável)</span>
+                  {/* Estrutura em 3 Colunas Otimizadas */}
+                  <div className="grid grid-cols-3 gap-3 mt-2 text-[10px]">
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="font-black text-slate-800 uppercase border-b border-slate-200 pb-1 mb-1.5 text-[9px]">
+                        1. Dados do Contratante
+                      </div>
+                      <p className="font-bold text-slate-700">Edifício Comercial Maputo</p>
+                      <p className="text-[9px] text-slate-500">Av. 24 de Julho, Maputo</p>
+                      <p className="text-[9px] text-slate-500 mt-1">Prazo: 5 Dias Úteis</p>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="font-black text-slate-800 uppercase border-b border-slate-200 pb-1 mb-1.5 text-[9px]">
+                        2. Especificação Técnica
+                      </div>
+                      <p className="font-bold text-slate-700">Painel Principal 380V</p>
+                      <p className="text-[9px] text-slate-500">IEC 60364 & Norma EDM</p>
+                      <p className="text-[9px] text-slate-500 mt-1">Torque dos bornes: 2.5 N.m</p>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="font-black text-slate-800 uppercase border-b border-slate-200 pb-1 mb-1.5 text-[9px]">
+                        3. Resumo Financeiro
+                      </div>
+                      <p className="text-[9px] text-slate-600 flex justify-between">
+                        <span>Mão de Obra:</span>
+                        <span className="font-bold">12.000,00</span>
+                      </p>
+                      <p className="text-[9px] text-slate-600 flex justify-between">
+                        <span>Materiais:</span>
+                        <span className="font-bold">6.500,00</span>
+                      </p>
+                      <p className="text-[10px] text-blue-700 font-black flex justify-between border-t border-slate-200 pt-1 mt-1">
+                        <span>TOTAL:</span>
+                        <span>18.500,00 MT</span>
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="w-28 border-b border-slate-400 mb-1"></div>
-                  <span>Cliente / Contratante</span>
+              ) : (
+                /* TEMPLATE 1: CORPORATIVO (Coluna lateral com resumo técnico e cabeçalho em bloco sólido) */
+                <div>
+                  {/* Cabeçalho em Bloco Sólido */}
+                  <div className="flex items-center justify-between pb-3">
+                    <div className="flex items-center gap-4">
+                      {settings.logoBase64 ? (
+                        <img src={settings.logoBase64} alt="Logo" className="w-16 h-12 object-contain" />
+                      ) : (
+                        <div
+                          className="w-14 h-12 rounded flex items-center justify-center font-black text-sm text-white shadow-sm"
+                          style={{
+                            backgroundColor: currentTemplate.primaryColor,
+                            border: `1.5px solid ${activeBorderColor}`
+                          }}
+                        >
+                          ⚡ {(settings.nome || 'EP').slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+
+                      <div>
+                        <h2 className="text-sm sm:text-base font-black tracking-tight" style={{ color: currentTemplate.primaryColor }}>
+                          {(settings.nome || 'SERVIÇOS TÉCNICOS').toUpperCase()}
+                        </h2>
+                        <p className="text-xs italic font-semibold" style={{ color: currentTemplate.secondaryColor }}>
+                          "{settings.slogan || 'Instalações, Manutenção e Soluções Elétricas'}"
+                        </p>
+                        <div className="flex flex-wrap gap-x-3 text-[10px] text-slate-500 mt-1">
+                          <span>Tel: {settings.telefone || '+258 84 000 0000'}</span>
+                          {settings.email && <span>Email: {settings.email}</span>}
+                          <span>{settings.cidade || 'Maputo'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Linha de Acento Sólida */}
+                  <div className="h-[3px] w-full rounded-full my-2" style={{ backgroundColor: activeBorderColor }}></div>
+
+                  {/* Document Banner */}
+                  <div
+                    className="py-2 px-4 rounded text-center my-3"
+                    style={{
+                      backgroundColor: currentTemplate.headerBg,
+                      color: currentTemplate.headerText,
+                      border: `1px solid ${activeBorderColor}`
+                    }}
+                  >
+                    <div className="text-xs font-black tracking-wider uppercase">ORÇAMENTO TÉCNICO & PROPOSTA COMERCIAL</div>
+                    <div className="text-[10px] opacity-80 mt-0.5">
+                      Nº: ORC-2026-084 | Emissão: {new Date().toLocaleDateString('pt-MZ')} | Validade: 15 Dias
+                    </div>
+                  </div>
+
+                  {/* Estrutura com Coluna Lateral de Resumo Técnico e Área Principal */}
+                  <div className="grid grid-cols-3 gap-3 mt-2 text-[10px]">
+                    {/* Coluna Lateral Esquerda: Resumo Técnico */}
+                    <div className="col-span-1 p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                      <div className="font-black text-slate-900 uppercase text-[9px] border-b border-slate-200 pb-1">
+                        Resumo Técnico
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">Responsável:</span>
+                        <span className="font-bold text-slate-800 text-[9px]">{settings.nome}</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">Norma Técnica:</span>
+                        <span className="font-bold text-slate-800 text-[9px]">EDM / IEC 60364</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">Garantia:</span>
+                        <span className="font-bold text-emerald-700 text-[9px]">12 Meses Certificada</span>
+                      </div>
+                    </div>
+
+                    {/* Área Principal Direita */}
+                    <div className="col-span-2 space-y-2">
+                      <div className="p-2 bg-slate-50 rounded border border-slate-200 text-[9px] text-slate-600 flex justify-between">
+                        <div>
+                          <span className="font-bold text-slate-800">CLIENTE: </span>
+                          <span>Contratante da Obra</span>
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-800">LOCAL: </span>
+                          <span>{settings.cidade}</span>
+                        </div>
+                      </div>
+
+                      <div className="border border-slate-200 rounded overflow-hidden text-[9px]">
+                        <div
+                          className="grid grid-cols-4 p-1.5 font-bold"
+                          style={{ backgroundColor: currentTemplate.headerBg, color: currentTemplate.headerText }}
+                        >
+                          <div className="col-span-2">Descrição</div>
+                          <div className="text-center">Qtd</div>
+                          <div className="text-right">Total</div>
+                        </div>
+                        <div className="grid grid-cols-4 p-1.5 border-t border-slate-100 bg-white">
+                          <div className="col-span-2 font-medium">Instalação de Quadro QG com IDR e DPS</div>
+                          <div className="text-center">1 un</div>
+                          <div className="text-right font-bold">12.500,00 MT</div>
+                        </div>
+                        <div className="grid grid-cols-4 p-1.5 border-t border-slate-100 bg-slate-50">
+                          <div className="col-span-2 font-medium">Passagem de Circuitos e Aterramento</div>
+                          <div className="text-center">1 sv</div>
+                          <div className="text-right font-bold">4.800,00 MT</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Bloco de Assinaturas 100% Matematicamente Centralizado */}
+              <div className="mt-6 pt-5 border-t border-slate-200 grid grid-cols-2 gap-8 text-[9px]">
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-36 sm:w-44 border-t-2 border-slate-400 mb-1.5"></div>
+                  <span className="font-bold text-slate-800">{settings.nome || 'Profissional Técnico'}</span>
+                  <span className="text-[8px] text-slate-500">Profissional Responsável / Contratado</span>
+                </div>
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-36 sm:w-44 border-t-2 border-slate-400 mb-1.5"></div>
+                  <span className="font-bold text-slate-800">Cliente / Contratante</span>
+                  <span className="text-[8px] text-slate-500">Aceite e Aprovação dos Serviços</span>
                 </div>
               </div>
             </div>

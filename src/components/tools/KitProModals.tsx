@@ -1571,32 +1571,102 @@ const DiagnosticoFotoView: React.FC = () => {
   const [contexto, setContexto] = useState('Disjuntor geral aquece após ligar o ar condicionado e há cheiro de queimado.');
   const [analisando, setAnalisando] = useState(false);
   const [laudo, setLaudo] = useState<string | null>(null);
+  const [erroMsg, setErroMsg] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecione um arquivo de imagem válido (JPG, PNG, WEBP).');
+        return;
+      }
       const reader = new FileReader();
-      reader.onload = () => setFoto(reader.result as string);
+      reader.onload = () => {
+        setFoto(reader.result as string);
+        setErroMsg(null);
+      };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleAnalisar = () => {
+  const handleAnalisar = async () => {
+    if (!foto) {
+      setErroMsg('Tire uma foto ou carregue uma imagem do quadro / instalação para que a IA possa analisar.');
+      return;
+    }
+
     setAnalisando(true);
     setLaudo(null);
-    setTimeout(() => {
-      setLaudo(
-        '📋 PARECER TÉCNICO DE INSPEÇÃO VISUAL:\n\n' +
-        '1. Diagnóstico Térmico: Evidência de subdimensionamento do condutor de alimentação ou afrouxamento no borne do disjuntor geral.\n' +
-        '2. Risco Crítico: Risco de arco elétrico, queima do invólucro plástico e interrupção do neutro.\n' +
-        '3. Ações Corretivas:\n' +
-        '   • Reapertar todos os parafusos dos disjuntores com torque recomendado (2.0 a 2.5 N.m).\n' +
-        '   • Substituir condutores danificados por cabo de 6.0mm² ou 10.0mm² antichama.\n' +
-        '   • Instalar proteção contra surtos (DPS) e dispositivo residual (IDR 30mA).'
+    setErroMsg(null);
+
+    try {
+      // Extrai o MIME type e a base64 pura da imagem
+      const match = foto.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/);
+      const mimeType = match ? match[1] : 'image/jpeg';
+      const imageBase64 = match ? match[2] : foto.replace(/^data:image\/[a-z]+;base64,/, '');
+
+      const promptInstrucao = `Atue como um Engenheiro Eletricista e Inspetor Técnico Sênior com vasta experiência prática e domínio das normas de Moçambique (EDM - Eletricidade de Moçambique, 220V/380V, 50Hz) e normas internacionais IEC 60364.
+Analise a fotografia anexada do quadro de distribuição / instalação elétrica e considere as informações relatadas pelo técnico em campo: "${contexto || 'Inspeção geral preventiva e corretiva'}".
+
+Estruture seu Laudo Técnico com a seguinte formatação objetiva:
+📋 PARECER TÉCNICO DE INSPEÇÃO VISUAL (IA MULTIMODAL)
+
+1. IDENTIFICAÇÃO DOS COMPONENTES VISÍVEIS:
+- Descreva os disjuntores, barramentos, tipo de cabeamento e organização geral observados.
+
+2. AVALIAÇÃO DE RISCOS CRÍTICOS:
+- Indique riscos de sobreaquecimento, fuga de corrente, arco elétrico, sobrecarga ou curto-circuito.
+
+3. CONFORMIDADE COM NORMAS EDM & IEC:
+- Identifique inconformidades com normas técnicas e padrões de proteção (DPS, IDR 30mA, barramento de terra).
+
+4. AÇÕES CORRETIVAS E TORQUE RECOMENDADO:
+- Passos específicos de reparo, substituição recomendada de condutores/disjuntores e valor de torque de aperto em N.m.
+
+5. DIRETRIZES DE SEGURANÇA E EPIs:
+- Protocolo de desenergização e segurança para o eletricista realizar a intervenção.`;
+
+      const response = await fetch('/api/sara/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          imageBase64,
+          mimeType,
+          prompt: promptInstrucao,
+          userRole: 'Técnico Eletricista Instalador'
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Erro de comunicação com o servidor (${response.status})`);
+      }
+
+      const data = await response.json();
+      if (data.analysis) {
+        setLaudo(data.analysis);
+      } else {
+        throw new Error('A resposta da análise não retornou dados técnicos.');
+      }
+    } catch (err: any) {
+      console.error('Erro na análise de imagem do quadro:', err);
+      setErroMsg(
+        err.message || 'Não foi possível completar a análise visual no momento. Verifique a conexão com a internet.'
       );
+    } finally {
       setAnalisando(false);
-    }, 1200);
+    }
+  };
+
+  const handleCopiarLaudo = () => {
+    if (!laudo) return;
+    navigator.clipboard.writeText(laudo);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 3000);
   };
 
   return (
@@ -1604,7 +1674,7 @@ const DiagnosticoFotoView: React.FC = () => {
       {/* Card Clicável com input invisível */}
       <div
         onClick={() => fileInputRef.current?.click()}
-        className="cursor-pointer border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-3xl p-4 text-center bg-slate-50 hover:bg-blue-50/50 transition flex flex-col items-center justify-center min-h-[140px]"
+        className="cursor-pointer border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-3xl p-4 text-center bg-slate-50 hover:bg-blue-50/50 transition flex flex-col items-center justify-center min-h-[140px] group"
       >
         <input
           ref={fileInputRef}
@@ -1615,46 +1685,110 @@ const DiagnosticoFotoView: React.FC = () => {
         />
 
         {foto ? (
-          <div className="relative w-full max-h-48 overflow-hidden rounded-2xl">
-            <img src={foto} alt="Quadro Elétrico" className="w-full h-auto object-cover rounded-2xl mx-auto" />
+          <div className="relative w-full max-h-52 overflow-hidden rounded-2xl">
+            <img src={foto} alt="Quadro Elétrico" className="w-full h-auto max-h-52 object-contain rounded-2xl mx-auto" />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+              <span className="bg-slate-900/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-1.5">
+                <Camera className="w-4 h-4" />
+                Toque para trocar foto
+              </span>
+            </div>
             <span className="absolute bottom-2 right-2 bg-slate-900/80 text-white text-[10px] font-bold px-2 py-1 rounded-md">
-              Toque para trocar foto
+              Toque para trocar
             </span>
           </div>
         ) : (
-          <div className="space-y-1.5">
-            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
+          <div className="space-y-1.5 py-4">
+            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto group-hover:scale-110 transition">
               <Camera className="w-6 h-6" />
             </div>
             <p className="text-xs font-black text-slate-800">Toque aqui para Tirar Foto ou Escolher da Galeria</p>
-            <p className="text-[10px] text-slate-500">Capture o quadro aberto mostrando disjuntores e conexões.</p>
+            <p className="text-[10px] text-slate-500">Capture o quadro aberto mostrando disjuntores, conexões e barramentos.</p>
           </div>
         )}
       </div>
 
+      {foto && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setFoto(null);
+              setLaudo(null);
+              setErroMsg(null);
+            }}
+            className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Remover Foto
+          </button>
+        </div>
+      )}
+
       <div>
-        <label className="font-bold text-slate-700 block mb-1">Sintomas Observados na Obra</label>
+        <label className="text-xs font-black text-slate-700 block mb-1">
+          Sintomas Observados na Obra / Relato do Cliente
+        </label>
         <textarea
-          className="w-full p-2 border border-slate-200 rounded-xl text-xs"
+          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={2}
           value={contexto}
           onChange={e => setContexto(e.target.value)}
+          placeholder="Ex: Disjuntor geral aquece, barramento oxidado, cheiro de queimado..."
         />
       </div>
+
+      {erroMsg && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700 font-medium">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold text-rose-800">Atenção</p>
+            <p>{erroMsg}</p>
+          </div>
+        </div>
+      )}
 
       <button
         onClick={handleAnalisar}
         disabled={analisando}
-        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-2 transition shadow-sm"
+        className={`w-full py-3 text-white font-black rounded-xl flex items-center justify-center gap-2 transition shadow-md ${
+          analisando
+            ? 'bg-blue-400 cursor-not-allowed'
+            : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.99]'
+        }`}
       >
-        <Sparkles className="w-4 h-4 text-amber-300" />
-        <span>{analisando ? 'Analisando Imagem e Riscos...' : 'Analisar Conformidade & Riscos'}</span>
+        <Sparkles className={`w-4 h-4 text-amber-300 ${analisando ? 'animate-spin' : ''}`} />
+        <span>{analisando ? 'Sara IA Analisando Imagem e Riscos...' : 'Analisar Conformidade & Riscos com IA'}</span>
       </button>
 
       {laudo && (
-        <pre className="p-3.5 bg-slate-900 text-emerald-400 rounded-2xl whitespace-pre-wrap font-mono text-[11px] leading-relaxed border border-slate-800">
-          {laudo}
-        </pre>
+        <div className="space-y-2 mt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase text-emerald-700 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              Parecer Técnico Emitido
+            </span>
+            <button
+              onClick={handleCopiarLaudo}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+            >
+              {copiado ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-700">Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copiar Parecer</span>
+                </>
+              )}
+            </button>
+          </div>
+          <pre className="p-4 bg-slate-900 text-emerald-400 rounded-2xl whitespace-pre-wrap font-mono text-[11px] leading-relaxed border border-slate-800 shadow-inner max-h-96 overflow-y-auto">
+            {laudo}
+          </pre>
+        </div>
       )}
     </div>
   );

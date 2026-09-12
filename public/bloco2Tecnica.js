@@ -457,26 +457,58 @@ async function gerarChecklistNR10(dadosChecklist = {}, acao = 'download') {
         margin: [0, 0, 0, 10]
       },
 
-      // Linha de Assinatura Dupla
-      {
-        columns: [
-          {
-            stack: [
-              { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 190, y2: 0, lineWidth: 0.8, lineColor: '#94a3b8' }] },
-              { text: perfil.nome, fontSize: 7.5, bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
-              { text: 'Profissional Técnico Inspetor', fontSize: 6.5, color: '#64748b', alignment: 'center' }
-            ]
-          },
-          {
-            stack: [
-              { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 190, y2: 0, lineWidth: 0.8, lineColor: '#94a3b8' }] },
-              { text: cliente, fontSize: 7.5, bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
-              { text: 'Responsável pelo Imóvel / Acompanhante', fontSize: 6.5, color: '#64748b', alignment: 'center' }
-            ]
+      // Linha de Assinatura Dupla Perfeitamente Centralizada
+      perfilHelper && typeof perfilHelper.gerarBlocoAssinaturas === 'function'
+        ? perfilHelper.gerarBlocoAssinaturas(perfil.nome, cliente, 'Profissional Técnico Inspetor', 'Responsável pelo Imóvel / Acompanhante')
+        : {
+            columns: [
+              {
+                width: '*',
+                alignment: 'center',
+                stack: [
+                  {
+                    table: {
+                      widths: [210],
+                      body: [[
+                        {
+                          border: [false, true, false, false],
+                          borderColor: ['#94a3b8', '#94a3b8', '#94a3b8', '#94a3b8'],
+                          stack: [
+                            { text: perfil.nome, fontSize: 8, bold: true, alignment: 'center', margin: [0, 4, 0, 1] },
+                            { text: 'Profissional Técnico Inspetor', fontSize: 6.8, color: '#64748b', alignment: 'center' }
+                          ]
+                        }
+                      ]]
+                    },
+                    layout: { defaultBorder: false }
+                  }
+                ]
+              },
+              {
+                width: '*',
+                alignment: 'center',
+                stack: [
+                  {
+                    table: {
+                      widths: [210],
+                      body: [[
+                        {
+                          border: [false, true, false, false],
+                          borderColor: ['#94a3b8', '#94a3b8', '#94a3b8', '#94a3b8'],
+                          stack: [
+                            { text: cliente, fontSize: 8, bold: true, alignment: 'center', margin: [0, 4, 0, 1] },
+                            { text: 'Responsável pelo Imóvel / Acompanhante', fontSize: 6.8, color: '#64748b', alignment: 'center' }
+                          ]
+                        }
+                      ]]
+                    },
+                    layout: { defaultBorder: false }
+                  }
+                ]
+              }
+            ],
+            margin: [0, 16, 0, 0]
           }
-        ],
-        margin: [0, 10, 0, 0]
-      }
     ]
   };
 

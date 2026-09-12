@@ -254,24 +254,42 @@ Estruture em tópicos numerados:
 5. Cuidados de segurança: desligamento da rede e equipamentos de proteção.
 6. Solução e próximos passos: materiais necessários e estimativa em Meticais.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents: [
-        {
-          text: userPrompt
-        },
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: cleanBase64
+    const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.7-flash'];
+    let response: any = null;
+    let lastError: any = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            {
+              text: userPrompt
+            },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: cleanBase64
+              }
+            }
+          ],
+          config: {
+            systemInstruction: 'Responda rigorosamente como engenheira eletricista especialista em Moçambique, de forma técnica, clara, estruturada e prática.',
+            temperature: 0.3
           }
+        });
+        if (response && response.text) {
+          break;
         }
-      ],
-      config: {
-        systemInstruction: 'Responda rigorosamente em texto puro e simples, sem asteriscos (*) e sem formatação Markdown.',
-        temperature: 0.3
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[Sara IA Visão] Modelo ${modelName} falhou:`, err?.message || err);
       }
-    });
+    }
+
+    if (!response || !response.text) {
+      throw lastError || new Error('Não foi possível processar a análise da imagem em nenhum modelo.');
+    }
 
     const rawAnalysis = response.text || 'Não foi possível extrair a análise da imagem.';
     const analysis = toPlainText(rawAnalysis);

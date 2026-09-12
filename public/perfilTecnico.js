@@ -262,7 +262,7 @@ const PerfilTecnico = {
     });
   },
 
-  // Gera o cabeçalho PDF 100% White-Label aplicando o template e cores escolhidos
+  // Gera o cabeçalho PDF 100% White-Label aplicando a estrutura visual do template escolhido
   gerarCabecalhoPDF(tituloDocumento = 'DOCUMENTO TÉCNICO', subtitulo = '') {
     const p = this.obter();
     const tema = this.obterTema();
@@ -316,6 +316,559 @@ const PerfilTecnico = {
       };
     }
 
+    // ESTRUTURA 2: MODERNO DARK (Cabeçalho escuro centralizado com acentos coloridos)
+    if (t.id === 'modern_tech') {
+      return [
+        {
+          table: {
+            widths: ['*'],
+            body: [[
+              {
+                fillColor: '#0F172A',
+                stack: [
+                  p.logoBase64 ? {
+                    image: p.logoBase64,
+                    width: 55,
+                    height: 40,
+                    alignment: 'center',
+                    margin: [0, 2, 0, 4]
+                  } : {
+                    text: `⚡ ${(p.nome || 'EP').slice(0, 2).toUpperCase()}`,
+                    fontSize: 14,
+                    bold: true,
+                    color: t.secondary,
+                    alignment: 'center',
+                    margin: [0, 2, 0, 2]
+                  },
+                  {
+                    text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(),
+                    fontSize: Math.round(13 * fsMult),
+                    bold: true,
+                    color: '#FFFFFF',
+                    alignment: 'center'
+                  },
+                  p.slogan ? {
+                    text: p.slogan,
+                    fontSize: Math.round(8.5 * fsMult),
+                    italics: true,
+                    color: t.secondary,
+                    alignment: 'center',
+                    margin: [0, 1, 0, 2]
+                  } : {},
+                  {
+                    text: `Tel: ${p.telefone || '---'}  •  ${p.email || 'Moçambique'}${p.nuit ? '  •  NUIT: ' + p.nuit : ''}`,
+                    fontSize: Math.round(7.5 * fsMult),
+                    color: '#94A3B8',
+                    alignment: 'center'
+                  }
+                ],
+                margin: [6, 8, 6, 8]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1.5,
+            vLineWidth: () => 1.5,
+            hLineColor: () => corBorda,
+            vLineColor: () => corBorda
+          },
+          margin: [0, 0, 0, 4]
+        },
+        // Faixa do Título do Documento Dark
+        {
+          table: {
+            widths: ['*'],
+            body: [[
+              {
+                fillColor: '#1E293B',
+                stack: [
+                  {
+                    text: tituloDocumento.toUpperCase(),
+                    fontSize: Math.round(10.5 * fsMult),
+                    bold: true,
+                    color: t.bannerText,
+                    alignment: 'center'
+                  },
+                  subtitulo ? {
+                    text: subtitulo,
+                    fontSize: Math.round(7.5 * fsMult),
+                    color: t.subText,
+                    alignment: 'center',
+                    margin: [0, 1, 0, 0]
+                  } : {}
+                ],
+                margin: [0, 3, 0, 3]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => corBorda,
+            vLineColor: () => corBorda
+          },
+          margin: [0, 0, 0, 8]
+        }
+      ];
+    }
+
+    // ESTRUTURA 3: MINIMALISTA VERDE (Linhas finas, sem blocos de fundo pesados, foco em tabelas limpas)
+    if (t.id === 'minimalist_green') {
+      return [
+        {
+          columns: [
+            colunaLogo,
+            {
+              stack: [
+                {
+                  text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(),
+                  fontSize: Math.round(12.5 * fsMult),
+                  bold: true,
+                  color: t.primary
+                },
+                p.slogan ? {
+                  text: p.slogan,
+                  fontSize: Math.round(8.5 * fsMult),
+                  italics: true,
+                  color: '#475569',
+                  margin: [0, 1, 0, 2]
+                } : {},
+                {
+                  text: `Tel: ${p.telefone || '---'}  |  ${p.email || 'Moçambique'}${p.nuit ? '  |  NUIT: ' + p.nuit : ''}`,
+                  fontSize: Math.round(7.5 * fsMult),
+                  color: '#64748B'
+                }
+              ]
+            }
+          ],
+          margin: [0, 0, 0, 6]
+        },
+        // Linha divisória fina minimalista
+        {
+          canvas: [
+            { type: 'line', x1: 0, y1: 0, x2: lineWidth, y2: 0, lineWidth: 1, lineColor: '#CBD5E1' }
+          ],
+          margin: [0, 0, 0, 6]
+        },
+        // Título sem bloco de preenchimento pesado
+        {
+          columns: [
+            {
+              text: tituloDocumento.toUpperCase(),
+              fontSize: Math.round(10.5 * fsMult),
+              bold: true,
+              color: t.primary
+            },
+            {
+              text: subtitulo || '',
+              fontSize: Math.round(7.5 * fsMult),
+              color: '#64748B',
+              alignment: 'right',
+              margin: [0, 2, 0, 0]
+            }
+          ],
+          margin: [0, 0, 0, 8]
+        },
+        {
+          canvas: [
+            { type: 'line', x1: 0, y1: 0, x2: lineWidth, y2: 0, lineWidth: 1, lineColor: corBorda }
+          ],
+          margin: [0, 0, 0, 8]
+        }
+      ];
+    }
+
+    // ESTRUTURA 4: EXECUTIVO ELEGANTE (Layout estruturado em 3 colunas balanceadas)
+    if (t.id === 'executive_elegant') {
+      return [
+        {
+          columns: [
+            colunaLogo,
+            {
+              width: '*',
+              stack: [
+                {
+                  text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(),
+                  fontSize: Math.round(12.5 * fsMult),
+                  bold: true,
+                  color: t.primary
+                },
+                p.slogan ? {
+                  text: p.slogan,
+                  fontSize: Math.round(8.5 * fsMult),
+                  italics: true,
+                  color: t.secondary,
+                  margin: [0, 1, 0, 2]
+                } : {},
+                {
+                  text: `Certificação Técnica • Instalações Prediais & Industriais`,
+                  fontSize: Math.round(7.5 * fsMult),
+                  color: '#64748B'
+                }
+              ]
+            },
+            {
+              width: isLandscape ? 240 : 160,
+              table: {
+                widths: ['*'],
+                body: [[
+                  {
+                    fillColor: '#F8FAFC',
+                    stack: [
+                      { text: `TEL: ${p.telefone || '---'}`, fontSize: Math.round(7.5 * fsMult), bold: true, color: '#334155' },
+                      p.nuit ? { text: `NUIT: ${p.nuit}`, fontSize: Math.round(7.2 * fsMult), color: '#475569' } : {},
+                      { text: `${p.cidade || 'Moçambique'}`, fontSize: Math.round(7.2 * fsMult), color: '#64748B' }
+                    ],
+                    margin: [4, 4, 4, 4]
+                  }
+                ]]
+              },
+              layout: {
+                hLineWidth: () => 1,
+                vLineWidth: () => 1,
+                hLineColor: () => corBorda,
+                vLineColor: () => corBorda
+              }
+            }
+          ],
+          margin: [0, 0, 0, 6]
+        },
+        // Faixa de Título Executiva
+        {
+          table: {
+            widths: ['*'],
+            body: [[
+              {
+                fillColor: t.bannerBg,
+                stack: [
+                  {
+                    text: tituloDocumento.toUpperCase(),
+                    fontSize: Math.round(10.5 * fsMult),
+                    bold: true,
+                    color: t.bannerText,
+                    alignment: 'center'
+                  },
+                  subtitulo ? {
+                    text: subtitulo,
+                    fontSize: Math.round(7.5 * fsMult),
+                    color: t.subText,
+                    alignment: 'center',
+                    margin: [0, 1.5, 0, 0]
+                  } : {}
+                ],
+                margin: [0, 4, 0, 4]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1.5,
+            vLineWidth: () => 1.5,
+            hLineColor: () => corBorda,
+            vLineColor: () => corBorda
+          },
+          margin: [0, 0, 0, 8]
+        }
+      ];
+    }
+
+    // ESTRUTURA 5: PREMIUM DOURADO & GRAFITE (Luxo, linhas duplas e selo dourado)
+    if (t.id === 'premium_gold') {
+      return [
+        {
+          table: {
+            widths: ['*'],
+            body: [[
+              {
+                fillColor: '#18181B',
+                stack: [
+                  {
+                    columns: [
+                      p.logoBase64 ? {
+                        image: p.logoBase64,
+                        width: 54,
+                        height: 40,
+                        alignment: 'center',
+                        margin: [0, 0, 8, 0]
+                      } : {
+                        text: `⚡ ${(p.nome || 'EP').slice(0, 2).toUpperCase()}`,
+                        fontSize: 14,
+                        bold: true,
+                        color: '#F59E0B',
+                        alignment: 'center',
+                        margin: [0, 6, 8, 6]
+                      },
+                      {
+                        stack: [
+                          {
+                            text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(),
+                            fontSize: Math.round(13 * fsMult),
+                            bold: true,
+                            color: '#F59E0B'
+                          },
+                          p.slogan ? {
+                            text: p.slogan,
+                            fontSize: Math.round(8.5 * fsMult),
+                            italics: true,
+                            color: '#E4E4E7',
+                            margin: [0, 1, 0, 2]
+                          } : {},
+                          {
+                            text: `Tel: ${p.telefone || '---'}  •  ${p.cidade || 'Moçambique'}${p.nuit ? '  •  NUIT: ' + p.nuit : ''}`,
+                            fontSize: Math.round(7.5 * fsMult),
+                            color: '#A1A1AA'
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                margin: [8, 6, 8, 6]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1.5,
+            vLineWidth: () => 1.5,
+            hLineColor: () => corBorda,
+            vLineColor: () => corBorda
+          },
+          margin: [0, 0, 0, 4]
+        },
+        // Linha dourada dupla decorativa
+        {
+          canvas: [
+            { type: 'line', x1: 0, y1: 0, x2: lineWidth, y2: 0, lineWidth: 2, lineColor: '#D97706' }
+          ],
+          margin: [0, 0, 0, 4]
+        },
+        {
+          table: {
+            widths: ['*'],
+            body: [[
+              {
+                fillColor: '#27272A',
+                stack: [
+                  {
+                    text: tituloDocumento.toUpperCase(),
+                    fontSize: Math.round(10.5 * fsMult),
+                    bold: true,
+                    color: '#FDE68A',
+                    alignment: 'center'
+                  },
+                  subtitulo ? {
+                    text: subtitulo,
+                    fontSize: Math.round(7.5 * fsMult),
+                    color: '#F59E0B',
+                    alignment: 'center',
+                    margin: [0, 1, 0, 0]
+                  } : {}
+                ],
+                margin: [0, 3, 0, 3]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => '#D97706',
+            vLineColor: () => '#D97706'
+          },
+          margin: [0, 0, 0, 8]
+        }
+      ];
+    }
+
+    // ESTRUTURA 6: INDUSTRIAL HIGH-CONTRAST (Foco em segurança de campo e alto contraste)
+    if (t.id === 'industrial_orange') {
+      return [
+        {
+          table: {
+            widths: [75, '*'],
+            body: [[
+              {
+                fillColor: '#111827',
+                stack: [
+                  colunaLogo,
+                  {
+                    text: 'NORMAS IEC/EDM',
+                    fontSize: 6,
+                    bold: true,
+                    color: '#F97316',
+                    alignment: 'center',
+                    margin: [0, 2, 0, 0]
+                  }
+                ],
+                margin: [4, 6, 4, 6]
+              },
+              {
+                fillColor: '#FFF7ED',
+                stack: [
+                  {
+                    text: (p.nome || 'SERVIÇOS TÉCNICOS INDUSTRIAIS').toUpperCase(),
+                    fontSize: Math.round(13 * fsMult),
+                    bold: true,
+                    color: '#C2410C'
+                  },
+                  p.slogan ? {
+                    text: p.slogan,
+                    fontSize: Math.round(8.5 * fsMult),
+                    italics: true,
+                    color: '#EA580C',
+                    margin: [0, 1, 0, 2]
+                  } : {},
+                  {
+                    text: `SEGURANÇA & MANUTENÇÃO • TEL: ${p.telefone || '---'} • ${p.cidade || 'Moçambique'}${p.nuit ? ' • NUIT: ' + p.nuit : ''}`,
+                    fontSize: Math.round(7.5 * fsMult),
+                    bold: true,
+                    color: '#431407'
+                  }
+                ],
+                margin: [8, 6, 8, 6]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1.5,
+            vLineWidth: () => 1.5,
+            hLineColor: () => '#EA580C',
+            vLineColor: () => '#EA580C'
+          },
+          margin: [0, 0, 0, 4]
+        },
+        // Tarja industrial de documento
+        {
+          table: {
+            widths: ['*'],
+            body: [[
+              {
+                fillColor: '#111827',
+                stack: [
+                  {
+                    text: `⚠️  ${tituloDocumento.toUpperCase()}  ⚠️`,
+                    fontSize: Math.round(11 * fsMult),
+                    bold: true,
+                    color: '#FB923C',
+                    alignment: 'center'
+                  },
+                  subtitulo ? {
+                    text: subtitulo,
+                    fontSize: Math.round(7.8 * fsMult),
+                    color: '#FDBA74',
+                    alignment: 'center',
+                    margin: [0, 1.5, 0, 0]
+                  } : {}
+                ],
+                margin: [0, 3.5, 0, 3.5]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => '#F97316',
+            vLineColor: () => '#F97316'
+          },
+          margin: [0, 0, 0, 8]
+        }
+      ];
+    }
+
+    // ESTRUTURA 7: CLEAN PADRÃO EDM (Fichas operacionais da rede de energia)
+    if (t.id === 'clean_edm') {
+      return [
+        {
+          table: {
+            widths: ['*', 120],
+            body: [[
+              {
+                stack: [
+                  {
+                    columns: [
+                      colunaLogo,
+                      {
+                        stack: [
+                          {
+                            text: (p.nome || 'SERVIÇOS TÉCNICOS ELETRICIDADE').toUpperCase(),
+                            fontSize: Math.round(12.5 * fsMult),
+                            bold: true,
+                            color: '#0369A1'
+                          },
+                          p.slogan ? {
+                            text: p.slogan,
+                            fontSize: Math.round(8.5 * fsMult),
+                            italics: true,
+                            color: '#0284C7',
+                            margin: [0, 1, 0, 2]
+                          } : {},
+                          {
+                            text: `Operações em Baixa & Média Tensão (220V / 380V - 50Hz)`,
+                            fontSize: Math.round(7.5 * fsMult),
+                            color: '#475569'
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                fillColor: '#E0F2FE',
+                stack: [
+                  { text: 'PADRÃO EDM', fontSize: 8, bold: true, color: '#0369A1', alignment: 'center' },
+                  { text: `Tel: ${p.telefone}`, fontSize: 7, color: '#0C4A6E', alignment: 'center', margin: [0, 2, 0, 0] },
+                  { text: `${p.cidade}`, fontSize: 7, color: '#0C4A6E', alignment: 'center' }
+                ],
+                margin: [4, 4, 4, 4]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => '#0284C7',
+            vLineColor: () => '#0284C7'
+          },
+          margin: [0, 0, 0, 4]
+        },
+        // Tarja de documento padrão EDM
+        {
+          table: {
+            widths: ['*'],
+            body: [[
+              {
+                fillColor: '#0369A1',
+                stack: [
+                  {
+                    text: tituloDocumento.toUpperCase(),
+                    fontSize: Math.round(11 * fsMult),
+                    bold: true,
+                    color: '#FFFFFF',
+                    alignment: 'center'
+                  },
+                  subtitulo ? {
+                    text: subtitulo,
+                    fontSize: Math.round(7.5 * fsMult),
+                    color: '#BAE6FD',
+                    alignment: 'center',
+                    margin: [0, 1.5, 0, 0]
+                  } : {}
+                ],
+                margin: [0, 3, 0, 3]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => corBorda,
+            vLineColor: () => corBorda
+          },
+          margin: [0, 0, 0, 8]
+        }
+      ];
+    }
+
+    // ESTRUTURA 1 (Corporativo) e Padrão: Cabeçalho com bloco corporativo e identificação estruturada
     const colunaInfo = {
       stack: [
         { 
@@ -400,6 +953,73 @@ const PerfilTecnico = {
         margin: [0, 0, 0, 10]
       }
     ];
+  },
+
+  // Gera o bloco de assinaturas (Técnico e Cliente) com linha e textos 100% matematicamente centralizados
+  gerarBlocoAssinaturas(nomeTecnico, nomeCliente, papelTecnico = 'Profissional Responsável / Contratado', papelCliente = 'Cliente / Contratante') {
+    const p = this.obter();
+    const tema = this.obterTema();
+    const isLandscape = tema.isLandscape;
+    const fsMult = tema.fontMultiplier || 1;
+    const contentW = tema.contentWidth;
+    const boxW = isLandscape ? 260 : 195;
+    const gapW = isLandscape ? 110 : 50;
+    const marginSide = Math.max(0, Math.floor((contentW - (boxW * 2 + gapW)) / 2));
+
+    return {
+      table: {
+        widths: [marginSide, boxW, gapW, boxW, marginSide],
+        body: [[
+          {},
+          {
+            border: [false, true, false, false],
+            borderColor: ['#94A3B8', '#94A3B8', '#94A3B8', '#94A3B8'],
+            stack: [
+              {
+                text: (nomeTecnico || p.nome || 'Profissional Técnico'),
+                fontSize: Math.round(8 * fsMult),
+                bold: true,
+                alignment: 'center',
+                margin: [0, 4, 0, 1]
+              },
+              {
+                text: papelTecnico,
+                fontSize: Math.round(6.8 * fsMult),
+                color: '#64748B',
+                alignment: 'center'
+              }
+            ],
+            margin: [0, 0, 0, 0]
+          },
+          {},
+          {
+            border: [false, true, false, false],
+            borderColor: ['#94A3B8', '#94A3B8', '#94A3B8', '#94A3B8'],
+            stack: [
+              {
+                text: (nomeCliente || 'Cliente / Contratante'),
+                fontSize: Math.round(8 * fsMult),
+                bold: true,
+                alignment: 'center',
+                margin: [0, 4, 0, 1]
+              },
+              {
+                text: papelCliente,
+                fontSize: Math.round(6.8 * fsMult),
+                color: '#64748B',
+                alignment: 'center'
+              }
+            ],
+            margin: [0, 0, 0, 0]
+          },
+          {}
+        ]]
+      },
+      layout: {
+        defaultBorder: false
+      },
+      margin: [0, 20, 0, 4]
+    };
   }
 };
 

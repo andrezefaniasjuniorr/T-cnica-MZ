@@ -37,6 +37,7 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
   const [especialidade, setEspecialidade] = useState(brandSettings.slogan || currentUser?.specialty || 'Instalações, Manutenção & Energia Solar');
   const [telefone, setTelefone] = useState(brandSettings.telefone || currentUser?.phone || '+258 84 000 0000');
   const [borderColor, setBorderColor] = useState(brandSettings.borderColor || '#0066FF');
+  const [logoBase64, setLogoBase64] = useState<string | null>(brandSettings.logoBase64 || null);
 
   // Imagens
   const [fotoAntes, setFotoAntes] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputAntesRef = useRef<HTMLInputElement>(null);
   const fileInputDepoisRef = useRef<HTMLInputElement>(null);
+  const fileInputLogoRef = useRef<HTMLInputElement>(null);
 
   // Sugestões de títulos rápidos
   const titulosSugeridos = [
@@ -85,7 +87,7 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
   // Redesenha o Canvas sempre que dados ou imagens mudam
   useEffect(() => {
     renderCanvas();
-  }, [titulo, nomeTecnico, especialidade, telefone, borderColor, fotoAntes, fotoDepois]);
+  }, [titulo, nomeTecnico, especialidade, telefone, borderColor, fotoAntes, fotoDepois, logoBase64]);
 
   const renderCanvas = () => {
     const canvas = canvasRef.current;
@@ -245,15 +247,66 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
     ctx.fillStyle = borderColor;
     ctx.fillRect(0, footerY, W, 5);
 
-    // Coluna Esquerda: Nome e Especialidade
+    // Coluna Esquerda: LOGOTIPO IMEDIATAMENTE ANTES DO NOME COMERCIAL
+    const logoSize = 64;
+    const logoX = 40;
+    const logoY = footerY + 23;
+    const textStartX = logoX + logoSize + 16;
+
+    if (logoBase64) {
+      const logoImg = new Image();
+      logoImg.onload = () => {
+        ctx.save();
+        // Fundo branco arredondado para garantir legibilidade de qualquer logotipo
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.roundRect(logoX, logoY, logoSize, logoSize, 10);
+        ctx.fill();
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.roundRect(logoX + 4, logoY + 4, logoSize - 8, logoSize - 8, 8);
+        ctx.clip();
+        ctx.drawImage(logoImg, logoX + 4, logoY + 4, logoSize - 8, logoSize - 8);
+        ctx.restore();
+      };
+      logoImg.src = logoBase64;
+    } else {
+      // Emblema com iniciais elegante caso ainda não haja foto
+      const initials = (nomeTecnico || 'EP')
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(w => w[0].toUpperCase())
+        .join('');
+
+      ctx.save();
+      ctx.fillStyle = '#1E293B';
+      ctx.beginPath();
+      ctx.roundRect(logoX, logoY, logoSize, logoSize, 10);
+      ctx.fill();
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.fillStyle = borderColor;
+      ctx.font = 'bold 22px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`⚡${initials}`, logoX + logoSize / 2, logoY + 41);
+      ctx.restore();
+    }
+
+    // Nome Comercial e Especialidade após o Logotipo
     ctx.textAlign = 'left';
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 24px Inter, system-ui, sans-serif';
-    ctx.fillText((nomeTecnico || 'SERVIÇOS TÉCNICOS').toUpperCase(), 40, footerY + 45);
+    ctx.fillText((nomeTecnico || 'SERVIÇOS TÉCNICOS').toUpperCase(), textStartX, footerY + 45);
 
     ctx.fillStyle = borderColor;
     ctx.font = '600 15px Inter, system-ui, sans-serif';
-    ctx.fillText(especialidade || 'Instalações, Manutenções e Automação', 40, footerY + 75);
+    ctx.fillText(especialidade || 'Instalações, Manutenções e Automação', textStartX, footerY + 75);
 
     // Coluna Direita: WhatsApp e Chamada para Ação
     ctx.textAlign = 'right';
@@ -603,8 +656,72 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
                 Dados na Tarja Inferior
               </label>
 
+              {/* Logotipo do Técnico (Exibido imediatamente antes do Nome) */}
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 flex items-center gap-1">
+                    <Building className="w-3.5 h-3.5 text-blue-600" />
+                    Logotipo do Técnico (Antes do Nome)
+                  </span>
+                  {logoBase64 && (
+                    <button
+                      type="button"
+                      onClick={() => setLogoBase64(null)}
+                      className="text-[10px] text-rose-600 hover:underline font-bold"
+                    >
+                      Remover
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div
+                    onClick={() => fileInputLogoRef.current?.click()}
+                    className="w-14 h-14 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 bg-white flex items-center justify-center cursor-pointer overflow-hidden shrink-0 group transition shadow-sm"
+                    title="Toque para alterar imagem da logo"
+                  >
+                    {logoBase64 ? (
+                      <img src={logoBase64} alt="Logotipo" className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <div className="text-center">
+                        <Building className="w-5 h-5 text-slate-400 mx-auto group-hover:text-blue-600 transition" />
+                        <span className="text-[8px] font-bold text-slate-400 block mt-0.5">Sem Logo</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputLogoRef.current?.click()}
+                      className="w-full px-3 py-1.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 text-slate-700 font-bold rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Building className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{logoBase64 ? 'Alterar Logotipo' : 'Anexar Logotipo'}</span>
+                    </button>
+                    <p className="text-[9px] text-slate-400 leading-tight">
+                      Aparece no banner inferior imediatamente antes do seu nome comercial.
+                    </p>
+                    <input
+                      ref={fileInputLogoRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => setLogoBase64(reader.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <span className="text-[10px] font-bold text-slate-500">Nome / Empresa</span>
+                <span className="text-[10px] font-bold text-slate-500">Nome Comercial / Empresa</span>
                 <input
                   type="text"
                   value={nomeTecnico}
