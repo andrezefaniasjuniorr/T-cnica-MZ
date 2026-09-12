@@ -490,6 +490,7 @@ export interface NotificationItem {
   message: string;
   type: 'info' | 'success' | 'warning' | 'alert';
   read: boolean;
+  unread?: boolean;
   linkTab?: string;
   deeplink?: string;
   createdAt: string;

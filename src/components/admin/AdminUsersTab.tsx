@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, UserRole, UserStatus } from '../../types';
 import { getInitial } from '../../utils/stringUtils';
+import { parseDateToMillis, THREE_DAYS_MS } from '../../utils/date';
 import {
   Users,
   Search,
@@ -53,6 +54,13 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Local synchronized state for immediate UI feedback
+  const [localUsers, setLocalUsers] = useState<User[]>(users);
+
+  useEffect(() => {
+    setLocalUsers(users);
+  }, [users]);
+
   // Modal states
   const [selectedUserForBan, setSelectedUserForBan] = useState<User | null>(null);
   const [banReason, setBanReason] = useState('Violação das regras e termos de serviço TécnicaMZ.');
@@ -61,7 +69,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   const now = Date.now();
 
   // Filter users
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = localUsers.filter(user => {
     // 1. Search filter
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
@@ -170,6 +178,11 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   const handleGrantTrial3Days = async (user: User) => {
     setProcessingId(user.uid);
     setFeedback(null);
+    const nowIso = new Date().toISOString();
+    // Instant optimistic update
+    setLocalUsers(prev =>
+      prev.map(u => (u.uid === user.uid ? { ...u, isTrialActive: true, createdAt: nowIso } : u))
+    );
     try {
       if (onGrantTrial3Days) {
         const res = await onGrantTrial3Days(user.uid);
@@ -190,6 +203,10 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   const handleRevokeTrial = async (user: User) => {
     setProcessingId(user.uid);
     setFeedback(null);
+    // Instant optimistic update
+    setLocalUsers(prev =>
+      prev.map(u => (u.uid === user.uid ? { ...u, isTrialActive: false } : u))
+    );
     try {
       if (onRevokeTrial) {
         const res = await onRevokeTrial(user.uid);
@@ -247,18 +264,21 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
   const handleConfirmDelete = async () => {
     if (!selectedUserForDelete) return;
-    setProcessingId(selectedUserForDelete.uid);
+    const targetUid = selectedUserForDelete.uid;
+    const targetName = selectedUserForDelete.name;
+    setProcessingId(targetUid);
     setFeedback(null);
+    setLocalUsers(prev => prev.filter(u => u.uid !== targetUid));
     try {
-      const res = await onDeleteUser(selectedUserForDelete.uid);
-      if (res.success) {
+      const res = await onDeleteUser(targetUid);
+      if (res && res.success !== false) {
         setFeedback({
           type: 'success',
-          message: `Conta de "${selectedUserForDelete.name}" excluída permanentemente.`
+          message: `Conta de "${targetName}" excluída permanentemente.`
         });
         setSelectedUserForDelete(null);
       } else {
-        setFeedback({ type: 'error', message: res.error || 'Erro ao excluir conta.' });
+        setFeedback({ type: 'error', message: res?.error || 'Erro ao excluir conta.' });
       }
     } finally {
       setProcessingId(null);
@@ -397,12 +417,12 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             }
             const isVerified = rawVerified && !isSeloExpired;
 
-            // Free Trial (3 Days) calculation
-            const isTrialActive = user.isTrialActive !== false;
-            const createdMs = user.createdAt ? new Date(user.createdAt).getTime() : now;
-            const trialDiffMs = (createdMs + 3 * 24 * 60 * 60 * 1000) - now;
-            const isTrialValid = isTrialActive && trialDiffMs > 0;
-            const trialDaysLeft = isTrialValid ? Math.max(1, Math.ceil(trialDiffMs / (24 * 60 * 60 * 1000))) : 0;
+            // Free Trial (3 Days) calculation: exactly 259.200.000 ms
+            const isTrialActive = user.isTrialActive === true;
+            const createdMs = parseDateToMillis(user.createdAt || (user as any).criadoEm || (user as any).dataCadastro) || now;
+            const elapsedMs = Math.max(0, now - createdMs);
+            const isTrialValid = isTrialActive && elapsedMs <= THREE_DAYS_MS;
+            const trialDaysLeft = isTrialValid ? Math.max(1, Math.ceil((THREE_DAYS_MS - elapsedMs) / (24 * 60 * 60 * 1000))) : 0;
 
             // Subscription Calculation
             const exp = user.dataExpiracao || user.subscriptionExpiresAt;

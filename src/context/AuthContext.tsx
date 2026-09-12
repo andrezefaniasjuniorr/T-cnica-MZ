@@ -13,6 +13,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs, serverTimestamp, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { giveHeartOrLike, recalculateUserStarsAndRanking } from '../services/engagement';
+import { parseDateToMillis, parseDateToIso, THREE_DAYS_MS } from '../utils/date';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -320,9 +321,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             idade: d.idade ? Number(d.idade) : undefined,
             photoURL: d.photoURL || d.avatarUrl || d.foto || '',
             avatarUrl: d.avatarUrl || d.photoURL || d.foto || '',
-            specialty: d.specialty || d.especialidade || 'Eletricidade',
-            province: d.province || d.provincia || 'Maputo Cidade',
-            city: d.city || d.cidade || 'Maputo',
+            specialty: d.specialty || d.especialidade || (role === 'technician' ? 'Eletricidade' : undefined),
+            province: d.province || d.provincia || '',
+            city: d.city || d.cidade || '',
             status: d.status || 'active',
             statusConta: d.statusConta || 'ativa',
             statusAprovacao: d.statusAprovacao || 'aprovado',
@@ -331,7 +332,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             pontos: typeof d.pontos === 'number' ? d.pontos : (typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0),
             streakCount: typeof d.streakCount === 'number' ? d.streakCount : (typeof d.sequenciaDias === 'number' ? d.sequenciaDias : 1),
             lastLoginDate: d.lastLoginDate || d.ultimoAcesso || '',
-            createdAt: d.createdAt || d.dataCadastro || new Date().toISOString()
+            createdAt: parseDateToIso(d.createdAt || d.criadoEm || d.dataCadastro)
           };
           usersFromUsuarios.push(userObj);
 
@@ -344,8 +345,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               whatsapp: d.whatsapp || cleanPhone,
               showWhatsappButton: d.showWhatsappButton ?? true,
               customWhatsappMessage: d.customWhatsappMessage || `Olá ${defaultName}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
-              province: d.province || d.provincia || 'Maputo Cidade',
-              city: d.city || d.cidade || 'Maputo',
+              province: d.province || d.provincia || '',
+              city: d.city || d.cidade || '',
               specialties: Array.isArray(d.specialties) ? d.specialties : (d.specialty ? [d.specialty] : (d.especialidade ? [d.especialidade] : ['Eletricidade'])),
               bio: d.bio || `Profissional qualificado em ${d.specialty || d.especialidade || 'serviços técnicos'} em Moçambique.`,
               experienceYears: typeof d.experienceYears === 'number' ? d.experienceYears : 2,
@@ -799,8 +800,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 status: rawData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
                 adminSubRole: isSuper ? 'super_admin' : rawData.adminSubRole,
                 specialty: rawData.specialty || rawData.especialidade || (role === 'technician' ? 'Eletricidade' : undefined),
-                province: rawData.province || rawData.provincia || 'Maputo Cidade',
-                city: rawData.city || rawData.cidade || 'Maputo',
+                province: rawData.province || rawData.provincia || '',
+                city: rawData.city || rawData.cidade || '',
                 avatarUrl: rawData.avatarUrl || rawData.photoURL || rawData.fotoUrl || rawData.foto || fbUser.photoURL || undefined,
                 photoURL: rawData.photoURL || rawData.avatarUrl || rawData.fotoUrl || rawData.foto || fbUser.photoURL || undefined,
                 isVerified: isSuper ? true : Boolean(rawData.isVerified || rawData.verificationStatus === 'approved' || rawData.statusSelo === 'aprovado'),
@@ -827,7 +828,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 badges: rawData.badges || { excelente: 0, util: 0, tecnico: 0 },
                 streakCount: typeof rawData.streakCount === 'number' ? rawData.streakCount : (typeof rawData.sequenciaDias === 'number' ? rawData.sequenciaDias : 1),
                 lastLoginDate: rawData.lastLoginDate || rawData.ultimoAcesso || '',
-                createdAt: rawData.createdAt || rawData.dataCadastro || new Date().toISOString(),
+                createdAt: parseDateToIso(rawData.createdAt || rawData.criadoEm || rawData.dataCadastro),
                 updatedAt: rawData.updatedAt
               };
 
@@ -1230,8 +1231,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 status: docData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
                 adminSubRole: isSuper ? 'super_admin' : docData.adminSubRole,
                 specialty: docData.specialty || docData.especialidade || (role === 'technician' ? 'Eletricidade' : undefined),
-                province: docData.province || docData.provincia || 'Maputo Cidade',
-                city: docData.city || docData.cidade || 'Maputo',
+                province: docData.province || docData.provincia || '',
+                city: docData.city || docData.cidade || '',
                 avatarUrl: docData.avatarUrl || docData.photoURL || docData.fotoUrl || docData.foto || fbUser.photoURL || undefined,
                 photoURL: docData.photoURL || docData.avatarUrl || docData.fotoUrl || docData.foto || fbUser.photoURL || undefined,
                 isVerified: isSuper ? true : Boolean(docData.isVerified || docData.verificationStatus === 'approved' || docData.statusSelo === 'aprovado'),
@@ -1251,7 +1252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 activePlanId: docData.activePlanId,
                 totalLikes: typeof docData.totalLikes === 'number' ? docData.totalLikes : (typeof docData.curtidas === 'number' ? docData.curtidas : 0),
                 scoreEngajamento: typeof docData.scoreEngajamento === 'number' ? docData.scoreEngajamento : (typeof docData.pontos === 'number' ? docData.pontos : 0),
-                createdAt: docData.createdAt || docData.dataCadastro || new Date().toISOString(),
+                createdAt: parseDateToIso(docData.createdAt || docData.criadoEm || docData.dataCadastro),
                 updatedAt: docData.updatedAt
               };
 
@@ -1553,8 +1554,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         statusSelo: 'nenhum',
         isTrialActive: true,
         specialty: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
-        province: data.province || 'Maputo Cidade',
-        city: data.city || 'Maputo',
+        province: data.province?.trim() || '',
+        city: data.city?.trim() || '',
         createdAt: new Date().toISOString()
       };
 
@@ -1576,25 +1577,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             status: status,
             statusConta: 'ativa',
             statusAprovacao: statusAprovacao,
+            idade: userAge !== undefined ? userAge : null,
+            city: data.city?.trim() || '',
+            cidade: data.city?.trim() || '',
+            province: data.province?.trim() || '',
+            provincia: data.province?.trim() || '',
             isTrialActive: true,
             isVerified: false,
             temSeloMZ: false,
             statusSelo: 'nenhum',
             criadoEm: serverTimestamp(),
             createdAt: serverTimestamp(),
+            dataCadastro: serverTimestamp(),
             createdAtIso: new Date().toISOString()
           };
 
           const usuarioPayload = {
             ...userDocPayload,
-            idade: userAge,
+            idade: userAge !== undefined ? userAge : null,
             isTrialActive: true,
             especialidade: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
             specialty: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
-            provincia: data.province || 'Maputo Cidade',
-            province: data.province || 'Maputo Cidade',
-            cidade: data.city || 'Maputo',
-            city: data.city || 'Maputo',
+            provincia: data.province?.trim() || '',
+            province: data.province?.trim() || '',
+            cidade: data.city?.trim() || '',
+            city: data.city?.trim() || '',
             foto: userPhoto || '',
             avatarUrl: userPhoto || '',
             photoURL: userPhoto || '',
@@ -1602,6 +1609,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             curtidas: 0,
             totalLikes: 0,
             scoreEngajamento: 0,
+            criadoEm: serverTimestamp(),
+            createdAt: serverTimestamp(),
             dataCadastro: serverTimestamp()
           };
 
@@ -1625,10 +1634,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsapp: cleanWhatsapp,
           showWhatsappButton: true,
           customWhatsappMessage: `Olá ${defaultName}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
-          province: data.province || 'Maputo Cidade',
-          city: data.city || 'Maputo',
+          province: data.province?.trim() || '',
+          city: data.city?.trim() || '',
           specialties: data.specialty ? [data.specialty] : ['Eletricidade'],
-          bio: `Profissional qualificado em ${data.specialty || 'serviços técnicos'} em ${data.province || 'Moçambique'}.`,
+          bio: `Profissional qualificado em ${data.specialty || 'serviços técnicos'}${data.province ? ` em ${data.province}` : ' em Moçambique'}.`,
           experienceYears: 1,
           idade: userAge,
           photoURL: userPhoto,
@@ -1685,9 +1694,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsapp: cleanWhatsapp,
           showWhatsappButton: true,
           website: data.website?.trim(),
-          province: data.province || 'Maputo Cidade',
-          city: data.city || 'Maputo',
-          address: data.address?.trim() || 'Moçambique',
+          province: data.province?.trim() || '',
+          city: data.city?.trim() || '',
+          address: data.address?.trim() || '',
           industry: data.industry?.trim() || 'Engenharia & Construção',
           description: `Empresa ${defaultName} registada na TécnicaMZ para contratação de profissionais técnicos especializados.`,
           logoUrl: userPhoto,
@@ -2579,9 +2588,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     if (isFirebaseConfigured && db) {
       try {
-        await updateDoc(doc(db, 'users', userId), { isTrialActive: true, createdAt: serverTimestamp(), createdAtIso: nowIso, updatedAt: nowIso });
-        await updateDoc(doc(db, 'technicians', userId), { isTrialActive: true, createdAt: serverTimestamp(), createdAtIso: nowIso, updatedAt: nowIso }).catch(() => {});
-        await updateDoc(doc(db, 'companies', userId), { isTrialActive: true, createdAt: serverTimestamp(), createdAtIso: nowIso, updatedAt: nowIso }).catch(() => {});
+        await updateDoc(doc(db, 'users', userId), {
+          isTrialActive: true,
+          createdAt: serverTimestamp(),
+          criadoEm: serverTimestamp(),
+          dataCadastro: serverTimestamp(),
+          createdAtIso: nowIso,
+          updatedAt: nowIso
+        });
+        await updateDoc(doc(db, 'technicians', userId), {
+          isTrialActive: true,
+          createdAt: serverTimestamp(),
+          createdAtIso: nowIso,
+          updatedAt: nowIso
+        }).catch(() => {});
+        await updateDoc(doc(db, 'companies', userId), {
+          isTrialActive: true,
+          createdAt: serverTimestamp(),
+          createdAtIso: nowIso,
+          updatedAt: nowIso
+        }).catch(() => {});
+        await updateDoc(doc(db, 'usuarios', userId), {
+          isTrialActive: true,
+          createdAt: serverTimestamp(),
+          criadoEm: serverTimestamp(),
+          dataCadastro: serverTimestamp(),
+          createdAtIso: nowIso,
+          updatedAt: nowIso
+        }).catch(() => {});
       } catch (err) {
         console.warn('grantTrial3Days error:', err);
       }
@@ -2608,6 +2642,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await updateDoc(doc(db, 'users', userId), { isTrialActive: false, updatedAt: nowIso });
         await updateDoc(doc(db, 'technicians', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
         await updateDoc(doc(db, 'companies', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
+        await updateDoc(doc(db, 'usuarios', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
       } catch (err) {
         console.warn('revokeTrial error:', err);
       }
@@ -2784,11 +2819,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsersList(prev => prev.filter(u => u.uid !== userId));
     setTechList(prev => prev.filter(t => t.userId !== userId));
     setCompanyList(prev => prev.filter(c => c.userId !== userId));
+    if (currentUser?.uid === userId) {
+      setCurrentUser(null);
+    }
+    if (currentTechProfile?.userId === userId) {
+      setCurrentTechProfile(null);
+    }
+    if (currentCompanyProfile?.userId === userId) {
+      setCurrentCompanyProfile(null);
+    }
     if (isFirebaseConfigured && db) {
       try {
         await deleteDoc(doc(db, 'users', userId));
-        await deleteDoc(doc(db, 'technicians', userId));
-        await deleteDoc(doc(db, 'companies', userId));
+        await deleteDoc(doc(db, 'technicians', userId)).catch(() => {});
+        await deleteDoc(doc(db, 'companies', userId)).catch(() => {});
+        await deleteDoc(doc(db, 'usuarios', userId)).catch(() => {});
       } catch (err) {
         console.warn('Firestore delete user error:', err);
       }
@@ -2815,6 +2860,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Selo MZ active unlocks full platform features
     if (currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado') {
       return true;
+    }
+
+    // Free Trial (3 Dias): isTrialActive === true E tempo decorrido <= 259.200.000 ms
+    // Libera acesso total (Sara IA, ferramentas, mural)
+    if (currentUser.isTrialActive === true) {
+      const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
+      const elapsedMs = Math.max(0, Date.now() - createdMs);
+      if (elapsedMs <= THREE_DAYS_MS) {
+        return true;
+      }
     }
 
     // Check statusAssinatura or subscriptionStatus
@@ -3053,15 +3108,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 2. Teste Grátis (3 Dias)
   const isTrialActive = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
-    return currentUser.isTrialActive !== false;
+    return currentUser.isTrialActive === true;
   }, [currentUser]);
 
   const trialDaysRemaining = React.useMemo<number>(() => {
     if (!currentUser) return 0;
-    if (currentUser.isTrialActive === false) return 0;
-    const createdMs = currentUser.createdAt ? new Date(currentUser.createdAt).getTime() : Date.now();
-    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-    const diffMs = (createdMs + threeDaysMs) - Date.now();
+    if (currentUser.isTrialActive !== true) return 0;
+    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
+    const diffMs = (createdMs + THREE_DAYS_MS) - Date.now();
     if (diffMs <= 0) return 0;
     return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
   }, [currentUser]);
@@ -3075,18 +3129,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) {
       return true;
     }
-    if (currentUser.isTrialActive === false) return false;
-    const createdMs = currentUser.createdAt ? new Date(currentUser.createdAt).getTime() : Date.now();
-    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-    return (Date.now() - createdMs) <= threeDaysMs;
+    if (currentUser.isTrialActive !== true) return false;
+    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
+    const elapsedMs = Math.max(0, Date.now() - createdMs);
+    return elapsedMs <= THREE_DAYS_MS;
   }, [currentUser]);
 
   const isTrialExpired = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
-    if (currentUser.isTrialActive === false) return false;
-    const createdMs = currentUser.createdAt ? new Date(currentUser.createdAt).getTime() : Date.now();
-    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-    return (Date.now() - createdMs) > threeDaysMs;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return false;
+    }
+    if (currentUser.isTrialActive !== true) return true;
+    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
+    const elapsedMs = Math.max(0, Date.now() - createdMs);
+    return elapsedMs > THREE_DAYS_MS;
   }, [currentUser]);
 
   // 3. Regra de Acesso:
@@ -3102,8 +3163,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) {
       return true;
     }
-    return isSeloValid || isTrialValid;
-  }, [currentUser, isSeloValid, isTrialValid]);
+    return isSeloValid || isTrialValid || isSubscriptionActive;
+  }, [currentUser, isSeloValid, isTrialValid, isSubscriptionActive]);
 
   const isRestrictedTechnician = React.useMemo<boolean>(() => {
     if (!currentUser) return false;

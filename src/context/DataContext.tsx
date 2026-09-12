@@ -897,17 +897,38 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.warn('Realtime portfolio notice:', err)
     );
 
+    const notifsMap = new Map<string, NotificationItem>();
+    const updateMergedNotifications = () => {
+      setNotifications((prev) => {
+        const map = new Map<string, NotificationItem>();
+        prev.forEach(n => map.set(n.id, n));
+        notifsMap.forEach((v, k) => map.set(k, v));
+        const list = Array.from(map.values());
+        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        return list;
+      });
+    };
+
     const unsubNotifications = onSnapshot(
       collection(db, 'notifications'),
       (snapshot) => {
-        const list: NotificationItem[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as NotificationItem);
+          notifsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as NotificationItem);
         });
-        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        setNotifications(list);
+        updateMergedNotifications();
       },
       (err) => console.warn('Realtime notifications notice:', err)
+    );
+
+    const unsubNotificacoes = onSnapshot(
+      collection(db, 'notificacoes'),
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          notifsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as NotificationItem);
+        });
+        updateMergedNotifications();
+      },
+      (err) => console.warn('Realtime notificacoes notice:', err)
     );
 
     const unsubSettings = onSnapshot(
@@ -954,9 +975,62 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubPayments();
       unsubPortfolio();
       unsubNotifications();
+      unsubNotificacoes();
       unsubSettings();
     };
   }, []);
+
+  // Real-time listener for current user's dedicated subcollection: /users/{uid}/notifications and /users/{uid}/notificacoes
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || !currentUser?.uid) return;
+
+    const userNotifsRef = collection(db, 'users', currentUser.uid, 'notifications');
+    const unsubUserNotifs = onSnapshot(
+      userNotifsRef,
+      (snapshot) => {
+        if (snapshot.empty) return;
+        const incoming: NotificationItem[] = [];
+        snapshot.forEach((docSnap) => {
+          incoming.push({ ...docSnap.data(), id: docSnap.id } as NotificationItem);
+        });
+        setNotifications((prev) => {
+          const map = new Map<string, NotificationItem>();
+          prev.forEach((n) => map.set(n.id, n));
+          incoming.forEach((n) => map.set(n.id, n));
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          return merged;
+        });
+      },
+      (err) => console.warn('Realtime user notifications notice:', err)
+    );
+
+    const userNotificacoesRef = collection(db, 'users', currentUser.uid, 'notificacoes');
+    const unsubUserNotificacoes = onSnapshot(
+      userNotificacoesRef,
+      (snapshot) => {
+        if (snapshot.empty) return;
+        const incoming: NotificationItem[] = [];
+        snapshot.forEach((docSnap) => {
+          incoming.push({ ...docSnap.data(), id: docSnap.id } as NotificationItem);
+        });
+        setNotifications((prev) => {
+          const map = new Map<string, NotificationItem>();
+          prev.forEach((n) => map.set(n.id, n));
+          incoming.forEach((n) => map.set(n.id, n));
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          return merged;
+        });
+      },
+      (err) => console.warn('Realtime user notificacoes notice:', err)
+    );
+
+    return () => {
+      unsubUserNotifs();
+      unsubUserNotificacoes();
+    };
+  }, [currentUser?.uid]);
 
   // Sync to localStorage (apenas preferências e fallbacks quando Firebase não estiver ativo)
   useEffect(() => {
@@ -2993,6 +3067,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Notifications Actions
   const markNotificationAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
+    if (isFirebaseConfigured && db && currentUser) {
+      updateDoc(doc(db, 'notifications', id), { read: true }).catch(() => {});
+      updateDoc(doc(db, 'notificacoes', id), { read: true }).catch(() => {});
+      updateDoc(doc(db, 'users', currentUser.uid, 'notifications', id), { read: true }).catch(() => {});
+      updateDoc(doc(db, 'users', currentUser.uid, 'notificacoes', id), { read: true }).catch(() => {});
+    }
   };
 
   const markAllNotificationsAsRead = () => {
@@ -3007,6 +3087,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : n
       )
     );
+    if (isFirebaseConfigured && db && currentUser) {
+      notifications.forEach(n => {
+        if (n.userId === currentUser.uid && !n.read) {
+          updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => {});
+          updateDoc(doc(db, 'notificacoes', n.id), { read: true }).catch(() => {});
+          updateDoc(doc(db, 'users', currentUser.uid, 'notifications', n.id), { read: true }).catch(() => {});
+          updateDoc(doc(db, 'users', currentUser.uid, 'notificacoes', n.id), { read: true }).catch(() => {});
+        }
+      });
+    }
   };
 
   const isSystemNotification = (n: NotificationItem) => {
@@ -3095,6 +3185,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Also save to notificacoes if schema requires
         await setDoc(doc(db, 'notificacoes', newNotif.id), newNotif);
       } catch (e) {}
+
+      // If targeting a specific user ID (not broadcast), also save to user's subcollections
+      if (target !== 'all' && target !== 'client' && target !== 'technician' && target !== 'company' && target !== 'admin') {
+        try {
+          await setDoc(doc(db, 'users', target, 'notifications', newNotif.id), newNotif);
+          await setDoc(doc(db, 'users', target, 'notificacoes', newNotif.id), newNotif);
+        } catch (e) {}
+      }
     }
 
     addAdminLog(`Envio de comunicado oficial para: ${target}`, undefined, title.trim());

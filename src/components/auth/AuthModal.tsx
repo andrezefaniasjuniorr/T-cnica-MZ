@@ -62,15 +62,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [idade, setIdade] = useState<number | string>('');
-  const [specialty, setSpecialty] = useState<string>(TECHNICAL_CATEGORIES[0] || 'Eletricidade');
-  const [province, setProvince] = useState<string>(MOZAMBIQUE_PROVINCES[0] || 'Maputo Cidade');
-  const [city, setCity] = useState('Maputo');
+  const [specialty, setSpecialty] = useState<string>('');
+  const [province, setProvince] = useState<string>('');
+  const [city, setCity] = useState('');
 
   // Company Specific
   const [companyName, setCompanyName] = useState('');
   const [commercialName, setCommercialName] = useState('');
   const [nuit, setNuit] = useState('');
-  const [industry, setIndustry] = useState('Construção & Engenharia Elétrica');
+  const [industry, setIndustry] = useState('');
   const [address, setAddress] = useState('');
   const [website, setWebsite] = useState('');
 
@@ -207,9 +207,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (valorRole === 'tecnico') {
         const valorNome = (name || '').toString().trim();
         const valorTelefone = (phone || '').toString().trim();
-        const valorEspecialidade = (specialty || 'Eletricidade').toString().trim();
-        const valorProvincia = (province || 'Maputo Cidade').toString().trim();
-        const valorCidade = (city || 'Maputo').toString().trim();
+        const valorEspecialidade = (specialty || '').toString().trim();
+        const valorProvincia = (province || '').toString().trim();
+        const valorCidade = (city || '').toString().trim();
         const valorIdade = idade !== '' && !isNaN(Number(idade)) ? Number(idade) : undefined;
 
         if (!valorNome) {
@@ -219,6 +219,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         if (!valorTelefone) {
           setError('Por favor, insira o seu telefone/WhatsApp.');
+          return;
+        }
+
+        if (!valorEspecialidade) {
+          setError('Por favor, selecione a sua especialidade/categoria.');
+          return;
+        }
+
+        if (!valorProvincia) {
+          setError('Por favor, selecione a sua província.');
+          return;
+        }
+
+        if (!valorCidade) {
+          setError('Por favor, insira a sua cidade ou distrito.');
           return;
         }
 
@@ -250,11 +265,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const valorEmpresaNome = (companyName || '').toString().trim();
         const valorComercialNome = (commercialName || valorEmpresaNome).toString().trim();
         const valorTelefone = (phone || '').toString().trim();
-        const valorNuit = (nuit || '400000000').toString().trim();
-        const valorIndustria = (industry || 'Construção & Engenharia Elétrica').toString().trim();
-        const valorProvincia = (province || 'Maputo Cidade').toString().trim();
-        const valorCidade = (city || 'Maputo').toString().trim();
-        const valorEndereco = (address || 'Moçambique').toString().trim();
+        const valorNuit = (nuit || '').toString().trim();
+        const valorIndustria = (industry || '').toString().trim();
+        const valorProvincia = (province || '').toString().trim();
+        const valorCidade = (city || '').toString().trim();
+        const valorEndereco = (address || '').toString().trim();
         const valorWebsite = (website || '').toString().trim();
 
         if (!valorEmpresaNome) {
@@ -264,6 +279,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         if (!valorTelefone) {
           setError('Por favor, insira o telefone da empresa.');
+          return;
+        }
+
+        if (!valorProvincia) {
+          setError('Por favor, selecione a província da empresa.');
           return;
         }
 
@@ -664,8 +684,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             name="specialty"
                             value={specialty}
                             onChange={(e) => setSpecialty(e.target.value)}
+                            required
                             className="form-control w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
                           >
+                            <option value="" disabled>Selecione a Categoria/Especialidade</option>
                             {TECHNICAL_CATEGORIES.map(cat => (
                               <option key={cat} value={cat}>{cat}</option>
                             ))}
@@ -698,8 +720,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             name="province"
                             value={province}
                             onChange={(e) => setProvince(e.target.value)}
+                            required
                             className="form-control w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
                           >
+                            <option value="" disabled>Selecione a Província</option>
                             {MOZAMBIQUE_PROVINCES.map(prov => (
                               <option key={prov} value={prov}>{prov}</option>
                             ))}
@@ -717,7 +741,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             required
                             value={city}
                             onChange={(e) => setCity(e.target.value)}
-                            placeholder="Ex: Maputo"
+                            placeholder="Sua cidade ou distrito"
                             className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
@@ -783,12 +807,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                               Província *
                             </label>
                             <select
-                              id="province"
+                              id="company-province"
                               name="province"
                               value={province}
                               onChange={(e) => setProvince(e.target.value)}
+                              required
                               className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
                             >
+                              <option value="" disabled>Selecione a Província</option>
                               {MOZAMBIQUE_PROVINCES.map(prov => (
                                 <option key={prov} value={prov}>{prov}</option>
                               ))}
