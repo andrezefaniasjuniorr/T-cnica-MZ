@@ -103,12 +103,16 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
           });
         }
       },
-      () => {}
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     return () => {
-      unsubHistorias();
-      if (unsubStories) unsubStories();
+      try {
+        if (typeof unsubHistorias === 'function') unsubHistorias();
+        if (typeof unsubStories === 'function') unsubStories();
+      } catch (err) {
+        console.warn("Erro Firestore ignorado:", err);
+      }
     };
   }, [baseStory?.id]);
 

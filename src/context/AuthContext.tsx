@@ -286,9 +286,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setUsersList(users);
       },
-      (err) => {
-        console.warn('Real-time users listener notice:', err);
-      }
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubUsuarios = onSnapshot(
@@ -386,7 +384,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         }
       },
-      (err) => console.warn('Real-time usuarios listener notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubTechs = onSnapshot(
@@ -398,9 +396,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setTechList(techs);
       },
-      (err) => {
-        console.warn('Real-time technicians listener notice:', err);
-      }
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubComps = onSnapshot(
@@ -412,9 +408,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setCompanyList(comps);
       },
-      (err) => {
-        console.warn('Real-time companies listener notice:', err);
-      }
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubSelo = onSnapshot(
@@ -428,17 +422,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         selos.sort((a, b) => new Date(b.dataEnvio).getTime() - new Date(a.dataEnvio).getTime());
         setSolicitacoesSelo(selos);
       },
-      (err) => {
-        console.warn('Real-time solicitacoes_selo listener notice:', err);
-      }
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     return () => {
-      unsubUsers();
-      unsubUsuarios();
-      unsubTechs();
-      unsubComps();
-      unsubSelo();
+      try {
+        if (typeof unsubUsers === 'function') unsubUsers();
+        if (typeof unsubUsuarios === 'function') unsubUsuarios();
+        if (typeof unsubTechs === 'function') unsubTechs();
+        if (typeof unsubComps === 'function') unsubComps();
+        if (typeof unsubSelo === 'function') unsubSelo();
+      } catch (cleanupErr) {
+        console.warn("Erro Firestore ignorado:", cleanupErr);
+      }
     };
   }, []);
 
@@ -945,7 +941,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     });
                   }
                 }, (syncErr) => {
-                  console.warn('Sincronização em tempo real offline/aviso:', syncErr?.message);
+                  console.warn("Erro Firestore ignorado:", syncErr);
                 });
               } catch (liveErr) {
                 console.warn('Aviso ao iniciar ouvinte em tempo real do perfil:', liveErr);

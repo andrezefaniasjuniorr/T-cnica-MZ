@@ -125,3 +125,49 @@ export async function safeSetDoc(
   }
 }
 
+/**
+ * Utilitário resiliente para onSnapshot que garante tratamento de erro obrigatório,
+ * previne vazamentos de memória e absorve com segurança oscilações de rede.
+ */
+export function safeOnSnapshot<T = any>(
+  targetRef: any,
+  onNext: (snapshot: any) => void,
+  onError?: (error: any) => void
+): () => void {
+  try {
+    const unsub = onSnapshot(
+      targetRef,
+      (snap: any) => {
+        try {
+          onNext(snap);
+        } catch (callbackErr) {
+          console.warn('Erro na execução do callback do ouvinte:', callbackErr);
+        }
+      },
+      (err: any) => {
+        console.warn('Erro Firestore ignorado:', err);
+        if (onError) {
+          try {
+            onError(err);
+          } catch {
+            // no-op
+          }
+        }
+      }
+    );
+
+    return () => {
+      try {
+        if (typeof unsub === 'function') {
+          unsub();
+        }
+      } catch (unsubErr) {
+        console.warn('Erro Firestore ignorado:', unsubErr);
+      }
+    };
+  } catch (initErr) {
+    console.warn('Erro Firestore ignorado:', initErr);
+    return () => {};
+  }
+}
+

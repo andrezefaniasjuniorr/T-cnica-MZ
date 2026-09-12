@@ -443,7 +443,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedStories();
       },
-      (err) => console.warn('Realtime historias notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubStories = onSnapshot(
@@ -456,11 +456,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedStories();
       },
-      (err) => console.warn('Realtime stories notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     // 2. Mural / Community Posts real-time sync & subcollection comments
     const postsMap = new Map<string, CommunityPost>();
+    // Pre-popular com dados em cache para não sumir publicações em oscilações de rede
+    communityPosts.forEach(p => postsMap.set(p.id, p));
     const commentUnsubs = new Map<string, () => void>();
 
     const updateMergedPosts = () => {
@@ -513,11 +515,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             }
           },
-          (err) => console.warn(`Subcollection comments notice for ${postId}:`, err)
+          (err) => console.warn("Erro Firestore ignorado:", err)
         );
         commentUnsubs.set(postId, unsub);
       } catch (err) {
-        console.warn('Error subscribing to post comments:', err);
+        console.warn("Erro Firestore ignorado:", err);
       }
     };
 
@@ -573,7 +575,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedPosts();
       },
-      (err) => console.warn('Realtime mural_posts notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubCommunityPosts = onSnapshot(
@@ -587,7 +589,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedPosts();
       },
-      (err) => console.warn('Realtime community_posts notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubMarket = onSnapshot(
@@ -600,10 +602,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         items.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         setMarketItems(items);
       },
-      (err) => console.warn('Realtime market_items notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const convsMap = new Map<string, ConversationItem>();
+    // Pre-popular com conversas em cache para não sumir mensagens ou chats
+    conversations.forEach(c => convsMap.set(c.id, c));
     const normalizeConvDoc = (docId: string, rawData: any): ConversationItem => {
       const data = rawData || {};
       let participantIds: string[] = [];
@@ -635,7 +639,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedConversations();
       },
-      (err) => console.warn('Realtime conversations notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubChats = onSnapshot(
@@ -646,10 +650,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedConversations();
       },
-      (err) => console.warn('Realtime chats notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const msgsMap = new Map<string, MessageItem>();
+    messages.forEach(m => msgsMap.set(m.id, m));
     const updateMergedMessages = () => {
       const list = Array.from(msgsMap.values());
       list.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
@@ -664,7 +669,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedMessages();
       },
-      (err) => console.warn('Realtime messages notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubMensagensDiretas = onSnapshot(
@@ -675,11 +680,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedMessages();
       },
-      (err) => console.warn('Realtime mensagens_diretas notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     // 3. Technicians & Usuários real-time sync for "Técnicos MZ"
     const techsMap = new Map<string, TechnicianProfile>();
+    technicians.forEach(t => techsMap.set(t.userId, t));
     const updateMergedTechs = () => {
       const list = Array.from(techsMap.values());
       // Sort strictly descending based on total engagement (totalLikes / scoreEngajamento / pontos / curtidas)
@@ -778,7 +784,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedTechs();
       },
-      (err) => console.warn('Realtime technicians notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubUsuarios = onSnapshot(
@@ -793,7 +799,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedTechs();
       },
-      (err) => console.warn('Realtime usuarios notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubUsers = onSnapshot(
@@ -808,7 +814,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedTechs();
       },
-      (err) => console.warn('Realtime users notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubComps = onSnapshot(
@@ -820,7 +826,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setCompanies(list);
       },
-      (err) => console.warn('Realtime companies notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubJobs = onSnapshot(
@@ -832,7 +838,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setJobs(list);
       },
-      (err) => console.warn('Realtime jobs notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubRequests = onSnapshot(
@@ -844,7 +850,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setServiceRequests(list);
       },
-      (err) => console.warn('Realtime serviceRequests notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubProposals = onSnapshot(
@@ -856,7 +862,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setProposals(list);
       },
-      (err) => console.warn('Realtime proposals notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubReviews = onSnapshot(
@@ -868,7 +874,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setReviews(list);
       },
-      (err) => console.warn('Realtime reviews notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubPayments = onSnapshot(
@@ -880,7 +886,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setPayments(list);
       },
-      (err) => console.warn('Realtime payments notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubPortfolio = onSnapshot(
@@ -894,7 +900,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setPortfolio(list);
         }
       },
-      (err) => console.warn('Realtime portfolio notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const notifsMap = new Map<string, NotificationItem>();
@@ -917,7 +923,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedNotifications();
       },
-      (err) => console.warn('Realtime notifications notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubNotificacoes = onSnapshot(
@@ -928,7 +934,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedNotifications();
       },
-      (err) => console.warn('Realtime notificacoes notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const unsubSettings = onSnapshot(
@@ -950,33 +956,43 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }));
         }
       },
-      (err) => console.warn('Realtime settings notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     return () => {
-      unsubHistorias();
-      unsubStories();
-      unsubMuralPosts();
-      unsubCommunityPosts();
-      commentUnsubs.forEach(u => u());
-      unsubMarket();
-      unsubConversations();
-      unsubChats();
-      unsubMessages();
-      unsubMensagensDiretas();
-      unsubTechs();
-      unsubUsuarios();
-      unsubUsers();
-      unsubComps();
-      unsubJobs();
-      unsubRequests();
-      unsubProposals();
-      unsubReviews();
-      unsubPayments();
-      unsubPortfolio();
-      unsubNotifications();
-      unsubNotificacoes();
-      unsubSettings();
+      try {
+        if (typeof unsubHistorias === 'function') unsubHistorias();
+        if (typeof unsubStories === 'function') unsubStories();
+        if (typeof unsubMuralPosts === 'function') unsubMuralPosts();
+        if (typeof unsubCommunityPosts === 'function') unsubCommunityPosts();
+        commentUnsubs.forEach(u => {
+          try {
+            if (typeof u === 'function') u();
+          } catch {
+            // no-op
+          }
+        });
+        if (typeof unsubMarket === 'function') unsubMarket();
+        if (typeof unsubConversations === 'function') unsubConversations();
+        if (typeof unsubChats === 'function') unsubChats();
+        if (typeof unsubMessages === 'function') unsubMessages();
+        if (typeof unsubMensagensDiretas === 'function') unsubMensagensDiretas();
+        if (typeof unsubTechs === 'function') unsubTechs();
+        if (typeof unsubUsuarios === 'function') unsubUsuarios();
+        if (typeof unsubUsers === 'function') unsubUsers();
+        if (typeof unsubComps === 'function') unsubComps();
+        if (typeof unsubJobs === 'function') unsubJobs();
+        if (typeof unsubRequests === 'function') unsubRequests();
+        if (typeof unsubProposals === 'function') unsubProposals();
+        if (typeof unsubReviews === 'function') unsubReviews();
+        if (typeof unsubPayments === 'function') unsubPayments();
+        if (typeof unsubPortfolio === 'function') unsubPortfolio();
+        if (typeof unsubNotifications === 'function') unsubNotifications();
+        if (typeof unsubNotificacoes === 'function') unsubNotificacoes();
+        if (typeof unsubSettings === 'function') unsubSettings();
+      } catch (cleanupErr) {
+        console.warn("Erro Firestore ignorado:", cleanupErr);
+      }
     };
   }, []);
 
@@ -1002,7 +1018,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return merged;
         });
       },
-      (err) => console.warn('Realtime user notifications notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     const userNotificacoesRef = collection(db, 'users', currentUser.uid, 'notificacoes');
@@ -1023,12 +1039,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return merged;
         });
       },
-      (err) => console.warn('Realtime user notificacoes notice:', err)
+      (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
     return () => {
-      unsubUserNotifs();
-      unsubUserNotificacoes();
+      try {
+        if (typeof unsubUserNotifs === 'function') unsubUserNotifs();
+        if (typeof unsubUserNotificacoes === 'function') unsubUserNotificacoes();
+      } catch (cleanupErr) {
+        console.warn("Erro Firestore ignorado:", cleanupErr);
+      }
     };
   }, [currentUser?.uid]);
 

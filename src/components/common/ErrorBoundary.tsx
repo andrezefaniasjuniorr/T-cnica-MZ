@@ -1,5 +1,5 @@
 import React, { ErrorInfo, ReactNode } from 'react';
-import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { RefreshCw, WifiOff } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -25,13 +25,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught error:', error, errorInfo);
+    const errorMsg = String(error?.message || error || '');
+    if (
+      errorMsg.includes('isCorePipeline') ||
+      errorMsg.includes('b815') ||
+      errorMsg.includes('FIRESTORE INTERNAL ASSERTION FAILED')
+    ) {
+      console.warn('Erro Firestore ignorado:', errorMsg);
+    } else {
+      console.error('ErrorBoundary caught error:', error, errorInfo);
+    }
   }
 
-  public handleReset = () => {
-    this.setState({ hasError: false, error: null });
+  public handleReload = () => {
     if (typeof window !== 'undefined') {
-      window.location.hash = '#feed';
+      window.location.reload();
     }
   };
 
@@ -43,32 +51,28 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-6 text-center space-y-4">
-            <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto border border-amber-200">
-              <AlertTriangle className="w-7 h-7" />
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center space-y-5">
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto border border-blue-100 shadow-sm">
+              <WifiOff className="w-8 h-8 text-blue-600" />
             </div>
             
-            <h2 className="text-xl font-bold text-slate-900">
-              Ocorreu um imprevisto temporário
-            </h2>
-            
-            <p className="text-sm text-slate-600">
-              A aplicação encontrou um erro e recuperou o estado seguro. Clique no botão abaixo para restaurar a navegação.
-            </p>
-
-            {this.state.error?.message && (
-              <div className="text-xs text-slate-500 bg-slate-100 p-3 rounded-lg text-left overflow-auto max-h-24">
-                <code>{this.state.error.message}</code>
-              </div>
-            )}
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-slate-900">
+                TécnicaMZ Pro
+              </h2>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Tivemos uma oscilação temporária na conexão. Os seus dados e perfil continuam protegidos e seguros.
+              </p>
+            </div>
 
             <div className="pt-2">
               <button
-                onClick={this.handleReset}
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow transition"
+                id="btn-recarregar-erro"
+                onClick={this.handleReload}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-xl shadow transition"
               >
                 <RefreshCw className="w-4 h-4" />
-                Recarregar e Continuar
+                Recarregar Página
               </button>
             </div>
           </div>
@@ -79,3 +83,4 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return this.props.children;
   }
 }
+

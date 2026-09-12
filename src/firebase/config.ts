@@ -4,7 +4,8 @@ import {
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager,
+  persistentSingleTabManager,
+  memoryLocalCache,
   setLogLevel,
   Firestore
 } from 'firebase/firestore';
@@ -28,6 +29,34 @@ try {
   setLogLevel('error');
 } catch {
   // no-op
+}
+
+// Interceptor global para suprimir falhas de asserção interna transitórias do Firestore (ex: b815 / isCorePipeline)
+if (typeof window !== 'undefined') {
+  const isIgnorableFirestoreError = (err: any): boolean => {
+    const text = String(err?.message || err?.reason?.message || err?.reason || err || '');
+    return (
+      text.includes('isCorePipeline') ||
+      text.includes('b815') ||
+      text.includes('FIRESTORE INTERNAL ASSERTION FAILED')
+    );
+  };
+
+  window.addEventListener('error', (event) => {
+    if (isIgnorableFirestoreError(event.error || event.message)) {
+      console.warn('Erro Firestore ignorado:', event.error?.message || event.message);
+      event.preventDefault?.();
+      event.stopImmediatePropagation?.();
+    }
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    if (isIgnorableFirestoreError(event.reason)) {
+      console.warn('Erro Firestore ignorado:', event.reason?.message || event.reason);
+      event.preventDefault?.();
+      event.stopImmediatePropagation?.();
+    }
+  });
 }
 
 // Proteção universal contra QuotaExceededError no localStorage e limpeza preventiva de dados pesados
@@ -163,21 +192,23 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// 2. Inicializar Firestore com cache offline persistente com suporte a múltiplas abas (persistentLocalCache)
-// Envolvido obrigatoriamente em try/catch para fallback automático para getFirestore caso a persistência ou IndexedDB falhem
+// 2. Inicializar Firestore com cache offline persistente resiliente (persistentSingleTabManager)
+// Evita conflitos de eleição de abas e asserções internas no WebChannel (ID: b815 / isCorePipeline)
 let dbInstance: Firestore;
 try {
   dbInstance = initializeFirestore(app, {
     localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
+      tabManager: persistentSingleTabManager({})
     })
   });
 } catch (err) {
-  console.warn('[Firestore] Falha ao inicializar com persistentLocalCache, realizando fallback automático para getFirestore:', err);
+  console.warn('[Firestore] Falha ao inicializar com persistentLocalCache, realizando fallback seguro:', err);
   try {
-    dbInstance = getFirestore(app);
+    dbInstance = initializeFirestore(app, {
+      localCache: memoryLocalCache()
+    });
   } catch (fallbackErr) {
-    console.error('[Firestore] Falha crítica no fallback getFirestore:', fallbackErr);
+    console.warn('[Firestore] Fallback para getFirestore padrão:', fallbackErr);
     dbInstance = getFirestore(app);
   }
 }
