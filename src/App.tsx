@@ -364,21 +364,31 @@ const AppContent: React.FC = () => {
     }
   }, [currentUser?.uid, currentUser?.tipo, currentUser?.tipoConta, currentUser?.role, currentUser?.statusAprovacao, currentUser?.status, isClient, isTechnician, isCompany, isAdmin, isLoading]);
 
-  // 3. First-time login onboarding check
+  // 3. First-time login onboarding check (tecnica_mz_onboarding_completed)
   useEffect(() => {
     if (currentUser?.uid) {
-      const welcomeKey = `welcome_v1_${currentUser.uid}`;
       try {
-        const hasSeen = localStorage.getItem(welcomeKey);
-        if (!hasSeen) {
+        const completed = localStorage.getItem('tecnica_mz_onboarding_completed');
+        // Se a chave for 'false' ou inexistente/null, abre automaticamente o Tour de Boas-Vindas
+        if (completed !== 'true') {
           setIsWelcomeOpen(true);
-          localStorage.setItem(welcomeKey, 'true');
         }
       } catch {
         // Ignore localStorage restrictions
       }
     }
   }, [currentUser?.uid]);
+
+  // Listener para reabertura manual do Guia de Integração / Onboarding Tour
+  useEffect(() => {
+    const handleOpenOnboarding = () => {
+      setIsWelcomeOpen(true);
+    };
+    window.addEventListener('tecnica_mz_open_onboarding', handleOpenOnboarding);
+    return () => {
+      window.removeEventListener('tecnica_mz_open_onboarding', handleOpenOnboarding);
+    };
+  }, []);
 
   const handleNavigate = (tab: string, addToHistory = true) => {
     let targetTab = tab;

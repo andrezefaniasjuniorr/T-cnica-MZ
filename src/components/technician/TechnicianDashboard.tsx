@@ -41,8 +41,11 @@ import {
   Filter,
   Check,
   X,
-  CreditCard
+  CreditCard,
+  RotateCcw,
+  BookOpen
 } from 'lucide-react';
+import { resetOnboardingTour } from '../common/WelcomeModal';
 import { DigitalBusinessCard } from '../common/DigitalBusinessCard';
 import { TopBackNav } from '../common/TopBackNav';
 
@@ -1417,6 +1420,34 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                 placeholder="Descreva suas qualificações, anos de experiência e ferramentas profissionais..."
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm"
               />
+            </div>
+
+            {/* Banner do Guia de Integração & Tutorial do App */}
+            <div className="pt-4 border-t border-slate-100">
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/70 border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-black text-slate-900">
+                      Guia de Integração do Aplicativo (Onboarding Tour)
+                    </h3>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Reveja o passo a passo sobre o Teste Grátis de 3 dias, Mural de Pedidos, Ferramentas EDM e Ativação do Selo MZ.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetOnboardingTour}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black rounded-xl text-xs flex items-center gap-2 shadow-sm transition cursor-pointer shrink-0"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Ver Tutorial do App Novamente</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

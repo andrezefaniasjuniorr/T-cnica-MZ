@@ -25,10 +25,13 @@ import {
   Camera,
   Upload,
   ExternalLink,
-  Loader2
+  Loader2,
+  RotateCcw,
+  BookOpen
 } from 'lucide-react';
 import { TopBackNav } from '../common/TopBackNav';
 import { UserAvatar } from '../common/UserAvatar';
+import { resetOnboardingTour } from '../common/WelcomeModal';
 
 interface SettingsPanelProps {
   onNavigateTab: (tab: string) => void;
@@ -551,6 +554,35 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 3. GUIA DE INTEGRAÇÃO & TUTORIAL DO APP */}
+      <div className="bg-gradient-to-br from-blue-50 via-white to-sky-50 rounded-3xl p-6 sm:p-8 border border-blue-200/80 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-blue-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-slate-900">Guia de Integração do Aplicativo</h2>
+              <p className="text-[11px] text-slate-500">Reveja o tour interativo sobre as principais funções da plataforma</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={resetOnboardingTour}
+            className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Ver Tutorial do App Novamente</span>
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Relembre as 4 etapas essenciais para o seu sucesso na TécnicaMZ Pro:
+          o <strong>Teste Grátis de 3 dias</strong> ativado, navegação no <strong>Mural de Serviços</strong> para captação de clientes, uso das <strong>Calculadoras e Tabelas Técnicas EDM</strong>, e como ativar o <strong>Selo MZ Verificado</strong> via M-Pesa (851949159) ou e-Mola (872943159).
+        </p>
       </div>
     </div>
   )}
