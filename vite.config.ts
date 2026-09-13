@@ -1,11 +1,48 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import autoprefixer from 'autoprefixer';
 import path from 'path';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
+    base: '/',
+    build: {
+      target: ['es2015', 'chrome60'],
+      cssTarget: ['es2015', 'chrome60'],
+      assetsDir: 'assets',
+      modulePreload: {
+        polyfill: true,
+      },
+      rollupOptions: {
+        output: {
+          // Garante caminhos de assets absolutos e organizados na raiz
+          assetFileNames: 'assets/[name]-[hash][extname]',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          entryFileNames: 'assets/[name]-[hash].js',
+        },
+      },
+    },
+    css: {
+      postcss: {
+        plugins: [
+          autoprefixer({
+            overrideBrowserslist: [
+              '> 0.5%',
+              'last 2 versions',
+              'Firefox ESR',
+              'not dead',
+              'Chrome >= 60',
+              'iOS >= 11',
+              'Android >= 6',
+            ],
+            flexbox: 'no-2009',
+            grid: 'autoplace',
+          }),
+        ],
+      },
+    },
     plugins: [
       react(),
       tailwindcss(),

@@ -2,7 +2,8 @@
 <html lang="pt">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="color-scheme" content="light dark" />
     
     <!-- PWA & Mobile Web App Meta Tags (Full Screen Standalone, Android & iOS) -->
     <meta name="theme-color" content="#020617" />
@@ -20,6 +21,108 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.png" />
     <link rel="apple-touch-icon" sizes="512x512" href="/pwa-512x512.png" />
+
+    <!-- Inline Critical CSS Fallback (Garante estilização imediata em conexões lentas, Facebook Lite e WebViews restritas) -->
+    <style id="critical-fallback-css">
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+        background-color: #f8fafc;
+        color: #0f172a;
+        line-height: 1.5;
+        overflow-x: hidden;
+      }
+      #root {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      /* Fallback para In-App Browser Warning */
+      #in-app-browser-banner {
+        display: none;
+        position: sticky;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        z-index: 99999;
+        background: #0f172a;
+        color: #f8fafc;
+        border-bottom: 2px solid #2563eb;
+        padding: 10px 14px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 12px;
+      }
+      #in-app-browser-banner.is-visible {
+        display: block !important;
+      }
+      .iab-container {
+        max-width: 900px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .iab-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+      }
+      .iab-icon {
+        font-size: 18px;
+        flex-shrink: 0;
+      }
+      .iab-text {
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .iab-text strong {
+        color: #60a5fa;
+      }
+      .iab-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .iab-btn {
+        background: #2563eb;
+        color: #ffffff;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+      }
+      .iab-btn:active {
+        background: #1d4ed8;
+      }
+      .iab-close {
+        background: transparent;
+        color: #94a3b8;
+        border: none;
+        font-size: 16px;
+        padding: 4px;
+        cursor: pointer;
+        line-height: 1;
+      }
+    </style>
 
     <!-- Google Search Console Verification -->
     <meta name="google-site-verification" content="dqx7GoRaYCvUNcTpkZavjsG1nSZRL3kBuLVCpx8EYvo" />
@@ -62,7 +165,65 @@
     <script src="/admin.js" defer></script>
   </head>
   <body>
+    <!-- Banner de Alerta e Redirecionamento para Facebook Lite & Navegadores Embutidos Restritos -->
+    <aside id="in-app-browser-banner" aria-label="Aviso de compatibilidade de navegador móvel" role="alert">
+      <div class="iab-container">
+        <div class="iab-content">
+          <span class="iab-icon" aria-hidden="true">🌐</span>
+          <div class="iab-text">
+            <strong>Navegador Simplificado Detectado:</strong> Toque nos <b>3 pontinhos (⋮)</b> no topo e escolha <em>"Abrir no Chrome / Navegador"</em> para design completo e sem erros.
+          </div>
+        </div>
+        <div class="iab-actions">
+          <button id="btn-open-external" class="iab-btn" type="button">Abrir no Chrome</button>
+          <button id="btn-close-iab" class="iab-close" type="button" aria-label="Fechar aviso">✕</button>
+        </div>
+      </div>
+    </aside>
+
     <div id="root"></div>
+
+    <script>
+      (function() {
+        try {
+          var ua = navigator.userAgent || navigator.vendor || window.opera || '';
+          // Detecta in-app browsers conhecidos por quebrar CSS/JS (Facebook, FB Lite, Instagram)
+          var isRestrictedIAB = /\b(FB_IAB|FBLC|FB4A|FBAN|FBAV|Instagram)\b/i.test(ua);
+          var isDismissed = false;
+          try {
+            isDismissed = sessionStorage.getItem('dismiss_iab_banner') === '1';
+          } catch(e) {}
+
+          if (isRestrictedIAB && !isDismissed) {
+            var banner = document.getElementById('in-app-browser-banner');
+            if (banner) {
+              banner.classList.add('is-visible');
+              var closeBtn = document.getElementById('btn-close-iab');
+              if (closeBtn) {
+                closeBtn.onclick = function() {
+                  banner.classList.remove('is-visible');
+                  try { sessionStorage.setItem('dismiss_iab_banner', '1'); } catch(e) {}
+                };
+              }
+              var openBtn = document.getElementById('btn-open-external');
+              if (openBtn) {
+                openBtn.onclick = function() {
+                  var rawUrl = window.location.href;
+                  if (/android/i.test(ua)) {
+                    var cleanUrl = rawUrl.replace(/^https?:\/\//i, '');
+                    window.location.href = 'intent://' + cleanUrl + '#Intent;scheme=https;package=com.android.chrome;end';
+                  } else {
+                    window.open(rawUrl, '_system');
+                  }
+                };
+              }
+            }
+          }
+        } catch(err) {
+          console.warn('IAB Detection error:', err);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
