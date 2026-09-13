@@ -60,6 +60,14 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// Digital Asset Links (TWA) endpoint
+app.get('/.well-known/assetlinks.json', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const assetlinksPath = path.join(process.cwd(), 'public', '.well-known', 'assetlinks.json');
+  res.sendFile(assetlinksPath);
+});
+
 // Endpoint Proxy Oficial Sara IA (/api/sara)
 // Compatível com o formato Gemini REST API ({ contents, system_instruction }) e clientBody ({ message, history })
 app.post('/api/sara', async (req: Request, res: Response) => {
