@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrandModalContent, BrandModal } from './BrandModal';
 import { PortfolioModalContent, PortfolioModal } from './PortfolioModal';
+import { compressImage, persistCompanyLogo, getSavedCompanyLogoSync } from '../../utils/imageCompressor';
 import {
   X,
   FileText,
@@ -164,9 +165,11 @@ const PerfilTecnicoView: React.FC = () => {
   const [email, setEmail] = useState('');
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [salvo, setSalvo] = useState(false);
+  const [comprimindo, setComprimindo] = useState(false);
 
   useEffect(() => {
     const helper = (window as any).PerfilTecnico;
+    const syncLogo = getSavedCompanyLogoSync();
     if (helper) {
       const p = helper.obter();
       setNome(p.nome || '');
@@ -175,23 +178,38 @@ const PerfilTecnicoView: React.FC = () => {
       setCidade(p.cidade || '');
       setNuit(p.nuit || '');
       setEmail(p.email || '');
-      setLogoBase64(p.logoBase64 || null);
+      setLogoBase64(syncLogo || p.logoBase64 || null);
+    } else if (syncLogo) {
+      setLogoBase64(syncLogo);
     }
   }, []);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLogoBase64(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setComprimindo(true);
+      try {
+        const compressed = await compressImage(file, 400, 0.8);
+        setLogoBase64(compressed);
+        await persistCompanyLogo(compressed);
+      } catch (err) {
+        console.error('Erro ao processar imagem:', err);
+      } finally {
+        setComprimindo(false);
+      }
     }
   };
 
-  const handleSalvar = () => {
+  const handleSalvar = async () => {
     const helper = (window as any).PerfilTecnico;
+    try {
+      if (logoBase64) {
+        await persistCompanyLogo(logoBase64);
+      } else {
+        await persistCompanyLogo(null);
+      }
+    } catch (e) {}
+
     if (helper) {
       helper.salvar({
         nome,

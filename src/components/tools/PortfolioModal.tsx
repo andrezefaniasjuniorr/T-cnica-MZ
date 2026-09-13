@@ -21,6 +21,12 @@ import {
   loadBrandCustomization,
   saveBrandCustomization
 } from '../../utils/pdfBrandCustomizer';
+import {
+  compressImage,
+  persistCompanyLogo,
+  getSavedCompanyLogoSync,
+  getSavedCompanyLogoAsync
+} from '../../utils/imageCompressor';
 
 interface PortfolioModalProps {
   isOpen?: boolean;
@@ -30,6 +36,7 @@ interface PortfolioModalProps {
 export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const { currentUser } = useAuth();
   const brandSettings = loadBrandCustomization();
+  const initialLogo = getSavedCompanyLogoSync() || brandSettings.logoBase64 || null;
 
   // Estados do formulário
   const [titulo, setTitulo] = useState('Transformação Elétrica & Segurança Residencial');
@@ -37,7 +44,15 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
   const [especialidade, setEspecialidade] = useState(brandSettings.slogan || currentUser?.specialty || 'Instalações, Manutenção & Energia Solar');
   const [telefone, setTelefone] = useState(brandSettings.telefone || currentUser?.phone || '+258 84 000 0000');
   const [borderColor, setBorderColor] = useState(brandSettings.borderColor || '#0066FF');
-  const [logoBase64, setLogoBase64] = useState<string | null>(brandSettings.logoBase64 || null);
+  const [logoBase64, setLogoBase64] = useState<string | null>(initialLogo);
+
+  useEffect(() => {
+    if (!initialLogo) {
+      getSavedCompanyLogoAsync().then(logo => {
+        if (logo) setLogoBase64(logo);
+      });
+    }
+  }, []);
 
   // Imagens
   const [fotoAntes, setFotoAntes] = useState<string | null>(null);
@@ -666,7 +681,10 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
                   {logoBase64 && (
                     <button
                       type="button"
-                      onClick={() => setLogoBase64(null)}
+                      onClick={async () => {
+                        setLogoBase64(null);
+                        await persistCompanyLogo(null);
+                      }}
                       className="text-[10px] text-rose-600 hover:underline font-bold"
                     >
                       Remover
@@ -700,19 +718,23 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
                       <span>{logoBase64 ? 'Alterar Logotipo' : 'Anexar Logotipo'}</span>
                     </button>
                     <p className="text-[9px] text-slate-400 leading-tight">
-                      Aparece no banner inferior imediatamente antes do seu nome comercial.
+                      Comprimido automaticamente para 400px e salvo localmente para todos os PDFs.
                     </p>
                     <input
                       ref={fileInputLogoRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/png, image/jpeg, image/webp"
                       className="hidden"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          const reader = new FileReader();
-                          reader.onload = () => setLogoBase64(reader.result as string);
-                          reader.readAsDataURL(file);
+                          try {
+                            const compressed = await compressImage(file, 400, 0.8);
+                            setLogoBase64(compressed);
+                            await persistCompanyLogo(compressed);
+                          } catch (err) {
+                            console.error('Erro ao processar logotipo:', err);
+                          }
                         }
                       }}
                     />

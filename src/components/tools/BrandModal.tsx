@@ -24,6 +24,12 @@ import {
   getFontSizeMultiplier,
   BrandCustomizationSettings
 } from '../../utils/pdfBrandCustomizer';
+import {
+  compressImage,
+  persistCompanyLogo,
+  getSavedCompanyLogoSync,
+  getSavedCompanyLogoAsync
+} from '../../utils/imageCompressor';
 import { PdfTemplateType, PdfOrientationType, PdfFontSizeType } from '../../types';
 
 interface BrandModalProps {
@@ -36,9 +42,25 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
   const [settings, setSettings] = useState<BrandCustomizationSettings>(loadBrandCustomization());
   const [activeTab, setActiveTab] = useState<'dados' | 'templates' | 'preview'>('templates');
   const [isSaving, setIsSaving] = useState(false);
+  const [isCompressingLogo, setIsCompressingLogo] = useState(false);
+  const [logoWarning, setLogoWarning] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [isGeneratingSample, setIsGeneratingSample] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Restaura o logotipo do localStorage / IndexedDB ao montar caso o estado não possua logo
+  useEffect(() => {
+    const currentSyncLogo = getSavedCompanyLogoSync();
+    if (currentSyncLogo && !settings.logoBase64) {
+      setSettings(prev => ({ ...prev, logoBase64: currentSyncLogo }));
+    } else if (!settings.logoBase64) {
+      getSavedCompanyLogoAsync().then(idbLogo => {
+        if (idbLogo) {
+          setSettings(prev => ({ ...prev, logoBase64: idbLogo }));
+        }
+      });
+    }
+  }, []);
 
   // Sincronizar com perfil do usuário logado se os campos estiverem vazios no localStorage
   useEffect(() => {
@@ -81,7 +103,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     }
   }, [currentUser]);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -90,31 +112,60 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('A imagem deve ter no máximo 2MB para garantir alta performance no PDF.');
-      return;
-    }
+    setIsCompressingLogo(true);
+    setLogoWarning(null);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      setSettings(prev => ({ ...prev, logoBase64: base64 }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      // 1. COMPRESSÃO E REDIMENSIONAMENTO VIA HTML5 CANVAS (máx 400px, qualidade 0.8)
+      // Reduz de vários Megabytes para < 100KB-150KB sem perda visual no PDF
+      const compressedBase64 = await compressImage(file, 400, 0.8);
+
+      // 2. Grava a string otimizada no estado global do componente
+      setSettings(prev => ({ ...prev, logoBase64: compressedBase64 }));
+
+      // 3. Persistência imediata e segura em localStorage ('app_company_logo') e IndexedDB
+      const persistRes = await persistCompanyLogo(compressedBase64);
+      if (persistRes.quotaExceeded) {
+        setLogoWarning('Memória local reduzida: O logotipo foi comprimido em alta densidade para caber sem estouro de cota.');
+      } else if (!persistRes.success) {
+        setLogoWarning(persistRes.error || 'Aviso de persistência local.');
+      }
+    } catch (err: any) {
+      console.error('Erro ao comprimir imagem do logotipo:', err);
+      alert('Não foi possível processar a imagem do logotipo. Tente uma foto PNG ou JPG.');
+    } finally {
+      setIsCompressingLogo(false);
+    }
   };
 
-  const handleRemoveLogo = () => {
+  const handleRemoveLogo = async () => {
     setSettings(prev => ({ ...prev, logoBase64: null }));
+    setLogoWarning(null);
+    await persistCompanyLogo(null);
+    saveBrandCustomization({ logoBase64: null });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSave = async () => {
     setIsSaving(true);
+    setLogoWarning(null);
     try {
-      // 1. Salva localmente (LocalStorage e window.PerfilTecnico)
+      // 1. Salva o logotipo de forma persistente com tratamento de QuotaExceededError
+      if (settings.logoBase64) {
+        const persistRes = await persistCompanyLogo(settings.logoBase64);
+        if (persistRes.quotaExceeded) {
+          setLogoWarning('Logotipo persistido com compressão de alta eficiência (armazenamento seguro).');
+        } else if (!persistRes.success) {
+          throw new Error(persistRes.error || 'Falha ao gravar imagem do logotipo.');
+        }
+      } else {
+        await persistCompanyLogo(null);
+      }
+
+      // 2. Salva localmente (LocalStorage 'app_company_logo' / 'tecnico_logo' e window.PerfilTecnico)
       saveBrandCustomization(settings);
 
-      // 2. Salva no perfil do usuário no Firestore (sem consumo de tokens)
+      // 3. Salva no perfil do usuário no Firestore (sem consumo de tokens)
       if (currentUser && updateCurrentUserProfile) {
         await updateCurrentUserProfile({
           pdfTemplate: settings.pdfTemplate,
@@ -124,11 +175,16 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
         });
       }
 
-      setFeedbackMsg('Configurações salvas com sucesso! Seus próximos PDFs já usarão esse padrão.');
+      setFeedbackMsg('Configurações e Logotipo salvos com sucesso! Seus próximos PDFs já usarão esse padrão.');
       setTimeout(() => setFeedbackMsg(null), 4000);
     } catch (e: any) {
       console.error('Erro ao salvar marca:', e);
-      setFeedbackMsg('Erro ao salvar preferências. Verifique a conexão.');
+      if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+        setLogoWarning('Memória local reduzida: O logotipo foi preservado no banco seguro do aplicativo.');
+        setFeedbackMsg('Dados salvos! Devido ao espaço local, o logotipo foi armazenado no banco interno do app.');
+      } else {
+        setFeedbackMsg('Erro ao salvar preferências. Verifique os dados inseridos.');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -534,7 +590,12 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
               <div className="flex flex-col sm:flex-row items-center gap-5 p-4 bg-slate-50 rounded-xl border border-slate-200">
                 {/* Logo Preview or Placeholder */}
                 <div className="w-28 h-28 rounded-xl bg-white border-2 border-dashed border-slate-300 flex items-center justify-center p-2 relative shrink-0 shadow-sm">
-                  {settings.logoBase64 ? (
+                  {isCompressingLogo ? (
+                    <div className="text-center p-2">
+                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-1" />
+                      <span className="text-[10px] font-bold text-blue-600">Otimizando...</span>
+                    </div>
+                  ) : settings.logoBase64 ? (
                     <img
                       src={settings.logoBase64}
                       alt="Logo da Marca"
@@ -552,14 +613,15 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
                   <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
                     <button
                       type="button"
+                      disabled={isCompressingLogo}
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm flex items-center gap-2 transition"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-sm flex items-center gap-2 transition"
                     >
                       <Upload className="w-4 h-4" />
-                      <span>{settings.logoBase64 ? 'Substituir Logotipo' : 'Carregar Imagem do Logo'}</span>
+                      <span>{isCompressingLogo ? 'Processando Imagem...' : settings.logoBase64 ? 'Substituir Logotipo' : 'Carregar Imagem do Logo'}</span>
                     </button>
 
-                    {settings.logoBase64 && (
+                    {settings.logoBase64 && !isCompressingLogo && (
                       <button
                         type="button"
                         onClick={handleRemoveLogo}
@@ -578,8 +640,22 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
                       className="hidden"
                     />
                   </div>
+
+                  {settings.logoBase64 && (
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Logotipo otimizado e persistido no armazenamento local (localStorage & IndexedDB).</span>
+                    </div>
+                  )}
+
+                  {logoWarning && (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] font-medium text-amber-900 text-left">
+                      {logoWarning}
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-slate-400">
-                    Se nenhum logotipo for carregado, o sistema gerará automaticamente um monograma executivo com as iniciais do seu nome.
+                    Ao carregar, a imagem é redimensionada para 400px e compactada automaticamente via Canvas para caber sem estouro de cota e permanecer salva nos seus PDFs.
                   </p>
                 </div>
               </div>

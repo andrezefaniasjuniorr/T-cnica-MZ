@@ -126,7 +126,7 @@ const PerfilTecnico = {
     try {
       const nome = localStorage.getItem('tecnico_nome');
       const slogan = localStorage.getItem('tecnico_slogan');
-      const logo = localStorage.getItem('tecnico_logo');
+      const logo = localStorage.getItem('app_company_logo') || localStorage.getItem('tecnico_logo');
       const telefone = localStorage.getItem('tecnico_telefone');
       const email = localStorage.getItem('tecnico_email');
       const nuit = localStorage.getItem('tecnico_nuit');
@@ -172,9 +172,17 @@ const PerfilTecnico = {
       if (novosDados.slogan !== undefined) localStorage.setItem('tecnico_slogan', novosDados.slogan);
       if (novosDados.logoBase64 !== undefined) {
         if (novosDados.logoBase64) {
-          localStorage.setItem('tecnico_logo', novosDados.logoBase64);
+          try {
+            localStorage.setItem('app_company_logo', novosDados.logoBase64);
+            localStorage.setItem('tecnico_logo', novosDados.logoBase64);
+          } catch (qErr) {
+            console.warn('[PerfilTecnico] Cota do localStorage atingida ao salvar logo:', qErr);
+          }
         } else {
-          localStorage.removeItem('tecnico_logo');
+          try {
+            localStorage.removeItem('app_company_logo');
+            localStorage.removeItem('tecnico_logo');
+          } catch (qErr) {}
         }
       }
       if (novosDados.telefone !== undefined) localStorage.setItem('tecnico_telefone', novosDados.telefone);
@@ -189,8 +197,11 @@ const PerfilTecnico = {
       if (novosDados.borderColor !== undefined) localStorage.setItem('tecnico_border_color', novosDados.borderColor);
 
       const atualizado = this.obter();
-      // Atualiza também chave legada para retrocompatibilidade
-      localStorage.setItem('tecnicamz_pro_perfil_tecnico', JSON.stringify(atualizado));
+      // Atualiza também chave legada para retrocompatibilidade sem duplicar base64
+      try {
+        const legadoLight = { ...atualizado, logoBase64: null };
+        localStorage.setItem('tecnicamz_pro_perfil_tecnico', JSON.stringify(legadoLight));
+      } catch (e) {}
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('perfilTecnicoAtualizado', { detail: atualizado }));

@@ -1,4 +1,10 @@
 import { PdfTemplateType, PdfOrientationType, PdfFontSizeType } from '../types';
+import {
+  persistCompanyLogo,
+  getSavedCompanyLogoSync,
+  COMPANY_LOGO_KEY,
+  LEGACY_LOGO_KEY
+} from './imageCompressor';
 
 export interface PdfTemplateConfig {
   id: PdfTemplateType;
@@ -187,6 +193,13 @@ export function loadBrandCustomization(): BrandCustomizationSettings {
       base.borderColor ||
       '#0066FF';
 
+    const savedLogo =
+      getSavedCompanyLogoSync() ||
+      base.logoBase64 ||
+      localStorage.getItem('app_company_logo') ||
+      localStorage.getItem('tecnico_logo') ||
+      null;
+
     return {
       nome: base.nome || localStorage.getItem('tecnico_nome') || DEFAULT_BRAND_SETTINGS.nome,
       slogan: base.slogan || localStorage.getItem('tecnico_slogan') || DEFAULT_BRAND_SETTINGS.slogan,
@@ -195,7 +208,7 @@ export function loadBrandCustomization(): BrandCustomizationSettings {
       nuit: base.nuit || localStorage.getItem('tecnico_nuit') || '',
       email: base.email || localStorage.getItem('tecnico_email') || '',
       endereco: base.endereco || localStorage.getItem('tecnico_endereco') || '',
-      logoBase64: base.logoBase64 || localStorage.getItem('tecnico_logo') || null,
+      logoBase64: savedLogo,
       pdfTemplate,
       pdfOrientation,
       pdfFontSize,
@@ -218,11 +231,25 @@ export function saveBrandCustomization(settings: Partial<BrandCustomizationSetti
     if (settings.nuit !== undefined) localStorage.setItem('tecnico_nuit', settings.nuit);
     if (settings.email !== undefined) localStorage.setItem('tecnico_email', settings.email);
     if (settings.endereco !== undefined) localStorage.setItem('tecnico_endereco', settings.endereco);
+
     if (settings.logoBase64 !== undefined) {
       if (settings.logoBase64) {
-        localStorage.setItem('tecnico_logo', settings.logoBase64);
+        try {
+          localStorage.setItem('app_company_logo', settings.logoBase64);
+          localStorage.setItem('tecnico_logo', settings.logoBase64);
+        } catch (storageErr) {
+          console.warn('[saveBrandCustomization] Cota do localStorage atingida, invocando persistCompanyLogo com compressão de emergência...');
+        }
+        // Garante persistência resiliente com tratamento de cota e IndexedDB
+        persistCompanyLogo(settings.logoBase64).catch(err => {
+          console.warn('[saveBrandCustomization] Aviso ao persistir logo:', err);
+        });
       } else {
-        localStorage.removeItem('tecnico_logo');
+        try {
+          localStorage.removeItem('app_company_logo');
+          localStorage.removeItem('tecnico_logo');
+        } catch (e) {}
+        persistCompanyLogo(null).catch(() => {});
       }
     }
 
