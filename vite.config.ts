@@ -9,8 +9,8 @@ export default defineConfig(() => {
   return {
     base: '/',
     build: {
-      target: ['es2015', 'chrome60'],
-      cssTarget: ['es2015', 'chrome60'],
+      target: ['es2015', 'chrome60', 'safari11', 'edge18'],
+      cssTarget: ['es2015', 'chrome60', 'safari11', 'edge18'],
       assetsDir: 'assets',
       modulePreload: {
         polyfill: true,
@@ -34,6 +34,8 @@ export default defineConfig(() => {
               'Firefox ESR',
               'not dead',
               'Chrome >= 60',
+              'Safari >= 11',
+              'Edge >= 18',
               'iOS >= 11',
               'Android >= 6',
             ],
