@@ -51,6 +51,26 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
   const [soundEnabled, setSoundEnabled] = useState(() => soundFX.isEnabled());
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
 
+  const roleStr = String(currentUser?.role || '');
+  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+
+  const isClientUser = Boolean(
+    isClient ||
+    roleStr === 'cliente' ||
+    roleStr === 'client' ||
+    tipoStr === 'cliente'
+  );
+
+  const isTechnicianUser = Boolean(
+    !isClientUser && (
+      isTechnician ||
+      roleStr === 'technician' ||
+      roleStr === 'tecnico' ||
+      tipoStr === 'tecnico' ||
+      isAdmin
+    )
+  );
+
   if (!isOpen) return null;
 
   const handleClose = () => {
@@ -163,7 +183,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       color: 'from-slate-700 to-slate-900',
       action: () => handleNavigate('tools')
     },
-    {
+    ...(!isClientUser && isTechnicianUser ? [{
       id: 'sara',
       title: 'Sara IA',
       subtitle: 'Assistente com visão e normas',
@@ -174,7 +194,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
         onClose();
         if (onOpenSaraAi) onOpenSaraAi();
       }
-    },
+    }] : []),
     {
       id: userDashboardTab,
       title: userDashboardTitle,

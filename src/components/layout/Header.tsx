@@ -66,6 +66,26 @@ export const Header: React.FC<HeaderProps> = ({
     isTrialValid,
     logout
   } = useAuth();
+
+  const roleStr = String(currentUser?.role || '');
+  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+
+  const isClientUser = Boolean(
+    isClient ||
+    roleStr === 'cliente' ||
+    roleStr === 'client' ||
+    tipoStr === 'cliente'
+  );
+
+  const isTechnicianUser = Boolean(
+    !isClientUser && (
+      isTechnician ||
+      roleStr === 'technician' ||
+      roleStr === 'tecnico' ||
+      tipoStr === 'tecnico' ||
+      isAdmin
+    )
+  );
   const { conversations, unreadSystemNotificationsCount, unreadMessagesCount } = useData();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -187,19 +207,21 @@ export const Header: React.FC<HeaderProps> = ({
               );
             })}
 
-            {/* Sara IA Prominent Button on Desktop XL */}
-            <button
-              id="btnSaraAiDesktopXL"
-              onClick={() => {
-                soundFX.playClick();
-                onOpenSaraAi();
-              }}
-              className="px-2.5 py-1 rounded-lg bg-linear-to-r from-blue-600 via-indigo-600 to-sky-500 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-xs hover:shadow-md shadow-blue-500/20 transition flex items-center gap-1 cursor-pointer ml-0.5 active:scale-95"
-              title="Abrir Assistente Inteligente Sara IA"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
-              <span className="whitespace-nowrap">Sara IA</span>
-            </button>
+            {/* Sara IA Prominent Button on Desktop XL (Exclusivo Técnicos) */}
+            {!isClientUser && isTechnicianUser && (
+              <button
+                id="btnSaraAiDesktopXL"
+                onClick={() => {
+                  soundFX.playClick();
+                  onOpenSaraAi();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-linear-to-r from-blue-600 via-indigo-600 to-sky-500 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-xs hover:shadow-md shadow-blue-500/20 transition flex items-center gap-1 cursor-pointer ml-0.5 active:scale-95"
+                title="Abrir Assistente Inteligente Sara IA"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                <span className="whitespace-nowrap">Sara IA</span>
+              </button>
+            )}
           </nav>
 
           {/* MD & LG Screens: Primary 4 Items + Sara IA + 'Mais' Dropdown */}
@@ -226,19 +248,21 @@ export const Header: React.FC<HeaderProps> = ({
               );
             })}
 
-            {/* Sara IA Prominent Button on Desktop MD-LG */}
-            <button
-              id="btnSaraAiDesktopMD"
-              onClick={() => {
-                soundFX.playClick();
-                onOpenSaraAi();
-              }}
-              className="px-2 py-1 rounded-lg bg-linear-to-r from-blue-600 via-indigo-600 to-sky-500 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-xs hover:shadow-md shadow-blue-500/20 transition flex items-center gap-1 cursor-pointer active:scale-95"
-              title="Abrir Assistente Inteligente Sara IA"
-            >
-              <Sparkles className="w-3 h-3 text-yellow-300 animate-pulse" />
-              <span className="whitespace-nowrap">Sara IA</span>
-            </button>
+            {/* Sara IA Prominent Button on Desktop MD-LG (Exclusivo Técnicos) */}
+            {!isClientUser && isTechnicianUser && (
+              <button
+                id="btnSaraAiDesktopMD"
+                onClick={() => {
+                  soundFX.playClick();
+                  onOpenSaraAi();
+                }}
+                className="px-2 py-1 rounded-lg bg-linear-to-r from-blue-600 via-indigo-600 to-sky-500 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-xs hover:shadow-md shadow-blue-500/20 transition flex items-center gap-1 cursor-pointer active:scale-95"
+                title="Abrir Assistente Inteligente Sara IA"
+              >
+                <Sparkles className="w-3 h-3 text-yellow-300 animate-pulse" />
+                <span className="whitespace-nowrap">Sara IA</span>
+              </button>
+            )}
 
             {/* 'Mais' Dropdown for Medium Screens */}
             {!isClient && (
@@ -262,18 +286,20 @@ export const Header: React.FC<HeaderProps> = ({
 
                 {isMoreMenuOpen && (
                   <div className="absolute left-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                    {/* Sara IA Option in More Menu */}
-                    <button
-                      onClick={() => {
-                        soundFX.playClick();
-                        onOpenSaraAi();
-                        setIsMoreMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition text-blue-600 hover:bg-blue-50 border-b border-slate-100"
-                    >
-                      <Sparkles className="w-4 h-4 text-yellow-500" />
-                      <span>Sara IA (Assistente)</span>
-                    </button>
+                    {/* Sara IA Option in More Menu (Exclusivo Técnicos) */}
+                    {!isClientUser && isTechnicianUser && (
+                      <button
+                        onClick={() => {
+                          soundFX.playClick();
+                          onOpenSaraAi();
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition text-blue-600 hover:bg-blue-50 border-b border-slate-100"
+                      >
+                        <Sparkles className="w-4 h-4 text-yellow-500" />
+                        <span>Sara IA (Assistente)</span>
+                      </button>
+                    )}
 
                     {overflowOnMedium.map(item => {
                       const Icon = item.icon;
@@ -542,17 +568,20 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>Definições & Perfil</span>
                     </button>
 
-                    <button
-                      onClick={() => {
-                        soundFX.playClick();
-                        onOpenSaraAi();
-                        setIsProfileMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 flex items-center gap-2.5 font-bold"
-                    >
-                      <Sparkles className="w-4 h-4 text-yellow-500" />
-                      <span>Sara IA (Assistente Técnica)</span>
-                    </button>
+                    {/* Sara IA Option in Profile Menu (Exclusivo Técnicos) */}
+                    {!isClientUser && isTechnicianUser && (
+                      <button
+                        onClick={() => {
+                          soundFX.playClick();
+                          onOpenSaraAi();
+                          setIsProfileMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 flex items-center gap-2.5 font-bold"
+                      >
+                        <Sparkles className="w-4 h-4 text-yellow-500" />
+                        <span>Sara IA (Assistente Técnica)</span>
+                      </button>
+                    )}
 
                     <div className="my-1 border-t border-slate-100" />
 

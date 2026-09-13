@@ -2929,8 +2929,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   }, [subscriptionExpirationDate]);
 
-  // SINGLE PLAN 50 MT UNLOCKS ALL TOOLS UNRESTRICTED:
-  const canAccessSaraAi = Boolean(isSubscriptionActive);
+  // SINGLE PLAN 50 MT UNLOCKS ALL TOOLS UNRESTRICTED (Sara IA EXCLUSIVA PARA TÉCNICOS):
+  const roleStr = String(currentUser?.role || '');
+  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+
+  const isClientUserRole = Boolean(
+    roleStr === 'cliente' ||
+    roleStr === 'client' ||
+    tipoStr === 'cliente'
+  );
+  const isTechUserRole = Boolean(
+    !isClientUserRole && (
+      roleStr === 'technician' ||
+      roleStr === 'tecnico' ||
+      tipoStr === 'tecnico' ||
+      roleStr === 'admin' ||
+      roleStr === 'super_admin'
+    )
+  );
+  const canAccessSaraAi = Boolean(isSubscriptionActive) && !isClientUserRole && isTechUserRole;
   const canAccessOSGenerator = Boolean(isSubscriptionActive);
   const canPublishMarket = Boolean(isSubscriptionActive);
   const hasTopMuralHighlight = Boolean(isSubscriptionActive);

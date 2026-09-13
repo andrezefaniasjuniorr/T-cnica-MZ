@@ -27,6 +27,7 @@ import { AcademySection } from './components/academy/AcademySection';
 // Modals
 import { GlobalSearchModal } from './components/common/GlobalSearchModal';
 import { SaraAiModal } from './components/common/SaraAiModal';
+import { SaraAiFloatingButton } from './components/common/SaraAiFloatingButton';
 import { MessagesModal } from './components/common/MessagesModal';
 import { NotificationsModal } from './components/common/NotificationsModal';
 import { WelcomeModal } from './components/common/WelcomeModal';
@@ -133,6 +134,32 @@ const resolveTabFromLocation = (): string | null => {
 
 const AppContent: React.FC = () => {
   const { currentUser, isLoading, isClient, isTechnician, isCompany, isAdmin, isSubscriptionActive } = useAuth();
+
+  const roleStr = String(currentUser?.role || '');
+  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+
+  const isClientUser = Boolean(
+    isClient ||
+    roleStr === 'cliente' ||
+    roleStr === 'client' ||
+    tipoStr === 'cliente'
+  );
+
+  const isTechnicianUser = Boolean(
+    !isClientUser && (
+      isTechnician ||
+      roleStr === 'technician' ||
+      roleStr === 'tecnico' ||
+      tipoStr === 'tecnico' ||
+      isAdmin
+    )
+  );
+
+  const handleOpenSaraAi = () => {
+    if (!isClientUser && isTechnicianUser) {
+      setIsSaraAiOpen(true);
+    }
+  };
 
   // Navigation State initialized from URL location or cached lastRoute (Instant WhatsApp-style opening)
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -554,7 +581,7 @@ const AppContent: React.FC = () => {
         activeTab={activeTab}
         onNavigateTab={handleNavigate}
         onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenSaraAi={() => setIsSaraAiOpen(true)}
+        onOpenSaraAi={handleOpenSaraAi}
         onOpenMessages={() => {
           setTargetMessageUser(null);
           setIsMessagesOpen(true);
@@ -641,28 +668,12 @@ const AppContent: React.FC = () => {
       <BottomNav
         activeTab={activeTab}
         onNavigateTab={handleNavigate}
-        onOpenSaraAi={() => setIsSaraAiOpen(true)}
+        onOpenSaraAi={handleOpenSaraAi}
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
       />
 
-      {/* 4. Desktop Floating Quick Launcher for Sara IA (Apenas telas PC / md:flex) */}
-      <button
-        id="btnSaraAiDesktopFloating"
-        onClick={() => {
-          soundFX.playClick();
-          setIsSaraAiOpen(true);
-        }}
-        className="hidden md:flex fixed bottom-6 right-6 z-30 items-center gap-2.5 px-4 py-3 rounded-full bg-linear-to-r from-blue-600 via-indigo-600 to-sky-500 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xl shadow-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/40 transition-all transform hover:-translate-y-1 active:translate-y-0 cursor-pointer border border-white/25 group"
-        title="Abrir Assistente Técnica Sara IA"
-      >
-        <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-12 transition-transform">
-          <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
-        </div>
-        <div className="text-left">
-          <span className="block text-xs font-black tracking-tight leading-tight">Sara IA</span>
-          <span className="block text-[10px] text-blue-100 font-medium">Assistente Técnica</span>
-        </div>
-      </button>
+      {/* 4. Desktop Floating Quick Launcher for Sara IA (Exclusivo Técnicos / Oculto para Clientes) */}
+      <SaraAiFloatingButton onClick={handleOpenSaraAi} />
 
       {/* 5. Global Official Footer */}
       <footer className="bg-slate-950 text-slate-400 border-t border-slate-800 text-xs mt-auto hidden md:block">
@@ -746,7 +757,7 @@ const AppContent: React.FC = () => {
       />
 
       <SaraAiModal
-        isOpen={isSaraAiOpen}
+        isOpen={isSaraAiOpen && !isClientUser && isTechnicianUser}
         onClose={() => setIsSaraAiOpen(false)}
         onGoToSettings={() => handleNavigate('settings')}
       />
@@ -799,7 +810,7 @@ const AppContent: React.FC = () => {
         onClose={() => setIsMobileMenuOpen(false)}
         activeTab={activeTab}
         onNavigateTab={handleNavigate}
-        onOpenSaraAi={() => setIsSaraAiOpen(true)}
+        onOpenSaraAi={handleOpenSaraAi}
         onOpenMessages={() => {
           setTargetMessageUser(null);
           setIsMessagesOpen(true);

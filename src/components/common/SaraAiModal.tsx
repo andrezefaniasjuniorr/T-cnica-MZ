@@ -392,10 +392,30 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
 ChatInputForm.displayName = 'ChatInputForm';
 
 export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoToSettings }) => {
-  const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
+  const { currentUser, isClient, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
   const [showSeloModal, setShowSeloModal] = useState(false);
 
-  const hasAccess = isAdmin || (!isTechnician && !isCompany) || temSeloMZ || isSubscriptionActive;
+  const roleStr = String(currentUser?.role || '');
+  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+
+  const isClientUser = Boolean(
+    isClient ||
+    roleStr === 'cliente' ||
+    roleStr === 'client' ||
+    tipoStr === 'cliente'
+  );
+
+  const isTechnicianUser = Boolean(
+    !isClientUser && (
+      isTechnician ||
+      roleStr === 'technician' ||
+      roleStr === 'tecnico' ||
+      tipoStr === 'tecnico' ||
+      isAdmin
+    )
+  );
+
+  const hasAccess = isAdmin || (isTechnicianUser && (temSeloMZ || isSubscriptionActive));
   const userName = currentUser?.name || 'Usuário';
   const storageKey = `sara_chat_history_${currentUser?.uid || 'guest'}`;
 
@@ -479,7 +499,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   }, [storageKey]);
 
-  if (!isOpen) return null;
+  if (!isOpen || isClientUser || !isTechnicianUser) return null;
 
   const handleQuickPrompt = (prompt: string) => {
     chatInputRef.current?.setInputText(prompt);

@@ -36,7 +36,27 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenMessages,
   onOpenAuth
 }) => {
-  const { currentUser, isTechnician, isCompany, isAdmin, logout } = useAuth();
+  const { currentUser, isClient, isTechnician, isCompany, isAdmin, logout } = useAuth();
+
+  const roleStr = String(currentUser?.role || '');
+  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+
+  const isClientUser = Boolean(
+    isClient ||
+    roleStr === 'cliente' ||
+    roleStr === 'client' ||
+    tipoStr === 'cliente'
+  );
+
+  const isTechnicianUser = Boolean(
+    !isClientUser && (
+      isTechnician ||
+      roleStr === 'technician' ||
+      roleStr === 'tecnico' ||
+      tipoStr === 'tecnico' ||
+      isAdmin
+    )
+  );
   const { conversations, jobs, technicians } = useData();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -120,14 +140,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline text-[11px] text-slate-400">Pesquisar...</span>
             </button>
 
-            {/* Sara IA Assistant */}
-            <button
-              onClick={onOpenSaraAi}
-              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600/30 to-purple-600/30 hover:from-blue-600/50 hover:to-purple-600/50 text-white border border-blue-400/30 text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-              <span className="hidden sm:inline">Sara IA</span>
-            </button>
+            {/* Sara IA Assistant (Exclusivo Técnicos) */}
+            {!isClientUser && isTechnicianUser && (
+              <button
+                onClick={onOpenSaraAi}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600/30 to-purple-600/30 hover:from-blue-600/50 hover:to-purple-600/50 text-white border border-blue-400/30 text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                <span className="hidden sm:inline">Sara IA</span>
+              </button>
+            )}
 
             {/* Messages Chat Trigger */}
             {currentUser && (

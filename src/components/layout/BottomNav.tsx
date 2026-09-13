@@ -25,19 +25,39 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   onOpenSaraAi,
   onOpenMobileMenu
 }) => {
-  const { currentUser, isClient, isTechnician } = useAuth();
+  const { currentUser, isClient, isTechnician, isAdmin } = useAuth();
+
+  const roleStr = String(currentUser?.role || '');
+  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+
+  const isClientUser = Boolean(
+    isClient ||
+    roleStr === 'cliente' ||
+    roleStr === 'client' ||
+    tipoStr === 'cliente'
+  );
+
+  const isTechnicianUser = Boolean(
+    !isClientUser && (
+      isTechnician ||
+      roleStr === 'technician' ||
+      roleStr === 'tecnico' ||
+      tipoStr === 'tecnico' ||
+      isAdmin
+    )
+  );
 
   useEffect(() => {
-    const role = currentUser?.role || (isClient ? 'cliente' : 'tecnico');
+    const role = isClientUser ? 'cliente' : (currentUser?.role || (isTechnicianUser ? 'tecnico' : 'cliente'));
     if (typeof (window as any).applyRoleBasedUI === 'function') {
       (window as any).applyRoleBasedUI(role);
     } else {
       const btnMais = document.querySelector('[data-nav="mais"]') || document.getElementById('btnMais');
       if (btnMais) {
-        (btnMais as HTMLElement).style.display = (role === 'cliente' || role === 'client') ? 'none' : 'flex';
+        (btnMais as HTMLElement).style.display = isClientUser ? 'none' : 'flex';
       }
     }
-  }, [currentUser?.role, isClient]);
+  }, [currentUser?.role, isClientUser, isTechnicianUser]);
 
   // Navigation specifically structured by role with the "Mais" option at the end
   const clientNavItems = [
@@ -54,7 +74,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     { id: 'tools', label: 'Ferramentas', icon: Wrench, elementId: 'btn-nav-ferramentas' }
   ];
 
-  const baseNavItems = isClient ? clientNavItems : technicianNavItems;
+  // REQUISITO ESTRITO: Se o usuário for Cliente ou não for Técnico, NUNCA renderizar Sara IA na barra inferior
+  const baseNavItems = (isClientUser || !isTechnicianUser)
+    ? clientNavItems.filter(item => !(item as any).isSara && item.id !== 'sara')
+    : technicianNavItems;
 
   const handleTabClick = (tabId: string) => {
     soundFX.playClick();
@@ -62,6 +85,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   };
 
   const handleSaraClick = () => {
+    if (isClientUser || !isTechnicianUser) return;
     soundFX.playClick();
     onOpenSaraAi();
   };
@@ -82,6 +106,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           const isActive = isSaraItem ? false : activeTab === item.id;
 
           if (isSaraItem) {
+            if (isClientUser || !isTechnicianUser) return null;
             return (
               <button
                 key={item.id}
