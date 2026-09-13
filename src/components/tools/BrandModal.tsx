@@ -39,7 +39,18 @@ interface BrandModalProps {
 
 export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const { currentUser, updateCurrentUserProfile } = useAuth();
-  const [settings, setSettings] = useState<BrandCustomizationSettings>(loadBrandCustomization());
+  const [settings, setSettings] = useState<BrandCustomizationSettings>(() => {
+    const initial = loadBrandCustomization();
+    if (typeof window !== 'undefined') {
+      try {
+        const localSaved = localStorage.getItem('company_logo_base64');
+        if (localSaved && !initial.logoBase64) {
+          initial.logoBase64 = localSaved;
+        }
+      } catch (e) {}
+    }
+    return initial;
+  });
   const [activeTab, setActiveTab] = useState<'dados' | 'templates' | 'preview'>('templates');
   const [isSaving, setIsSaving] = useState(false);
   const [isCompressingLogo, setIsCompressingLogo] = useState(false);
@@ -48,17 +59,35 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
   const [isGeneratingSample, setIsGeneratingSample] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Restaura o logotipo do localStorage / IndexedDB ao montar caso o estado não possua logo
+  // 3. RESTAURAÇÃO: No useEffect de inicialização do formulário/modal, leia 'company_logo_base64' do localStorage e injete no estado do componente. Se o estado global inicializar vazio, use esse fallback local.
   useEffect(() => {
-    const currentSyncLogo = getSavedCompanyLogoSync();
-    if (currentSyncLogo && !settings.logoBase64) {
-      setSettings(prev => ({ ...prev, logoBase64: currentSyncLogo }));
-    } else if (!settings.logoBase64) {
-      getSavedCompanyLogoAsync().then(idbLogo => {
-        if (idbLogo) {
-          setSettings(prev => ({ ...prev, logoBase64: idbLogo }));
-        }
-      });
+    try {
+      const storedLogo =
+        localStorage.getItem('company_logo_base64') ||
+        localStorage.getItem('app_company_logo') ||
+        localStorage.getItem('tecnico_logo') ||
+        getSavedCompanyLogoSync();
+
+      if (storedLogo) {
+        setSettings(prev => ({
+          ...prev,
+          logoBase64: prev.logoBase64 || storedLogo
+        }));
+      } else if (!settings.logoBase64) {
+        getSavedCompanyLogoAsync().then(idbLogo => {
+          if (idbLogo) {
+            try {
+              localStorage.setItem('company_logo_base64', idbLogo);
+            } catch (e) {}
+            setSettings(prev => ({
+              ...prev,
+              logoBase64: prev.logoBase64 || idbLogo
+            }));
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('Erro ao restaurar company_logo_base64:', err);
     }
   }, []);
 
@@ -103,6 +132,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     }
   }, [currentUser]);
 
+  // 1. UPLOAD: No 'onChange' do arquivo, comprima a imagem via HTML5 Canvas (max-width: 400px, quality: 0.7) gerando uma string Base64 leve (<80KB).
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -116,17 +146,25 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     setLogoWarning(null);
 
     try {
-      // 1. COMPRESSÃO E REDIMENSIONAMENTO VIA HTML5 CANVAS (máx 400px, qualidade 0.8)
-      // Reduz de vários Megabytes para < 100KB-150KB sem perda visual no PDF
-      const compressedBase64 = await compressImage(file, 400, 0.8);
+      // 1. COMPRESSÃO VIA HTML5 CANVAS (max-width: 400px, quality: 0.7) gerando string Base64 leve (<80KB)
+      const compressedBase64 = await compressImage(file, 400, 0.7);
 
-      // 2. Grava a string otimizada no estado global do componente
+      // Injeta no estado do componente
       setSettings(prev => ({ ...prev, logoBase64: compressedBase64 }));
 
-      // 3. Persistência imediata e segura em localStorage ('app_company_logo') e IndexedDB
+      // Gravação direta preventiva no localStorage
+      try {
+        localStorage.setItem('company_logo_base64', compressedBase64);
+        localStorage.setItem('app_company_logo', compressedBase64);
+        localStorage.setItem('tecnico_logo', compressedBase64);
+      } catch (storageErr) {
+        console.warn('Cota do localStorage atingida no upload preliminar:', storageErr);
+      }
+
+      // Persistência resiliente com tratamento de cota e IndexedDB
       const persistRes = await persistCompanyLogo(compressedBase64);
       if (persistRes.quotaExceeded) {
-        setLogoWarning('Memória local reduzida: O logotipo foi comprimido em alta densidade para caber sem estouro de cota.');
+        setLogoWarning('Memória local reduzida: O logotipo foi comprimido em alta densidade (<80KB) para caber sem estouro de cota.');
       } else if (!persistRes.success) {
         setLogoWarning(persistRes.error || 'Aviso de persistência local.');
       }
@@ -141,31 +179,52 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
   const handleRemoveLogo = async () => {
     setSettings(prev => ({ ...prev, logoBase64: null }));
     setLogoWarning(null);
+    try {
+      localStorage.removeItem('company_logo_base64');
+      localStorage.removeItem('app_company_logo');
+      localStorage.removeItem('tecnico_logo');
+    } catch (e) {}
     await persistCompanyLogo(null);
     saveBrandCustomization({ logoBase64: null });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // 2. SALVAMENTO: No handler do botão "Salvar Configurações", force a gravação direta no localStorage:
+  //    localStorage.setItem('company_logo_base64', base64String);
+  //    E garanta que a propriedade do logotipo no objeto global de configurações também seja atualizada.
   const handleSave = async () => {
     setIsSaving(true);
     setLogoWarning(null);
     try {
-      // 1. Salva o logotipo de forma persistente com tratamento de QuotaExceededError
+      // 2. Gravação direta no localStorage ('company_logo_base64')
       if (settings.logoBase64) {
+        try {
+          localStorage.setItem('company_logo_base64', settings.logoBase64);
+          localStorage.setItem('app_company_logo', settings.logoBase64);
+          localStorage.setItem('tecnico_logo', settings.logoBase64);
+        } catch (localErr) {
+          console.warn('Aviso ao salvar company_logo_base64 diretamente no localStorage:', localErr);
+        }
+
         const persistRes = await persistCompanyLogo(settings.logoBase64);
         if (persistRes.quotaExceeded) {
-          setLogoWarning('Logotipo persistido com compressão de alta eficiência (armazenamento seguro).');
+          setLogoWarning('Logotipo persistido com compressão de alta eficiência (<80KB).');
         } else if (!persistRes.success) {
           throw new Error(persistRes.error || 'Falha ao gravar imagem do logotipo.');
         }
       } else {
+        try {
+          localStorage.removeItem('company_logo_base64');
+          localStorage.removeItem('app_company_logo');
+          localStorage.removeItem('tecnico_logo');
+        } catch (e) {}
         await persistCompanyLogo(null);
       }
 
-      // 2. Salva localmente (LocalStorage 'app_company_logo' / 'tecnico_logo' e window.PerfilTecnico)
+      // Garante que a propriedade do logotipo no objeto global de configurações também seja atualizada
       saveBrandCustomization(settings);
 
-      // 3. Salva no perfil do usuário no Firestore (sem consumo de tokens)
+      // Salva no perfil do usuário no Firestore (sem consumo de tokens)
       if (currentUser && updateCurrentUserProfile) {
         await updateCurrentUserProfile({
           pdfTemplate: settings.pdfTemplate,

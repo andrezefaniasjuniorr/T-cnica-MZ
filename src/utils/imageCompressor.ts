@@ -4,6 +4,7 @@
  * garantindo persistência do logotipo da empresa e fotos em PDFs/Portfólios.
  */
 
+export const COMPANY_LOGO_BASE64_KEY = 'company_logo_base64';
 export const COMPANY_LOGO_KEY = 'app_company_logo';
 export const LEGACY_LOGO_KEY = 'tecnico_logo';
 
@@ -87,13 +88,12 @@ export async function removeLogoFromIndexedDB(): Promise<void> {
 
 /**
  * Converte File ou base64 em imagem redimensionada e comprimida via HTML5 Canvas.
- * Limita a largura/altura máxima (padrão 400px) e comprime a qualidade (padrão 0.8),
- * reduzindo arquivos de vários MBs para < 80-150KB.
+ * Limita a largura/altura máxima (padrão 400px) e qualidade (0.7), gerando string Base64 leve (<80KB).
  */
 export async function compressImage(
   source: File | string,
   maxWidth = 400,
-  quality = 0.8
+  quality = 0.7
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     let dataUrl = '';
@@ -109,7 +109,7 @@ export async function compressImage(
             return resolve(url);
           }
 
-          // Redimensionamento proporcional mantendo o aspect ratio
+          // Redimensionamento proporcional mantendo o aspect ratio (máx 400px)
           if (width > maxWidth || height > maxWidth) {
             if (width >= height) {
               height = Math.round((height * maxWidth) / width);
@@ -132,34 +132,46 @@ export async function compressImage(
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Tenta primeiramente PNG (ideal para logos transparentes)
-          let compressed = canvas.toDataURL('image/png');
-          const pngBytes = Math.round((compressed.length - (compressed.indexOf(',') + 1)) * 0.75);
+          // Tenta primeiramente WebP (mantém transparência e é ultraleve com qualidade 0.7)
+          let compressed = canvas.toDataURL('image/webp', quality);
+          let bytes = Math.round((compressed.length - (compressed.indexOf(',') + 1)) * 0.75);
 
-          // Se o PNG ainda ficou pesado (> 120KB), converte para WEBP ou JPEG de 0.8
-          if (pngBytes > 120 * 1024) {
-            try {
-              const webp = canvas.toDataURL('image/webp', quality);
-              if (webp.startsWith('data:image/webp') && webp.length < compressed.length) {
-                compressed = webp;
-              } else {
-                // JPEG com fundo branco para logos sem transparência crítica
-                const jCanvas = document.createElement('canvas');
-                jCanvas.width = width;
-                jCanvas.height = height;
-                const jCtx = jCanvas.getContext('2d');
-                if (jCtx) {
-                  jCtx.fillStyle = '#ffffff';
-                  jCtx.fillRect(0, 0, width, height);
-                  jCtx.drawImage(canvas, 0, 0);
-                  const jpeg = jCanvas.toDataURL('image/jpeg', quality);
-                  if (jpeg.length < compressed.length) {
-                    compressed = jpeg;
-                  }
-                }
+          // Se o navegador não suportar WebP ou se for grande, tenta PNG ou JPEG
+          if (!compressed.startsWith('data:image/webp') || bytes > 75 * 1024) {
+            const png = canvas.toDataURL('image/png');
+            const pngBytes = Math.round((png.length - (png.indexOf(',') + 1)) * 0.75);
+
+            if (pngBytes <= 75 * 1024) {
+              compressed = png;
+            } else {
+              // JPEG com fundo branco e qualidade 0.7 garantindo < 80KB
+              const jCanvas = document.createElement('canvas');
+              jCanvas.width = width;
+              jCanvas.height = height;
+              const jCtx = jCanvas.getContext('2d');
+              if (jCtx) {
+                jCtx.fillStyle = '#ffffff';
+                jCtx.fillRect(0, 0, width, height);
+                jCtx.drawImage(canvas, 0, 0);
+                compressed = jCanvas.toDataURL('image/jpeg', quality);
               }
-            } catch (e) {
-              // Mantém PNG
+            }
+          }
+
+          // Se ainda passar de 80KB, reduz ligeiramente a dimensão para 320px
+          const finalBytes = Math.round((compressed.length - (compressed.indexOf(',') + 1)) * 0.75);
+          if (finalBytes > 80 * 1024) {
+            const sCanvas = document.createElement('canvas');
+            const targetDim = 320;
+            const ratio = targetDim / Math.max(width, height);
+            sCanvas.width = Math.round(width * ratio);
+            sCanvas.height = Math.round(height * ratio);
+            const sCtx = sCanvas.getContext('2d');
+            if (sCtx) {
+              sCtx.fillStyle = '#ffffff';
+              sCtx.fillRect(0, 0, sCanvas.width, sCanvas.height);
+              sCtx.drawImage(img, 0, 0, sCanvas.width, sCanvas.height);
+              compressed = sCanvas.toDataURL('image/jpeg', 0.65);
             }
           }
 
@@ -195,10 +207,10 @@ export async function compressImage(
 }
 
 /**
- * Compressão de emergência / extra caso ocorra QuotaExceededError (máx 260px, qualidade 0.65).
+ * Compressão de emergência / extra caso ocorra QuotaExceededError (máx 260px, qualidade 0.6).
  */
 export async function compressImageAggressive(source: string): Promise<string> {
-  return compressImage(source, 260, 0.65);
+  return compressImage(source, 260, 0.6);
 }
 
 /**
@@ -212,6 +224,7 @@ export async function persistCompanyLogo(
 
   if (!logoBase64) {
     try {
+      localStorage.removeItem(COMPANY_LOGO_BASE64_KEY);
       localStorage.removeItem(COMPANY_LOGO_KEY);
       localStorage.removeItem(LEGACY_LOGO_KEY);
     } catch (e) {}
@@ -219,10 +232,10 @@ export async function persistCompanyLogo(
     return { success: true };
   }
 
-  // Primeiro garante compressão padrão
+  // Primeiro garante compressão padrão (max-width: 400px, quality: 0.7)
   let optimized = logoBase64;
   try {
-    optimized = await compressImage(logoBase64, 400, 0.8);
+    optimized = await compressImage(logoBase64, 400, 0.7);
   } catch (err) {
     console.warn('[persistCompanyLogo] Aviso na compressão preliminar:', err);
   }
@@ -230,8 +243,9 @@ export async function persistCompanyLogo(
   // Backup garantido no IndexedDB (sem limite de 5MB do localStorage)
   saveLogoToIndexedDB(optimized).catch(() => {});
 
-  // Tentativa 1: Salvar no localStorage
+  // Tentativa 1: Salvar no localStorage (company_logo_base64 + chaves de retrocompatibilidade)
   try {
+    localStorage.setItem(COMPANY_LOGO_BASE64_KEY, optimized);
     localStorage.setItem(COMPANY_LOGO_KEY, optimized);
     localStorage.setItem(LEGACY_LOGO_KEY, optimized);
     return { success: true };
@@ -251,6 +265,7 @@ export async function persistCompanyLogo(
 
         // Compressão agressiva secundária
         const ultraCompact = await compressImageAggressive(optimized);
+        localStorage.setItem(COMPANY_LOGO_BASE64_KEY, ultraCompact);
         localStorage.setItem(COMPANY_LOGO_KEY, ultraCompact);
         localStorage.setItem(LEGACY_LOGO_KEY, ultraCompact);
         saveLogoToIndexedDB(ultraCompact).catch(() => {});
@@ -277,6 +292,7 @@ export function getSavedCompanyLogoSync(): string | null {
   if (typeof window === 'undefined') return null;
   try {
     return (
+      localStorage.getItem(COMPANY_LOGO_BASE64_KEY) ||
       localStorage.getItem(COMPANY_LOGO_KEY) ||
       localStorage.getItem(LEGACY_LOGO_KEY) ||
       null
@@ -298,6 +314,7 @@ export async function getSavedCompanyLogoAsync(): Promise<string | null> {
   if (idbLogo) {
     // Restaura no localStorage para chamadas síncronas futuras
     try {
+      localStorage.setItem(COMPANY_LOGO_BASE64_KEY, idbLogo);
       localStorage.setItem(COMPANY_LOGO_KEY, idbLogo);
       localStorage.setItem(LEGACY_LOGO_KEY, idbLogo);
     } catch (e) {}

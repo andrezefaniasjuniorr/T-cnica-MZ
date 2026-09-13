@@ -126,7 +126,10 @@ const PerfilTecnico = {
     try {
       const nome = localStorage.getItem('tecnico_nome');
       const slogan = localStorage.getItem('tecnico_slogan');
-      const logo = localStorage.getItem('app_company_logo') || localStorage.getItem('tecnico_logo');
+      const logo =
+        localStorage.getItem('company_logo_base64') ||
+        localStorage.getItem('app_company_logo') ||
+        localStorage.getItem('tecnico_logo');
       const telefone = localStorage.getItem('tecnico_telefone');
       const email = localStorage.getItem('tecnico_email');
       const nuit = localStorage.getItem('tecnico_nuit');
@@ -173,6 +176,7 @@ const PerfilTecnico = {
       if (novosDados.logoBase64 !== undefined) {
         if (novosDados.logoBase64) {
           try {
+            localStorage.setItem('company_logo_base64', novosDados.logoBase64);
             localStorage.setItem('app_company_logo', novosDados.logoBase64);
             localStorage.setItem('tecnico_logo', novosDados.logoBase64);
           } catch (qErr) {
@@ -180,6 +184,7 @@ const PerfilTecnico = {
           }
         } else {
           try {
+            localStorage.removeItem('company_logo_base64');
             localStorage.removeItem('app_company_logo');
             localStorage.removeItem('tecnico_logo');
           } catch (qErr) {}

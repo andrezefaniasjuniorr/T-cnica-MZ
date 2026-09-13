@@ -194,6 +194,7 @@ export function loadBrandCustomization(): BrandCustomizationSettings {
       '#0066FF';
 
     const savedLogo =
+      localStorage.getItem('company_logo_base64') ||
       getSavedCompanyLogoSync() ||
       base.logoBase64 ||
       localStorage.getItem('app_company_logo') ||
@@ -235,6 +236,7 @@ export function saveBrandCustomization(settings: Partial<BrandCustomizationSetti
     if (settings.logoBase64 !== undefined) {
       if (settings.logoBase64) {
         try {
+          localStorage.setItem('company_logo_base64', settings.logoBase64);
           localStorage.setItem('app_company_logo', settings.logoBase64);
           localStorage.setItem('tecnico_logo', settings.logoBase64);
         } catch (storageErr) {
@@ -246,6 +248,7 @@ export function saveBrandCustomization(settings: Partial<BrandCustomizationSetti
         });
       } else {
         try {
+          localStorage.removeItem('company_logo_base64');
           localStorage.removeItem('app_company_logo');
           localStorage.removeItem('tecnico_logo');
         } catch (e) {}

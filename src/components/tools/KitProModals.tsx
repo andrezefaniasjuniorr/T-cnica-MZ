@@ -189,8 +189,11 @@ const PerfilTecnicoView: React.FC = () => {
     if (file) {
       setComprimindo(true);
       try {
-        const compressed = await compressImage(file, 400, 0.8);
+        const compressed = await compressImage(file, 400, 0.7);
         setLogoBase64(compressed);
+        try {
+          localStorage.setItem('company_logo_base64', compressed);
+        } catch (e) {}
         await persistCompanyLogo(compressed);
       } catch (err) {
         console.error('Erro ao processar imagem:', err);
@@ -204,8 +207,10 @@ const PerfilTecnicoView: React.FC = () => {
     const helper = (window as any).PerfilTecnico;
     try {
       if (logoBase64) {
+        localStorage.setItem('company_logo_base64', logoBase64);
         await persistCompanyLogo(logoBase64);
       } else {
+        localStorage.removeItem('company_logo_base64');
         await persistCompanyLogo(null);
       }
     } catch (e) {}
