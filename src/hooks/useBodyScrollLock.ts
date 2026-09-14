@@ -10,14 +10,14 @@ let lockCount = 0;
  */
 export function useBodyScrollLock(isLocked: boolean = true) {
   useEffect(() => {
-    if (!isLocked) return;
+    if (!isLocked || typeof document === 'undefined' || !document.body) return;
 
     lockCount++;
     document.body.style.overflow = 'hidden';
 
     return () => {
       lockCount = Math.max(0, lockCount - 1);
-      if (lockCount === 0) {
+      if (lockCount === 0 && typeof document !== 'undefined' && document.body) {
         document.body.style.overflow = 'unset';
       }
     };
