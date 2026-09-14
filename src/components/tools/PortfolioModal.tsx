@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   X,
   Camera,
@@ -886,11 +887,19 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
 };
 
 export const PortfolioModal: React.FC<PortfolioModalProps> = ({ isOpen = true, onClose }) => {
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) onClose();
+      }}
+    >
+      <div className="w-[92%] max-w-5xl mx-auto my-6 rounded-2xl overflow-hidden shadow-2xl">
         <PortfolioModalContent onClose={onClose} />
       </div>
     </div>

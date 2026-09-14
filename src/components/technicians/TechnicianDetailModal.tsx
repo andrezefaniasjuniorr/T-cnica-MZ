@@ -7,6 +7,7 @@ import { Badge } from '../common/Badge';
 import { UserRankBadge } from '../../utils/gamification';
 import { UserAvatar } from '../common/UserAvatar';
 import { giveHeartOrLike, renderProfileEngagement } from '../../services/engagement';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   X,
   ArrowLeft,
@@ -84,6 +85,9 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
     }
   }, [technician?.totalLikes, technician?.likedByUsers, technician?.userId, currentUser?.uid]);
 
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(Boolean(technician));
+
   if (!technician) return null;
 
   const handleGiveLike = async () => {
@@ -136,32 +140,46 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-        {/* Header Cover Banner */}
-        <div className="h-32 sm:h-40 bg-linear-to-r from-blue-900 via-indigo-900 to-slate-900 relative p-4 flex justify-between items-start">
-          <div className="flex items-center gap-2">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="relative w-[92%] max-w-2xl mx-auto my-6 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+        {/* Cabeçalho Fixo no Topo com Título e Botão "X" Bem Visível */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-900 text-white border-b border-slate-800 shrink-0 z-20">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition flex items-center gap-1.5 text-xs font-bold shadow-sm"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-bold shrink-0"
               title="Voltar aos técnicos"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Voltar</span>
+              <span className="hidden sm:inline">Voltar</span>
             </button>
-            {technician.featured && (
-              <span className="px-3 py-1 bg-amber-400 text-slate-950 rounded-full text-xs font-black tracking-wide uppercase shadow-sm">
-                ⭐ Em Destaque
-              </span>
-            )}
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-black text-white truncate flex items-center gap-2">
+                <span>Perfil do Técnico</span>
+                {technician.featured && (
+                  <span className="px-2 py-0.5 bg-amber-400 text-slate-950 rounded-full text-[10px] font-black uppercase">
+                    ⭐ Destaque
+                  </span>
+                )}
+              </h3>
+              <p className="text-[11px] text-slate-400 truncate">
+                {technician.name}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => toggleFavorite(technician.userId)}
-              className={`p-2 rounded-full backdrop-blur-md transition ${
+              className={`p-2 rounded-xl transition ${
                 isFav
                   ? 'bg-rose-500 text-white'
-                  : 'bg-black/40 hover:bg-black/60 text-white'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
               }`}
               title={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             >
@@ -169,33 +187,45 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition shadow-sm"
               title="Fechar (X)"
+              aria-label="Fechar"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Profile Card Header Info */}
-        <div className="px-6 sm:px-8 pb-4 relative">
-          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-16 sm:-mt-20 mb-4">
-            <div className="relative">
-              <UserAvatar
-                name={technician.name}
-                photoURL={technician.photoURL || technician.avatarUrl}
-                size="custom"
-                className="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl border-4 border-white shadow-xl text-3xl sm:text-4xl"
-              />
-              {isVerified && (
-                <div
-                  className="absolute -bottom-1 -right-1 bg-blue-600 text-white p-1.5 rounded-xl border-2 border-white shadow-md"
-                  title="Técnico Verificado Oficial TécnicaMZ"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              )}
+        {/* Conteúdo interno do modal com rolagem própria */}
+        <div className="overflow-y-auto flex-1 text-xs text-slate-700">
+          {/* Header Cover Banner */}
+          <div className="h-28 sm:h-32 bg-linear-to-r from-blue-900 via-indigo-900 to-slate-900 relative p-4 flex justify-between items-start">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 bg-white/10 backdrop-blur-md text-white rounded-lg text-[11px] font-bold">
+                TécnicaMZ Pro
+              </span>
             </div>
+          </div>
+
+          {/* Profile Card Header Info */}
+          <div className="px-5 sm:px-6 pb-4 relative">
+            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-14 sm:-mt-16 mb-4">
+              <div className="relative">
+                <UserAvatar
+                  name={technician.name}
+                  photoURL={technician.photoURL || technician.avatarUrl}
+                  size="custom"
+                  className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl sm:rounded-3xl border-4 border-white shadow-xl text-2xl sm:text-3xl"
+                />
+                {isVerified && (
+                  <div
+                    className="absolute -bottom-1 -right-1 bg-blue-600 text-white p-1.5 rounded-xl border-2 border-white shadow-md"
+                    title="Técnico Verificado Oficial TécnicaMZ"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                )}
+              </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <button
@@ -354,7 +384,7 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
         </div>
 
         {/* Tab Content */}
-        <div className="p-6 sm:p-8 max-h-[450px] overflow-y-auto">
+        <div className="p-5 sm:p-6">
           {activeTab === 'about' && (
             <div className="space-y-6 text-xs sm:text-sm text-slate-700">
               <div>
@@ -494,6 +524,7 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
               )}
             </div>
           )}
+        </div>
         </div>
 
         {/* Report Submodal */}

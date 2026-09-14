@@ -26,6 +26,7 @@ import {
   Download
 } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { NetworkStatusIndicator } from '../common/NetworkStatusIndicator';
 
 interface MobileExtraMenuDrawerProps {
@@ -50,6 +51,9 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
   const { currentUser, isClient, isTechnician, isCompany, isAdmin } = useAuth();
   const [soundEnabled, setSoundEnabled] = useState(() => soundFX.isEnabled());
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
+
+  // Bloqueio de rolagem do fundo
+  useBodyScrollLock(isOpen);
 
   const roleStr = String(currentUser?.role || '');
   const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');

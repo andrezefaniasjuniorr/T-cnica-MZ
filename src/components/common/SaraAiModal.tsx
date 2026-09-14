@@ -10,6 +10,7 @@ import { SeloMZModal } from './SeloMZModal';
 import { doc, setDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../firebase/config';
 import { soundFX } from '../../utils/audio';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   X,
   ArrowLeft,
@@ -498,6 +499,9 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
       }
     }
   }, [storageKey]);
+
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(isOpen && !isClientUser && isTechnicianUser);
 
   if (!isOpen || isClientUser || !isTechnicianUser) return null;
 

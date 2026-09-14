@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { BrandModalContent, BrandModal } from './BrandModal';
 import { PortfolioModalContent, PortfolioModal } from './PortfolioModal';
 import { compressImage, persistCompanyLogo, getSavedCompanyLogoSync } from '../../utils/imageCompressor';
@@ -59,6 +60,9 @@ interface KitProModalsProps {
 }
 
 export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose, onOpenModal }) => {
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(Boolean(activeModal));
+
   // Estado compartilhado entre ferramentas para injeção de dados
   const [injectedOSData, setInjectedOSData] = useState<any>(null);
   const [injectedQGData, setInjectedQGData] = useState<any>(null);
@@ -71,13 +75,19 @@ export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose
     }
   };
 
-  const isWideModal = activeModal === 'perfil_tecnico' || activeModal === 'portfolio';
+  const hasCustomHeader = activeModal === 'perfil_tecnico' || activeModal === 'portfolio';
+  const isPortfolioWide = activeModal === 'portfolio';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fade-in">
-      <div className={`relative w-full ${isWideModal ? 'max-w-5xl' : 'max-w-2xl'} bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col`}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className={`relative w-[92%] ${isPortfolioWide ? 'max-w-5xl' : 'max-w-2xl'} mx-auto my-6 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[85vh] flex flex-col`}>
         {/* Modal Header for standard modals */}
-        {!isWideModal && (
+        {!hasCustomHeader && (
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/90 shrink-0">
             <div className="flex items-center gap-2.5">
               <span className="p-2 rounded-xl bg-blue-50 text-blue-600 font-bold">
@@ -103,7 +113,9 @@ export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose
               </button>
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition"
+                className="p-2 rounded-xl bg-slate-100 hover:bg-rose-500 hover:text-white text-slate-500 transition shadow-xs"
+                title="Fechar (X)"
+                aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -112,7 +124,7 @@ export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose
         )}
 
         {/* Modal Body */}
-        <div className={isWideModal ? "overflow-hidden flex-1 flex flex-col" : "p-5 overflow-y-auto flex-1 space-y-4 text-xs text-slate-700"}>
+        <div className={hasCustomHeader ? "overflow-hidden flex-1 flex flex-col" : "p-5 overflow-y-auto flex-1 space-y-4 text-xs text-slate-700"}>
           {activeModal === 'perfil_tecnico' && <BrandModalContent onClose={onClose} />}
           {activeModal === 'gerador_os' && <GeradorOSView initialData={injectedOSData} />}
           {activeModal === 'calculadora_preco' && (

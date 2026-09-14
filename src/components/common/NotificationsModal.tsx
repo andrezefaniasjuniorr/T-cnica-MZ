@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { soundFX } from '../../utils/audio';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   X,
   ArrowLeft,
@@ -40,6 +41,9 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   } = useData();
 
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

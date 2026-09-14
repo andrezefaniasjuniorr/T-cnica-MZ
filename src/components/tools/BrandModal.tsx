@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   X,
   Building,
@@ -371,8 +372,9 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
         {onClose && (
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
-            title="Fechar"
+            className="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-rose-600 rounded-xl transition shadow-sm"
+            title="Fechar (X)"
+            aria-label="Fechar"
           >
             <X className="w-5 h-5" />
           </button>
@@ -1291,11 +1293,19 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
 };
 
 export const BrandModal: React.FC<BrandModalProps> = ({ isOpen = true, onClose }) => {
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) onClose();
+      }}
+    >
+      <div className="w-[92%] max-w-2xl mx-auto my-6 rounded-2xl overflow-hidden shadow-2xl">
         <BrandModalContent onClose={onClose} />
       </div>
     </div>

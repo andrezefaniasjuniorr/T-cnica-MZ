@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { CompanyProfile, JobOpening } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
@@ -43,6 +44,9 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
   const [activeTab, setActiveTab] = useState<'about' | 'jobs' | 'reviews'>('about');
   const [copied, setCopied] = useState(false);
 
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(isOpen);
+
   if (!isOpen || !company) return null;
 
   const companyJobs = jobs.filter(j => j.companyId === company.userId && j.status === 'active');
@@ -54,27 +58,48 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-        {/* Cover / Header */}
-        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-5 sm:p-8 relative">
-          <div className="flex items-center justify-between mb-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="relative w-[92%] max-w-2xl mx-auto my-6 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+        {/* Cabeçalho Fixo no Topo com Título e Botão "X" Bem Visível */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-900 text-white border-b border-slate-800 shrink-0 z-20">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 text-xs font-bold"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-bold shrink-0"
               title="Voltar ao diretório de empresas"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Voltar</span>
+              <span className="hidden sm:inline">Voltar</span>
             </button>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition"
-              title="Fechar (X)"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-black text-white truncate">
+                {company.companyName}
+              </h3>
+              <p className="text-[11px] text-slate-400 truncate">
+                Perfil Corporativo • {company.industry || (company as any).sector || 'Empresa'}
+              </p>
+            </div>
           </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition shadow-sm shrink-0"
+            title="Fechar (X)"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Conteúdo interno com rolagem própria */}
+        <div className="overflow-y-auto flex-1 text-xs text-slate-700">
+          {/* Cover / Header */}
+          <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-5 sm:p-6 relative">
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white p-1.5 shadow-xl border border-white/20 shrink-0 overflow-hidden">
@@ -162,7 +187,7 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
         </div>
 
         {/* Tab content */}
-        <div className="p-6 sm:p-8 max-h-[60vh] overflow-y-auto space-y-6">
+        <div className="p-5 sm:p-6 space-y-6">
           {activeTab === 'about' && (
             <div className="space-y-6">
               <div>
@@ -284,6 +309,7 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
               )}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

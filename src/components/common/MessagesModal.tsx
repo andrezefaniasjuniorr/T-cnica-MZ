@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { soundFX } from '../../utils/audio';
 import { getInitial } from '../../utils/stringUtils';
 import { ConversationItem, MessageItem } from '../../types';
@@ -78,6 +79,9 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length, activeConvId]);
+
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(isOpen);
 
   if (!isOpen || !currentUser) return null;
 

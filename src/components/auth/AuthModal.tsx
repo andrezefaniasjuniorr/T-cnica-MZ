@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { MOZAMBIQUE_PROVINCES, TECHNICAL_CATEGORIES } from '../../types';
 import {
   X,
@@ -77,6 +78,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Status Alerts
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 
