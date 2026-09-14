@@ -43,8 +43,11 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     const initial = loadBrandCustomization();
     if (typeof window !== 'undefined') {
       try {
-        const localSaved = localStorage.getItem('company_logo_base64');
-        if (localSaved && !initial.logoBase64) {
+        const localSaved =
+          localStorage.getItem('company_logo_base64') ||
+          localStorage.getItem('app_company_logo') ||
+          localStorage.getItem('tecnico_logo');
+        if (localSaved) {
           initial.logoBase64 = localSaved;
         }
       } catch (e) {}
@@ -59,7 +62,9 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
   const [isGeneratingSample, setIsGeneratingSample] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 3. RESTAURAÇÃO: No useEffect de inicialização do formulário/modal, leia 'company_logo_base64' do localStorage e injete no estado do componente. Se o estado global inicializar vazio, use esse fallback local.
+  // 1. RESTAURAÇÃO E PERSISTÊNCIA PERMANENTE:
+  // No useEffect de inicialização da tela/modal, leia 'company_logo_base64' do localStorage e recupere
+  // a foto no estado do formulário e no contexto global dos PDFs, impedindo que o estado padrão ("Sem Logo") sobrescreva.
   useEffect(() => {
     try {
       const storedLogo =
@@ -71,9 +76,17 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
       if (storedLogo) {
         setSettings(prev => ({
           ...prev,
-          logoBase64: prev.logoBase64 || storedLogo
+          logoBase64: storedLogo
         }));
-      } else if (!settings.logoBase64) {
+
+        // Atualiza imediatamente o contexto global dos PDFs para refletir a imagem salva
+        const helper = (window as any).PerfilTecnico;
+        if (helper && typeof helper.salvar === 'function') {
+          helper.salvar({ logoBase64: storedLogo });
+        }
+        saveBrandCustomization({ logoBase64: storedLogo });
+      } else {
+        // Fallback resiliente no IndexedDB caso localStorage tenha sido limpo
         getSavedCompanyLogoAsync().then(idbLogo => {
           if (idbLogo) {
             try {
@@ -81,8 +94,13 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
             } catch (e) {}
             setSettings(prev => ({
               ...prev,
-              logoBase64: prev.logoBase64 || idbLogo
+              logoBase64: idbLogo
             }));
+            const helper = (window as any).PerfilTecnico;
+            if (helper && typeof helper.salvar === 'function') {
+              helper.salvar({ logoBase64: idbLogo });
+            }
+            saveBrandCustomization({ logoBase64: idbLogo });
           }
         });
       }
@@ -91,9 +109,10 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     }
   }, []);
 
-  // Sincronizar com perfil do usuário logado se os campos estiverem vazios no localStorage
+  // Sincronizar com perfil do usuário logado preservando estritamente a imagem do logotipo já salva
   useEffect(() => {
     const current = loadBrandCustomization();
+    const storedLogo = typeof window !== 'undefined' ? (localStorage.getItem('company_logo_base64') || settings.logoBase64) : null;
     if (currentUser) {
       const updated: Partial<BrandCustomizationSettings> = {};
       if ((!current.nome || current.nome === 'Eletricista Profissional & Serviços') && currentUser.name) {
@@ -125,14 +144,21 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
       }
 
       if (Object.keys(updated).length > 0) {
-        const merged = { ...current, ...updated };
-        setSettings(merged);
+        const merged: BrandCustomizationSettings = {
+          ...current,
+          ...updated,
+          logoBase64: storedLogo || current.logoBase64 || null
+        };
+        setSettings(prev => ({
+          ...merged,
+          logoBase64: prev.logoBase64 || storedLogo || merged.logoBase64
+        }));
         saveBrandCustomization(merged);
       }
     }
   }, [currentUser]);
 
-  // 1. UPLOAD: No 'onChange' do arquivo, comprima a imagem via HTML5 Canvas (max-width: 400px, quality: 0.7) gerando uma string Base64 leve (<80KB).
+  // UPLOAD DE ALTA QUALIDADE: Redimensionamento via HTML5 Canvas (800px-1000px, PNG transparente / JPEG 0.92)
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -146,30 +172,38 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     setLogoWarning(null);
 
     try {
-      // 1. COMPRESSÃO VIA HTML5 CANVAS (max-width: 400px, quality: 0.7) gerando string Base64 leve (<80KB)
-      const compressedBase64 = await compressImage(file, 400, 0.7);
+      // 2. ALTA QUALIDADE E NITIDEZ NOS PDFs:
+      // Largura máxima de 900px e formato PNG / JPEG com qualidade 0.92 preservando transparência e nitidez máxima
+      const compressedBase64 = await compressImage(file, 900, 0.92);
 
       // Injeta no estado do componente
       setSettings(prev => ({ ...prev, logoBase64: compressedBase64 }));
 
-      // Gravação direta preventiva no localStorage
+      // Gravação direta preventiva no localStorage sob a chave 'company_logo_base64'
       try {
         localStorage.setItem('company_logo_base64', compressedBase64);
         localStorage.setItem('app_company_logo', compressedBase64);
         localStorage.setItem('tecnico_logo', compressedBase64);
       } catch (storageErr) {
-        console.warn('Cota do localStorage atingida no upload preliminar:', storageErr);
+        console.warn('Aviso de gravação rápida no upload:', storageErr);
       }
 
-      // Persistência resiliente com tratamento de cota e IndexedDB
+      // Atualiza contexto global dos PDFs imediatamente
+      const helper = (window as any).PerfilTecnico;
+      if (helper && typeof helper.salvar === 'function') {
+        helper.salvar({ logoBase64: compressedBase64 });
+      }
+      saveBrandCustomization({ logoBase64: compressedBase64 });
+
+      // Persistência resiliente com IndexedDB e tratamento de cota
       const persistRes = await persistCompanyLogo(compressedBase64);
       if (persistRes.quotaExceeded) {
-        setLogoWarning('Memória local reduzida: O logotipo foi comprimido em alta densidade (<80KB) para caber sem estouro de cota.');
+        setLogoWarning('Memória local otimizada: O logotipo foi salvo com alta qualidade adaptativa para caber sem estouro de cota.');
       } else if (!persistRes.success) {
         setLogoWarning(persistRes.error || 'Aviso de persistência local.');
       }
     } catch (err: any) {
-      console.error('Erro ao comprimir imagem do logotipo:', err);
+      console.error('Erro ao processar imagem do logotipo:', err);
       alert('Não foi possível processar a imagem do logotipo. Tente uma foto PNG ou JPG.');
     } finally {
       setIsCompressingLogo(false);
@@ -185,18 +219,20 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
       localStorage.removeItem('tecnico_logo');
     } catch (e) {}
     await persistCompanyLogo(null);
+    const helper = (window as any).PerfilTecnico;
+    if (helper && typeof helper.salvar === 'function') {
+      helper.salvar({ logoBase64: null });
+    }
     saveBrandCustomization({ logoBase64: null });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // 2. SALVAMENTO: No handler do botão "Salvar Configurações", force a gravação direta no localStorage:
-  //    localStorage.setItem('company_logo_base64', base64String);
-  //    E garanta que a propriedade do logotipo no objeto global de configurações também seja atualizada.
+  // SALVAMENTO: Gravação direta e inequívoca no localStorage ('company_logo_base64') e atualização do contexto global dos PDFs
   const handleSave = async () => {
     setIsSaving(true);
     setLogoWarning(null);
     try {
-      // 2. Gravação direta no localStorage ('company_logo_base64')
+      // 1. Ao clicar em "Salvar Configurações", grava a imagem diretamente no localStorage sob a chave 'company_logo_base64'
       if (settings.logoBase64) {
         try {
           localStorage.setItem('company_logo_base64', settings.logoBase64);
@@ -208,7 +244,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
 
         const persistRes = await persistCompanyLogo(settings.logoBase64);
         if (persistRes.quotaExceeded) {
-          setLogoWarning('Logotipo persistido com compressão de alta eficiência (<80KB).');
+          setLogoWarning('Logotipo persistido com sucesso.');
         } else if (!persistRes.success) {
           throw new Error(persistRes.error || 'Falha ao gravar imagem do logotipo.');
         }
@@ -221,10 +257,19 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
         await persistCompanyLogo(null);
       }
 
-      // Garante que a propriedade do logotipo no objeto global de configurações também seja atualizada
+      // 2. Atualiza o contexto global dos PDFs e perfil técnico
+      const helper = (window as any).PerfilTecnico;
+      if (helper && typeof helper.salvar === 'function') {
+        helper.salvar({
+          ...settings,
+          logoBase64: settings.logoBase64
+        });
+      }
+
+      // 3. Garante que a propriedade do logotipo no objeto global de configurações também seja atualizada
       saveBrandCustomization(settings);
 
-      // Salva no perfil do usuário no Firestore (sem consumo de tokens)
+      // 4. Salva no perfil do usuário no Firestore (sem consumo de tokens)
       if (currentUser && updateCurrentUserProfile) {
         await updateCurrentUserProfile({
           pdfTemplate: settings.pdfTemplate,
@@ -234,7 +279,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
         });
       }
 
-      setFeedbackMsg('Configurações e Logotipo salvos com sucesso! Seus próximos PDFs já usarão esse padrão.');
+      setFeedbackMsg('Configurações e Logotipo salvos com sucesso! Seus próximos PDFs já usarão esse padrão com nitidez cristalina.');
       setTimeout(() => setFeedbackMsg(null), 4000);
     } catch (e: any) {
       console.error('Erro ao salvar marca:', e);
@@ -714,7 +759,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
                   )}
 
                   <p className="text-[11px] text-slate-400">
-                    Ao carregar, a imagem é redimensionada para 400px e compactada automaticamente via Canvas para caber sem estouro de cota e permanecer salva nos seus PDFs.
+                    Ao carregar, a imagem é processada via Canvas em alta definição (até 900px, PNG transparente / JPEG 0.92) garantindo máxima nitidez e fidelidade visual em todos os seus PDFs.
                   </p>
                 </div>
               </div>
@@ -800,6 +845,17 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
                 </div>
 
                 <div className="md:col-span-2 space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Certificações / Especialidades (Opcional)</label>
+                  <input
+                    type="text"
+                    value={settings.certificacoes || ''}
+                    onChange={(e) => setSettings(prev => ({ ...prev, certificacoes: e.target.value, especialidades: e.target.value }))}
+                    placeholder="Ex: Certificação ANE / EDM • Redes BT/MT • Instalações Industriais"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2 space-y-1">
                   <label className="text-xs font-bold text-slate-700">Endereço Físico / Base Operacional (Opcional)</label>
                   <input
                     type="text"
@@ -840,26 +896,29 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
             >
               {/* RENDERIZAÇÃO ESTRUTURAL DIFERENCIADA POR TEMPLATE */}
 
-              {/* TEMPLATE 2: MODERNO DARK (Cabeçalho escuro centralizado com grade de serviços dividida em 2 colunas) */}
+              {/* TEMPLATE 2: MODERNO DARK (Cabeçalho escuro com layout horizontal [LOGOTIPO] [DADOS DA EMPRESA]) */}
               {settings.pdfTemplate === 'modern_dark' ? (
                 <div>
-                  {/* Cabeçalho Escuro Centralizado */}
-                  <div className="bg-slate-900 text-white rounded-xl p-4 text-center border-2" style={{ borderColor: activeBorderColor }}>
-                    <div className="flex justify-center mb-2">
+                  {/* Cabeçalho Escuro com alinhamento horizontal fluido [LOGOTIPO] [DADOS DA EMPRESA] */}
+                  <div className="bg-slate-900 text-white rounded-xl p-4 border-2" style={{ borderColor: activeBorderColor }}>
+                    <div className="flex items-center justify-start gap-4 ml-0">
                       {settings.logoBase64 ? (
-                        <img src={settings.logoBase64} alt="Logo" className="w-14 h-12 object-contain bg-white rounded-lg p-1" />
+                        <img src={settings.logoBase64} alt="Logo" className="w-14 h-12 object-contain bg-white rounded-lg p-1 shrink-0" />
                       ) : (
-                        <div className="w-12 h-10 rounded-lg flex items-center justify-center font-black text-xs text-white" style={{ backgroundColor: activeBorderColor }}>
+                        <div className="w-12 h-10 rounded-lg flex items-center justify-center font-black text-xs text-white shrink-0" style={{ backgroundColor: activeBorderColor }}>
                           ⚡ {(settings.nome || 'EP').slice(0, 2).toUpperCase()}
                         </div>
                       )}
-                    </div>
-                    <h2 className="text-sm font-black tracking-tight text-white uppercase">{settings.nome || 'SERVIÇOS TÉCNICOS'}</h2>
-                    <p className="text-[11px] italic font-medium" style={{ color: currentTemplate.secondaryColor }}>"{settings.slogan || 'Alta Tecnologia em Engenharia Elétrica'}"</p>
-                    <div className="flex justify-center flex-wrap gap-x-3 text-[9px] text-slate-400 mt-1">
-                      <span>Tel: {settings.telefone || '+258 84 000 0000'}</span>
-                      <span>{settings.cidade || 'Maputo'}</span>
-                      {settings.nuit && <span>NUIT: {settings.nuit}</span>}
+                      <div className="text-left">
+                        <h2 className="text-sm font-black tracking-tight text-white uppercase">{settings.nome || 'SERVIÇOS TÉCNICOS'}</h2>
+                        <p className="text-[11px] italic font-medium" style={{ color: currentTemplate.secondaryColor }}>"{settings.slogan || 'Alta Tecnologia em Engenharia Elétrica'}"</p>
+                        <div className="flex flex-wrap gap-x-3 text-[9px] text-slate-400 mt-1">
+                          <span>Tel: {settings.telefone || '+258 84 000 0000'}</span>
+                          {settings.email && <span>Email: {settings.email}</span>}
+                          <span>{settings.cidade || 'Maputo'}</span>
+                          {settings.nuit && <span>NUIT: {settings.nuit}</span>}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1011,14 +1070,15 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
               ) : (
                 /* TEMPLATE 1: CORPORATIVO (Coluna lateral com resumo técnico e cabeçalho em bloco sólido) */
                 <div>
-                  {/* Cabeçalho em Bloco Sólido */}
-                  <div className="flex items-center justify-between pb-3">
-                    <div className="flex items-center gap-4">
+                  {/* Cabeçalho em 2 Blocos: [Esquerda: Logo + Identidade] | [Direita: Caixa Contato com Borda Dinâmica] */}
+                  <div className="flex items-start justify-between gap-4 pb-3 ml-0">
+                    {/* Bloco Esquerda: Logo + Nome + Slogan + Certificações */}
+                    <div className="flex items-center gap-3.5 flex-1 min-w-0">
                       {settings.logoBase64 ? (
-                        <img src={settings.logoBase64} alt="Logo" className="w-16 h-12 object-contain" />
-                      ) : (
+                        <img src={settings.logoBase64} alt="Logo" className="w-16 h-12 object-contain shrink-0" />
+                      ) : settings.nome ? (
                         <div
-                          className="w-14 h-12 rounded flex items-center justify-center font-black text-sm text-white shadow-sm"
+                          className="w-14 h-12 rounded flex items-center justify-center font-black text-sm text-white shadow-sm shrink-0"
                           style={{
                             backgroundColor: currentTemplate.primaryColor,
                             border: `1.5px solid ${activeBorderColor}`
@@ -1026,22 +1086,55 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
                         >
                           ⚡ {(settings.nome || 'EP').slice(0, 2).toUpperCase()}
                         </div>
-                      )}
+                      ) : null}
 
-                      <div>
-                        <h2 className="text-sm sm:text-base font-black tracking-tight" style={{ color: currentTemplate.primaryColor }}>
-                          {(settings.nome || 'SERVIÇOS TÉCNICOS').toUpperCase()}
-                        </h2>
-                        <p className="text-xs italic font-semibold" style={{ color: currentTemplate.secondaryColor }}>
-                          "{settings.slogan || 'Instalações, Manutenção e Soluções Elétricas'}"
-                        </p>
-                        <div className="flex flex-wrap gap-x-3 text-[10px] text-slate-500 mt-1">
-                          <span>Tel: {settings.telefone || '+258 84 000 0000'}</span>
-                          {settings.email && <span>Email: {settings.email}</span>}
-                          <span>{settings.cidade || 'Maputo'}</span>
-                        </div>
+                      <div className="text-left min-w-0">
+                        {settings.nome && (
+                          <h2 className="text-sm sm:text-base font-black tracking-tight uppercase truncate" style={{ color: currentTemplate.primaryColor }}>
+                            {settings.nome}
+                          </h2>
+                        )}
+                        {settings.slogan && (
+                          <p className="text-xs italic font-semibold truncate" style={{ color: currentTemplate.secondaryColor }}>
+                            "{settings.slogan}"
+                          </p>
+                        )}
+                        {settings.certificacoes && (
+                          <p className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+                            {settings.certificacoes}
+                          </p>
+                        )}
                       </div>
                     </div>
+
+                    {/* Bloco Direita: Caixa de Contato com Borda e Cor Primária Dinâmica */}
+                    {(settings.telefone || settings.cidade || settings.nuit || settings.email) && (
+                      <div
+                        className="px-3 py-1.5 rounded-lg text-left text-[9.5px] leading-tight shrink-0 bg-slate-50/80 shadow-xs space-y-0.5"
+                        style={{ border: `1.5px solid ${activeBorderColor}` }}
+                      >
+                        {settings.telefone && (
+                          <p>
+                            <strong className="text-slate-800">TEL / WhatsApp:</strong> <span className="text-slate-600">{settings.telefone}</span>
+                          </p>
+                        )}
+                        {settings.cidade && (
+                          <p>
+                            <strong className="text-slate-800">Cidade:</strong> <span className="text-slate-600">{settings.cidade}</span>
+                          </p>
+                        )}
+                        {settings.nuit && (
+                          <p>
+                            <strong className="text-slate-800">NUIT:</strong> <span className="text-slate-600">{settings.nuit}</span>
+                          </p>
+                        )}
+                        {settings.email && (
+                          <p>
+                            <strong className="text-slate-800">Email:</strong> <span className="text-slate-600">{settings.email}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Linha de Acento Sólida */}

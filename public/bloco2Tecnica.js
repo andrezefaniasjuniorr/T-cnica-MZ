@@ -24,6 +24,9 @@ async function carregarPdfMakeSeNecessarioBloco2() {
   try {
     if (!window.pdfMake) await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js');
     if (!window.pdfMake.vfs) await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js');
+    if (window.pdfMake && window.PerfilTecnico && typeof window.PerfilTecnico.instalarBlindagemPdfMake === 'function') {
+      window.PerfilTecnico.instalarBlindagemPdfMake();
+    }
     return window.pdfMake;
   } catch (err) {
     console.error('[Bloco2Tecnica] Erro ao carregar pdfmake:', err);

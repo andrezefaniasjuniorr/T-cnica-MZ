@@ -27,6 +27,9 @@ async function carregarPdfMakeSeNecessario() {
     if (!window.pdfMake.vfs) {
       await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js');
     }
+    if (window.pdfMake && window.PerfilTecnico && typeof window.PerfilTecnico.instalarBlindagemPdfMake === 'function') {
+      window.PerfilTecnico.instalarBlindagemPdfMake();
+    }
     return window.pdfMake;
   } catch (err) {
     console.error('[Bloco1Vendas] Erro ao carregar biblioteca pdfmake:', err);

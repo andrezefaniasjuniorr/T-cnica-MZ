@@ -189,7 +189,7 @@ const PerfilTecnicoView: React.FC = () => {
     if (file) {
       setComprimindo(true);
       try {
-        const compressed = await compressImage(file, 400, 0.7);
+        const compressed = await compressImage(file, 900, 0.92);
         setLogoBase64(compressed);
         try {
           localStorage.setItem('company_logo_base64', compressed);

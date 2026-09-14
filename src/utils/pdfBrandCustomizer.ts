@@ -2,6 +2,7 @@ import { PdfTemplateType, PdfOrientationType, PdfFontSizeType } from '../types';
 import {
   persistCompanyLogo,
   getSavedCompanyLogoSync,
+  isPdfCompatibleImage,
   COMPANY_LOGO_KEY,
   LEGACY_LOGO_KEY
 } from './imageCompressor';
@@ -148,6 +149,8 @@ export interface BrandCustomizationSettings {
   nuit?: string;
   email?: string;
   endereco?: string;
+  certificacoes?: string;
+  especialidades?: string;
   logoBase64?: string | null;
   pdfTemplate: PdfTemplateType;
   pdfOrientation: PdfOrientationType;
@@ -163,6 +166,8 @@ export const DEFAULT_BRAND_SETTINGS: BrandCustomizationSettings = {
   nuit: '',
   email: '',
   endereco: '',
+  certificacoes: '',
+  especialidades: '',
   logoBase64: null,
   pdfTemplate: 'corporate_blue',
   pdfOrientation: 'portrait',
@@ -193,13 +198,15 @@ export function loadBrandCustomization(): BrandCustomizationSettings {
       base.borderColor ||
       '#0066FF';
 
-    const savedLogo =
+    const rawLogo =
       localStorage.getItem('company_logo_base64') ||
       getSavedCompanyLogoSync() ||
       base.logoBase64 ||
       localStorage.getItem('app_company_logo') ||
       localStorage.getItem('tecnico_logo') ||
       null;
+
+    const savedLogo = isPdfCompatibleImage(rawLogo) ? rawLogo : null;
 
     return {
       nome: base.nome || localStorage.getItem('tecnico_nome') || DEFAULT_BRAND_SETTINGS.nome,
@@ -209,6 +216,8 @@ export function loadBrandCustomization(): BrandCustomizationSettings {
       nuit: base.nuit || localStorage.getItem('tecnico_nuit') || '',
       email: base.email || localStorage.getItem('tecnico_email') || '',
       endereco: base.endereco || localStorage.getItem('tecnico_endereco') || '',
+      certificacoes: base.certificacoes || localStorage.getItem('tecnico_certificacoes') || localStorage.getItem('tecnico_especialidades') || '',
+      especialidades: base.especialidades || localStorage.getItem('tecnico_especialidades') || localStorage.getItem('tecnico_certificacoes') || '',
       logoBase64: savedLogo,
       pdfTemplate,
       pdfOrientation,
@@ -232,6 +241,14 @@ export function saveBrandCustomization(settings: Partial<BrandCustomizationSetti
     if (settings.nuit !== undefined) localStorage.setItem('tecnico_nuit', settings.nuit);
     if (settings.email !== undefined) localStorage.setItem('tecnico_email', settings.email);
     if (settings.endereco !== undefined) localStorage.setItem('tecnico_endereco', settings.endereco);
+    if (settings.certificacoes !== undefined) {
+      localStorage.setItem('tecnico_certificacoes', settings.certificacoes);
+      localStorage.setItem('tecnico_especialidades', settings.certificacoes);
+    }
+    if (settings.especialidades !== undefined && settings.certificacoes === undefined) {
+      localStorage.setItem('tecnico_especialidades', settings.especialidades);
+      localStorage.setItem('tecnico_certificacoes', settings.especialidades);
+    }
 
     if (settings.logoBase64 !== undefined) {
       if (settings.logoBase64) {

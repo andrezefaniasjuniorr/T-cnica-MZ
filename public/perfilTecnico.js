@@ -12,13 +12,15 @@
 const PerfilTecnico = {
   // Dados Neutros Padrão (Sem marcas de terceiros)
   dadosPadrao: {
-    nome: 'Eletricista Profissional & Serviços',
-    slogan: 'Instalações, Manutenção e Soluções Elétricas',
-    telefone: '+258 84 000 0000',
+    nome: '',
+    slogan: '',
+    telefone: '',
     email: '',
     nuit: '',
-    cidade: 'Maputo',
+    cidade: '',
     endereco: '',
+    certificacoes: '',
+    especialidades: '',
     logoBase64: null,
     pdfTemplate: 'corporate_blue',
     pdfOrientation: 'portrait',
@@ -121,20 +123,233 @@ const PerfilTecnico = {
     }
   },
 
+  // Validador estrito de imagem para o interpretador do pdfMake
+  // pdfMake em navegadores suporta SOMENTE data:image/png;base64,... e data:image/jpeg;base64,...
+  // Qualquer outro formato (ex: WebP, SVG, caminhos relativos, base64 truncado) gera:
+  // "Invalid image: Error: Unknown image format. Images dictionary should contain dataURL entries"
+  isPdfMakeCompatibleImage(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return false;
+    const trimmed = dataUrl.trim();
+    const match = trimmed.match(/^data:image\/(?:png|jpeg|jpg);base64,([A-Za-z0-9+/=]+)/);
+    if (!match || !match[1] || match[1].length < 24) return false;
+    try {
+      // Decodifica os primeiros bytes para validar os magic bytes reais de PNG/JPEG
+      const b64Header = match[1].slice(0, 32);
+      let binary = '';
+      if (typeof atob === 'function') {
+        binary = atob(b64Header);
+      } else if (typeof Buffer !== 'undefined') {
+        binary = Buffer.from(b64Header, 'base64').toString('binary');
+      } else {
+        return trimmed.startsWith('data:image/png;base64,') || trimmed.startsWith('data:image/jpeg;base64,');
+      }
+      if (binary.length < 4) return false;
+      const b0 = binary.charCodeAt(0);
+      const b1 = binary.charCodeAt(1);
+      const b2 = binary.charCodeAt(2);
+      const b3 = binary.charCodeAt(3);
+      const isJpeg = (b0 === 0xff && b1 === 0xd8);
+      const isPng = (b0 === 0x89 && b1 === 0x50 && b2 === 0x4e && b3 === 0x47);
+      return isJpeg || isPng;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  // Sanitiza o logotipo. Se for um formato não suportado (ex: WebP herdado),
+  // dispara conversão automática em segundo plano para PNG e retorna null imediatamente
+  // para evitar o crash do pdfMake até que o PNG esteja pronto.
+  sanitizarLogo(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return null;
+    const trimmed = dataUrl.trim();
+    if (this.isPdfMakeCompatibleImage(trimmed)) {
+      return trimmed;
+    }
+
+    // Se for WebP ou formato legado com dados válidos, converte via Canvas para PNG
+    if (typeof window !== 'undefined' && typeof document !== 'undefined' && (trimmed.startsWith('data:image/') || trimmed.startsWith('blob:'))) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width || 400;
+            canvas.height = img.height || 400;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(img, 0, 0);
+              const pngData = canvas.toDataURL('image/png');
+              if (this.isPdfMakeCompatibleImage(pngData)) {
+                try {
+                  localStorage.setItem('company_logo_base64', pngData);
+                  localStorage.setItem('app_company_logo', pngData);
+                  localStorage.setItem('tecnico_logo', pngData);
+                } catch (e) {}
+              }
+            }
+          } catch (e) {}
+        };
+        img.src = trimmed;
+      } catch (e) {}
+    }
+
+    return null;
+  },
+
+  // Sanitiza todo o docDefinition recursivamente removendo nós { image: ... } incompatíveis
+  sanitizarDocDefinition(docDef) {
+    if (!docDef || typeof docDef !== 'object') return docDef;
+    const self = this;
+
+    const sanitizeNode = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (let i = 0; i < node.length; i++) {
+          sanitizeNode(node[i]);
+        }
+        return;
+      }
+
+      if ('image' in node) {
+        const imgVal = node.image;
+        if (!self.isPdfMakeCompatibleImage(imgVal)) {
+          console.warn('[pdfMake Shield] Imagem incompatível ou corrompida removida com segurança:', typeof imgVal === 'string' ? imgVal.slice(0, 45) + '...' : imgVal);
+          delete node.image;
+          if (!node.text && !node.stack && !node.table && !node.canvas && !node.columns) {
+            node.text = '';
+          }
+        }
+      }
+
+      for (const key of Object.keys(node)) {
+        if (typeof node[key] === 'object' && node[key] !== null) {
+          sanitizeNode(node[key]);
+        }
+      }
+    };
+
+    sanitizeNode(docDef);
+
+    if (docDef.images && typeof docDef.images === 'object') {
+      for (const key of Object.keys(docDef.images)) {
+        if (!self.isPdfMakeCompatibleImage(docDef.images[key])) {
+          delete docDef.images[key];
+        }
+      }
+    }
+
+    return docDef;
+  },
+
+  // Remove emergencialmente qualquer imagem do docDefinition em caso de erro no pdfMake
+  purgarImagens(docDef) {
+    if (!docDef || typeof docDef !== 'object') return docDef;
+    const purgeNode = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (let i = 0; i < node.length; i++) {
+          purgeNode(node[i]);
+        }
+        return;
+      }
+      if ('image' in node) {
+        delete node.image;
+        if (!node.text && !node.stack && !node.table && !node.canvas && !node.columns) {
+          node.text = '';
+        }
+      }
+      for (const key of Object.keys(node)) {
+        if (typeof node[key] === 'object' && node[key] !== null) {
+          purgeNode(node[key]);
+        }
+      }
+    };
+    purgeNode(docDef);
+    if (docDef.images) {
+      delete docDef.images;
+    }
+    return docDef;
+  },
+
+  // Instala blindagem no motor do pdfMake interceptando window.pdfMake.createPdf
+  instalarBlindagemPdfMake() {
+    if (typeof window === 'undefined') return;
+    const self = this;
+
+    const hookPdfMake = () => {
+      if (!window.pdfMake || window.pdfMake._shieldInstalled) return;
+
+      const originalCreatePdf = window.pdfMake.createPdf.bind(window.pdfMake);
+      window.pdfMake.createPdf = function(docDefinition, tableLayouts, fonts, vfs) {
+        try {
+          self.sanitizarDocDefinition(docDefinition);
+        } catch (e) {
+          console.warn('[pdfMake Shield] Falha ao sanitizar docDefinition:', e);
+        }
+
+        const docGenerator = originalCreatePdf(docDefinition, tableLayouts, fonts, vfs);
+
+        const wrapMethod = (methodName) => {
+          if (typeof docGenerator[methodName] !== 'function') return;
+          const originalMethod = docGenerator[methodName].bind(docGenerator);
+          docGenerator[methodName] = function(...args) {
+            try {
+              return originalMethod(...args);
+            } catch (err) {
+              const errStr = (err && (err.message || err.toString())) || '';
+              if (errStr.includes('Invalid image') || errStr.includes('Unknown image format') || errStr.includes('Images dictionary')) {
+                console.warn('[pdfMake Shield] Recuperação automática acionada após erro de imagem:', errStr);
+                try {
+                  self.purgarImagens(docDefinition);
+                  const fallbackDoc = originalCreatePdf(docDefinition, tableLayouts, fonts, vfs);
+                  return fallbackDoc[methodName](...args);
+                } catch (retryErr) {
+                  console.error('[pdfMake Shield] Erro no retry do fallback:', retryErr);
+                  throw retryErr;
+                }
+              }
+              throw err;
+            }
+          };
+        };
+
+        ['download', 'open', 'print', 'getBlob', 'getBase64', 'getDataUrl'].forEach(wrapMethod);
+
+        return docGenerator;
+      };
+
+      window.pdfMake._shieldInstalled = true;
+    };
+
+    hookPdfMake();
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts++;
+      hookPdfMake();
+      if ((window.pdfMake && window.pdfMake._shieldInstalled) || attempts > 25) {
+        clearInterval(timer);
+      }
+    }, 250);
+  },
+
   // Obter perfil buscando diretamente as chaves especificadas no localStorage
   obter() {
     try {
-      const nome = localStorage.getItem('tecnico_nome');
-      const slogan = localStorage.getItem('tecnico_slogan');
-      const logo =
+      const nome = localStorage.getItem('tecnico_nome') || '';
+      const slogan = localStorage.getItem('tecnico_slogan') || '';
+      const rawLogo =
         localStorage.getItem('company_logo_base64') ||
         localStorage.getItem('app_company_logo') ||
         localStorage.getItem('tecnico_logo');
-      const telefone = localStorage.getItem('tecnico_telefone');
-      const email = localStorage.getItem('tecnico_email');
-      const nuit = localStorage.getItem('tecnico_nuit');
-      const cidade = localStorage.getItem('tecnico_cidade');
-      const endereco = localStorage.getItem('tecnico_endereco');
+      const telefone = localStorage.getItem('tecnico_telefone') || '';
+      const email = localStorage.getItem('tecnico_email') || '';
+      const nuit = localStorage.getItem('tecnico_nuit') || '';
+      const cidade = localStorage.getItem('tecnico_cidade') || '';
+      const endereco = localStorage.getItem('tecnico_endereco') || '';
+      const certificacoes = localStorage.getItem('tecnico_certificacoes') || localStorage.getItem('tecnico_especialidades') || '';
 
       const pdfTemplate = localStorage.getItem('tecnico_pdf_template') || 'corporate_blue';
       const pdfOrientation = localStorage.getItem('tecnico_pdf_orientation') || 'portrait';
@@ -148,15 +363,19 @@ const PerfilTecnico = {
         try { legado = JSON.parse(legadoStr); } catch (e) {}
       }
 
+      const logoValida = this.sanitizarLogo(rawLogo) || this.sanitizarLogo(legado.logoBase64) || null;
+
       return {
-        nome: (nome && nome.trim()) ? nome : (legado.nome && !legado.nome.includes('TécnicaMZ') ? legado.nome : this.dadosPadrao.nome),
-        slogan: (slogan && slogan.trim()) ? slogan : (legado.slogan ? legado.slogan : this.dadosPadrao.slogan),
-        logoBase64: logo || legado.logoBase64 || null,
-        telefone: telefone || legado.telefone || this.dadosPadrao.telefone,
-        email: email || legado.email || this.dadosPadrao.email,
-        nuit: nuit || legado.nuit || this.dadosPadrao.nuit,
-        cidade: cidade || legado.cidade || this.dadosPadrao.cidade,
-        endereco: endereco || legado.endereco || this.dadosPadrao.endereco,
+        nome: (nome && nome.trim()) ? nome.trim() : (legado.nome && !legado.nome.includes('TécnicaMZ') ? legado.nome.trim() : ''),
+        slogan: (slogan && slogan.trim()) ? slogan.trim() : (legado.slogan ? legado.slogan.trim() : ''),
+        logoBase64: logoValida,
+        telefone: (telefone && telefone.trim()) ? telefone.trim() : (legado.telefone ? legado.telefone.trim() : ''),
+        email: (email && email.trim()) ? email.trim() : (legado.email ? legado.email.trim() : ''),
+        nuit: (nuit && nuit.trim()) ? nuit.trim() : (legado.nuit ? legado.nuit.trim() : ''),
+        cidade: (cidade && cidade.trim()) ? cidade.trim() : (legado.cidade ? legado.cidade.trim() : ''),
+        endereco: (endereco && endereco.trim()) ? endereco.trim() : (legado.endereco ? legado.endereco.trim() : ''),
+        certificacoes: (certificacoes && certificacoes.trim()) ? certificacoes.trim() : (legado.certificacoes ? legado.certificacoes.trim() : (legado.especialidades ? legado.especialidades.trim() : '')),
+        especialidades: (certificacoes && certificacoes.trim()) ? certificacoes.trim() : (legado.especialidades ? legado.especialidades.trim() : ''),
         pdfTemplate: pdfTemplate in this.templates ? pdfTemplate : 'corporate_blue',
         pdfOrientation: pdfOrientation === 'landscape' ? 'landscape' : 'portrait',
         pdfFontSize: ['small', 'medium', 'large'].includes(pdfFontSize) ? pdfFontSize : 'medium',
@@ -195,6 +414,14 @@ const PerfilTecnico = {
       if (novosDados.nuit !== undefined) localStorage.setItem('tecnico_nuit', novosDados.nuit);
       if (novosDados.cidade !== undefined) localStorage.setItem('tecnico_cidade', novosDados.cidade);
       if (novosDados.endereco !== undefined) localStorage.setItem('tecnico_endereco', novosDados.endereco);
+      if (novosDados.certificacoes !== undefined) {
+        localStorage.setItem('tecnico_certificacoes', novosDados.certificacoes);
+        localStorage.setItem('tecnico_especialidades', novosDados.certificacoes);
+      }
+      if (novosDados.especialidades !== undefined && novosDados.certificacoes === undefined) {
+        localStorage.setItem('tecnico_especialidades', novosDados.especialidades);
+        localStorage.setItem('tecnico_certificacoes', novosDados.especialidades);
+      }
 
       if (novosDados.pdfTemplate !== undefined) localStorage.setItem('tecnico_pdf_template', novosDados.pdfTemplate);
       if (novosDados.pdfOrientation !== undefined) localStorage.setItem('tecnico_pdf_orientation', novosDados.pdfOrientation);
@@ -265,20 +492,249 @@ const PerfilTecnico = {
     return docDefinition;
   },
 
-  // Converter imagem para Base64
+  // Converter imagem para Base64 (sempre em formato PNG compatível com pdfMake)
   converterLogoParaBase64(arquivo) {
     return new Promise((resolve, reject) => {
       if (!arquivo) return reject(new Error('Nenhum arquivo fornecido.'));
-      if (!arquivo.type.startsWith('image/')) return reject(new Error('Selecione uma imagem válida (PNG, JPG ou WEBP).'));
+      if (!arquivo.type.startsWith('image/')) return reject(new Error('Selecione uma imagem válida (PNG ou JPG).'));
       
       const leitor = new FileReader();
-      leitor.onload = () => resolve(leitor.result);
+      leitor.onload = () => {
+        const rawUrl = leitor.result;
+        if (typeof rawUrl !== 'string') return reject(new Error('Falha ao processar arquivo.'));
+        
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            let w = img.width || 400;
+            let h = img.height || 400;
+            if (w > 900 || h > 900) {
+              if (w >= h) {
+                h = Math.round((h * 900) / w);
+                w = 900;
+              } else {
+                w = Math.round((w * 900) / h);
+                h = 900;
+              }
+            }
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(img, 0, 0, w, h);
+              const pngData = canvas.toDataURL('image/png');
+              return resolve(pngData);
+            }
+            resolve(rawUrl);
+          } catch (e) {
+            resolve(rawUrl);
+          }
+        };
+        img.onerror = () => resolve(rawUrl);
+        img.src = rawUrl;
+      };
       leitor.onerror = (err) => reject(err);
       leitor.readAsDataURL(arquivo);
     });
   },
 
-  // Gera o cabeçalho PDF 100% White-Label aplicando a estrutura visual do template escolhido
+  // Constrói a distribuição em 2 blocos (esquerda e direita)
+  // 100% dinâmico a partir das configurações do perfil do técnico (sem dados hardcoded)
+  construirBlocoDuplo(p, t, corBorda, isLandscape, fsMult, isDark = false) {
+    const primaryColor = t.primary || corBorda || '#0066FF';
+    const strokeColor = corBorda || primaryColor;
+    const secondaryColor = t.secondary || primaryColor;
+
+    // 1. LOGOTIPO DO TÉCNICO (Extrema esquerda)
+    const logoValida = this.isPdfMakeCompatibleImage(p.logoBase64);
+    let colunaLogo = null;
+    if (logoValida) {
+      colunaLogo = {
+        image: p.logoBase64,
+        fit: isLandscape ? [90, 54] : [82, 50],
+        alignment: 'left',
+        margin: [0, 0, 12, 0]
+      };
+    } else if (p.nome && p.nome.trim()) {
+      const iniciais = p.nome
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(w => w[0].toUpperCase())
+        .join('');
+      if (iniciais) {
+        colunaLogo = {
+          table: {
+            widths: [44],
+            body: [[
+              {
+                text: `⚡ ${iniciais}`,
+                fillColor: isDark ? '#1E293B' : primaryColor,
+                color: isDark ? secondaryColor : '#FFFFFF',
+                bold: true,
+                fontSize: Math.round(10 * fsMult),
+                alignment: 'center',
+                margin: [0, 8, 0, 8]
+              }
+            ]]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => strokeColor,
+            vLineColor: () => strokeColor
+          },
+          alignment: 'left',
+          margin: [0, 0, 12, 0]
+        };
+      }
+    }
+
+    // BLOCO DA ESQUERDA: [ LOGOTIPO ] + [ NOME DA EMPRESA/TÉCNICO ], [ SLOGAN/SUBTÍTULO ], [ CERTIFICAÇÕES/ESPECIALIDADES ]
+    // Telefone, cidade e NUIT rigorosamente removidos da esquerda.
+    // Exibir apenas os campos preenchidos, sem nenhum valor hardcoded.
+    const stackEsquerda = [];
+    if (p.nome && p.nome.trim()) {
+      stackEsquerda.push({
+        text: p.nome.trim().toUpperCase(),
+        fontSize: Math.round(12.5 * fsMult),
+        bold: true,
+        color: isDark ? '#FFFFFF' : primaryColor,
+        alignment: 'left'
+      });
+    }
+    if (p.slogan && p.slogan.trim()) {
+      stackEsquerda.push({
+        text: p.slogan.trim(),
+        fontSize: Math.round(8.5 * fsMult),
+        italics: true,
+        color: isDark ? secondaryColor : (t.secondary || '#475569'),
+        alignment: 'left',
+        margin: [0, 1, 0, 2]
+      });
+    }
+    const certEsp = (p.certificacoes || p.especialidades || '').trim();
+    if (certEsp) {
+      stackEsquerda.push({
+        text: certEsp,
+        fontSize: Math.round(7.2 * fsMult),
+        color: isDark ? '#94A3B8' : '#64748B',
+        alignment: 'left',
+        margin: [0, 1, 0, 0]
+      });
+    }
+
+    const colunasEsquerda = [];
+    if (colunaLogo) {
+      colunasEsquerda.push({ width: 'auto', ...colunaLogo });
+    }
+    if (stackEsquerda.length > 0) {
+      colunasEsquerda.push({ width: '*', stack: stackEsquerda });
+    }
+
+    // BLOCO DA DIREITA (Caixa de Contato & Informações Gerais):
+    // Crie um retângulo posicionado na extrema direita do cabeçalho, alinhado rigorosamente com a borda direita da tabela.
+    // Exibe dinamicamente:
+    // * TEL / WhatsApp: {dadosDoTecnico.telefone}
+    // * Cidade/Endereço: {dadosDoTecnico.cidade}
+    // * NUIT / Registro: {dadosDoTecnico.nuit} (se preenchido)
+    // * Email: {dadosDoTecnico.email} (se preenchido)
+    const linhasContato = [];
+    if (p.telefone && p.telefone.trim()) {
+      linhasContato.push({
+        text: [
+          { text: 'TEL / WhatsApp: ', bold: true, fontSize: Math.round(7.2 * fsMult), color: isDark ? '#F1F5F9' : '#1E293B' },
+          { text: p.telefone.trim(), fontSize: Math.round(7.2 * fsMult), color: isDark ? '#94A3B8' : '#334155' }
+        ],
+        alignment: 'left',
+        margin: [0, 0.8, 0, 0.8]
+      });
+    }
+
+    const localizacao = [p.endereco, p.cidade].filter(v => v && v.trim()).map(v => v.trim()).join(', ');
+    if (localizacao) {
+      linhasContato.push({
+        text: [
+          { text: 'Cidade / Endereço: ', bold: true, fontSize: Math.round(7.2 * fsMult), color: isDark ? '#F1F5F9' : '#1E293B' },
+          { text: localizacao, fontSize: Math.round(7.2 * fsMult), color: isDark ? '#94A3B8' : '#475569' }
+        ],
+        alignment: 'left',
+        margin: [0, 0.8, 0, 0.8]
+      });
+    }
+
+    if (p.nuit && p.nuit.trim()) {
+      linhasContato.push({
+        text: [
+          { text: 'NUIT / Registro: ', bold: true, fontSize: Math.round(7.2 * fsMult), color: isDark ? '#F1F5F9' : '#1E293B' },
+          { text: p.nuit.trim(), fontSize: Math.round(7.2 * fsMult), color: isDark ? '#94A3B8' : '#475569' }
+        ],
+        alignment: 'left',
+        margin: [0, 0.8, 0, 0.8]
+      });
+    }
+
+    if (p.email && p.email.trim()) {
+      linhasContato.push({
+        text: [
+          { text: 'Email: ', bold: true, fontSize: Math.round(7.2 * fsMult), color: isDark ? '#F1F5F9' : '#1E293B' },
+          { text: p.email.trim(), fontSize: Math.round(7.2 * fsMult), color: isDark ? '#94A3B8' : '#475569' }
+        ],
+        alignment: 'left',
+        margin: [0, 0.8, 0, 0.8]
+      });
+    }
+
+    // ESTILIZAÇÃO E COR DINÂMICA DO RETÂNGULO:
+    // Borda (strokeColor) e fundo suave com a cor primária / tema ativo
+    const fundoSuave = isDark ? '#0F172A' : (t.lightBg || '#F8FAFC');
+
+    let colunaDireita;
+    if (linhasContato.length > 0) {
+      colunaDireita = {
+        width: isLandscape ? 230 : 185,
+        table: {
+          widths: ['*'],
+          body: [[
+            {
+              fillColor: fundoSuave,
+              stack: linhasContato,
+              margin: [8, 5, 8, 5]
+            }
+          ]]
+        },
+        layout: {
+          hLineWidth: () => 1,
+          vLineWidth: () => 1,
+          hLineColor: () => strokeColor,
+          vLineColor: () => strokeColor
+        },
+        alignment: 'right'
+      };
+    } else {
+      colunaDireita = {
+        width: 'auto',
+        text: ''
+      };
+    }
+
+    return {
+      columns: [
+        {
+          width: '*',
+          columns: colunasEsquerda.length > 0 ? colunasEsquerda : [{ text: '', width: '*' }]
+        },
+        colunaDireita
+      ],
+      margin: [0, 0, 0, 6]
+    };
+  },
+
+  // Gera o cabeçalho PDF 100% White-Label aplicando a estrutura visual de 2 blocos
   gerarCabecalhoPDF(tituloDocumento = 'DOCUMENTO TÉCNICO', subtitulo = '') {
     const p = this.obter();
     const tema = this.obterTema();
@@ -288,52 +744,8 @@ const PerfilTecnico = {
     const lineWidth = tema.contentWidth;
     const fsMult = tema.fontMultiplier;
 
-    // Coluna do Logotipo do Técnico
-    let colunaLogo;
-    if (p.logoBase64) {
-      colunaLogo = {
-        image: p.logoBase64,
-        width: 65,
-        height: 48,
-        alignment: 'center',
-        margin: [0, 0, 12, 0]
-      };
-    } else {
-      // Monograma elegante baseado nas iniciais do profissional
-      const iniciais = (p.nome || 'EP')
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map(w => w[0].toUpperCase())
-        .join('');
-
-      colunaLogo = {
-        table: {
-          widths: [54],
-          body: [[
-            {
-              text: `⚡ ${iniciais}`,
-              fillColor: t.primary,
-              color: '#FFFFFF',
-              bold: true,
-              fontSize: Math.round(11 * fsMult),
-              alignment: 'center',
-              margin: [0, 10, 0, 10]
-            }
-          ]]
-        },
-        layout: {
-          hLineWidth: () => 1,
-          vLineWidth: () => 1,
-          hLineColor: () => corBorda,
-          vLineColor: () => corBorda
-        },
-        margin: [0, 0, 12, 0]
-      };
-    }
-
-    // ESTRUTURA 2: MODERNO DARK (Cabeçalho escuro centralizado com acentos coloridos)
-    if (t.id === 'modern_tech') {
+    // ESTRUTURA 2: MODERNO DARK (Cabeçalho escuro com layout 2 blocos)
+    if (t.id === 'modern_tech' || t.id === 'modern_dark') {
       return [
         {
           table: {
@@ -342,43 +754,9 @@ const PerfilTecnico = {
               {
                 fillColor: '#0F172A',
                 stack: [
-                  p.logoBase64 ? {
-                    image: p.logoBase64,
-                    width: 55,
-                    height: 40,
-                    alignment: 'center',
-                    margin: [0, 2, 0, 4]
-                  } : {
-                    text: `⚡ ${(p.nome || 'EP').slice(0, 2).toUpperCase()}`,
-                    fontSize: 14,
-                    bold: true,
-                    color: t.secondary,
-                    alignment: 'center',
-                    margin: [0, 2, 0, 2]
-                  },
-                  {
-                    text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(),
-                    fontSize: Math.round(13 * fsMult),
-                    bold: true,
-                    color: '#FFFFFF',
-                    alignment: 'center'
-                  },
-                  p.slogan ? {
-                    text: p.slogan,
-                    fontSize: Math.round(8.5 * fsMult),
-                    italics: true,
-                    color: t.secondary,
-                    alignment: 'center',
-                    margin: [0, 1, 0, 2]
-                  } : {},
-                  {
-                    text: `Tel: ${p.telefone || '---'}  •  ${p.email || 'Moçambique'}${p.nuit ? '  •  NUIT: ' + p.nuit : ''}`,
-                    fontSize: Math.round(7.5 * fsMult),
-                    color: '#94A3B8',
-                    alignment: 'center'
-                  }
+                  this.construirBlocoDuplo(p, t, corBorda, isLandscape, fsMult, true)
                 ],
-                margin: [6, 8, 6, 8]
+                margin: [6, 6, 6, 6]
               }
             ]]
           },
@@ -428,37 +806,10 @@ const PerfilTecnico = {
       ];
     }
 
-    // ESTRUTURA 3: MINIMALISTA VERDE (Linhas finas, sem blocos de fundo pesados, foco em tabelas limpas)
+    // ESTRUTURA 3: MINIMALISTA VERDE (Linhas finas, foco em alinhamento horizontal limpo)
     if (t.id === 'minimalist_green') {
       return [
-        {
-          columns: [
-            colunaLogo,
-            {
-              stack: [
-                {
-                  text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(),
-                  fontSize: Math.round(12.5 * fsMult),
-                  bold: true,
-                  color: t.primary
-                },
-                p.slogan ? {
-                  text: p.slogan,
-                  fontSize: Math.round(8.5 * fsMult),
-                  italics: true,
-                  color: '#475569',
-                  margin: [0, 1, 0, 2]
-                } : {},
-                {
-                  text: `Tel: ${p.telefone || '---'}  |  ${p.email || 'Moçambique'}${p.nuit ? '  |  NUIT: ' + p.nuit : ''}`,
-                  fontSize: Math.round(7.5 * fsMult),
-                  color: '#64748B'
-                }
-              ]
-            }
-          ],
-          margin: [0, 0, 0, 6]
-        },
+        this.construirBlocoDuplo(p, t, corBorda, isLandscape, fsMult, false),
         // Linha divisória fina minimalista
         {
           canvas: [
@@ -475,13 +826,13 @@ const PerfilTecnico = {
               bold: true,
               color: t.primary
             },
-            {
-              text: subtitulo || '',
+            subtitulo ? {
+              text: subtitulo,
               fontSize: Math.round(7.5 * fsMult),
               color: '#64748B',
               alignment: 'right',
               margin: [0, 2, 0, 0]
-            }
+            } : { text: '', width: 'auto' }
           ],
           margin: [0, 0, 0, 8]
         },
@@ -494,58 +845,14 @@ const PerfilTecnico = {
       ];
     }
 
-    // ESTRUTURA 4: EXECUTIVO ELEGANTE (Layout estruturado em 3 colunas balanceadas)
+    // ESTRUTURA 4: EXECUTIVO ELEGANTE
     if (t.id === 'executive_elegant') {
       return [
+        this.construirBlocoDuplo(p, t, corBorda, isLandscape, fsMult, false),
+        // Linha de acento executiva
         {
-          columns: [
-            colunaLogo,
-            {
-              width: '*',
-              stack: [
-                {
-                  text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(),
-                  fontSize: Math.round(12.5 * fsMult),
-                  bold: true,
-                  color: t.primary
-                },
-                p.slogan ? {
-                  text: p.slogan,
-                  fontSize: Math.round(8.5 * fsMult),
-                  italics: true,
-                  color: t.secondary,
-                  margin: [0, 1, 0, 2]
-                } : {},
-                {
-                  text: `Certificação Técnica • Instalações Prediais & Industriais`,
-                  fontSize: Math.round(7.5 * fsMult),
-                  color: '#64748B'
-                }
-              ]
-            },
-            {
-              width: isLandscape ? 240 : 160,
-              table: {
-                widths: ['*'],
-                body: [[
-                  {
-                    fillColor: '#F8FAFC',
-                    stack: [
-                      { text: `TEL: ${p.telefone || '---'}`, fontSize: Math.round(7.5 * fsMult), bold: true, color: '#334155' },
-                      p.nuit ? { text: `NUIT: ${p.nuit}`, fontSize: Math.round(7.2 * fsMult), color: '#475569' } : {},
-                      { text: `${p.cidade || 'Moçambique'}`, fontSize: Math.round(7.2 * fsMult), color: '#64748B' }
-                    ],
-                    margin: [4, 4, 4, 4]
-                  }
-                ]]
-              },
-              layout: {
-                hLineWidth: () => 1,
-                vLineWidth: () => 1,
-                hLineColor: () => corBorda,
-                vLineColor: () => corBorda
-              }
-            }
+          canvas: [
+            { type: 'line', x1: 0, y1: 0, x2: lineWidth, y2: 0, lineWidth: 2, lineColor: corBorda }
           ],
           margin: [0, 0, 0, 6]
         },
@@ -587,7 +894,7 @@ const PerfilTecnico = {
       ];
     }
 
-    // ESTRUTURA 5: PREMIUM DOURADO & GRAFITE (Luxo, linhas duplas e selo dourado)
+    // ESTRUTURA 5: PREMIUM DOURADO & GRAFITE (Luxo)
     if (t.id === 'premium_gold') {
       return [
         {
@@ -597,46 +904,7 @@ const PerfilTecnico = {
               {
                 fillColor: '#18181B',
                 stack: [
-                  {
-                    columns: [
-                      p.logoBase64 ? {
-                        image: p.logoBase64,
-                        width: 54,
-                        height: 40,
-                        alignment: 'center',
-                        margin: [0, 0, 8, 0]
-                      } : {
-                        text: `⚡ ${(p.nome || 'EP').slice(0, 2).toUpperCase()}`,
-                        fontSize: 14,
-                        bold: true,
-                        color: '#F59E0B',
-                        alignment: 'center',
-                        margin: [0, 6, 8, 6]
-                      },
-                      {
-                        stack: [
-                          {
-                            text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(),
-                            fontSize: Math.round(13 * fsMult),
-                            bold: true,
-                            color: '#F59E0B'
-                          },
-                          p.slogan ? {
-                            text: p.slogan,
-                            fontSize: Math.round(8.5 * fsMult),
-                            italics: true,
-                            color: '#E4E4E7',
-                            margin: [0, 1, 0, 2]
-                          } : {},
-                          {
-                            text: `Tel: ${p.telefone || '---'}  •  ${p.cidade || 'Moçambique'}${p.nuit ? '  •  NUIT: ' + p.nuit : ''}`,
-                            fontSize: Math.round(7.5 * fsMult),
-                            color: '#A1A1AA'
-                          }
-                        ]
-                      }
-                    ]
-                  }
+                  this.construirBlocoDuplo(p, t, corBorda, isLandscape, fsMult, true)
                 ],
                 margin: [8, 6, 8, 6]
               }
@@ -650,7 +918,7 @@ const PerfilTecnico = {
           },
           margin: [0, 0, 0, 4]
         },
-        // Linha dourada dupla decorativa
+        // Linha dourada decorativa
         {
           canvas: [
             { type: 'line', x1: 0, y1: 0, x2: lineWidth, y2: 0, lineWidth: 2, lineColor: '#D97706' }
@@ -694,62 +962,16 @@ const PerfilTecnico = {
       ];
     }
 
-    // ESTRUTURA 6: INDUSTRIAL HIGH-CONTRAST (Foco em segurança de campo e alto contraste)
-    if (t.id === 'industrial_orange') {
+    // ESTRUTURA 6: INDUSTRIAL HIGH-CONTRAST
+    if (t.id === 'industrial_orange' || t.id === 'industrial_contrast') {
       return [
+        this.construirBlocoDuplo(p, t, corBorda, isLandscape, fsMult, false),
+        // Linha divisória industrial
         {
-          table: {
-            widths: [75, '*'],
-            body: [[
-              {
-                fillColor: '#111827',
-                stack: [
-                  colunaLogo,
-                  {
-                    text: 'NORMAS IEC/EDM',
-                    fontSize: 6,
-                    bold: true,
-                    color: '#F97316',
-                    alignment: 'center',
-                    margin: [0, 2, 0, 0]
-                  }
-                ],
-                margin: [4, 6, 4, 6]
-              },
-              {
-                fillColor: '#FFF7ED',
-                stack: [
-                  {
-                    text: (p.nome || 'SERVIÇOS TÉCNICOS INDUSTRIAIS').toUpperCase(),
-                    fontSize: Math.round(13 * fsMult),
-                    bold: true,
-                    color: '#C2410C'
-                  },
-                  p.slogan ? {
-                    text: p.slogan,
-                    fontSize: Math.round(8.5 * fsMult),
-                    italics: true,
-                    color: '#EA580C',
-                    margin: [0, 1, 0, 2]
-                  } : {},
-                  {
-                    text: `SEGURANÇA & MANUTENÇÃO • TEL: ${p.telefone || '---'} • ${p.cidade || 'Moçambique'}${p.nuit ? ' • NUIT: ' + p.nuit : ''}`,
-                    fontSize: Math.round(7.5 * fsMult),
-                    bold: true,
-                    color: '#431407'
-                  }
-                ],
-                margin: [8, 6, 8, 6]
-              }
-            ]]
-          },
-          layout: {
-            hLineWidth: () => 1.5,
-            vLineWidth: () => 1.5,
-            hLineColor: () => '#EA580C',
-            vLineColor: () => '#EA580C'
-          },
-          margin: [0, 0, 0, 4]
+          canvas: [
+            { type: 'line', x1: 0, y1: 0, x2: lineWidth, y2: 0, lineWidth: 2.5, lineColor: '#F97316' }
+          ],
+          margin: [0, 0, 0, 6]
         },
         // Tarja industrial de documento
         {
@@ -789,62 +1011,16 @@ const PerfilTecnico = {
       ];
     }
 
-    // ESTRUTURA 7: CLEAN PADRÃO EDM (Fichas operacionais da rede de energia)
+    // ESTRUTURA 7: CLEAN PADRÃO EDM
     if (t.id === 'clean_edm') {
       return [
+        this.construirBlocoDuplo(p, t, corBorda, isLandscape, fsMult, false),
+        // Linha divisória EDM
         {
-          table: {
-            widths: ['*', 120],
-            body: [[
-              {
-                stack: [
-                  {
-                    columns: [
-                      colunaLogo,
-                      {
-                        stack: [
-                          {
-                            text: (p.nome || 'SERVIÇOS TÉCNICOS ELETRICIDADE').toUpperCase(),
-                            fontSize: Math.round(12.5 * fsMult),
-                            bold: true,
-                            color: '#0369A1'
-                          },
-                          p.slogan ? {
-                            text: p.slogan,
-                            fontSize: Math.round(8.5 * fsMult),
-                            italics: true,
-                            color: '#0284C7',
-                            margin: [0, 1, 0, 2]
-                          } : {},
-                          {
-                            text: `Operações em Baixa & Média Tensão (220V / 380V - 50Hz)`,
-                            fontSize: Math.round(7.5 * fsMult),
-                            color: '#475569'
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                fillColor: '#E0F2FE',
-                stack: [
-                  { text: 'PADRÃO EDM', fontSize: 8, bold: true, color: '#0369A1', alignment: 'center' },
-                  { text: `Tel: ${p.telefone}`, fontSize: 7, color: '#0C4A6E', alignment: 'center', margin: [0, 2, 0, 0] },
-                  { text: `${p.cidade}`, fontSize: 7, color: '#0C4A6E', alignment: 'center' }
-                ],
-                margin: [4, 4, 4, 4]
-              }
-            ]]
-          },
-          layout: {
-            hLineWidth: () => 1,
-            vLineWidth: () => 1,
-            hLineColor: () => '#0284C7',
-            vLineColor: () => '#0284C7'
-          },
-          margin: [0, 0, 0, 4]
+          canvas: [
+            { type: 'line', x1: 0, y1: 0, x2: lineWidth, y2: 0, lineWidth: 2, lineColor: '#0284C7' }
+          ],
+          margin: [0, 0, 0, 6]
         },
         // Tarja de documento padrão EDM
         {
@@ -884,48 +1060,9 @@ const PerfilTecnico = {
       ];
     }
 
-    // ESTRUTURA 1 (Corporativo) e Padrão: Cabeçalho com bloco corporativo e identificação estruturada
-    const colunaInfo = {
-      stack: [
-        { 
-          text: (p.nome || 'SERVIÇOS TÉCNICOS').toUpperCase(), 
-          fontSize: Math.round(13 * fsMult), 
-          bold: true, 
-          color: t.primary 
-        },
-        p.slogan ? { 
-          text: `"${p.slogan}"`, 
-          fontSize: Math.round(8.5 * fsMult), 
-          italics: true, 
-          color: t.secondary, 
-          margin: [0, 1, 0, 3] 
-        } : {},
-        {
-          columns: [
-            { 
-              text: `Tel / WhatsApp: ${p.telefone || '---'}${p.email ? '  |  ' + p.email : ''}`, 
-              fontSize: Math.round(7.5 * fsMult), 
-              color: '#475569' 
-            },
-            { 
-              text: `${p.nuit ? 'NUIT: ' + p.nuit + '  |  ' : ''}${p.cidade || 'Moçambique'}`, 
-              fontSize: Math.round(7.5 * fsMult), 
-              color: '#475569', 
-              alignment: 'right' 
-            }
-          ]
-        }
-      ]
-    };
-
+    // ESTRUTURA 1 (Corporativo) e Padrão: Layout em 2 blocos
     return [
-      {
-        columns: [
-          colunaLogo,
-          colunaInfo
-        ],
-        margin: [0, 0, 0, 6]
-      },
+      this.construirBlocoDuplo(p, t, corBorda, isLandscape, fsMult, false),
       // Linha divisória com a cor de destaque/borda selecionada
       {
         canvas: [
@@ -1041,6 +1178,11 @@ const PerfilTecnico = {
 
 if (typeof window !== 'undefined') {
   window.PerfilTecnico = PerfilTecnico;
+  try {
+    PerfilTecnico.instalarBlindagemPdfMake();
+  } catch (e) {
+    console.warn('[PerfilTecnico] Falha ao inicializar blindagem do pdfMake:', e);
+  }
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = PerfilTecnico;

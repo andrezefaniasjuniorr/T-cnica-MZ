@@ -25,7 +25,8 @@ import {
   compressImage,
   persistCompanyLogo,
   getSavedCompanyLogoSync,
-  getSavedCompanyLogoAsync
+  getSavedCompanyLogoAsync,
+  isPdfCompatibleImage
 } from '../../utils/imageCompressor';
 
 interface PortfolioModalProps {
@@ -284,7 +285,22 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
         ctx.beginPath();
         ctx.roundRect(logoX + 4, logoY + 4, logoSize - 8, logoSize - 8, 8);
         ctx.clip();
-        ctx.drawImage(logoImg, logoX + 4, logoY + 4, logoSize - 8, logoSize - 8);
+
+        // Preserva a proporção correta de aspecto do logotipo (fit contain sem distorção)
+        const innerSize = logoSize - 8;
+        const imgRatio = (logoImg.width || 1) / (logoImg.height || 1);
+        let dw = innerSize;
+        let dh = innerSize;
+        let dx = logoX + 4;
+        let dy = logoY + 4;
+        if (imgRatio > 1) {
+          dh = innerSize / imgRatio;
+          dy = logoY + 4 + (innerSize - dh) / 2;
+        } else {
+          dw = innerSize * imgRatio;
+          dx = logoX + 4 + (innerSize - dw) / 2;
+        }
+        ctx.drawImage(logoImg, dx, dy, dw, dh);
         ctx.restore();
       };
       logoImg.src = logoBase64;
@@ -387,12 +403,14 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
                 { text: `Tel: ${perfil.telefone} | ${perfil.cidade}`, fontSize: 8, color: '#64748B', margin: [0, 2, 0, 8] }
               ],
           // Imagem composta de alta resolução do Antes & Depois
-          {
-            image: imageBase64,
-            width: 770,
-            alignment: 'center',
-            margin: [0, 4, 0, 8]
-          },
+          ...(imageBase64 && isPdfCompatibleImage(imageBase64)
+            ? [{
+                image: imageBase64,
+                width: 770,
+                alignment: 'center',
+                margin: [0, 4, 0, 8]
+              }]
+            : []),
           // Rodapé técnico descritivo
           {
             table: {
@@ -718,7 +736,7 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
                       <span>{logoBase64 ? 'Alterar Logotipo' : 'Anexar Logotipo'}</span>
                     </button>
                     <p className="text-[9px] text-slate-400 leading-tight">
-                      Comprimido automaticamente para 400px e salvo localmente para todos os PDFs.
+                      Processado em alta nitidez (900px) e salvo localmente para todos os PDFs.
                     </p>
                     <input
                       ref={fileInputLogoRef}
@@ -729,7 +747,7 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
                         const file = e.target.files?.[0];
                         if (file) {
                           try {
-                            const compressed = await compressImage(file, 400, 0.7);
+                            const compressed = await compressImage(file, 900, 0.92);
                             setLogoBase64(compressed);
                             try {
                               localStorage.setItem('company_logo_base64', compressed);
