@@ -1,13 +1,32 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import autoprefixer from 'autoprefixer';
+import fs from 'fs';
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+// Plugin para garantir cópia de arquivos e pastas ocultas (como .well-known) da pasta public para a pasta dist
+function copyWellKnownPlugin(): Plugin {
+  return {
+    name: 'copy-well-known',
+    closeBundle() {
+      const srcDir = path.resolve(__dirname, 'public/.well-known');
+      const destDir = path.resolve(__dirname, 'dist/.well-known');
+      if (fs.existsSync(srcDir)) {
+        if (!fs.existsSync(destDir)) {
+          fs.mkdirSync(destDir, { recursive: true });
+        }
+        fs.cpSync(srcDir, destDir, { recursive: true });
+      }
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
     base: '/',
+    publicDir: 'public',
     build: {
       target: ['es2015', 'chrome60', 'safari11', 'edge18'],
       cssTarget: ['es2015', 'chrome60', 'safari11', 'edge18'],
@@ -48,6 +67,7 @@ export default defineConfig(() => {
     plugins: [
       react(),
       tailwindcss(),
+      copyWellKnownPlugin(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: [
@@ -114,7 +134,7 @@ export default defineConfig(() => {
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,jpg}'],
           navigateFallback: '/index.html',
-          navigateFallbackDenylist: [/^\/api/],
+          navigateFallbackDenylist: [/^\/api/, /^\/\.well-known/],
           runtimeCaching: [
             {
               urlPattern: ({ request }) => request.destination === 'script' || request.destination === 'style',
