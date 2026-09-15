@@ -64,6 +64,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.get('/.well-known/assetlinks.json', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   const assetlinksPath = path.join(process.cwd(), 'public', '.well-known', 'assetlinks.json');
   res.sendFile(assetlinksPath);
 });

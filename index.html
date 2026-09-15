@@ -221,6 +221,22 @@
         } catch(err) {
           console.warn('IAB Detection error:', err);
         }
+
+        // Garante que links internos permaneçam na mesma visualização em modo Standalone/TWA sem abrir navegador externo
+        try {
+          document.addEventListener('click', function(e) {
+            var el = e.target && e.target.closest ? e.target.closest('a') : null;
+            if (!el) return;
+            var href = el.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:') || href.startsWith('https://wa.me')) return;
+            var isStandalone = window.matchMedia('(display-mode: standalone)').matches || ('standalone' in navigator && navigator.standalone) || window.location.search.indexOf('mode=standalone') !== -1;
+            if (isStandalone && (href.startsWith('/') || href.startsWith(window.location.origin))) {
+              if (el.getAttribute('target') === '_blank') {
+                el.removeAttribute('target');
+              }
+            }
+          }, true);
+        } catch(e) {}
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

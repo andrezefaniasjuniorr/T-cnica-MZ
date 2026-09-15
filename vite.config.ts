@@ -92,15 +92,16 @@ export default defineConfig(() => {
           'admin.js',
           'tecnica_mz_slogan.jpg',
         ],
-        manifest: {
+        manifest: ({
           id: '/',
           name: 'TécnicaMZ Pro',
           short_name: 'TécnicaMZ Pro',
           description: 'A maior rede de profissionais técnicos e empresas de engenharia em Moçambique. Encontre especialistas em eletrônica, eletricidade, refrigeração e TI.',
-          start_url: '/',
+          start_url: '/?mode=standalone',
           scope: '/',
           display: 'standalone',
-          display_override: ['standalone', 'fullscreen'],
+          display_override: ['standalone', 'fullscreen', 'minimal-ui'],
+          capture_links: 'existing_client_navigate',
           orientation: 'portrait',
           background_color: '#020617',
           theme_color: '#020617',
@@ -129,7 +130,7 @@ export default defineConfig(() => {
               type: 'image/svg+xml',
             },
           ],
-        },
+        } as any),
         workbox: {
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,jpg}'],
