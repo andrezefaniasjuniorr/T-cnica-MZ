@@ -1,10 +1,12 @@
-[{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "dev.pages.tecnicamzpro.twa",
-    "sha256_cert_fingerprints": [
-      "1A:32:89:E0:0D:29:EB:E1:EC:A0:BE:87:07:0B:7B:3D:11:1A:5C:D0:69:50:89:22:64:AE:70:CD:B9:7A:73:08"
-    ]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "dev.pages.tecnicamzpro.twa",
+      "sha256_cert_fingerprints": [
+        "3B:BE:30:A0:96:DB:58:E6:E8:D8:4D:61:55:46:35:0C:1C:C8:1A:E4:49:01:37:AA:47:43:F2:2A:9A:DC:96:90"
+      ]
+    }
   }
-}]
+]
