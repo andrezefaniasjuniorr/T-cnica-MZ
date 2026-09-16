@@ -49,7 +49,12 @@ async function gerarPDF_OS(dados, acao = 'download') {
   // White-Label estrito: apenas chaves técnico do localStorage
   const nomeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_nome')) || 'Profissional Técnico';
   const sloganTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_slogan')) || 'Instalações, Manutenção e Soluções Elétricas';
-  const logoTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_logo')) || null;
+  const logoTecnico = (typeof localStorage !== 'undefined' && (
+    localStorage.getItem('user_logo') ||
+    localStorage.getItem('company_logo_base64') ||
+    localStorage.getItem('app_company_logo') ||
+    localStorage.getItem('tecnico_logo')
+  )) || null;
   const telefoneTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_telefone')) || '+258 84 000 0000';
   const emailTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_email')) || '';
   const cidadeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_cidade')) || 'Maputo';
@@ -487,7 +492,12 @@ async function gerarListaMateriais(dadosObra = {}, itensOuComodos = [], acao = '
 
   const nomeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_nome')) || 'Profissional Técnico';
   const sloganTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_slogan')) || 'Instalações, Manutenção e Soluções Elétricas';
-  const logoTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_logo')) || null;
+  const logoTecnico = (typeof localStorage !== 'undefined' && (
+    localStorage.getItem('user_logo') ||
+    localStorage.getItem('company_logo_base64') ||
+    localStorage.getItem('app_company_logo') ||
+    localStorage.getItem('tecnico_logo')
+  )) || null;
   const telefoneTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_telefone')) || '+258 84 000 0000';
   const cidadeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_cidade')) || 'Maputo';
 

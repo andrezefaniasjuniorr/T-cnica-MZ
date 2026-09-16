@@ -4,6 +4,7 @@
  * garantindo persistência do logotipo da empresa e fotos em PDFs/Portfólios.
  */
 
+export const USER_LOGO_KEY = 'user_logo';
 export const COMPANY_LOGO_BASE64_KEY = 'company_logo_base64';
 export const COMPANY_LOGO_KEY = 'app_company_logo';
 export const LEGACY_LOGO_KEY = 'tecnico_logo';
@@ -203,6 +204,7 @@ export async function persistCompanyLogo(
 
   if (!logoBase64) {
     try {
+      localStorage.removeItem(USER_LOGO_KEY);
       localStorage.removeItem(COMPANY_LOGO_BASE64_KEY);
       localStorage.removeItem(COMPANY_LOGO_KEY);
       localStorage.removeItem(LEGACY_LOGO_KEY);
@@ -216,6 +218,7 @@ export async function persistCompanyLogo(
 
   // Gravação direta no localStorage nas chaves oficiais
   try {
+    localStorage.setItem(USER_LOGO_KEY, logoBase64);
     localStorage.setItem(COMPANY_LOGO_BASE64_KEY, logoBase64);
     localStorage.setItem(COMPANY_LOGO_KEY, logoBase64);
     localStorage.setItem(LEGACY_LOGO_KEY, logoBase64);
@@ -234,6 +237,7 @@ export async function persistCompanyLogo(
         cleanStorageTempCaches();
 
         const optimized = await compressImageAggressive(logoBase64);
+        localStorage.setItem(USER_LOGO_KEY, optimized);
         localStorage.setItem(COMPANY_LOGO_BASE64_KEY, optimized);
         localStorage.setItem(COMPANY_LOGO_KEY, optimized);
         localStorage.setItem(LEGACY_LOGO_KEY, optimized);
@@ -296,6 +300,7 @@ export function getSavedCompanyLogoSync(): string | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = (
+      localStorage.getItem(USER_LOGO_KEY) ||
       localStorage.getItem(COMPANY_LOGO_BASE64_KEY) ||
       localStorage.getItem(COMPANY_LOGO_KEY) ||
       localStorage.getItem(LEGACY_LOGO_KEY) ||
@@ -331,6 +336,7 @@ export async function getSavedCompanyLogoAsync(): Promise<string | null> {
   if (typeof window !== 'undefined') {
     try {
       rawLogo = (
+        localStorage.getItem(USER_LOGO_KEY) ||
         localStorage.getItem(COMPANY_LOGO_BASE64_KEY) ||
         localStorage.getItem(COMPANY_LOGO_KEY) ||
         localStorage.getItem(LEGACY_LOGO_KEY) ||

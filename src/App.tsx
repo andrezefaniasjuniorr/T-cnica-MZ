@@ -40,6 +40,14 @@ import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
 import { UserRole } from './types';
 import { Wrench, Phone, Mail, ShieldCheck, Heart, Sparkles } from 'lucide-react';
 import { soundFX } from './utils/audio';
+import {
+  getSavedCompanyLogoSync,
+  getSavedCompanyLogoAsync,
+  isPdfCompatibleImage,
+  compressImage,
+  persistCompanyLogo
+} from './utils/imageCompressor';
+import { saveBrandCustomization } from './utils/pdfBrandCustomizer';
 
 // Navigation Helper to map URL path or hash to an internal tab id
 const VALID_TABS = [
@@ -196,6 +204,80 @@ const AppContent: React.FC = () => {
   // Selo MZ Interception Modal State
   const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
   const [seloFeatureName, setSeloFeatureName] = useState('Ferramentas & Recursos');
+
+  // ==========================================================================
+  // CARREGAMENTO INICIAL NO BOOT/MOUNT: Hidratação imediata do logotipo dos PDFs
+  // ==========================================================================
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const hydrateLogoOnBoot = async () => {
+      try {
+        // 1. Busca imediatamente o logotipo salvo no LocalStorage (prioridade 'user_logo')
+        let rawLogo =
+          localStorage.getItem('user_logo') ||
+          localStorage.getItem('company_logo_base64') ||
+          localStorage.getItem('app_company_logo') ||
+          localStorage.getItem('tecnico_logo') ||
+          getSavedCompanyLogoSync();
+
+        // 2. Fallback resiliente no IndexedDB caso LocalStorage esteja vazio
+        if (!rawLogo) {
+          try {
+            rawLogo = await getSavedCompanyLogoAsync();
+          } catch (idbErr) {
+            console.warn('[LogoHydration] IndexedDB fallback check:', idbErr);
+          }
+        }
+
+        if (rawLogo) {
+          let validBase64 = rawLogo;
+
+          // Se a imagem não for um Data URL Base64 válido (PNG/JPEG), converte via canvas
+          if (!isPdfCompatibleImage(rawLogo)) {
+            try {
+              validBase64 = await compressImage(rawLogo, 900, 0.92);
+            } catch (convErr) {
+              console.warn('[LogoHydration] Conversão da imagem falhou:', convErr);
+            }
+          }
+
+          if (validBase64 && isPdfCompatibleImage(validBase64)) {
+            // Sincroniza em todas as chaves do localStorage para leitura síncrona dos geradores
+            try {
+              localStorage.setItem('user_logo', validBase64);
+              localStorage.setItem('company_logo_base64', validBase64);
+              localStorage.setItem('app_company_logo', validBase64);
+              localStorage.setItem('tecnico_logo', validBase64);
+            } catch (stErr) {
+              console.warn('[LogoHydration] localStorage quota:', stErr);
+            }
+
+            // Persiste no IndexedDB como garantia
+            persistCompanyLogo(validBase64).catch(() => {});
+
+            // Popula o estado global do PerfilTecnico / PDFs imediatamente
+            const helper = (window as any).PerfilTecnico;
+            if (helper && typeof helper.salvar === 'function') {
+              helper.salvar({ logoBase64: validBase64 });
+            }
+            saveBrandCustomization({ logoBase64: validBase64 });
+
+            // Dispara evento para sincronizar qualquer componente em escuta
+            window.dispatchEvent(
+              new CustomEvent('perfilTecnicoAtualizado', {
+                detail: { logoBase64: validBase64 }
+              })
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('[LogoHydration] Erro ao hidratar logotipo no boot:', err);
+      }
+    };
+
+    hydrateLogoOnBoot();
+  }, []);
 
   // Persistência contínua da última rota navegada (ocupando < 50 bytes)
   useEffect(() => {

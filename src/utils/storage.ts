@@ -30,7 +30,7 @@ function cleanupStorageQuota(): void {
       const k = window.localStorage.key(i);
       if (!k) continue;
 
-      // NUNCA remover chaves internas do Firestore, de autenticação ou de cache de sessão instantânea
+      // NUNCA remover chaves internas do Firestore, de autenticação, de cache de sessão ou de logotipo/marca
       if (
         k.startsWith('firestore_') ||
         k.startsWith('firebase:') ||
@@ -38,7 +38,13 @@ function cleanupStorageQuota(): void {
         k === 'tecnicamz_last_route' ||
         k === 'tecnicamz_auth_user_id' ||
         k === 'tecnicamz_cached_tech_profile' ||
-        k === 'tecnicamz_cached_company_profile'
+        k === 'tecnicamz_cached_company_profile' ||
+        k === 'user_logo' ||
+        k === 'company_logo_base64' ||
+        k === 'app_company_logo' ||
+        k === 'tecnico_logo' ||
+        k.startsWith('tecnico_') ||
+        k.startsWith('brand_')
       ) continue;
 
       if (heavyKeys.some((h) => k === h || k.startsWith(h))) {

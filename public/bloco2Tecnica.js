@@ -304,7 +304,12 @@ async function gerarChecklistNR10(dadosChecklist = {}, acao = 'download') {
 
   const nomeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_nome')) || 'Profissional Técnico';
   const sloganTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_slogan')) || 'Segurança, Instalações e Conformidade Técnica';
-  const logoTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_logo')) || null;
+  const logoTecnico = (typeof localStorage !== 'undefined' && (
+    localStorage.getItem('user_logo') ||
+    localStorage.getItem('company_logo_base64') ||
+    localStorage.getItem('app_company_logo') ||
+    localStorage.getItem('tecnico_logo')
+  )) || null;
   const telefoneTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_telefone')) || '+258 84 000 0000';
   const cidadeTecnico = (typeof localStorage !== 'undefined' && localStorage.getItem('tecnico_cidade')) || 'Maputo';
 

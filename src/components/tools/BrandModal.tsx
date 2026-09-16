@@ -45,6 +45,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     if (typeof window !== 'undefined') {
       try {
         const localSaved =
+          localStorage.getItem('user_logo') ||
           localStorage.getItem('company_logo_base64') ||
           localStorage.getItem('app_company_logo') ||
           localStorage.getItem('tecnico_logo');
@@ -64,11 +65,12 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 1. RESTAURAÇÃO E PERSISTÊNCIA PERMANENTE:
-  // No useEffect de inicialização da tela/modal, leia 'company_logo_base64' do localStorage e recupere
+  // No useEffect de inicialização da tela/modal, leia 'user_logo' e 'company_logo_base64' do localStorage e recupere
   // a foto no estado do formulário e no contexto global dos PDFs, impedindo que o estado padrão ("Sem Logo") sobrescreva.
   useEffect(() => {
     try {
       const storedLogo =
+        localStorage.getItem('user_logo') ||
         localStorage.getItem('company_logo_base64') ||
         localStorage.getItem('app_company_logo') ||
         localStorage.getItem('tecnico_logo') ||
@@ -91,6 +93,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
         getSavedCompanyLogoAsync().then(idbLogo => {
           if (idbLogo) {
             try {
+              localStorage.setItem('user_logo', idbLogo);
               localStorage.setItem('company_logo_base64', idbLogo);
             } catch (e) {}
             setSettings(prev => ({
@@ -106,7 +109,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
         });
       }
     } catch (err) {
-      console.warn('Erro ao restaurar company_logo_base64:', err);
+      console.warn('Erro ao restaurar logo:', err);
     }
   }, []);
 
@@ -180,8 +183,9 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
       // Injeta no estado do componente
       setSettings(prev => ({ ...prev, logoBase64: compressedBase64 }));
 
-      // Gravação direta preventiva no localStorage sob a chave 'company_logo_base64'
+      // Gravação direta preventiva no localStorage sob as chaves oficiais
       try {
+        localStorage.setItem('user_logo', compressedBase64);
         localStorage.setItem('company_logo_base64', compressedBase64);
         localStorage.setItem('app_company_logo', compressedBase64);
         localStorage.setItem('tecnico_logo', compressedBase64);
@@ -215,6 +219,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     setSettings(prev => ({ ...prev, logoBase64: null }));
     setLogoWarning(null);
     try {
+      localStorage.removeItem('user_logo');
       localStorage.removeItem('company_logo_base64');
       localStorage.removeItem('app_company_logo');
       localStorage.removeItem('tecnico_logo');
@@ -228,19 +233,20 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // SALVAMENTO: Gravação direta e inequívoca no localStorage ('company_logo_base64') e atualização do contexto global dos PDFs
+  // SALVAMENTO: Gravação direta e inequívoca no localStorage ('user_logo' / 'company_logo_base64') e atualização do contexto global dos PDFs
   const handleSave = async () => {
     setIsSaving(true);
     setLogoWarning(null);
     try {
-      // 1. Ao clicar em "Salvar Configurações", grava a imagem diretamente no localStorage sob a chave 'company_logo_base64'
+      // 1. Ao clicar em "Salvar Configurações", grava a imagem diretamente no localStorage sob a chave 'user_logo' e 'company_logo_base64'
       if (settings.logoBase64) {
         try {
+          localStorage.setItem('user_logo', settings.logoBase64);
           localStorage.setItem('company_logo_base64', settings.logoBase64);
           localStorage.setItem('app_company_logo', settings.logoBase64);
           localStorage.setItem('tecnico_logo', settings.logoBase64);
         } catch (localErr) {
-          console.warn('Aviso ao salvar company_logo_base64 diretamente no localStorage:', localErr);
+          console.warn('Aviso ao salvar logo diretamente no localStorage:', localErr);
         }
 
         const persistRes = await persistCompanyLogo(settings.logoBase64);
@@ -251,6 +257,7 @@ export const BrandModalContent: React.FC<{ onClose?: () => void }> = ({ onClose 
         }
       } else {
         try {
+          localStorage.removeItem('user_logo');
           localStorage.removeItem('company_logo_base64');
           localStorage.removeItem('app_company_logo');
           localStorage.removeItem('tecnico_logo');

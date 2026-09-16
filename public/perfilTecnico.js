@@ -184,6 +184,7 @@ const PerfilTecnico = {
               const pngData = canvas.toDataURL('image/png');
               if (this.isPdfMakeCompatibleImage(pngData)) {
                 try {
+                  localStorage.setItem('user_logo', pngData);
                   localStorage.setItem('company_logo_base64', pngData);
                   localStorage.setItem('app_company_logo', pngData);
                   localStorage.setItem('tecnico_logo', pngData);
@@ -341,6 +342,7 @@ const PerfilTecnico = {
       const nome = localStorage.getItem('tecnico_nome') || '';
       const slogan = localStorage.getItem('tecnico_slogan') || '';
       const rawLogo =
+        localStorage.getItem('user_logo') ||
         localStorage.getItem('company_logo_base64') ||
         localStorage.getItem('app_company_logo') ||
         localStorage.getItem('tecnico_logo');
@@ -395,6 +397,7 @@ const PerfilTecnico = {
       if (novosDados.logoBase64 !== undefined) {
         if (novosDados.logoBase64) {
           try {
+            localStorage.setItem('user_logo', novosDados.logoBase64);
             localStorage.setItem('company_logo_base64', novosDados.logoBase64);
             localStorage.setItem('app_company_logo', novosDados.logoBase64);
             localStorage.setItem('tecnico_logo', novosDados.logoBase64);
@@ -403,6 +406,7 @@ const PerfilTecnico = {
           }
         } else {
           try {
+            localStorage.removeItem('user_logo');
             localStorage.removeItem('company_logo_base64');
             localStorage.removeItem('app_company_logo');
             localStorage.removeItem('tecnico_logo');
@@ -549,12 +553,19 @@ const PerfilTecnico = {
     const strokeColor = corBorda || primaryColor;
     const secondaryColor = t.secondary || primaryColor;
 
-    // 1. LOGOTIPO DO TÉCNICO (Extrema esquerda)
-    const logoValida = this.isPdfMakeCompatibleImage(p.logoBase64);
+    // 1. LOGOTIPO DO TÉCNICO (Extrema esquerda com verificação defensiva)
+    const logoToRender = (p && p.logoBase64) ||
+      (typeof localStorage !== 'undefined' ? (
+        localStorage.getItem('user_logo') ||
+        localStorage.getItem('company_logo_base64') ||
+        localStorage.getItem('app_company_logo') ||
+        localStorage.getItem('tecnico_logo')
+      ) : null);
+    const logoValida = this.isPdfMakeCompatibleImage(logoToRender);
     let colunaLogo = null;
     if (logoValida) {
       colunaLogo = {
-        image: p.logoBase64,
+        image: logoToRender,
         fit: isLandscape ? [90, 54] : [82, 50],
         alignment: 'left',
         margin: [0, 0, 12, 0]
