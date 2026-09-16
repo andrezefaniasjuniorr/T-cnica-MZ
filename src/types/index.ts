@@ -125,6 +125,12 @@ export interface User {
   };
   streakCount?: number;
   lastLoginDate?: string;
+  // Módulo Academia Técnica IEC / EN
+  area?: string;
+  academy_xp?: number;
+  academy_streak?: number;
+  last_completed_date?: string;
+  academy_modules_count?: number;
   suspensionReason?: string;
   rejectionReason?: string;
   createdAt: string;

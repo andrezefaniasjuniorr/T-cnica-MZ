@@ -27,6 +27,7 @@ import {
   Lock,
   ArrowRight
 } from 'lucide-react';
+import { SaraAcademyCard } from '../sara/SaraAcademyCard';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.VITE_GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY : '') || '';
 
@@ -764,6 +765,18 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
             </button>
           </div>
         </div>
+
+        {/* Minha Academia Técnica IEC / EN (Exclusivo para Técnicos) */}
+        {isTechnicianUser && (
+          <SaraAcademyCard
+            currentUser={currentUser}
+            onAskSara={(promptText) => {
+              chatInputRef.current?.setInputText(promptText);
+              chatInputRef.current?.focus();
+              scrollToBottom();
+            }}
+          />
+        )}
 
         {/* Quick Suggestion Chips */}
         <div className="p-2.5 bg-slate-100/90 border-b border-slate-200 overflow-x-auto flex gap-2 no-scrollbar text-xs">
