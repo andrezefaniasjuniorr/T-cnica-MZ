@@ -126,6 +126,18 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
     setQuizFeedback(null);
   }, [selectedLesson.id]);
 
+  // Sincroniza aula se a área do usuário mudar
+  useEffect(() => {
+    const allCurrentLessons = courseProgress.modulesWithProgress.flatMap(m => m.module.lessons);
+    if (!allCurrentLessons.some(l => l.id === selectedLesson.id)) {
+      setSelectedLesson(courseProgress.currentLesson);
+    }
+  }, [userArea, courseProgress, selectedLesson.id]);
+
+  // Gerenciamento com History API (botão voltar fecha a academia e retorna à Sara IA)
+  // DEVE ser chamado antes de qualquer early return para respeitar as Regras dos Hooks
+  useModalHistory(isOpen, 'sara_academy', onClose);
+
   if (!isOpen) return null;
 
   // Selecionar uma aula no Índice
@@ -211,9 +223,6 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
       default: return <Layers className="w-4 h-4 text-blue-400" />;
     }
   };
-
-  // Gerenciamento com History API (botão voltar fecha a academia e retorna à Sara IA)
-  useModalHistory(isOpen, 'sara_academy', onClose);
 
   return (
     <div
