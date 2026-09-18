@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { JobOpening } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   X,
   ArrowLeft,
@@ -37,6 +38,9 @@ export const ApplyJobModal: React.FC<ApplyJobModalProps> = ({ job, isOpen, onClo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Interceptação do botão voltar
+  useModalHistory(isOpen && Boolean(job), 'candidatura_vaga_mz', onClose);
 
   if (!isOpen || !job) return null;
 
@@ -88,15 +92,15 @@ export const ApplyJobModal: React.FC<ApplyJobModalProps> = ({ job, isOpen, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
+    <div id="apply_job_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="apply_job_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
         {/* Header */}
-        <div className="bg-purple-900 text-white p-5 sm:p-6 flex items-center justify-between">
+        <div className="bg-purple-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-purple-800 hover:bg-purple-700 text-purple-200 flex items-center gap-1 text-xs font-bold transition"
+              className="p-1.5 rounded-lg bg-purple-800 hover:bg-purple-700 text-purple-200 flex items-center gap-1 text-xs font-bold transition cursor-pointer"
               title="Voltar à vaga"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -113,7 +117,7 @@ export const ApplyJobModal: React.FC<ApplyJobModalProps> = ({ job, isOpen, onClo
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-purple-800 text-purple-300 hover:text-white hover:bg-purple-700 transition flex items-center justify-center text-sm font-bold"
+            className="w-8 h-8 rounded-full bg-purple-800 text-purple-300 hover:text-white hover:bg-purple-700 transition flex items-center justify-center text-sm font-bold cursor-pointer"
             title="Fechar (X)"
           >
             ✕
@@ -121,7 +125,7 @@ export const ApplyJobModal: React.FC<ApplyJobModalProps> = ({ job, isOpen, onClo
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-5 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-5">
           {error && (
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />

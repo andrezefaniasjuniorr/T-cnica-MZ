@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { JobOpening } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   X,
   ArrowLeft,
@@ -40,6 +41,9 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const { applications } = useData();
   const [copied, setCopied] = useState(false);
 
+  // Interceptação do botão voltar
+  useModalHistory(isOpen && Boolean(job), 'detalhe_vaga_mz', onClose);
+
   if (!isOpen || !job) return null;
 
   const hasApplied = currentUser
@@ -53,14 +57,14 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
+    <div id="job_detail_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="job_detail_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-5 sm:p-7 relative">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-4 sm:p-5 shrink-0 sticky top-0 z-10">
+          <div className="flex items-center justify-between mb-3">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 text-xs font-bold"
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 text-xs font-bold cursor-pointer"
               title="Voltar às vagas"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -68,7 +72,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition"
+              className="p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition cursor-pointer"
               title="Fechar (X)"
             >
               <X className="w-5 h-5" />
@@ -115,7 +119,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 sm:p-7 max-h-[60vh] overflow-y-auto space-y-6">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6">
           {/* Description */}
           <div>
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">Descrição da Vaga</h3>
@@ -172,7 +176,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="bg-slate-50 p-4 sm:p-5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="bg-slate-50 p-4 sm:p-5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <button
             onClick={handleShare}
             className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-white text-xs font-bold transition flex items-center gap-1.5"

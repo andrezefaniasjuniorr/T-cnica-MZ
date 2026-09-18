@@ -16,6 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { TopBackNav } from '../common/TopBackNav';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface AcademySectionProps {
   onNavigateTab: (tab: string) => void;
@@ -26,6 +27,8 @@ export const AcademySection: React.FC<AcademySectionProps> = ({ onNavigateTab })
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedArticle, setSelectedArticle] = useState<AcademyArticle | null>(null);
+
+  useModalHistory(Boolean(selectedArticle), 'artigo_academia_mz', () => setSelectedArticle(null));
 
   const filteredArticles = academyArticles.filter(art => {
     const term = (searchTerm || '').toString().toLowerCase().trim();
@@ -133,13 +136,13 @@ export const AcademySection: React.FC<AcademySectionProps> = ({ onNavigateTab })
 
       {/* Full Article Modal */}
       {selectedArticle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
-          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white p-5 sm:p-6 relative">
-              <div className="flex items-center justify-between mb-3">
+        <div id="academy_article_modal_overlay" className="modal-useful-fullscreen-overlay">
+          <div id="academy_article_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
+            <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white p-4 sm:p-5 shrink-0 sticky top-0 z-10 border-b border-blue-950">
+              <div className="flex items-center justify-between mb-2">
                 <button
                   onClick={() => setSelectedArticle(null)}
-                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 text-xs font-bold"
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 text-xs font-bold cursor-pointer"
                   title="Voltar à lista de artigos"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -147,29 +150,29 @@ export const AcademySection: React.FC<AcademySectionProps> = ({ onNavigateTab })
                 </button>
                 <button
                   onClick={() => setSelectedArticle(null)}
-                  className="p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition"
+                  className="p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition cursor-pointer"
                   title="Fechar (X)"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-400 text-blue-950">
+              <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-400 text-blue-950 inline-block mb-1">
                 {selectedArticle.category}
               </span>
-              <h2 className="text-xl sm:text-2xl font-black mt-2 text-white">{selectedArticle.title}</h2>
-              <p className="text-xs text-blue-200 mt-1">
+              <h2 className="text-base sm:text-xl font-black text-white">{selectedArticle.title}</h2>
+              <p className="text-[11px] text-blue-200 mt-0.5">
                 Autor: {selectedArticle.authorName} • {selectedArticle.readTimeMinutes} min de leitura
               </p>
             </div>
 
-            <div className="p-6 sm:p-8 max-h-[65vh] overflow-y-auto space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
               {selectedArticle.content}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
               <button
                 onClick={() => setSelectedArticle(null)}
-                className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition"
+                className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
               >
                 Fechar Guia
               </button>

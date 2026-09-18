@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import {
   X,
+  ArrowLeft,
   Smartphone,
   CheckCircle2,
   ShieldCheck,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   RefreshCw
 } from 'lucide-react';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface CheckoutModalProps {
   plan: SubscriptionPlan;
@@ -24,6 +26,8 @@ interface CheckoutModalProps {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = true, onClose, onSuccess }) => {
+  useModalHistory(isOpen, 'checkout_plano_mz', onClose);
+
   const { currentUser, activateUserSubscription } = useAuth();
   const { submitPayment, settings } = useData();
 
@@ -31,8 +35,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
   const mpesaName = settings?.paymentMethods?.mpesaName || 'André Zefanias Júnior';
   const emolaNumber = settings?.paymentMethods?.emolaNumber || '872943159';
   const emolaName = settings?.paymentMethods?.emolaName || 'André Zefanias Júnior';
-
-  if (!isOpen) return null;
 
   const [method, setMethod] = useState<PaymentMethod>('mpesa');
   const [phoneNumber, setPhoneNumber] = useState(currentUser?.phone ? currentUser.phone.replace(/\+258\s?/, '').replace(/\s+/g, '') : '');
@@ -76,6 +78,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
     }
     return () => clearInterval(interval);
   }, [paymentStep, timerSeconds, generatedRef]);
+
+  if (!isOpen) return null;
 
   const handleStartPushPayment = async () => {
     if (!cleanPhone || cleanPhone.length < 9) {
@@ -147,20 +151,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
   };
 
   return (
-    <div id="checkout_modal_overlay" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-6 sm:p-7 relative">
+    <div id="checkout_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="checkout_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
+        {/* Sticky Header */}
+        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-4 sm:p-6 relative shrink-0 sticky top-0 z-10">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-400">
-                <ShieldCheck className="w-6 h-6" />
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 flex items-center gap-1 text-xs font-bold transition cursor-pointer"
+                title="Voltar"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Voltar</span>
+              </button>
+              <div className="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
+                <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400 block">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 block">
                   Checkout Seguro TécnicaMZ
                 </span>
-                <h3 className="text-xl font-black text-white">
+                <h3 className="text-base sm:text-lg font-black text-white leading-tight">
                   {plan.name}
                 </h3>
               </div>
@@ -169,7 +182,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
               <button
                 id="btn_close_checkout"
                 onClick={onClose}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+                title="Fechar (X)"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -177,15 +191,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
           </div>
 
           {/* Amount Badge */}
-          <div className="mt-5 p-4 rounded-2xl bg-white/10 backdrop-blur border border-white/15 flex items-center justify-between">
+          <div className="mt-3 sm:mt-4 p-3 sm:p-3.5 rounded-2xl bg-white/10 backdrop-blur border border-white/15 flex items-center justify-between">
             <div>
-              <span className="text-xs text-slate-300 block">Total da Subscrição (30 dias):</span>
+              <span className="text-[11px] text-slate-300 block">Total da Subscrição (30 dias):</span>
               <div className="flex items-baseline gap-1.5 mt-0.5">
-                <span className="text-3xl font-black text-white tracking-tight">{plan.priceMZN}</span>
-                <span className="text-sm font-bold text-blue-300">MT / mês</span>
+                <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">{plan.priceMZN}</span>
+                <span className="text-xs sm:text-sm font-bold text-blue-300">MT / mês</span>
               </div>
             </div>
-            <div className="px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5">
+            <div className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-bold flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
               Ativação Imediata
             </div>
@@ -193,7 +207,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
         </div>
 
         {/* Content Body */}
-        <div className="p-6 sm:p-7 space-y-6">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6">
           {/* STEP 1: IDLE / FORM */}
           {paymentStep === 'idle' && (
             <>
@@ -478,7 +492,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, isOpen = tru
         </div>
 
         {/* Footer Security Badges */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium shrink-0">
           <span className="flex items-center gap-1">
             <Lock className="w-3.5 h-3.5 text-emerald-600" />
             Encriptação Segura SSL 256-bit

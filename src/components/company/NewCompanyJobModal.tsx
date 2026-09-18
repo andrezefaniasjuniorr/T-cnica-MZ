@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   MOZAMBIQUE_PROVINCES,
   TECHNICAL_CATEGORIES,
@@ -55,6 +56,9 @@ export const NewCompanyJobModal: React.FC<NewCompanyJobModalProps> = ({ isOpen, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Interceptação do botão voltar
+  useModalHistory(isOpen, 'publicar_vaga_empresa', onClose);
 
   if (!isOpen) return null;
 
@@ -163,14 +167,14 @@ export const NewCompanyJobModal: React.FC<NewCompanyJobModalProps> = ({ isOpen, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
+    <div id="new_company_job_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="new_company_job_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 sm:p-7 flex items-center justify-between border-b border-slate-800">
+        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800 shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition"
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition cursor-pointer"
               title="Voltar / Sair"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -188,7 +192,7 @@ export const NewCompanyJobModal: React.FC<NewCompanyJobModalProps> = ({ isOpen, 
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+            className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition cursor-pointer"
             title="Fechar (X)"
           >
             <X className="w-5 h-5" />
@@ -196,7 +200,7 @@ export const NewCompanyJobModal: React.FC<NewCompanyJobModalProps> = ({ isOpen, 
         </div>
 
         {/* Content Form */}
-        <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-5 sm:p-8 space-y-6 flex-1 overflow-y-auto">
           {error && (
             <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />

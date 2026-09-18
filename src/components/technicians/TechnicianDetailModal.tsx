@@ -8,6 +8,7 @@ import { UserRankBadge } from '../../utils/gamification';
 import { UserAvatar } from '../common/UserAvatar';
 import { giveHeartOrLike, renderProfileEngagement } from '../../services/engagement';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   X,
   ArrowLeft,
@@ -88,6 +89,9 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(Boolean(technician));
 
+  // Interceptação estrita do botão voltar do celular via History API
+  useModalHistory(Boolean(technician), 'perfil_tecnico_detalhe', onClose);
+
   if (!technician) return null;
 
   const handleGiveLike = async () => {
@@ -141,14 +145,15 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150"
+      id="technician_detail_modal_overlay"
+      className="modal-useful-fullscreen-overlay animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-[92%] max-w-2xl mx-auto my-6 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="modal-useful-fullscreen-window bg-white max-w-4xl mx-auto md:border-x md:border-slate-200">
         {/* Cabeçalho Fixo no Topo com Título e Botão "X" Bem Visível */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-900 text-white border-b border-slate-800 shrink-0 z-20">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-900 text-white border-b border-slate-800 shrink-0 sticky top-0 z-20">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={onClose}

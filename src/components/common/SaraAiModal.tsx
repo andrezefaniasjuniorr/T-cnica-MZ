@@ -11,6 +11,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../firebase/config';
 import { soundFX } from '../../utils/audio';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   X,
   ArrowLeft,
@@ -101,7 +102,8 @@ const MARKDOWN_REHYPE_PLUGINS = [rehypeKatex];
 const ChatMessageItem = memo<{
   message: Message;
   isThinkingThisMessage?: boolean;
-}>(({ message, isThinkingThisMessage }) => {
+  fontSize?: number;
+}>(({ message, isThinkingThisMessage, fontSize = 15 }) => {
   return (
     <div
       className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -131,13 +133,19 @@ const ChatMessageItem = memo<{
         )}
 
         {message.sender === 'user' ? (
-          <div className="leading-relaxed whitespace-pre-wrap font-normal">
+          <div
+            className="leading-relaxed whitespace-pre-wrap font-normal"
+            style={{ fontSize: `${fontSize}px`, lineHeight: 1.55 }}
+          >
             {message.text}
           </div>
         ) : (
           <div className="leading-relaxed font-normal text-slate-800">
             {message.text ? (
-              <div className="sara-markdown prose prose-sm max-w-none prose-table:border-collapse prose-th:border prose-th:p-2 prose-td:border prose-td:p-2 text-slate-800 text-xs sm:text-sm">
+              <div
+                className="sara-markdown prose prose-sm max-w-none prose-table:border-collapse prose-th:border prose-th:p-2 prose-td:border prose-td:p-2 text-slate-800"
+                style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
+              >
                 <ReactMarkdown
                   remarkPlugins={MARKDOWN_REMARK_PLUGINS}
                   rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
@@ -168,7 +176,8 @@ const ChatMessageItem = memo<{
     prev.message.text === next.message.text &&
     prev.message.imageUrl === next.message.imageUrl &&
     prev.message.timestamp === next.message.timestamp &&
-    prev.isThinkingThisMessage === next.isThinkingThisMessage
+    prev.isThinkingThisMessage === next.isThinkingThisMessage &&
+    prev.fontSize === next.fontSize
   );
 });
 
@@ -180,7 +189,8 @@ const ChatMessagesList = memo<{
   isThinking: boolean;
   userName: string;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
-}>(({ messages, isThinking, userName, messagesEndRef }) => {
+  fontSize: number;
+}>(({ messages, isThinking, userName, messagesEndRef, fontSize }) => {
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50">
       {messages.map((m, idx) => {
@@ -190,6 +200,7 @@ const ChatMessagesList = memo<{
             key={m.id}
             message={m}
             isThinkingThisMessage={isLastSara && isThinking && !m.text}
+            fontSize={fontSize}
           />
         );
       })}
@@ -504,6 +515,54 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(isOpen && !isClientUser && isTechnicianUser);
 
+  // Escala de Fonte [ A- | A+ ] com persistência no LocalStorage
+  const DEFAULT_FONT_SIZE = 15;
+  const MIN_FONT_SIZE = 12;
+  const MAX_FONT_SIZE = 20;
+
+  const [chatFontSize, setChatFontSize] = useState<number>(() => {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('sara_chat_font_scale');
+        if (saved) {
+          const parsed = parseInt(saved, 10);
+          if (!isNaN(parsed) && parsed >= MIN_FONT_SIZE && parsed <= MAX_FONT_SIZE) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return DEFAULT_FONT_SIZE;
+  });
+
+  const handleDecreaseFontSize = () => {
+    setChatFontSize(prev => {
+      const next = Math.max(MIN_FONT_SIZE, prev - 1);
+      try {
+        localStorage.setItem('sara_chat_font_scale', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleIncreaseFontSize = () => {
+    setChatFontSize(prev => {
+      const next = Math.min(MAX_FONT_SIZE, prev + 1);
+      try {
+        localStorage.setItem('sara_chat_font_scale', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleClose = useCallback(() => {
+    soundFX.playModalClose();
+    onClose();
+  }, [onClose]);
+
+  // Sincronização estrita com a History API (botão voltar fecha o modal sem redirecionar a tela)
+  useModalHistory(isOpen && !isClientUser && isTechnicianUser, 'sara_ai', handleClose);
+
   if (!isOpen || isClientUser || !isTechnicianUser) return null;
 
   const handleQuickPrompt = (prompt: string) => {
@@ -717,18 +776,13 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
     }
   };
 
-  const handleClose = () => {
-    soundFX.playModalClose();
-    onClose();
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs">
-      <div className="relative w-full max-w-3xl h-[85vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+    <div id="sara_ai_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="sara_ai_modal_window" className="modal-useful-fullscreen-window bg-white animate-in fade-in duration-150">
         
         {/* Header limpo */}
-        <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white p-3.5 sm:p-5 flex items-center justify-between border-b border-blue-900/50">
-          <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white p-3 sm:p-4 flex items-center justify-between border-b border-blue-900/50 shrink-0 sticky top-0 z-10">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={handleClose}
               className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1 text-xs font-bold cursor-pointer"
@@ -737,28 +791,58 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">Voltar</span>
             </button>
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-white/20 shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-white/20 shrink-0">
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black text-white tracking-tight">Sara IA</h3>
-              <p className="text-[11px] sm:text-xs text-blue-200 line-clamp-1">
+              <h3 className="text-sm sm:text-base font-black text-white tracking-tight leading-tight">Sara IA</h3>
+              <p className="text-[10px] sm:text-xs text-blue-200 line-clamp-1">
                 Assistência técnica e análise visual multimodal
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Seletor de Tamanho de Fonte [ A- | A+ ] com Persistência */}
+            <div
+              className="flex items-center bg-white/10 hover:bg-white/15 rounded-xl p-0.5 border border-white/15 text-white shadow-2xs"
+              title="Ajustar tamanho da fonte do chat (A- / A+)"
+            >
+              <button
+                type="button"
+                onClick={handleDecreaseFontSize}
+                disabled={chatFontSize <= MIN_FONT_SIZE}
+                className="px-2 py-1 rounded-lg text-xs font-black hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent transition cursor-pointer flex items-center justify-center min-w-[26px]"
+                title="Diminuir fonte (A-)"
+                aria-label="Diminuir fonte"
+              >
+                A-
+              </button>
+              <span className="text-[10px] font-mono px-1 text-blue-200 font-bold select-none whitespace-nowrap">
+                {chatFontSize}px
+              </span>
+              <button
+                type="button"
+                onClick={handleIncreaseFontSize}
+                disabled={chatFontSize >= MAX_FONT_SIZE}
+                className="px-2 py-1 rounded-lg text-xs font-black hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent transition cursor-pointer flex items-center justify-center min-w-[26px]"
+                title="Aumentar fonte (A+)"
+                aria-label="Aumentar fonte"
+              >
+                A+
+              </button>
+            </div>
+
             <button
               onClick={handleClearChat}
-              className="p-2 rounded-full bg-white/10 hover:bg-rose-500/30 text-white/80 hover:text-rose-200 transition cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-rose-500/30 text-white/80 hover:text-rose-200 transition cursor-pointer"
               title="Limpar histórico do chat"
             >
               <Trash2 className="w-4 h-4" />
             </button>
             <button
               onClick={handleClose}
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
               title="Fechar (X)"
             >
               <X className="w-5 h-5" />
@@ -779,7 +863,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
         )}
 
         {/* Quick Suggestion Chips */}
-        <div className="p-2.5 bg-slate-100/90 border-b border-slate-200 overflow-x-auto flex gap-2 no-scrollbar text-xs">
+        <div className="p-2 sm:p-2.5 bg-slate-100/90 border-b border-slate-200 overflow-x-auto flex gap-2 no-scrollbar text-xs shrink-0">
           <button
             onClick={() => handleQuickPrompt('Como dimensionar um sistema solar fotovoltaico para uma residência em Maputo com geladeira, TV, 10 lâmpadas e 1 AC 12000 BTU?')}
             className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 font-medium transition flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer"
@@ -805,12 +889,13 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
           </button>
         </div>
 
-        {/* Chat Feed com auto-scroll isolado */}
+        {/* Chat Feed com auto-scroll isolado e fonte configurável */}
         <ChatMessagesList
           messages={messages}
           isThinking={isThinking}
           userName={userName}
           messagesEndRef={messagesEndRef}
+          fontSize={chatFontSize}
         />
 
         {/* Barra de Entrada de Texto Isolada e Fluida */}

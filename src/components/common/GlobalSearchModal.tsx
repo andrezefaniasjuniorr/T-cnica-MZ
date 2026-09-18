@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { soundFX } from '../../utils/audio';
+import { useModalHistory } from '../../utils/modalHistory';
 import { getInitial } from '../../utils/stringUtils';
 import {
   X,
@@ -35,6 +36,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     soundFX.playModalClose();
     onClose();
   };
+
+  useModalHistory(isOpen, 'global_search_modal', handleClose);
 
   const handleSelect = (tab: string, item?: any) => {
     soundFX.playClick();
@@ -102,10 +105,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     matchedTechs.length + matchedCompanies.length + matchedJobs.length + matchedMarket.length + matchedAcademy.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 p-4 bg-slate-950/75 backdrop-blur-xs">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div id="global_search_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="global_search_modal_window" className="modal-useful-fullscreen-window bg-white animate-in fade-in duration-150">
         {/* Search Bar Input */}
-        <div className="p-3.5 sm:p-5 border-b border-slate-200 flex items-center gap-2.5 sm:gap-3 bg-slate-50">
+        <div className="p-3.5 sm:p-5 border-b border-slate-200 flex items-center gap-2.5 sm:gap-3 bg-slate-50 shrink-0 sticky top-0 z-10">
           <button
             onClick={handleClose}
             className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 flex items-center gap-1 text-xs font-bold transition shadow-2xs"

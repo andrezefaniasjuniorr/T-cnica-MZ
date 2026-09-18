@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { SubscriptionPlan, PaymentMethod } from '../../types';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
-import { X, Upload, CheckCircle2, AlertCircle, Phone, Building, ArrowRight, ShieldCheck } from 'lucide-react';
+import { X, ArrowLeft, Upload, CheckCircle2, AlertCircle, Phone, Building, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface PaymentSubmitModalProps {
   isOpen: boolean;
@@ -26,6 +27,9 @@ export const PaymentSubmitModal: React.FC<PaymentSubmitModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Interceptação do botão voltar
+  useModalHistory(isOpen && Boolean(selectedPlan), 'pagamento_plano_mz', onClose);
 
   if (!isOpen || !selectedPlan || !currentUser) return null;
 
@@ -82,28 +86,42 @@ export const PaymentSubmitModal: React.FC<PaymentSubmitModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
+    <div id="payment_submit_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="payment_submit_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-6 relative">
+        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0 sticky top-0 z-10">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition cursor-pointer shrink-0"
+              title="Voltar aos planos"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Voltar</span>
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-amber-400 text-[10px] sm:text-xs font-bold uppercase">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span>Pagamento Seguro</span>
+              </div>
+              <h2 className="text-sm sm:text-base font-black truncate">
+                Ativação: {selectedPlan.name} ({selectedPlan.priceMZN} MZN)
+              </h2>
+            </div>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+            className="p-2 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer shrink-0"
+            title="Fechar (X)"
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase mb-1">
-            <ShieldCheck className="w-4 h-4" />
-            Pagamento Manual Seguro
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black">
-            Ativação do Plano {selectedPlan.name}
-          </h2>
-          <p className="text-xs text-slate-300 mt-0.5">
-            Valor: <strong className="text-white text-sm">{selectedPlan.priceMZN} MZN</strong> / 30 dias
-          </p>
         </div>
 
+        {/* Body Container */}
+        <div className="flex-1 overflow-y-auto">
         {success ? (
           <div className="p-8 text-center space-y-3">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
@@ -303,6 +321,7 @@ export const PaymentSubmitModal: React.FC<PaymentSubmitModalProps> = ({
             </button>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

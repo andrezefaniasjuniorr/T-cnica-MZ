@@ -3,6 +3,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { CompanyProfile, JobOpening } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { useModalHistory } from '../../utils/modalHistory';
 import { UserAvatar } from '../common/UserAvatar';
 import {
   X,
@@ -47,6 +48,9 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(isOpen);
 
+  // Interceptação do botão voltar
+  useModalHistory(isOpen && Boolean(company), 'detalhe_empresa_mz', onClose);
+
   if (!isOpen || !company) return null;
 
   const companyJobs = jobs.filter(j => j.companyId === company.userId && j.status === 'active');
@@ -59,14 +63,15 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150"
+      id="company_detail_modal_overlay"
+      className="modal-useful-fullscreen-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-[92%] max-w-2xl mx-auto my-6 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      <div id="company_detail_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
         {/* Cabeçalho Fixo no Topo com Título e Botão "X" Bem Visível */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-900 text-white border-b border-slate-800 shrink-0 z-20">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-900 text-white border-b border-slate-800 shrink-0 sticky top-0 z-20">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={onClose}

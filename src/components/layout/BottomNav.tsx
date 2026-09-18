@@ -98,7 +98,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-1.5 px-2 md:hidden shadow-lg shadow-slate-900/5 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+    <nav className="fixed bottom-0 left-0 right-0 w-full h-16 z-40 bg-white border-t border-slate-200/90 py-1 px-2 md:hidden shadow-lg shadow-slate-900/5 flex items-center">
       <div className="flex items-center justify-around w-full">
         {baseNavItems.map(item => {
           const Icon = item.icon;

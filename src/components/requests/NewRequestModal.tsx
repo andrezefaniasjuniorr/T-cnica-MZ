@@ -9,7 +9,8 @@ import {
   MozambiqueProvince,
   ServiceUrgency
 } from '../../types';
-import { X, PlusCircle, AlertCircle, CheckCircle2, Send, MapPin, DollarSign, Clock } from 'lucide-react';
+import { X, ArrowLeft, PlusCircle, AlertCircle, CheckCircle2, Send, MapPin, DollarSign, Clock } from 'lucide-react';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface NewRequestModalProps {
   isOpen: boolean;
@@ -46,6 +47,9 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
 
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(isOpen);
+
+  // Interceptação do botão voltar
+  useModalHistory(isOpen, 'novo_pedido_servico', onClose);
 
   if (!isOpen) return null;
 
@@ -92,39 +96,54 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-        <div className="bg-blue-900 text-white p-6 sm:p-7 relative">
+    <div id="new_request_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="new_request_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
+        {/* Header */}
+        <div className="bg-blue-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0 sticky top-0 z-10">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-200 flex items-center gap-1 text-xs font-bold transition cursor-pointer"
+              title="Voltar"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Voltar</span>
+            </button>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-800 text-blue-200 text-[10px] font-bold">
+                <PlusCircle className="w-3 h-3" />
+                {targetTechnicianName ? `Pedido a ${targetTechnicianName}` : 'Mural de Pedidos'}
+              </div>
+              <h2 className="text-sm sm:text-base font-black line-clamp-1">
+                {targetTechnicianName ? `Pedir Orçamento a ${targetTechnicianName}` : 'Solicitar Serviço Técnico'}
+              </h2>
+            </div>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+            className="p-2 rounded-full bg-blue-800 text-blue-300 hover:text-white hover:bg-blue-700 transition cursor-pointer"
+            title="Fechar (X)"
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-800 text-blue-200 text-xs font-bold mb-2">
-            <PlusCircle className="w-3.5 h-3.5" />
-            {targetTechnicianName ? `Pedido Direto a ${targetTechnicianName}` : 'Mural de Pedidos'}
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black">
-            {targetTechnicianName ? `Pedir Orçamento a ${targetTechnicianName}` : 'Solicitar Serviço Técnico'}
-          </h2>
-          <p className="text-xs text-blue-200 mt-0.5">
-            Descreva o serviço para receber propostas e orçamentos detalhados.
-          </p>
         </div>
 
-        {success ? (
-          <div className="p-8 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-8 h-8" />
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto">
+          {success ? (
+            <div className="p-8 text-center space-y-3">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900">Pedido Publicado com Sucesso!</h3>
+              <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
+                O seu pedido já está visível para técnicos qualificados em {province}. Você receberá orçamentos diretamente aqui e no WhatsApp.
+              </p>
             </div>
-            <h3 className="text-lg font-black text-slate-900">Pedido Publicado com Sucesso!</h3>
-            <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-              O seu pedido já está visível para técnicos qualificados em {province}. Você receberá orçamentos diretamente aqui e no WhatsApp.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4 text-xs">
+          ) : (
+            <form onSubmit={handleSubmit} className="p-5 sm:p-7 space-y-4 text-xs">
             {error && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -259,6 +278,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
             </button>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

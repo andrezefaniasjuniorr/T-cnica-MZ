@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   Shield,
   ShieldCheck,
@@ -21,6 +22,8 @@ export const SeloMZModal: React.FC<SeloMZModalProps> = ({
   onGoToSeloSettings,
   featureName = "Ferramentas & Recursos"
 }) => {
+  useModalHistory(isOpen, 'selo_mz_modal', onClose);
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) onClose();
@@ -34,7 +37,7 @@ export const SeloMZModal: React.FC<SeloMZModalProps> = ({
   return (
     <div
       id="modal-selo-mz-overlay"
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/80 backdrop-blur-xs transition-opacity duration-150"
+      className="modal-useful-fullscreen-overlay z-[9999] transition-opacity duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -44,12 +47,12 @@ export const SeloMZModal: React.FC<SeloMZModalProps> = ({
     >
       <div
         id="modal-selo-mz-container"
-        className="relative w-full max-w-[440px] max-h-[96vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden text-slate-900 transition-transform duration-150 scale-100"
+        className="modal-useful-fullscreen-window bg-white text-slate-900 transition-transform duration-150"
       >
         {/* ======================================================== */}
         {/* 1. CABEÇALHO GRADIENTE AZUL (COMPACTO) */}
         {/* ======================================================== */}
-        <div className="relative bg-gradient-to-r from-blue-900 via-blue-700 to-indigo-800 px-4 py-3.5 sm:px-5 sm:py-4 text-white rounded-t-3xl shrink-0">
+        <div className="relative bg-gradient-to-r from-blue-900 via-blue-700 to-indigo-800 px-4 py-3.5 sm:px-5 sm:py-4 text-white rounded-none shrink-0 sticky top-0 z-10">
           {/* Botão "X" de fechar no canto superior direito */}
           <button
             id="btn-fechar-modal-selo"

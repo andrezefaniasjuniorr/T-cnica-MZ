@@ -4,6 +4,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { MOZAMBIQUE_PROVINCES, TECHNICAL_CATEGORIES } from '../../types';
 import {
   X,
+  ArrowLeft,
   User as UserIcon,
   Wrench,
   Building2,
@@ -22,6 +23,7 @@ import {
   KeyRound,
   MapPin
 } from 'lucide-react';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -78,6 +80,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Status Alerts
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Interceptação do botão voltar
+  useModalHistory(isOpen, 'autenticacao_login_cadastro', onClose);
 
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(isOpen);
@@ -325,28 +330,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
-      <div className="auth-card relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-sky-100 p-6 sm:p-8 my-8 animate-in fade-in zoom-in-95 duration-200">
+    <div id="auth_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="auth_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
         
-        {/* Close Button */}
-        <button
-          id="btn-close-auth-modal"
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Sticky Header with Back button and Close button */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-900 text-white border-b border-slate-800 shrink-0 sticky top-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+            title="Voltar"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Voltar</span>
+          </button>
 
-        {/* Brand Header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-500 text-white shadow-md shadow-blue-500/20 mb-2 ring-4 ring-sky-50">
-            <Wrench className="w-6 h-6" />
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+              <Wrench className="w-4 h-4" />
+            </div>
+            <span className="text-xs sm:text-sm font-black text-white">
+              Técnica<span className="text-blue-400">MZ</span> Pro
+            </span>
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Técnica<span className="text-blue-600">MZ</span> Pro
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">Acesso à Plataforma Oficial</p>
+
+          <button
+            id="btn-close-auth-modal"
+            onClick={onClose}
+            className="p-1.5 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer"
+            title="Fechar (X)"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
+
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-8">
+          {/* Brand Subheader */}
+          <div className="text-center mb-6">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+              Acesso à Plataforma Oficial
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">Conectando técnicos certificados, empresas e clientes em Moçambique</p>
+          </div>
 
         {/* Top Tabs */}
         <div className="grid grid-cols-2 p-1 bg-sky-50 rounded-xl mb-6 border border-sky-100">
@@ -898,6 +923,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

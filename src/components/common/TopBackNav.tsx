@@ -17,13 +17,17 @@ export const TopBackNav: React.FC<TopBackNavProps> = ({
   rightAction
 }) => {
   return (
-    <div className="bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-xs flex items-center justify-between gap-3 mb-6 transition-all">
+    <div
+      id="top-back-nav-sticky-header"
+      className="sticky top-14 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 py-2.5 sm:py-3 px-3 sm:px-6 -mx-3 sm:-mx-6 lg:-mx-8 mb-6 shadow-xs flex items-center justify-between gap-3 transition-all"
+    >
       {/* Left: Back Button & Title */}
       <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
         <button
           onClick={onBack}
-          className="group flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 rounded-xl text-xs font-bold transition shadow-2xs active:scale-95 shrink-0"
+          className="group flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-800 rounded-xl text-xs font-bold transition shadow-2xs active:scale-95 shrink-0 cursor-pointer"
           title="Voltar / Sair desta aba"
+          aria-label="Voltar"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span className="hidden sm:inline">{backLabel}</span>
@@ -52,7 +56,7 @@ export const TopBackNav: React.FC<TopBackNavProps> = ({
 
         <button
           onClick={onBack}
-          className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+          className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
           title="Fechar / Sair desta seção"
           aria-label="Sair"
         >

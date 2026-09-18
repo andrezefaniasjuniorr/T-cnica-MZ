@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   X,
   Camera,
@@ -470,9 +471,9 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[88vh] bg-slate-50 text-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+    <div className="flex flex-col w-full h-full bg-slate-50 text-slate-800 rounded-none overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white border-b border-slate-800 shrink-0">
+      <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white border-b border-slate-800 shrink-0 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
             <Camera className="w-5 h-5" />
@@ -889,17 +890,19 @@ export const PortfolioModalContent: React.FC<{ onClose?: () => void }> = ({ onCl
 export const PortfolioModal: React.FC<PortfolioModalProps> = ({ isOpen = true, onClose }) => {
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(isOpen);
+  useModalHistory(isOpen, 'portfolio_modal', onClose || (() => {}));
 
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200"
+      id="portfolio_modal_overlay"
+      className="modal-useful-fullscreen-overlay animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget && onClose) onClose();
       }}
     >
-      <div className="w-[92%] max-w-5xl mx-auto my-6 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="modal-useful-fullscreen-window bg-white shadow-2xl">
         <PortfolioModalContent onClose={onClose} />
       </div>
     </div>

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { soundFX } from '../../utils/audio';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   X,
   ArrowLeft,
@@ -45,12 +46,14 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(isOpen);
 
-  if (!isOpen) return null;
-
   const handleClose = () => {
     soundFX.playModalClose();
     onClose();
   };
+
+  useModalHistory(isOpen, 'notifications_modal', handleClose);
+
+  if (!isOpen) return null;
 
   // Filter notifications for current user or broadcast ('all', or role match)
   // FILTRO: Remove e bloqueia notificações de mensagens comuns de chat da central geral
@@ -136,10 +139,10 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[85vh]">
+    <div id="notifications_modal_overlay" className="modal-useful-fullscreen-overlay animate-in fade-in duration-150">
+      <div id="notifications_modal_window" className="modal-useful-fullscreen-window bg-white dark:bg-slate-900">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-2.5">
             <button
               onClick={handleClose}

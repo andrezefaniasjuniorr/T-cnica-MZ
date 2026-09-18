@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   X,
   ArrowLeft,
@@ -29,6 +30,9 @@ export const CompanyVerificationModal: React.FC<CompanyVerificationModalProps> =
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Interceptação do botão voltar
+  useModalHistory(isOpen, 'verificacao_empresa', onClose);
 
   if (!isOpen) return null;
 
@@ -72,14 +76,14 @@ export const CompanyVerificationModal: React.FC<CompanyVerificationModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div id="company_verification_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="company_verification_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
         {/* Header */}
-        <div className="bg-purple-900 text-white p-4 sm:p-6 flex items-center justify-between">
+        <div className="bg-purple-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-purple-800 hover:bg-purple-700 text-purple-200 flex items-center gap-1 text-xs font-bold transition"
+              className="p-1.5 rounded-lg bg-purple-800 hover:bg-purple-700 text-purple-200 flex items-center gap-1 text-xs font-bold transition cursor-pointer"
               title="Voltar / Sair"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -95,7 +99,7 @@ export const CompanyVerificationModal: React.FC<CompanyVerificationModalProps> =
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-purple-800 text-purple-300 hover:text-white hover:bg-purple-700 transition"
+            className="p-2 rounded-full bg-purple-800 text-purple-300 hover:text-white hover:bg-purple-700 transition cursor-pointer"
             title="Fechar (X)"
           >
             <X className="w-5 h-5" />
@@ -103,7 +107,7 @@ export const CompanyVerificationModal: React.FC<CompanyVerificationModalProps> =
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-5">
           {error && (
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />

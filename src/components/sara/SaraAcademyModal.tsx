@@ -42,6 +42,7 @@ import {
   getTodayDateString
 } from '../../services/saraAcademyService';
 import { soundFX } from '../../utils/audio';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface SaraAcademyModalProps {
   isOpen: boolean;
@@ -196,19 +197,22 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
     }
   };
 
+  // Gerenciamento com History API (botão voltar fecha a academia e retorna à Sara IA)
+  useModalHistory(isOpen, 'sara_academy', onClose);
+
   return (
     <div
       id="sara_academy_modal_overlay"
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
+      className="modal-useful-fullscreen-overlay dark-modal z-46 animate-in fade-in duration-200"
     >
       <div
         id="sara_academy_modal_window"
-        className="w-full max-w-4xl h-[92vh] max-h-[860px] bg-[#0A0F1D] border border-[#1E293B] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100"
+        className="modal-useful-fullscreen-window bg-[#0A0F1D] shadow-2xl flex flex-col overflow-hidden text-slate-100"
       >
         {/* ================================================================= */}
         {/* TOPO: IDENTIDADE VISUAL + GAMIFICAÇÃO + BOTÃO FECHAR              */}
         {/* ================================================================= */}
-        <div className="px-4 py-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between gap-3 shrink-0">
+        <div className="px-4 py-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between gap-3 shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
               <GraduationCap className="w-5 h-5" />

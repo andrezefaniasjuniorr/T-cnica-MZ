@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useModalHistory } from '../../utils/modalHistory';
 import { soundFX } from '../../utils/audio';
 import { getInitial } from '../../utils/stringUtils';
 import { ConversationItem, MessageItem } from '../../types';
@@ -111,6 +112,14 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
     onClose();
   };
 
+  useModalHistory(isOpen, 'messages_modal', () => {
+    if (activeConvId) {
+      setActiveConvId(null);
+    } else {
+      handleClose();
+    }
+  });
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !activeConvId) return;
@@ -128,15 +137,15 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs">
-      <div className="relative w-full max-w-4xl h-[90vh] sm:h-[85vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col md:flex-row animate-in fade-in zoom-in-95 duration-150">
+    <div id="messages_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="messages_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col md:flex-row animate-in fade-in duration-150">
         
         {/* Left Sidebar: Conversations List (Hidden on mobile if a conversation is open) */}
         <div className={`w-full md:w-80 bg-slate-50 border-r border-slate-200 flex flex-col h-full shrink-0 ${
           activeConvId ? 'hidden md:flex' : 'flex'
         }`}>
           {/* Header with Exit button */}
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
+          <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white shrink-0 sticky top-0 z-10">
             <div className="flex items-center gap-2">
               <button
                 onClick={handleClose}
@@ -242,7 +251,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
           {activeConversation && otherParticipant ? (
             <>
               {/* Chat Header */}
-              <div className="p-3 sm:p-4 border-b border-slate-200 flex items-center justify-between bg-white gap-2">
+              <div className="p-3 sm:p-4 border-b border-slate-200 flex items-center justify-between bg-white gap-2 shrink-0 sticky top-0 z-10">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   {/* Mobile Back Button to conversation list */}
                   <button

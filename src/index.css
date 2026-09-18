@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* VARIÁVEIS OFICIAIS DE LAYOUT FIXO E MODAIS ÚTEIS */
+:root {
+  --header-height: 3.5rem; /* 56px */
+  --bottom-nav-height: 4rem; /* 64px em mobile */
+}
+
+@media (min-width: 768px) {
+  :root {
+    --bottom-nav-height: 0px; /* Em desktop a bottom nav é oculta */
+  }
+}
+
 /* 1. CONFIGURAÇÃO BASE E CONTAINER GLOBAL */
 html, body {
   overflow-x: hidden !important;
@@ -11,6 +23,52 @@ html, body {
   background-color: #f4f6f9;
 }
 *, *:before, *:after { box-sizing: inherit; }
+
+/* MODAIS EM TELA CHEIA ÚTIL (ENTRE HEADER FIXO E BOTTOM NAV FIXA) */
+.modal-useful-fullscreen-overlay {
+  position: fixed !important;
+  top: var(--header-height, 3.5rem) !important;
+  bottom: var(--bottom-nav-height, 4rem) !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: calc(100vh - var(--header-height, 3.5rem) - var(--bottom-nav-height, 4rem)) !important;
+  height: calc(100dvh - var(--header-height, 3.5rem) - var(--bottom-nav-height, 4rem)) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 45 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  background-color: #ffffff !important;
+}
+
+.modal-useful-fullscreen-overlay.dark-modal {
+  background-color: #0A0F1D !important;
+}
+
+@media (min-width: 768px) {
+  .modal-useful-fullscreen-overlay {
+    bottom: 0 !important;
+    height: calc(100vh - var(--header-height, 3.5rem)) !important;
+    height: calc(100dvh - var(--header-height, 3.5rem)) !important;
+  }
+}
+
+.modal-useful-fullscreen-window {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  background-color: inherit !important;
+}
 
 /* REQUISITO 1: MOBILE INTACTO (< 768px) - NÃO ALTERAR REGRAS MOBILE */
 @media (max-width: 767px) {

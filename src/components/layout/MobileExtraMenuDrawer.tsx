@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useModalHistory } from '../../utils/modalHistory';
 import { NetworkStatusIndicator } from '../common/NetworkStatusIndicator';
 
 interface MobileExtraMenuDrawerProps {
@@ -75,12 +76,14 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
     )
   );
 
-  if (!isOpen) return null;
-
   const handleClose = () => {
     soundFX.playModalClose();
     onClose();
   };
+
+  useModalHistory(isOpen, 'mobile_menu', handleClose);
+
+  if (!isOpen) return null;
 
   const handleNavigate = (tabId: string) => {
     soundFX.playClick();
@@ -263,7 +266,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
         </div>
 
         {/* Header */}
-        <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 sticky top-0 z-10 bg-white">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black">
               <Wrench className="w-5 h-5" />

@@ -3,6 +3,7 @@ import { X, Image as ImageIcon, Type, Sparkles, Upload, Loader2, CheckCircle2, S
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { compressImageToDataUrl, uploadImageFile } from '../../utils/imageUpload';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface CreateStoryModalProps {
   isOpen: boolean;
@@ -31,6 +32,9 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Interceptação do botão voltar
+  useModalHistory(isOpen, 'criar_historia_mural', onClose);
 
   if (!isOpen) return null;
 
@@ -123,10 +127,10 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div id="create_story_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="create_story_modal_window" className="modal-useful-fullscreen-window bg-slate-900 border-none flex flex-col animate-in fade-in duration-150">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0 sticky top-0 z-10">
           <div className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md">
               <Sparkles className="w-5 h-5" />
@@ -138,7 +142,8 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onCl
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Fechar (X)"
           >
             <X className="w-5 h-5" />
           </button>

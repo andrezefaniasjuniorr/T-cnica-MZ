@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { db, isFirebaseConfigured } from '../../firebase/config';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface StoryViewerModalProps {
   groups: UserStoriesGroup[];
@@ -32,6 +33,9 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
 }) => {
   const { currentUser } = useAuth();
   const { viewStory, reactToStory, deleteStory, startOrGetConversation } = useData();
+
+  // Interceptação do botão voltar
+  useModalHistory(true, 'visualizador_stories', onClose);
 
   const [currentGroupIndex, setCurrentGroupIndex] = useState(initialGroupIndex);
 

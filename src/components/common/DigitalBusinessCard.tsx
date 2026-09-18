@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TechnicianProfile, CompanyProfile } from '../../types';
 import { UserAvatar } from './UserAvatar';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   X,
   ArrowLeft,
@@ -32,6 +33,9 @@ export const DigitalBusinessCard: React.FC<DigitalBusinessCardProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
 
+  // Interceptação do botão voltar do dispositivo
+  useModalHistory(isOpen && Boolean(technician || company), 'cartao_digital_mz', onClose);
+
   if (!isOpen || (!technician && !company)) return null;
 
   const isTech = Boolean(technician);
@@ -54,10 +58,10 @@ export const DigitalBusinessCard: React.FC<DigitalBusinessCardProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
-      <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div id="digital_card_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="digital_card_modal_window" className="modal-useful-fullscreen-window bg-slate-50 flex flex-col animate-in fade-in duration-150">
         {/* Header Bar */}
-        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between">
+        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
@@ -79,8 +83,9 @@ export const DigitalBusinessCard: React.FC<DigitalBusinessCardProps> = ({
           </button>
         </div>
 
-        {/* Card Body */}
-        <div className="p-6 space-y-6 text-center">
+        {/* Card Body Container */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col items-center justify-start sm:justify-center">
+          <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl border border-slate-200 p-6 space-y-6 text-center">
           {/* Card Mockup */}
           <div className={`p-6 rounded-3xl text-white shadow-xl space-y-4 relative overflow-hidden text-left ${
             isTech
@@ -161,5 +166,6 @@ export const DigitalBusinessCard: React.FC<DigitalBusinessCardProps> = ({
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };

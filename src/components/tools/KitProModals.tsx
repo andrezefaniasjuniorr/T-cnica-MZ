@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useModalHistory } from '../../utils/modalHistory';
 import { BrandModalContent, BrandModal } from './BrandModal';
 import { PortfolioModalContent, PortfolioModal } from './PortfolioModal';
 import { compressImage, persistCompanyLogo, getSavedCompanyLogoSync } from '../../utils/imageCompressor';
@@ -63,6 +64,9 @@ export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(Boolean(activeModal));
 
+  // Sincronização com History API: botão voltar fecha o modal da ferramenta sem sair da aba
+  useModalHistory(Boolean(activeModal), activeModal || 'ferramenta_pro', onClose);
+
   // Estado compartilhado entre ferramentas para injeção de dados
   const [injectedOSData, setInjectedOSData] = useState<any>(null);
   const [injectedQGData, setInjectedQGData] = useState<any>(null);
@@ -76,19 +80,19 @@ export const KitProModals: React.FC<KitProModalsProps> = ({ activeModal, onClose
   };
 
   const hasCustomHeader = activeModal === 'perfil_tecnico' || activeModal === 'portfolio';
-  const isPortfolioWide = activeModal === 'portfolio';
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in"
+      id="kit_pro_modals_overlay"
+      className="modal-useful-fullscreen-overlay animate-fade-in"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={`relative w-[92%] ${isPortfolioWide ? 'max-w-5xl' : 'max-w-2xl'} mx-auto my-6 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[85vh] flex flex-col`}>
+      <div className="modal-useful-fullscreen-window bg-white">
         {/* Modal Header for standard modals */}
         {!hasCustomHeader && (
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/90 shrink-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/90 shrink-0 sticky top-0 z-10">
             <div className="flex items-center gap-2.5">
               <span className="p-2 rounded-xl bg-blue-50 text-blue-600 font-bold">
                 {getIcon(activeModal)}

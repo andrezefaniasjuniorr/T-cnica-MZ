@@ -140,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({
   const overflowOnMedium = primaryNavItems.slice(4);
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs text-slate-900">
+    <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs text-slate-900">
       <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
         <div className="flex items-center h-14 gap-2 w-full">
           {/* Left: Brand Logo & Quick Search */}

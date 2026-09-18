@@ -40,6 +40,7 @@ import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
 import { UserRole } from './types';
 import { Wrench, Phone, Mail, ShieldCheck, Heart, Sparkles } from 'lucide-react';
 import { soundFX } from './utils/audio';
+import { hasActiveModals, setupModalHistoryListener } from './utils/modalHistory';
 import {
   getSavedCompanyLogoSync,
   getSavedCompanyLogoAsync,
@@ -314,6 +315,8 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const cleanupModalHistory = setupModalHistoryListener();
+
     const syncTab = () => {
       const detected = resolveTabFromLocation();
       if (detected === 'tools') {
@@ -337,6 +340,14 @@ const AppContent: React.FC = () => {
     };
 
     const handlePopState = (event: PopStateEvent) => {
+      // 1. INTERCEPTAÇÃO ESTRITA: Se houver qualquer modal ou gaveta ativa na pilha,
+      // a navegação histórica pertence exclusivamente ao fechamento do modal!
+      // É ESTRITAMENTE PROIBIDO mudar de aba ou saltar para o Painel Principal!
+      if (hasActiveModals() || event.state?.activeModal) {
+        event.preventDefault?.();
+        return;
+      }
+
       if (event.state && typeof event.state === 'object' && event.state.tab) {
         const sTab = event.state.tab;
         if (sTab === 'gestao-pro-mz' || sTab === 'admin') {
@@ -360,12 +371,14 @@ const AppContent: React.FC = () => {
     };
 
     const handleHashChange = () => {
+      if (hasActiveModals()) return;
       syncTab();
     };
 
     window.addEventListener('popstate', handlePopState);
     window.addEventListener('hashchange', handleHashChange);
     return () => {
+      cleanupModalHistory();
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('hashchange', handleHashChange);
     };
@@ -674,7 +687,7 @@ const AppContent: React.FC = () => {
       />
 
       {/* 2. Main Content Body */}
-      <main className="app-container main-container flex-1 w-full md:max-w-7xl md:mx-auto md:px-6 pb-16 md:pb-8">
+      <main className="app-container main-container flex-1 w-full md:max-w-7xl md:mx-auto md:px-6 pt-16 pb-20 md:pb-8">
         {activeTab === 'community' && (
           <CommunityFeed onNavigateTab={handleNavigate} />
         )}

@@ -31,6 +31,7 @@ import {
 import { TopBackNav } from '../common/TopBackNav';
 import { SeloMZModal } from '../common/SeloMZModal';
 import { Lock, Crown, ArrowRight } from 'lucide-react';
+import { useModalHistory } from '../../utils/modalHistory';
 
 interface MarketSectionProps {
   onNavigateTab: (tab: string) => void;
@@ -59,6 +60,10 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
   const [selectedCondition, setSelectedCondition] = useState('all');
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
   const [selectedItemDetail, setSelectedItemDetail] = useState<MarketItem | null>(null);
+
+  // Interceptação do botão voltar
+  useModalHistory(isSellModalOpen, 'anunciar_mercado', () => setIsSellModalOpen(false));
+  useModalHistory(Boolean(selectedItemDetail), 'detalhe_item_mercado', () => setSelectedItemDetail(null));
 
   // Comments interaction state per item
   const [openCommentsItemId, setOpenCommentsItemId] = useState<string | null>(null);
@@ -680,14 +685,14 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
 
       {/* Modal: Anunciar Equipamento */}
       {isSellModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
-            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
+        <div id="market_sell_modal_overlay" className="modal-useful-fullscreen-overlay">
+          <div id="market_sell_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0 sticky top-0 z-10">
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsSellModalOpen(false)}
-                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition"
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold transition cursor-pointer"
                   title="Voltar ao Mercado"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -695,20 +700,20 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
                 </button>
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-5 h-5 text-amber-400" />
-                  <h3 className="text-sm font-black">Anunciar Equipamento no Mercado TécnicaMZ</h3>
+                  <h3 className="text-xs sm:text-sm font-black">Anunciar Equipamento no Mercado TécnicaMZ</h3>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsSellModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition"
+                className="p-2 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer"
                 title="Fechar (X)"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateItem} className="p-6 space-y-4 overflow-y-auto">
+            <form onSubmit={handleCreateItem} className="p-5 sm:p-6 space-y-4 flex-1 overflow-y-auto">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Nome / Título do Equipamento *
@@ -874,14 +879,14 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
 
       {/* Modal: Detalhes do Item */}
       {activeDetailItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
+        <div id="market_detail_modal_overlay" className="modal-useful-fullscreen-overlay">
+          <div id="market_detail_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col animate-in fade-in duration-150">
             {/* Top Modal Navigation Header */}
-            <div className="bg-slate-900 text-white px-4 py-3.5 flex items-center justify-between shrink-0 border-b border-slate-800">
+            <div className="bg-slate-900 text-white px-4 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-10 border-b border-slate-800">
               <button
                 type="button"
                 onClick={() => setSelectedItemDetail(null)}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5 text-xs font-bold transition shadow-xs"
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5 text-xs font-bold transition shadow-xs cursor-pointer"
                 title="Voltar ao Mercado"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -895,14 +900,15 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
               <button
                 type="button"
                 onClick={() => setSelectedItemDetail(null)}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition"
+                className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
                 title="Fechar (X)"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="relative aspect-16/9 bg-slate-100 shrink-0">
+            <div className="flex-1 overflow-y-auto">
+              <div className="relative aspect-16/9 bg-slate-100 shrink-0">
               <img
                 src={activeDetailItem.images[0]}
                 alt={activeDetailItem.title}
@@ -1109,6 +1115,7 @@ export const MarketSection: React.FC<MarketSectionProps> = ({ onNavigateTab }) =
                   </button>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useModalHistory } from '../../utils/modalHistory';
 import { UserRole } from '../../types';
 import {
   Lock,
@@ -25,6 +26,8 @@ export const AccessDeniedModal: React.FC<AccessDeniedModalProps> = ({
   onOpenAuth
 }) => {
   const { currentUser } = useAuth();
+
+  useModalHistory(isOpen, 'access_denied_modal', onClose);
 
   if (!isOpen) return null;
 
@@ -70,10 +73,10 @@ export const AccessDeniedModal: React.FC<AccessDeniedModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div id="access_denied_modal_overlay" className="modal-useful-fullscreen-overlay">
+      <div id="access_denied_modal_window" className="modal-useful-fullscreen-window bg-white animate-in fade-in duration-150">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-6 flex items-center justify-between">
+        <div className="bg-slate-900 text-white p-6 flex items-center justify-between shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center">
               <Lock className="w-5 h-5" />

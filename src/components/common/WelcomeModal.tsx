@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useModalHistory } from '../../utils/modalHistory';
 import {
   Sparkles,
   Wrench,
@@ -77,6 +78,14 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
     onClose();
   };
 
+  useModalHistory(isOpen, 'welcome_modal', () => {
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+    } else {
+      handleSkip();
+    }
+  });
+
   const handleNext = () => {
     if (currentStep < totalSteps) {
       setCurrentStep(prev => prev + 1);
@@ -104,11 +113,11 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-      <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto transition-all">
+    <div id="welcome_modal_overlay" className="modal-useful-fullscreen-overlay animate-in fade-in duration-200">
+      <div id="welcome_modal_window" className="modal-useful-fullscreen-window bg-white">
         
         {/* Header Superior com Progresso e Fechar */}
-        <div className="px-6 pt-5 pb-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+        <div className="px-6 pt-5 pb-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
               Passo {currentStep} de {totalSteps}
