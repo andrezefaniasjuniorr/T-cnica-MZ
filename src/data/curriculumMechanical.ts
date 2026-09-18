@@ -1,4 +1,5 @@
 import { AcademyModule } from '../types/academy';
+import { MECHANICAL_EXPANDED_LESSONS } from './curriculumMechanicalExpanded';
 
 export const MECHANICAL_MODULES: AcademyModule[] = [
   // ==========================================================================
@@ -11,14 +12,14 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
     title: 'Módulo 1: Fundamentos de Mecânica Industrial & Ajustes',
     description: 'Sistema de tolerâncias e ajustes ISO (H7/g6, H7/p6), medição metrológica de precisão e fadiga de materiais mecânicos.',
     icon: 'Wrench',
-    normasReferencia: ['ISO 286-1', 'ISO 286-2', 'DIN 7157'],
+    normasReferencia: ['ISO 286-1', 'ISO 286-2', 'DIN 7157', 'ISO 3611', 'ISO 898-1', 'ISO 15243'],
     lessons: [
       {
         id: 'mec_m1_l1_tolerancias_ajustes_iso',
         moduleId: 'mec_mod_1_fundamentos',
         moduleTitle: 'Módulo 1: Fundamentos de Mecânica Industrial & Ajustes',
         order: 1,
-        code: 'EC 1.1',
+        code: 'MC 1.1',
         title: 'Sistema de Tolerâncias e Ajustes ISO (Furo Base H7 / Eixo)',
         norma: 'ISO 286-1 / ISO 286-2',
         level: 'Básico',
@@ -60,7 +61,8 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
           keyTakeaway: 'ISO 286: Furo H7 + Eixo g6 = deslizamento suave com folga; Eixo p6 = montagem prensada com interferência.',
           xpReward: 50
         }
-      }
+      },
+      ...(MECHANICAL_EXPANDED_LESSONS['mec_mod_1_fundamentos'] || [])
     ]
   },
 
@@ -71,14 +73,14 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
     title: 'Módulo 2: Pneumática Industrial & Tratamento de Ar',
     description: 'Unidades de Tratamento FRL, ponto de orvalho, válvulas direcionais 5/2 e 5/3 vias e classe de pureza de ar comprimido ISO 8573.',
     icon: 'Wind',
-    normasReferencia: ['ISO 8573-1', 'ISO 4414', 'ISO 5599'],
+    normasReferencia: ['ISO 8573-1', 'ISO 4414', 'ISO 5599-1', 'ISO 1219-1'],
     lessons: [
       {
         id: 'mec_m2_l1_qualidade_ar_frl',
         moduleId: 'mec_mod_2_pneumatica',
         moduleTitle: 'Módulo 2: Pneumática Industrial & Tratamento de Ar',
         order: 1,
-        code: 'EC 2.1',
+        code: 'MC 2.1',
         title: 'Qualidade do Ar Comprimido (ISO 8573-1) e Conjuntos FRL',
         norma: 'ISO 8573-1 / ISO 4414',
         level: 'Intermediário',
@@ -104,8 +106,8 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
           },
           funcionamento: 'A expansão adiabática do ar comprimido realiza trabalho mecânico rápido, limpo e com segurança intrínseca em atmosferas inflamáveis.',
           aplicacaoMocambique: 'A umidade relativa do ar em cidades costeiras como Beira e Pemba chega a 85% a 35°C. Um compressor de parafuso condensa dezenas de litros de água por turno, exigindo secagem industrial mandante.',
-          exemploPratico: 'Para calcular a força de avanço de um cilindro de 63 mm a 6 bar: Raio r = 3,15 cm. Área A = π × (3,15)² = 31,17 cm². Força = 31,17 cm² × 60 N/cm² = 1870 N (aprox. 190 kgf de força útil).'
-          ,calculationSnippet: 'F = P × A | Secador PDP +3°C | Pureza ISO 8573-1 [Partículas : Água : Óleo]'
+          exemploPratico: 'Para calcular a força de avanço de um cilindro de 63 mm a 6 bar: Raio r = 3,15 cm. Área A = π × (3,15)² = 31,17 cm². Força = 31,17 cm² × 60 N/cm² = 1870 N (aprox. 190 kgf de força útil).',
+          calculationSnippet: 'F = P × A | Secador PDP +3°C | Pureza ISO 8573-1 [Partículas : Água : Óleo]'
         },
         quiz: {
           question: 'Em uma fábrica farmacêutica ou alimentícia em Moçambique com cilindros e garras pneumáticas autolubrificadas com graxa sintética de fábrica, qual erro grave na montagem da unidade FRL NÃO deve ser cometido segundo a ISO 4414?',
@@ -119,7 +121,8 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
           keyTakeaway: 'Pneumática moderna: Verifique se os componentes são autolubrificados antes de ativar o copo lubrificador da FRL.',
           xpReward: 50
         }
-      }
+      },
+      ...(MECHANICAL_EXPANDED_LESSONS['mec_mod_2_pneumatica'] || [])
     ]
   },
 
@@ -130,14 +133,14 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
     title: 'Módulo 3: Hidráulica Industrial & Circuitos de Óleo',
     description: 'Bombas volumétricas, válvulas de alívio e proporcionais, controle de contaminação ISO 4406 e cavitação hidráulica.',
     icon: 'Activity',
-    normasReferencia: ['ISO 4413', 'ISO 4406', 'ISO 1219-1'],
+    normasReferencia: ['ISO 4413', 'ISO 4406', 'ISO 1219-1', 'ISO 6264', 'ISO 10300'],
     lessons: [
       {
         id: 'mec_m3_l1_cavitacao_contaminacao',
         moduleId: 'mec_mod_3_hidraulica',
         moduleTitle: 'Módulo 3: Hidráulica Industrial & Circuitos de Óleo',
         order: 1,
-        code: 'EC 3.1',
+        code: 'MC 3.1',
         title: 'Cavitação em Bombas Hidráulicas e Contaminação de Óleo (ISO 4406)',
         norma: 'ISO 4413 / ISO 4406',
         level: 'Avançado',
@@ -163,8 +166,8 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
           },
           funcionamento: 'As bolhas de vapor formadas no vácuo de sucção entram na câmara de alta pressão e implodem em microssegundos com ondas de choque pontuais de mais de 10.000 bar.',
           aplicacaoMocambique: 'A poeira fina em usinas de carvão e britadeiras em Moçambique contamina tanques hidráulicos mal vedados. O uso de filtros de ar tipo dessecante com sílica gel nos respiros é mandatório para proteger as bombas.',
-          exemploPratico: 'Para empurrar uma carga de 500 kN (50 toneladas) com um cilindro hidráulico de diâmetro de ímbolo de 160 mm (Área A = 201 cm²): P = 500000 N / 201 cm² = 2487 N/cm² = 248,7 bar de pressão de trabalho.'
-          ,calculationSnippet: 'P = F / A | Ruído de brita = Cavitação (v_sucção ≤ 1,2 m/s) | ISO 4406 limpa válvulas'
+          exemploPratico: 'Para empurrar uma carga de 500 kN (50 toneladas) com um cilindro hidráulico de diâmetro de êmbolo de 160 mm (Área A = 201 cm²): P = 500000 N / 201 cm² = 2487 N/cm² = 248,7 bar de pressão de trabalho.',
+          calculationSnippet: 'P = F / A | Ruído de brita = Cavitação (v_sucção ≤ 1,2 m/s) | ISO 4406 limpa válvulas'
         },
         quiz: {
           question: 'Durante a operação de uma prensa hidráulica com bomba de pistões axiais de 250 bar, o operador nota um ruído sonoro agudo muito forte semelhante a cascalho/pedras trituradas dentro da bomba e vibração na mangueira de sucção. Qual é o diagnóstico técnico mais provável e a causa física correspondente?',
@@ -178,7 +181,8 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
           keyTakeaway: 'Ruído de brita na bomba hidráulica = Cavitação! Verifique filtro de sucção e nível de óleo imediatamente.',
           xpReward: 50
         }
-      }
+      },
+      ...(MECHANICAL_EXPANDED_LESSONS['mec_mod_3_hidraulica'] || [])
     ]
   },
 
@@ -189,14 +193,14 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
     title: 'Módulo 4: Manutenção Preditiva & Análise de Vibrações',
     description: 'Espectros FFT de vibração (1X, 2X, harmônicos), severidade segundo a ISO 10816-3 e termografia de mancais.',
     icon: 'Maximize2',
-    normasReferencia: ['ISO 10816-3', 'ISO 20816-1', 'ISO 13373'],
+    normasReferencia: ['ISO 10816-3', 'ISO 20816-1', 'ISO 13373', 'ISO 15243', 'ASTM D445'],
     lessons: [
       {
         id: 'mec_m4_l1_analise_vibracoes_iso10816',
         moduleId: 'mec_mod_4_manutencao',
         moduleTitle: 'Módulo 4: Manutenção Preditiva & Análise de Vibrações',
         order: 1,
-        code: 'EC 4.1',
+        code: 'MC 4.1',
         title: 'Severidade de Vibração (ISO 10816-3) e Diagnóstico por Espectro FFT',
         norma: 'ISO 10816-3 / ISO 20816-1',
         level: 'Avançado',
@@ -222,8 +226,8 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
           },
           funcionamento: 'O transdutor piezoelétrico gera uma carga elétrica proporcional à aceleração mecânica, que é convertida pelo processador DSP através da Transformada Rápida de Fourier (FFT) em amplitudes por frequência.',
           aplicacaoMocambique: 'Ventiladores industriais de exaustão em indústrias cimenteiras e fundições acumulam poeira irregularmente nas pás, gerando desbalanceamento em 1X. O balanceamento dinâmico em dois planos no local economiza dias de desmontagem.',
-          exemploPratico: 'Motor de 3000 RPM (50 Hz). Se o espectro FFT indicar pico dominante em 50 Hz radial, trata-se de desbalanceamento de massa. Se o pico for em 100 Hz axial, trata-se de desalinhamento angular.'
-          ,calculationSnippet: '1X radial = Desbalanceamento | 2X/3X axial = Desalinhamento | Zona D (> 4,5 mm/s) = Perigo'
+          exemploPratico: 'Motor de 3000 RPM (50 Hz). Se o espectro FFT indicar pico dominante em 50 Hz radial, trata-se de desbalanceamento de massa. Se o pico for em 100 Hz axial, trata-se de desalinhamento angular.',
+          calculationSnippet: '1X radial = Desbalanceamento | 2X/3X axial = Desalinhamento | Zona D (> 4,5 mm/s) = Perigo'
         },
         quiz: {
           question: 'Durante a medição de vibração preditiva com acelerômetro em um motor elétrico de 75 kW (1450 RPM / 24,1 Hz) acoplado a um ventilador industrial, o medidor aponta um valor global de velocidade de 7,8 mm/s RMS (Zona D da ISO 10816-3). A análise do espectro FFT revela um pico dominante exatamente na frequência de rotação 1X (24,1 Hz) no sentido radial. Qual é o diagnóstico mecânico correto?',
@@ -237,7 +241,9 @@ export const MECHANICAL_MODULES: AcademyModule[] = [
           keyTakeaway: 'Espectro FFT: Pico dominante em 1X radial = Desbalanceamento; Picos em 2X/3X axial = Desalinhamento.',
           xpReward: 50
         }
-      }
+      },
+      ...(MECHANICAL_EXPANDED_LESSONS['mec_mod_4_manutencao'] || [])
     ]
   }
 ];
+

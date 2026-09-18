@@ -160,6 +160,100 @@ export const ELECTRICAL_MODULES: AcademyModule[] = [
           keyTakeaway: 'Neutro rompido em rede trifásica = sobretensão catastrófica nas cargas leves por deslocamento do neutro.',
           xpReward: 50
         }
+      },
+      {
+        id: 'elec_m1_ec4_triangulo_potencias_rendimento',
+        moduleId: 'elec_mod_1_fisica',
+        moduleTitle: 'Módulo 1: Princípios da Física Elétrica & Leis Fundamentais',
+        order: 4,
+        code: 'EC 1.4',
+        title: 'Triângulo de Potências, Eficiência Energética e Rendimento (η)',
+        norma: 'IEC 60034-2-1 / IEC 60038',
+        level: 'Básico',
+        durationMinutes: 13,
+        theory: {
+          conceito: 'Nenhum motor ou transformador entrega 100% da potência elétrica que absorve da rede. A eficiência ou rendimento (η) é a razão entre a potência mecânica útil entregue no eixo (P_mec em Watts ou CV) e a potência elétrica ativa consumida (P_elec em Watts). A diferença é dissipada em calor nos enrolamentos (perdas Joule), perdas magnéticas no ferro (histerese e correntes de Foucault) e atrito.',
+          formulas: [
+            { label: 'Rendimento Eletromecânico', formula: 'η = P_util / P_absorvida', explicacao: 'Rendimento decimal (ex: 0,85 = 85% de eficiência)' },
+            { label: 'Conversão CV para Watts', formula: '1 CV = 735,5 W (1 HP = 746 W)', explicacao: 'Potência indicada na placa de motores comerciais em Moçambique' },
+            { label: 'Potência Elétrica Absorvida', formula: 'P_elec = (P_cv × 735,5) / η', explicacao: 'Potência real faturada e dimensionada para a proteção' }
+          ],
+          pontosOperacionais: [
+            'A potência gravada na placa de identificação do motor (ex: 5,5 kW ou 7,5 CV) é a potência MECÂNICA na ponta do eixo, NUNCA a elétrica.',
+            'Para dimensionar disjuntores, cabos e contatores, deve-se sempre calcular a potência elétrica total absorvida da rede dividindo pelo rendimento e fator de potência.',
+            'Motores com classe de rendimento IE3 (Premium) operam significativamente mais frios do que motores antigos IE1, aumentando a vida útil dos rolamentos e enrolamentos.',
+            'Verifique sempre se a ventoinha traseira do motor não está obstruída por poeira ou cavacos de madeira em oficinas.'
+          ],
+          fieldCase: {
+            localizacao: 'Matola Rio, Província de Maputo',
+            cenario: 'Moagem de farinha com motor de 10 CV trifásico 400V onde os cabos de alimentação de 2,5 mm² derretiam a isolação após 3 horas contínuas de operação.',
+            diagnostico: 'O instalador calculou a corrente considerando apenas 10 CV = 7355 W sem levar em conta o rendimento de 82% (η = 0,82) e o fator de potência cos φ = 0,78 da máquina em carga. A corrente real de operação era de 18,2 A, superando o limite seguro do condutor.',
+            solucaoNormativa: 'Substituição da fiação por cabos de 4 mm² em cobre e ajuste do relé de proteção bimetálico para 18,5 A com disjuntor-motor coordenado.'
+          },
+          funcionamento: 'Ao projetar instalações industriais e prediais, calcular a demanda exata exige conhecer a placa da máquina. Em Moçambique, onde as oscilações de tensão são frequentes, motores com baixo rendimento trabalham sobrecarregados e aquecem perigosamente.',
+          aplicacaoMocambique: 'Moinhos de milho, bombas de irrigação em Gaza e oficinas de serralharia operam diariamente com motores pesados. Compreender o rendimento evita queimar equipamentos e garante orçamentos elétricos corretos.',
+          exemploPratico: 'Motor de 5 CV (3677 W útil) com rendimento η = 0,85 e cos φ = 0,80 em 400V trifásico: Potência absorvida P = 3677 / 0,85 = 4325 W. Corrente I = 4325 / (1,732 × 400 × 0,80) = 7,8 A por fase.',
+          calculationSnippet: 'P_absorvida = P_util / η | 1 CV = 735,5 W'
+        },
+        quiz: {
+          question: 'Um motor trifásico de 400 V 50 Hz aciona um compressor de ar com potência mecânica de 7,35 kW no eixo (aprox. 10 CV). A placa indica rendimento η = 0,85 e cos φ = 0,82. Qual é a potência elétrica ativa (P_elec) absorvida da rede pela máquina?',
+          options: [
+            { id: 'A', text: '6,24 kW', isCorrect: false, feedback: 'O motor não pode absorver menos energia do que entrega no eixo; isso violaria o princípio de conservação de energia.' },
+            { id: 'B', text: '7,35 kW', isCorrect: false, feedback: '7,35 kW é a potência mecânica pura entregue no eixo, desconsiderando as perdas de calor e atrito.' },
+            { id: 'C', text: '8,65 kW', isCorrect: true, feedback: 'Perfeito! P_elec = P_mec / η = 7,35 kW / 0,85 = 8,647 kW (aprox. 8,65 kW absorvidos da rede).' },
+            { id: 'D', text: '12,50 kW', isCorrect: false, feedback: 'Valor muito elevado, incompatível com o rendimento de 85%.' }
+          ],
+          explanation: 'O rendimento de uma máquina é dado por η = P_util / P_absorvida. Portanto, a potência elétrica ativa que o motor drena da rede da EDM é: P_absorvida = P_util / η = 7350 W / 0,85 = 8647 W ≈ 8,65 kW.',
+          keyTakeaway: 'Potência absorvida da rede = Potência no eixo / Rendimento (η). Sempre maior que a potência nominal útil.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m1_ec5_balanceamento_trifasico_campo',
+        moduleId: 'elec_mod_1_fisica',
+        moduleTitle: 'Módulo 1: Princípios da Física Elétrica & Leis Fundamentais',
+        order: 5,
+        code: 'EC 1.5',
+        title: 'Balanceamento de Fases na Prática e Eliminação de Desequilíbrios',
+        norma: 'IEC 60364-5-52 / IEC 60038',
+        level: 'Básico',
+        durationMinutes: 14,
+        theory: {
+          conceito: 'O balanceamento de fases consiste em distribuir as cargas monofásicas (iluminação, tomadas, pequenos motores e ares condicionados) de forma tão homogênea quanto possível entre as três fases L1, L2 e L3. Uma instalação equilibrada minimiza a corrente que retorna pelo condutor de neutro, reduz perdas Joule em até 30% e impede que o disjuntor principal dispare por sobrecorrente em apenas uma das fases.',
+          formulas: [
+            { label: 'Taxa de Desequilíbrio de Corrente', formula: 'Deseq (%) = [(I_max - I_med) / I_med] × 100', explicacao: 'Norma IEC recomenda manter o desequilíbrio abaixo de 10%' },
+            { label: 'Corrente Média das Fases', formula: 'I_med = (I_L1 + I_L2 + I_L3) / 3', explicacao: 'Base de referência para o cálculo do equilíbrio de correntes' },
+            { label: 'Potência por Fase Alvo', formula: 'P_fase = P_total_monofasica / 3', explicacao: 'Meta de potência conectada para cada uma das 3 fases do quadro' }
+          ],
+          pontosOperacionais: [
+            'Medir as correntes das três fases no horário de pico (ex: entre 18h e 20h para residências, ou 10h e 14h para comércio) com alicate amperímetro True-RMS.',
+            'Se a Fase L1 registrar 55 A e a Fase L3 registrar 18 A, o disjuntor geral de 63 A desarmará prematuramente, mesmo que a carga média total seja de apenas 36 A.',
+            'A redistribuição deve ser feita fisicamente nos disjuntores do quadro parcial, alternando a conexão dos pentes ou fios de entrada dos disjuntores monofásicos.',
+            'Nunca compense desequilíbrio aumentando a capacidade do disjuntor geral além do limite nominal do cabo de entrada da EDM.'
+          ],
+          fieldCase: {
+            localizacao: 'Bairro Central, Maputo',
+            cenario: 'Restaurante comercial com entrada trifásica 63A cujo disjuntor geral caía todos os dias ao meio-dia durante o preparo do almoço.',
+            diagnostico: 'Com alicate amperímetro, o técnico mediu: Fase L1 = 61 A, Fase L2 = 22 A e Fase L3 = 19 A. Três fritadeiras elétricas e dois freezers estavam todos ligados em tomadas conectadas à mesma Fase L1.',
+            solucaoNormativa: 'Remanejamento de circuitos no quadro: duas fritadeiras foram transferidas para L2 e os freezers para L3. Correntes resultantes: L1 = 34 A, L2 = 33 A, L3 = 35 A. Corrente de neutro caiu de 44 A para apenas 3 A. Desarmes totalmente solucionados.'
+          },
+          funcionamento: 'Quando as três fases carregam correntes de mesmo módulo defasadas de 120°, a soma fasorial no ponto comum de neutro cancela-se matematicamente. Menos corrente no neutro significa menos calor nos eletrodutos e menor queda de tensão em todas as tomadas.',
+          aplicacaoMocambique: 'Em Moçambique, onde muitos quadros antigos não possuem projeto unifilar atualizado, é rotina eletricistas ligarem novas cargas na primeira fase que encontram com borne vago. O balanceamento é o serviço mais rápido e valorizado para solucionar desarmes misteriosos.',
+          exemploPratico: 'Quadro comercial: Total de 15 ares condicionados split de 12000 BTU (6A cada). Divisão correta: exatamente 5 aparelhos na Fase L1 (30A), 5 na Fase L2 (30A) e 5 na Fase L3 (30A). Equilíbrio perfeito com corrente de neutro nula.',
+          calculationSnippet: 'Deseq < 10% | P_fase = P_total / 3 | I_neutro ≈ 0 A em equilíbrio'
+        },
+        quiz: {
+          question: 'Um técnico mede as correntes de entrada de um quadro de distribuição trifásico em horário de trabalho: Fase L1 = 48 A, Fase L2 = 14 A e Fase L3 = 16 A. O disjuntor geral é de 50 A e desarma com frequência. Qual é o diagnóstico correto e a ação normativa indicada?',
+          options: [
+            { id: 'A', text: 'Substituir imediatamente o disjuntor de 50 A por um de 100 A para evitar desarmes.', isCorrect: false, feedback: 'Totalmente incorreto e perigoso! Trocar o disjuntor sem trocar os cabos pode queimar a tubulação por sobrecarga contínua.' },
+            { id: 'B', text: 'A instalação está com grave desbalanceamento de fases; deve-se remanejar circuitos monofásicos de L1 para L2 e L3, equalizando as correntes em torno de 26 A por fase.', isCorrect: true, feedback: 'Exato! A corrente total é 48 + 14 + 16 = 78 A. Distribuída igualmente dá 26 A por fase, operando com folga de quase 50% no disjuntor de 50 A!' },
+            { id: 'C', text: 'O desarmamento ocorre por fuga de terra no condutor de neutro.', isCorrect: false, feedback: 'Disjuntor termomagnético comum desarma por sobrecorrente na Fase L1 (48 A muito próximo de 50 A térmico).' },
+            { id: 'D', text: 'Instalar um motor trifásico na fase L2 para puxar corrente.', isCorrect: false, feedback: 'Não se adiciona carga desnecessária para corrigir desbalanceamento.' }
+          ],
+          explanation: 'A soma das correntes é 48 + 14 + 16 = 78 A. A corrente média ideal por fase seria 78 / 3 = 26 A. A Fase L1 está operando em 48 A (96% da capacidade do disjuntor de 50 A), desarmando por sobrecarga térmica. Remanejando circuitos de L1 para L2 e L3, todas as fases operam frias em ~26 A.',
+          keyTakeaway: 'Balanceamento de fases divide o consumo igualmente, evita desarmes falsos e reduz drasticamente a corrente no neutro.',
+          xpReward: 50
+        }
       }
     ]
   },
@@ -267,6 +361,147 @@ export const ELECTRICAL_MODULES: AcademyModule[] = [
           ],
           explanation: 'Calculando a corrente de projeto: Ib = P / V = 3000 W / 230 V = 13,04 A. A proteção deve satisfazer Ib ≤ In ≤ Iz. O disjuntor comercial padrão adequado é de 16 A (Curva C). O condutor de cobre de 2,5 mm² suporta 18,5 A a 21 A em eletroduto embutido, garantindo a integridade térmica do circuito.',
           keyTakeaway: 'Ib = P / V: Termoacumulador de 3 kW consome 13 A e exige condutor mín. 2,5 mm² com MCB 16A.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m2_ec3_eletrodutos_enfiacao_normas',
+        moduleId: 'elec_mod_2_predial',
+        moduleTitle: 'Módulo 2: Instalações Elétricas Prediais & Práticas Básicas',
+        order: 3,
+        code: 'EC 2.3',
+        title: 'Taxa de Ocupação de Eletrodutos, Curvas e Enfiação sem Atrito',
+        norma: 'IEC 60364-5-52 / IEC 61386',
+        level: 'Básico',
+        durationMinutes: 13,
+        theory: {
+          conceito: 'A passagem de condutores em tubulações exige respeitar as taxas máximas de ocupação da área interna do eletroduto segundo a IEC 60364-5-52: máximo de 53% para 1 condutor, 31% para 2 condutores e 40% para 3 ou mais condutores. Deixar 60% de espaço livre garante a dissipação do calor gerado pelo efeito Joule e permite passar ou substituir condutores no futuro sem romper o isolamento.',
+          formulas: [
+            { label: 'Taxa para 3 ou mais Condutores', formula: 'Σ S_externa_cabos ≤ 0,40 × S_interna_tubo', explicacao: 'Máximo 40% de preenchimento para 3 ou mais cabos' },
+            { label: 'Área da Seção Circular', formula: 'S = (π × D²) / 4', explicacao: 'Área com base no diâmetro externo do cabo ou interno do tubo' },
+            { label: 'Limite de Curvas por Trecho', formula: 'Máx. 3 curvas de 90° (270° total)', explicacao: 'Distância máxima de 15m em linha reta ou 12m com curvas entre caixas' }
+          ],
+          pontosOperacionais: [
+            'Nunca ultrapasse 40% de ocupação; forçar cabos em tubos apertados rasga a isolação de PVC e gera curtos invisíveis dentro da alvenaria.',
+            'O número máximo de curvas entre duas caixas de passagem consecutivas é 3 curvas de 90° (ou equivalente a 270° de deflexão total). Se houver mais, instale uma caixa de derivação intermediária.',
+            'Use lubrificante neutro à base de água ou vaselina industrial; produtos como sabão em pó ou detergente contêm soda e agentes corrosivos que ressecam o PVC após alguns anos.',
+            'Em tubulações enterradas ou expostas a UV, utilize eletrodutos rígidos de PEAD ou PVC antichama certificado com grau de proteção mecânica IK08.'
+          ],
+          fieldCase: {
+            localizacao: 'Triunfo, Maputo',
+            cenario: 'Moradia nova onde o cliente queria passar um circuito adicional de ar condicionado de 4 mm² em um eletroduto corrugado de 20 mm onde já passavam 6 fios de 2,5 mm².',
+            diagnostico: 'A área útil já estava ocupada a 52%. Ao puxar o novo cabo com força excessiva, a fiação existente travou, o fio de guia partiu e a isolação de um cabo de fase foi esfolada contra a parede interna corrugada, gerando fuga de corrente.',
+            solucaoNormativa: 'Abertura de rasgo para eletroduto independente de 25 mm dedicado exclusivamente aos circuitos de climatização, restabelecendo a ocupação segura em ambos os tubos.'
+          },
+          funcionamento: 'O ar aprisionado dentro do eletroduto atua como isolante térmico. Quando os cabos operam sob carga, a temperatura interna sobe. Se a taxa de ocupação estiver dentro de 40%, o calor dissipa para a parede; se estiver entupido de fios, os cabos cozinham na própria temperatura e derretem.',
+          aplicacaoMocambique: 'Tubos corrugados de baixa qualidade (amarelos leves de espessura fina) amassam com o peso do concreto durante a concretagem de lajes em Moçambique. Use sempre eletrodutos reforçados laranjas ou cinzentos nas lajes.',
+          exemploPratico: 'Tubo de PVC de diâmetro interno 20 mm: Área interna = 314 mm². 40% útil = 125 mm². Cada cabo flexível de 2,5 mm² tem diâmetro externo aprox. 3,6 mm (área = 10,2 mm²). É seguro passar até 12 condutores de 2,5 mm², mas recomenda-se no máximo 6 a 8 por circuito térmico.',
+          calculationSnippet: 'Ocupação máx. 40% para ≥ 3 cabos | Máx. 3 curvas de 90° entre caixas'
+        },
+        quiz: {
+          question: 'De acordo com a IEC 60364-5-52, qual é a taxa máxima recomendada de ocupação da área da seção transversal interna de um eletroduto quando se instalam três ou mais condutores elétricos?',
+          options: [
+            { id: 'A', text: '100% (o tubo deve ser preenchido até não caber mais nenhum cabo).', isCorrect: false, feedback: 'Totalmente proibido! Causa superaquecimento, perda de isolamento e impossibilidade de manutenção.' },
+            { id: 'B', text: '40% da área útil interna do eletroduto.', isCorrect: true, feedback: 'Correto! A norma fixa 40% para 3 ou mais cabos, reservando 60% de espaço livre para ventilação térmica e facilidade de enfiação.' },
+            { id: 'C', text: '80% desde que se use detergente para lubrificar.', isCorrect: false, feedback: '80% gera aprisionamento térmico e detergente ataca quimicamente o PVC.' },
+            { id: 'D', text: '15% apenas.', isCorrect: false, feedback: '15% seria superdimensionamento desnecessário na construção civil.' }
+          ],
+          explanation: 'A IEC 60364-5-52 define que, para 3 ou mais condutores no mesmo conduto, a soma das áreas externas dos cabos não pode exceder 40% da área interna do tubo. Isso garante espaço de ar para convecção térmica e tração livre durante a passagem da fiação.',
+          keyTakeaway: 'Regra dos 40%: Mantenha pelo menos 60% de espaço livre no eletroduto para cabos operarem frios.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m2_ec4_zonas_humidas_termoacumuladores',
+        moduleId: 'elec_mod_2_predial',
+        moduleTitle: 'Módulo 2: Instalações Elétricas Prediais & Práticas Básicas',
+        order: 4,
+        code: 'EC 2.4',
+        title: 'Instalações em Zonas Húmidas (Casas de Banho) e Termoacumuladores',
+        norma: 'IEC 60364-7-701 / EN 60529',
+        level: 'Intermediário',
+        durationMinutes: 15,
+        theory: {
+          conceito: 'Casas de banho e zonas húmidas são os locais de maior risco de choque fatal em uma residência, pois a pele molhada perde sua resistência elétrica natural (cai de 100.000 Ω para menos de 1.000 Ω). A norma IEC 60364-7-701 divide o ambiente em 4 volumes rigorosos: Volume 0 (interior da banheira/poliban), Volume 1 (até 2,25m de altura sobre a banheira), Volume 2 (faixa de 0,60m em torno do Volume 1) e Volume 3 (restante do espaço).',
+          formulas: [
+            { label: 'Resistência do Corpo Molhado', formula: 'R_corpo_molhado ≈ 800 a 1000 Ω', explicacao: 'Uma tensão de apenas 25V gera corrente letal de 25mA a 30mA' },
+            { label: 'Tensão Limite de Segurança', formula: 'U_L = 25 V AC (ambientes húmidos)', explicacao: 'Tensão máxima de toque sem perigo de morte segundo IEC 60364-4-41' },
+            { label: 'Proteção Diferencial Obrigatória', formula: 'I_Δn ≤ 30 mA (IDR / RCBO)', explicacao: 'Obrigatório em TODOS os circuitos que servem a casa de banho' }
+          ],
+          pontosOperacionais: [
+            'Proibido instalar interruptores ou tomadas nos Volumes 0 e 1. No Volume 2 só são permitidas tomadas alimentadas por transformador de isolamento de baixa potência para barbeadores (SELV).',
+            'Termoacumuladores (caldeiras de água) instalados no Volume 1 devem possuir grau de proteção mínimo IPX4 (à prova de salpicos) e fiação direta sem tomada comum no box.',
+            'Obrigatória a Ligação Equipotencial Suplementar (LES): conectar tubulações metálicas de água fria, água quente e estrutura da banheira ao condutor de terra PE com fio verde-amarelo de no mínimo 4 mm².',
+            'O disjuntor diferencial que protege o termoacumulador deve ser do Tipo A ou AC de 30 mA com teste mensal obrigatório.'
+          ],
+          fieldCase: {
+            localizacao: 'Sommerschield, Maputo',
+            cenario: 'Condomínio onde o chuveiro elétrico dava pequenos choques nas mãos ao fechar o registro metálico da água.',
+            diagnostico: 'A resistência do chuveiro estava com fuga microscópica para a água e o registro metálico não possuía ligação equipotencial com o barramento de terra do quadro, mantendo 45V de diferença de potencial em relação ao ralo molhado.',
+            solucaoNormativa: 'Instalação de cabo de equipotencialização de 4 mm² conectando os tubos metálicos ao terra PE e substituição do disjuntor termomagnético simples por um RCBO de 30 mA.'
+          },
+          funcionamento: 'A equipotencialização garante que todos os metais acessíveis fiquem rigorosamente no mesmo potencial elétrico da terra (0V). Mesmo que surja uma fuga, a diferença de potencial (ddp) entre o registro e o piso é zero, eliminando o choque elétrico.',
+          aplicacaoMocambique: 'Em Moçambique é comum encontrar chuveiros elétricos instantâneos tipo "fame" ligados com emendas com fita isolante comum dentro do box do banheiro. Essas emendas em ambientes de vapor d\'água oxidam e pegam fogo.',
+          exemploPratico: 'Termoacumulador de 80 litros 2000W: Instalação no Volume 2 com cabo flexível 3x2,5 mm² entrando diretamente na caixa de bornes IPX5 do aparelho através de bucim estanque, protegido no quadro por disjuntor bipolar 16A + IDR 30mA.',
+          calculationSnippet: 'Volume 0 e 1: sem tomadas | IPX4 mínimo | IDR 30mA inegociável'
+        },
+        quiz: {
+          question: 'De acordo com a norma internacional IEC 60364-7-701 para instalações em locais contendo banheira ou duche, qual afirmação sobre a instalação de tomadas de corrente é correta?',
+          options: [
+            { id: 'A', text: 'Podem ser instaladas dentro do Volume 1 desde que a tomada tenha tampa plástica comum.', isCorrect: false, feedback: 'Totalmente proibido! No Volume 1 não se pode colocar nenhuma tomada comum sob risco fatal de choque.' },
+            { id: 'B', text: 'Tomadas de uso geral só são permitidas fora dos Volumes 0, 1 e 2 (a mais de 0,60 m do limite da banheira/duche), protegidas obrigatoriamente por RCD de 30 mA.', isCorrect: true, feedback: 'Perfeito! As tomadas gerais de 230V são restritas à área fora do alcance imediato do duche (Volume 3 / fora das zonas de risco) e protegidas por IDR 30mA.' },
+            { id: 'C', text: 'Não há restrições de distância se a residência tiver haste de aterramento no quintal.', isCorrect: false, feedback: 'A água reduz drasticamente a resistência do corpo humano e requer distanciamento físico normatizado.' },
+            { id: 'D', text: 'Pode-se instalar tomada comum no teto do Volume 0.', isCorrect: false, feedback: 'Volume 0 é o interior da banheira/poliban, proibido para qualquer tomada.' }
+          ],
+          explanation: 'A IEC 60364-7-701 proíbe a instalação de tomadas nos Volumes 0, 1 e 2 (salvo tomadas com transformador de isolamento SELV para barbeadores no Volume 2). Tomadas convencionais só são permitidas a partir do Volume 3 (a mais de 0,60 m da borda da zona húmida), obrigatoriamente com proteção diferencial residual de 30 mA.',
+          keyTakeaway: 'Casas de banho: tomadas a pelo menos 60 cm do duche e SEMPRE com proteção por IDR 30 mA.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m2_ec5_interfonia_campainhas_fechaduras',
+        moduleId: 'elec_mod_2_predial',
+        moduleTitle: 'Módulo 2: Instalações Elétricas Prediais & Práticas Básicas',
+        order: 5,
+        code: 'EC 2.5',
+        title: 'Sistemas de Baixa Tensão: Campainhas, Interfonia e Fechaduras 12V',
+        norma: 'IEC 60364-4-41 (SELV) / EN 50130',
+        level: 'Básico',
+        durationMinutes: 13,
+        theory: {
+          conceito: 'Os sistemas de comunicação, chamada e controle de acesso predial operam em Tensão Extrabaixa de Segurança (SELV - Safety Extra-Low Voltage), tipicamente 12V ou 24V AC/DC. Essa segregação protege os usuários de choques elétricos no portão externo e impede que oscilações da rede de 230V queimem módulos eletrônicos sensíveis.',
+          formulas: [
+            { label: 'Circuito SELV (Segurança)', formula: 'V_nominal ≤ 50 V AC ou 120 V DC', explicacao: 'Sem risco de choque elétrico perigoso ao toque humano direto' },
+            { label: 'Corrente de Pulso de Fechadura', formula: 'I_pulso = P / V ≈ 12W / 12V = 1,0 A', explicacao: 'Pico de corrente momentâneo durante o disparo da bobina solenoide' },
+            { label: 'Queda de Tensão em Fios Finos', formula: 'ΔV = 2 × L × (ρ / S) × I', explicacao: 'Fios telefônicos finos causam perda de força no destravamento magnético' }
+          ],
+          pontosOperacionais: [
+            'Proibido passar cabos de sinal de interfone/fechadura de 12V no mesmo eletroduto de cabos de força de 230V; a indução eletromagnética gera zumbidos fortes no áudio e disparos fantasmas.',
+            'Para fechaduras elétricas instaladas a mais de 25 metros da fonte/interfone, use cabo com bitola mínima de 1,0 mm² ou 1,5 mm² para evitar queda de tensão no pulso de abertura.',
+            'Sempre instale um diodo de proteção flyback (ex: 1N4007) em paralelo reverso com bobinas de fechaduras 12V DC para absorver o pico de força contra-eletromotriz na desenergização.',
+            'O transformador de campainha deve ser do tipo isolador de segurança com isolamento galvânico duplo segundo a IEC 61558-2-8.'
+          ],
+          fieldCase: {
+            localizacao: 'Costa do Sol, Maputo',
+            cenario: 'Moradia onde a fechadura elétrica do portão de ferro só abria de vez em quando; no interfone interno ouvia-se um zumbido contínuo no fone.',
+            diagnostico: '1) O técnico anterior passou o cabo UTP do interfone na mesma tubulação corrugada do cabo de 230V do motor de portão (indução eletromagnética severa); 2) A distância de 40 metros com fio fino de 0,5 mm² derrubava os 12V para 8,2V no momento do pulso da bobina.',
+            solucaoNormativa: 'Tubulação exclusiva para o interfone e substituição do condutor de alimentação da fechadura por cabo flexível de 1,5 mm². Tensão de pulso restaurada para 11,8V e funcionamento 100% confiável.'
+          },
+          funcionamento: 'A bobina solenoide da fechadura requer um campo magnético instantâneo para recolher o trinco de aço. Se a bitola do condutor for muito fina, a resistência do fio limita a corrente e a fechadura não tem força para destravar.',
+          aplicacaoMocambique: 'A maresia e poeira em cidades costeiras como Maputo, Beira e Pemba oxidam rapidamente conexões em botoeiras externas de campainha e interfone. O uso de terminais estanques com fita de autofusão é mandatário.',
+          exemploPratico: 'Esquema de ligação interfone com vídeo: [Fonte 12V DC] -> [Monitor interno] -> [Cabo 4 vias blindado em duto dedicado] -> [Painel de rua IP65] -> [Pulso de 12V com cabo 1,5 mm²] -> [Fechadura elétrica].',
+          calculationSnippet: 'SELV ≤ 50V AC | Dutos separados de 230V | Cabo mín. 1,0 mm² para distâncias > 20m'
+        },
+        quiz: {
+          question: 'Ao instalar um sistema de interfonia e fechadura elétrica de 12V em um condomínio residencial, qual é a prática normativa correta segundo a IEC 60364 para garantir áudio límpido e abertura sem falhas?',
+          options: [
+            { id: 'A', text: 'Passar os cabos de áudio de 12V no mesmo eletroduto da alimentação do ar-condicionado de 230V para economizar tubulação.', isCorrect: false, feedback: 'Grave erro! A indução eletromagnética causa zumbido de 50Hz ensurdecedor no áudio e queima componentes.' },
+            { id: 'B', text: 'Segregar os cabos de sinal e extrabaixa tensão (12V) em eletroduto independente dos cabos de 230V e utilizar condutores de seção adequada para evitar queda de tensão no pulso.', isCorrect: true, feedback: 'Correto! A segregação física de condutos é norma mandatória (IEC 60364-5-52) para evitar interferências e garantir a força da bobina.' },
+            { id: 'C', text: 'Ligar a fechadura de 12V diretamente na tomada de 230V da sala.', isCorrect: false, feedback: 'Explodiria a bobina e colocaria em risco fatal qualquer pessoa no portão.' },
+            { id: 'D', text: 'Utilizar cabo de fibra óptica para alimentar eletricamente a bobina solenoide.', isCorrect: false, feedback: 'Fibra óptica transmite apenas dados ópticos (luz) e não conduz corrente elétrica para solenoides.' }
+          ],
+          explanation: 'Circuitos de extrabaixa tensão (SELV) e telecomunicação não podem compartilhar o mesmo duto com cabos de baixa tensão (230V/400V) a menos que todos os condutores sejam isolados para a tensão mais alta e blindados contra indução eletromagnética (IEC 60364-5-52). Para fechaduras a distância, a bitola mínima evita queda de tensão no disparo.',
+          keyTakeaway: 'Segregação de condutos: Cabos de sinal e 12V sempre em tubulação separada de circuitos de potência 230V.',
           xpReward: 50
         }
       }
@@ -472,6 +707,100 @@ export const ELECTRICAL_MODULES: AcademyModule[] = [
           ],
           explanation: 'Durante uma descarga atmosférica, a corrente sobe milhares de amperes por microssegundo (di/dt extremo). A indutância típica de 1 metro de cabo é de aprox. 1 μH, gerando uma sobretensão adicional de ΔV = L · (di/dt) ≈ 1000 V por metro. Portanto, a IEC 60364-5-534 estipula a "regra dos 50 cm" (comprimento total de conexão ≤ 0,5 m) para que a tensão real nos equipamentos não exceda o limite seguro Up.',
           keyTakeaway: 'Regra dos 50 cm: Cabos de conexão do SPD devem ter comprimento total ≤ 0,5 m.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m3_ec5_seletividade_amperimetrica_cronometrica',
+        moduleId: 'elec_mod_3_protecoes_iec',
+        moduleTitle: 'Módulo 3: Proteções Elétricas & Normas IEC (IEC 60364)',
+        order: 5,
+        code: 'EC 3.5',
+        title: 'Seletividade Amperimétrica, Cronométrica e Energia Específica (I²t)',
+        norma: 'IEC 60947-2 / IEC 60364-5-53',
+        level: 'Avançado',
+        durationMinutes: 15,
+        theory: {
+          conceito: 'Seletividade é a capacidade de um sistema de proteção desarmar exclusivamente o dispositivo de proteção imediatamente a montante da falta, mantendo todos os outros circuitos do edifício energizados e operacionais. A seletividade total evita que um curto-circuito em uma tomada de escritório derrube o disjuntor geral do prédio inteiro, paralisando serviços essenciais.',
+          formulas: [
+            { label: 'Condição de Seletividade Amperimétrica', formula: 'I_n_montante ≥ 1,6 a 2,0 × I_n_jusante', explicacao: 'Relação mínima de corrente nominal entre disjuntores em série' },
+            { label: 'Seletividade Energética (Curto-Circuito)', formula: 'I²t_prearco_montante > I²t_corte_jusante', explicacao: 'A energia de abertura do disjuntor a jusante deve ser menor que a de disparo do montante' },
+            { label: 'Tempo de Retardo Cronométrico', formula: 'Δt_seletividade ≥ 100 a 150 ms', explicacao: 'Diferencial de temporização entre curvas de relés eletrônicos' }
+          ],
+          pontosOperacionais: [
+            'Seletividade total entre dois disjuntores modulares (MCBs) nem sempre é alcançada apenas pelo calibre nominal; em curtos-circuitos francos com corrente elevada, ambos podem disparar simultaneamente pela ação magnética instantânea.',
+            'Para garantir seletividade total na entrada geral, utiliza-se Disjuntor em Caixa Moldada (MCCB) eletrônico com ajuste de retardo de curta duração (parâmetro Isd e tsd).',
+            'Fusíveis do tipo NH gG oferecem excelente seletividade natural quando a relação entre fusíveis consecutivos for de pelo menos 1:1,6.',
+            'Consulte sempre as tabelas de coordenação e seletividade fornecidas pelos fabricantes certificados (ex: ABB, Schneider, Siemens, Chint).'
+          ],
+          fieldCase: {
+            localizacao: 'Hospital Central da Beira',
+            cenario: 'Um curto-circuito em um esterilizador portátil de 2,2 kW na enfermaria fez desarmar o disjuntor geral da subestação de 400A, desligando a iluminação cirúrgica e o ar condicionado do bloco operatório.',
+            diagnostico: 'Ausência total de estudo de seletividade: o disjuntor geral da subestação estava ajustado com disparo instantâneo sem temporização (tsd = 0 ms). A corrente de curto de 3500 A sensibilizou a bobina magnética do disjuntor geral antes que o MCB de 16A da enfermaria pudesse extinguir o arco.',
+            solucaoNormativa: 'Ajuste do relé eletrônico do MCCB de 400A com retardo cronométrico tsd = 150 ms para correntes de curto moderadas e substituição do MCB da enfermaria por modelo de alta capacidade de limitação de corrente (Classe 3 de limitação I²t).'
+          },
+          funcionamento: 'Ao limitar a energia passante (I²t) para valores inferiores ao limiar de disparo térmico e magnético do disjuntor a montante, o arco elétrico da falha é extinto em menos de 5 milissegundos pelo dispositivo local.',
+          aplicacaoMocambique: 'Em hospitais, agências bancárias e portos de Nacala e Maputo, a seletividade é mandatória para evitar paradas catastróficas em servidores e centros de cirurgia durante falhas de equipamentos secundários.',
+          exemploPratico: 'Quadro Geral: MCCB de 160A com retardo magnético tsd = 100 ms. Quadro Parcial: MCB Curva C de 20A. Um curto de 2000 A na tomada faz o MCB abrir em 4 ms com I²t de 18.000 A²s. O MCCB de 160A suporta 45.000 A²s sem abrir, garantindo 100% de seletividade.',
+          calculationSnippet: 'I_montante ≥ 1,6 × I_jusante | I²t_jusante < I²t_montante | tsd ≥ 100ms'
+        },
+        quiz: {
+          question: 'Em um projeto de distribuição elétrica predial segundo a norma IEC 60947-2, qual é o objetivo técnico primordial do conceito de "Seletividade Total" entre dispositivos de proteção contra sobrecorrentes?',
+          options: [
+            { id: 'A', text: 'Garantir que todos os disjuntores da instalação desarmem juntos para multiplicar o poder de corte.', isCorrect: false, feedback: 'Isso é o oposto da seletividade; desarmar tudo gera blecaute em todo o edifício.' },
+            { id: 'B', text: 'Assegurar que apenas o dispositivo de proteção imediatamente a montante do defeito atue, isolando a falha sem interromper o fornecimento aos demais circuitos saudáveis.', isCorrect: true, feedback: 'Perfeito! A seletividade total mantém a continuidade de serviço máxima, desconectando unicamente a carga em pane.' },
+            { id: 'C', text: 'Impedir a passagem de corrente contínua pelos condutores de neutro.', isCorrect: false, feedback: 'Isso é função de filtros ou RCDs Tipo B, sem relação com seletividade.' },
+            { id: 'D', text: 'Permitir a ligação de cabos de alumínio sem terminais bimetálicos.', isCorrect: false, feedback: 'Terminais bimetálicos são uma exigência mecânica contra corrosão galvânica.' }
+          ],
+          explanation: 'Seletividade Total (Total Selectivity) significa que para qualquer valor de sobrecorrente até a máxima capacidade de curto-circuito presumida no local, apenas o dispositivo mais próximo da falha desliga, garantindo a máxima continuidade de serviço para todo o restante da instalação.',
+          keyTakeaway: 'Seletividade Total: Isola apenas o circuito defeituoso, mantendo a energia no restante do prédio.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m3_ec6_coordenacao_motores_iec60947',
+        moduleId: 'elec_mod_3_protecoes_iec',
+        moduleTitle: 'Módulo 3: Proteções Elétricas & Normas IEC (IEC 60364)',
+        order: 6,
+        code: 'EC 3.6',
+        title: 'Coordenação Tipo 1 e Tipo 2 para Partida de Motores (IEC 60947-4-1)',
+        norma: 'IEC 60947-4-1 / IEC 60947-2',
+        level: 'Avançado',
+        durationMinutes: 14,
+        theory: {
+          conceito: 'A proteção de motores trifásicos envolve três elementos em série: o seccionador/proteção contra curto-circuito (disjuntor ou fusível), o contator para comando de manobra e o relé de sobrecarga térmica. A norma IEC 60947-4-1 classifica a coordenação dessa partida em Tipo 1 e Tipo 2.',
+          formulas: [
+            { label: 'Coordenação Tipo 1', formula: 'Permite dano ao contator / relé', explicacao: 'Não causa perigo externo, mas exige troca ou reparo dos componentes após curto' },
+            { label: 'Coordenação Tipo 2', formula: 'Sem dano permitido ao contator / relé', explicacao: 'Apenas leve soldadura dos contatos do contator permitida, facilmente descolável' },
+            { label: 'Ajuste do Relé Térmico', formula: 'I_ajuste = I_nominal_motor (In)', explicacao: 'Nunca ajustar acima da corrente nominal gravada na placa do motor' }
+          ],
+          pontosOperacionais: [
+            'Coordenação Tipo 1 é aceitável apenas onde a parada do processo produtivo não causa prejuízos severos e há técnicos para trocar peças.',
+            'Coordenação Tipo 2 é OBRIGATÓRIA em processos contínuos, hospitais, sistemas de combate a incêndio e mineração, onde o sistema deve voltar a operar em minutos.',
+            'Disjuntores-motores termomagnéticos (MPCB) com alta capacidade de limitação de corrente são a solução mais compacta para alcançar Coordenação Tipo 2.',
+            'O relé de sobrecarga térmico protege contra sobrecarga prolongada e falta de fase; quem protege contra curto-circuito é o elemento magnético do disjuntor ou o fusível ultrarrápido.'
+          ],
+          fieldCase: {
+            localizacao: 'Complexo Portuário de Maputo',
+            cenario: 'Bomba de recalque de combustível parou por curto-circuito na caixa de bornes. A partida utilizava contator e relé térmico com disjuntor comum não coordenado.',
+            diagnostico: 'Após o curto, os contatos do contator soldaram completamente e o bimetal do relé de sobrecarga derreteu, pois o conjunto tinha apenas Coordenação Tipo 1 precária. A linha ficou parada 6 horas até chegarem peças novas.',
+            solucaoNormativa: 'Substituição da montagem por conjunto testado pelo fabricante com Coordenação Tipo 2 (Disjuntor-Motor + Contator dimensionado segundo tabela IEC 60947-4-1). Em testes seguintes, após eliminar a falha, o motor reiniciou em 2 minutos sem troca de componentes.'
+          },
+          funcionamento: 'Na Coordenação Tipo 2, a energia específica passante (I²t) e o pico de corrente durante o curto-circuito são limitados a valores que os contatos de prata do contator conseguem suportar sem fusão permanente.',
+          aplicacaoMocambique: 'A indústria cimenteira de Matola e as usinas de açúcar de Marromeu e Xinavane operam 24 horas por dia. Parar uma linha de moagem ou moenda por destruição de contatores causa prejuízos de milhares de dólares por hora.',
+          exemploPratico: 'Motor 11 kW 400V (In = 22A): Conjunto Coordenação Tipo 2 formado por Disjuntor-Motor de 20-25A (Icu = 50 kA) e Contator tripular AC-3 de 25A. Proteção perfeita contra curto-circuito e sobrecarga sem queimar contatos.',
+          calculationSnippet: 'Coordenação Tipo 2: Retorno imediato sem troca de peças | IEC 60947-4-1'
+        },
+        quiz: {
+          question: 'Qual é a principal diferença prática entre a Coordenação Tipo 1 e a Coordenação Tipo 2 para um conjunto de partida de motor (disjuntor + contator + relé) de acordo com a IEC 60947-4-1?',
+          options: [
+            { id: 'A', text: 'A Coordenação Tipo 1 usa motor a gasolina e a Tipo 2 usa motor elétrico.', isCorrect: false, feedback: 'Totalmente incorreto; ambas se aplicam a motores elétricos.' },
+            { id: 'B', text: 'Na Coordenação Tipo 2, o contator e o relé não sofrem danos durante um curto-circuito, permitindo o retorno imediato à operação após sanar a falha externa.', isCorrect: true, feedback: 'Correto! A Tipo 2 garante a continuidade do processo industrial sem necessidade de substituir o contator ou relé após o evento de curto.' },
+            { id: 'C', text: 'A Coordenação Tipo 1 é mais rápida e segura do que a Tipo 2 em qualquer aplicação industrial.', isCorrect: false, feedback: 'Falso! A Tipo 1 admite destruição de contatores e relés, sendo menos robusta.' },
+            { id: 'D', text: 'A Coordenação Tipo 2 dispensa a ligação do cabo de terra de proteção PE.', isCorrect: false, feedback: 'O aterramento de proteção PE é obrigatório em qualquer tipo de instalação.' }
+          ],
+          explanation: 'Segundo a IEC 60947-4-1: Na Coordenação Tipo 1, o contator ou relé podem ser danificados e exigir troca após o curto. Na Coordenação Tipo 2, nenhum dano ao contator ou relé é admitido (exceto leve soldagem facilmente descolável nos contatos), garantindo máxima disponibilidade industrial.',
+          keyTakeaway: 'Coordenação Tipo 2: Máxima disponibilidade industrial com proteção total de contatores contra destruição por curto.',
           xpReward: 50
         }
       }

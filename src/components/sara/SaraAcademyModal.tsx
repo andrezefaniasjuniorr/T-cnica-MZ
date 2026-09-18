@@ -43,6 +43,9 @@ import {
 } from '../../services/saraAcademyService';
 import { soundFX } from '../../utils/audio';
 import { useModalHistory } from '../../utils/modalHistory';
+import { FontScaleControl, useAcademyFontScale } from '../academy/FontScaleControl';
+import { CircuitDiagramViewer } from '../academy/CircuitDiagramViewer';
+import { SaraDailyHacksFeed } from '../academy/SaraDailyHacksFeed';
 
 interface SaraAcademyModalProps {
   isOpen: boolean;
@@ -54,7 +57,7 @@ interface SaraAcademyModalProps {
   onAskSara: (promptText: string, contextSummary?: string) => void;
 }
 
-type ActiveTab = 'curriculum' | 'lesson' | 'quiz';
+type ActiveTab = 'curriculum' | 'lesson' | 'quiz' | 'hacks';
 
 export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
   isOpen,
@@ -66,6 +69,18 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
   onAskSara
 }) => {
   const userId = currentUser?.uid || 'guest';
+
+  // Controle global de escala de fonte (12px a 22px, padrão 15px)
+  const {
+    fontSize,
+    scaleRatio,
+    increase,
+    decrease,
+    reset,
+    canIncrease,
+    canDecrease,
+    isDefault
+  } = useAcademyFontScale();
 
   // Progresso calculado do curso
   const courseProgress = useMemo(
@@ -234,8 +249,20 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
             </div>
           </div>
 
-          {/* Gamificação: Streak + XP + Nível + Fechar */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Gamificação: Streak + XP + Nível + Controle de Fonte + Fechar */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            {/* CONTROLE GLOBAL DE TAMANHO DE FONTE [ A- | A+ ] */}
+            <FontScaleControl
+              fontSize={fontSize}
+              onIncrease={increase}
+              onDecrease={decrease}
+              onReset={reset}
+              canIncrease={canIncrease}
+              canDecrease={canDecrease}
+              isDefault={isDefault}
+              className="scale-90 sm:scale-100 origin-right"
+            />
+
             {/* Streak */}
             <div
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-black ${
@@ -250,7 +277,7 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
             </div>
 
             {/* XP e Nível */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-900/90 border border-[#1E293B] rounded-xl">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-900/90 border border-[#1E293B] rounded-xl">
               <Award className="w-4 h-4 text-[#F59E0B]" />
               <div className="text-right leading-none">
                 <div className="text-xs font-black text-white">
@@ -275,7 +302,7 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
         </div>
 
         {/* ================================================================= */}
-        {/* NAVEGAÇÃO: 3 ABAS SUPERIORES DA ACADEMIA                         */}
+        {/* NAVEGAÇÃO: 4 ABAS SUPERIORES DA ACADEMIA                         */}
         {/* ================================================================= */}
         <div className="px-4 py-2 bg-[#0A0F1D] border-b border-[#1E293B] flex items-center justify-between gap-2 overflow-x-auto no-scrollbar shrink-0">
           <div className="flex items-center gap-1.5 sm:gap-2">
@@ -333,6 +360,23 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
                 </span>
               )}
             </button>
+
+            {/* ABA 4: PÍLULAS & HACKS DO DIA */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('hacks')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 ${
+                activeTab === 'hacks'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black shadow-md'
+                  : 'bg-[#111827] hover:bg-slate-800 text-[#94A3B8] hover:text-white border border-[#1E293B]'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>4. Pílulas & Hacks</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30">
+                Feed Diário
+              </span>
+            </button>
           </div>
 
           {/* Progresso Geral do Curso */}
@@ -353,7 +397,10 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
         {/* ================================================================= */}
         {/* CORPO DO MODAL (CONTEÚDO DINÂMICO CONFORME A ABA SELECIONADA)    */}
         {/* ================================================================= */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#0A0F1D]">
+        <div
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#0A0F1D] transition-[font-size] duration-150"
+          style={{ fontSize: `${fontSize}px` }}
+        >
 
           {/* =============================================================== */}
           {/* ABA 1: ÍNDICE DO CURSO (GRADE CURRICULAR SEQUENCIAL)            */}
@@ -596,62 +643,160 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
                   )}
                 </div>
 
-                <h3 className="text-base sm:text-lg font-black text-white leading-snug">
+                <h3 className="font-black text-white leading-snug" style={{ fontSize: `${fontSize * 1.25}px` }}>
                   {selectedLesson.title}
                 </h3>
-                <p className="text-xs text-[#3B82F6] font-semibold">
+                <p className="font-semibold text-[#3B82F6]" style={{ fontSize: `${fontSize * 0.85}px` }}>
                   {selectedLesson.moduleTitle}
                 </p>
               </div>
 
+              {/* DIAGRAMA TÉCNICO INTERATIVO VETORIZADO NATIVO */}
+              <div className="rounded-2xl overflow-hidden border border-[#1E293B]">
+                <CircuitDiagramViewer
+                  lessonCode={selectedLesson.code}
+                  lessonTitle={selectedLesson.title}
+                  norma={selectedLesson.norma}
+                  baseFontSize={fontSize}
+                />
+              </div>
+
               {/* 1. CONCEITO TÉCNICO OBJETIVO */}
               <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2">
-                <div className="flex items-center gap-2 text-xs font-black text-[#3B82F6] uppercase tracking-wider">
+                <div className="flex items-center gap-2 font-black text-[#3B82F6] uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
                   <Zap className="w-4 h-4 text-[#3B82F6]" />
                   <span>1. Conceito Técnico & Fundamentação Normativa</span>
                 </div>
-                <p className="text-xs sm:text-sm leading-relaxed text-slate-200">
+                <p className="leading-relaxed text-slate-200" style={{ fontSize: `${fontSize}px` }}>
                   {selectedLesson.theory.conceito}
                 </p>
               </div>
 
+              {/* FÓRMULAS MATEMÁTICAS & CRITÉRIOS DE PROJETO (SE DISPONÍVEIS) */}
+              {selectedLesson.theory.formulas && selectedLesson.theory.formulas.length > 0 && (
+                <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-3">
+                  <div className="flex items-center gap-2 font-black text-cyan-400 uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
+                    <Cpu className="w-4 h-4 text-cyan-400" />
+                    <span>Fórmulas Matemáticas, Variáveis & Critérios de Dimensionamento</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedLesson.theory.formulas.map((f, fIdx) => (
+                      <div key={fIdx} className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
+                        <span className="font-bold text-slate-400 mb-1" style={{ fontSize: `${fontSize * 0.8}px` }}>
+                          {f.label}
+                        </span>
+                        <div
+                          className="my-1 p-2 rounded-lg bg-blue-950/40 border border-blue-900/40 font-mono font-black text-cyan-300 tracking-wide break-words"
+                          style={{ fontSize: `${fontSize * 0.95}px` }}
+                        >
+                          {f.formula}
+                        </div>
+                        <span className="text-slate-300 leading-snug mt-1" style={{ fontSize: `${fontSize * 0.8}px` }}>
+                          {f.explicacao}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* 2. FUNCIONAMENTO DOS COMPONENTES */}
               <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2">
-                <div className="flex items-center gap-2 text-xs font-black text-amber-400 uppercase tracking-wider">
+                <div className="flex items-center gap-2 font-black text-amber-400 uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
                   <Settings className="w-4 h-4 text-amber-400" />
                   <span>2. Funcionamento Operacional dos Componentes</span>
                 </div>
-                <p className="text-xs sm:text-sm leading-relaxed text-slate-200 whitespace-pre-line">
+                <p className="leading-relaxed text-slate-200 whitespace-pre-line" style={{ fontSize: `${fontSize}px` }}>
                   {selectedLesson.theory.funcionamento}
                 </p>
                 {selectedLesson.theory.calculationSnippet && (
-                  <div className="mt-3 p-3 rounded-xl bg-slate-950 font-mono text-xs text-blue-300 border border-blue-900/40">
+                  <div className="mt-3 p-3 rounded-xl bg-slate-950 font-mono text-blue-300 border border-blue-900/40" style={{ fontSize: `${fontSize * 0.85}px` }}>
                     💡 <span className="font-bold">Fórmula & Cálculo Normativo:</span> {selectedLesson.theory.calculationSnippet}
                   </div>
                 )}
               </div>
 
+              {/* PONTOS OPERACIONAIS DE CAMPO (SE DISPONÍVEIS) */}
+              {selectedLesson.theory.pontosOperacionais && selectedLesson.theory.pontosOperacionais.length > 0 && (
+                <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2.5">
+                  <div className="flex items-center gap-2 font-black text-amber-400 uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    <span>Procedimentos Operacionais e Requisitos de Segurança Críticos</span>
+                  </div>
+                  <ul className="space-y-2">
+                    {selectedLesson.theory.pontosOperacionais.map((pt, ptIdx) => (
+                      <li key={ptIdx} className="leading-relaxed text-slate-200 flex items-start gap-2.5" style={{ fontSize: `${fontSize}px` }}>
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-2" />
+                        <span>{pt}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* 3. APLICAÇÃO PRÁTICA EM MOÇAMBIQUE */}
               <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2">
-                <div className="flex items-center gap-2 text-xs font-black text-[#10B981] uppercase tracking-wider">
+                <div className="flex items-center gap-2 font-black text-[#10B981] uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
                   <AlertTriangle className="w-4 h-4 text-[#10B981]" />
                   <span>3. Aplicação Prática e Desafios Reais em Moçambique</span>
                 </div>
-                <p className="text-xs sm:text-sm leading-relaxed text-slate-200">
+                <p className="leading-relaxed text-slate-200" style={{ fontSize: `${fontSize}px` }}>
                   {selectedLesson.theory.aplicacaoMocambique}
                 </p>
               </div>
 
               {/* 4. EXEMPLO REAL DE CAMPO / DIAGNÓSTICO */}
               <div className="p-4 rounded-2xl bg-slate-950 border border-[#1E293B] space-y-2">
-                <div className="flex items-center gap-2 text-xs font-black text-white uppercase tracking-wider">
+                <div className="flex items-center gap-2 font-black text-white uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
                   <Wrench className="w-4 h-4 text-[#F59E0B]" />
                   <span>4. Caso Real de Instalação e Diagnóstico de Campo</span>
                 </div>
-                <p className="text-xs sm:text-sm leading-relaxed text-slate-300">
+                <p className="leading-relaxed text-slate-300" style={{ fontSize: `${fontSize}px` }}>
                   {selectedLesson.theory.exemploPratico}
                 </p>
               </div>
+
+              {/* ESTUDO DE CASO COMPLETO (FIELD CASE COM DIAGNÓSTICO E SOLUÇÃO) */}
+              {selectedLesson.theory.fieldCase && (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 to-slate-900 border border-amber-900/40 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 font-black text-amber-400 uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      <span>Ocorrência Real de Campo ({selectedLesson.theory.fieldCase.localizacao})</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Diagnóstico de Engenharia
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-amber-300 font-bold block mb-0.5" style={{ fontSize: `${fontSize * 0.85}px` }}>
+                        ⚠️ Cenário Encontrado:
+                      </span>
+                      <p className="text-slate-300" style={{ fontSize: `${fontSize * 0.9}px` }}>
+                        {selectedLesson.theory.fieldCase.cenario}
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-rose-400 font-bold block mb-0.5" style={{ fontSize: `${fontSize * 0.85}px` }}>
+                        🔍 Diagnóstico Técnico:
+                      </span>
+                      <p className="text-slate-300" style={{ fontSize: `${fontSize * 0.9}px` }}>
+                        {selectedLesson.theory.fieldCase.diagnostico}
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/50">
+                      <span className="text-emerald-400 font-bold block mb-0.5" style={{ fontSize: `${fontSize * 0.85}px` }}>
+                        ✅ Solução Normativa Aplicada:
+                      </span>
+                      <p className="text-emerald-200" style={{ fontSize: `${fontSize * 0.9}px` }}>
+                        {selectedLesson.theory.fieldCase.solucaoNormativa}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* BARRA DE AÇÃO INFERIOR DA AULA */}
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[#1E293B]">
@@ -826,6 +971,19 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* =============================================================== */}
+          {/* ABA 4: PÍLULAS & HACKS DO DIA (FEED INTERATIVO DIÁRIO)           */}
+          {/* =============================================================== */}
+          {activeTab === 'hacks' && (
+            <div className="animate-in fade-in duration-150">
+              <SaraDailyHacksFeed
+                academyData={academyData}
+                onUpdateAcademyData={onUpdateAcademyData}
+                baseFontSize={fontSize}
+              />
             </div>
           )}
 

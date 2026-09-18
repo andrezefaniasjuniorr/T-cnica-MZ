@@ -108,6 +108,101 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
           keyTakeaway: '5 Regras de Ouro (EN 50110-1): Seccionar, Bloquear, Verificar Ausência, Aterrar e Sinalizar.',
           xpReward: 50
         }
+      },
+      {
+        id: 'elec_m8_ec4_reles_protecao_ansi',
+        moduleId: 'elec_mod_8_media_tensao_pt',
+        moduleTitle: 'Módulo 8: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
+        order: 4,
+        code: 'EC 8.4',
+        title: 'Proteção Secundária em MT: Relés ANSI 50/51/50N/51N e Transformadores de Corrente',
+        norma: 'IEC 60255-151 / IEEE C37.2 / IEC 61869-2',
+        level: 'Avançado',
+        durationMinutes: 18,
+        theory: {
+          conceito: 'Em subestações de Média Tensão com disjuntor a vácuo ou SF6, a proteção contra sobrecorrentes e faltas à terra não utiliza fusíveis térmicos diretos, mas um sistema secundário microprocessado composto por Transformadores de Corrente (TCs de medição/proteção 5P10 ou 5P20) e um Relé de Proteção multifunção com funções ANSI consagradas: 50 (Instantâneo de Fase), 51 (Temporizado de Fase - Curva Inversa IEC/IEEE), 50N (Instantâneo de Neutro/Terra) e 51N (Temporizado de Neutro/Terra).',
+          formulas: [
+            { label: 'Relação de Transformação de Corrente (RTC)', formula: 'RTC = I_prim / I_sec (ex: 100/5 A ou 200/1 A)', explicacao: 'Rebaixa a alta corrente primária para níveis seguros de 1A ou 5A para o relé' },
+            { label: 'Classe de Exatidão do TC de Proteção (IEC 61869)', formula: '5P20: Erro ≤ 5% a 20 vezes a corrente nominal', explicacao: 'Garante que o TC não sature durante um curto-circuito violento antes do relé atuar' },
+            { label: 'Curva Inversa IEC (Tempo de Atuação Função 51)', formula: 't = TMS × [0,14 / ((I / I_pickup)^0,02 - 1)]', explicacao: 'Curva Normalmente Inversa IEC 60255: quanto maior a corrente, menor o tempo de disparo' },
+            { label: 'Potência de Carga do Secundário (Burden)', formula: 'S_burden = R_fiação × I_sec² + S_relé ≤ S_nominal_TC', explicacao: 'A impedância dos cabos secundários não pode exceder os VA nominais do TC' }
+          ],
+          pontosOperacionais: [
+            'REGRA CRÍTICA DE VIDA EM TCs: NUNCA abrir o secundário de um TC energizado! Um TC com secundário aberto tenta manter a corrente e gera tensões induzidas de milhares de Volts nos bornes, explodindo a régua e eletrocutando o técnico.',
+            'Se precisar remover o relé para manutenção com o primário energizado, o secundário do TC DEVE ser OBRIGATORIAMENTE curto-circuitado na régua de bornes seccionáveis com garfo de curto.',
+            'Ajuste de Seletividade Cronometrada: os tempos de atuação dos relés de jusante (clientes industriais) devem ser coordenados com os relés da EDM a montante com degrau de seletividade de pelo menos 200 a 300 milissegundos para evitar desarmes gerais indevidos da rede troncal.',
+            'Fonte Auxiliar Nobre (Banco de Baterias 110Vcc ou Nobreak): o relé e a bobina de abertura do disjuntor de MT não podem depender da energia da própria rede que acabou de entrar em curto; exigem alimentação CC garantida.'
+          ],
+          fieldCase: {
+            localizacao: 'Parque Industrial de Beluluane, Boane',
+            cenario: 'Curto-circuito na entrada de um motor de 500 kW a 11 kV causou o desligamento de todo o alimentador da EDM da zona industrial, paralisando 8 fábricas vizinhas em vez de isolar apenas o disjuntor da fábrica com defeito.',
+            diagnostico: 'O coordenograma de proteção estava incorreto. O relé da fábrica estava ajustado com tempo de 51 em 0,65 segundos, enquanto o relé do alimentador da EDM na subestação tronco estava com 0,50 segundos. O relé da concessionária atuou primeiro por falta de seletividade cronometrada.',
+            solucaoNormativa: 'Estudo de curto-circuito e coordenação de proteção com reparametrização do relé digital da fábrica: pickup ajustado com curva extremamente inversa, TMS reduzido para tempo de atuação de 0,22 segundos com degrau de 280 ms em relação à EDM. Em novo teste de falta simulada por injeção secundária Omicron, o disjuntor local desarmou isoladamente em 180 ms sem abalar a rede externa.'
+          },
+          funcionamento: 'O fluxo magnético no núcleo toroidal de silício-ferro induz corrente proporcional no enrolamento secundário que é amostrada pelo conversor A/D do processador digital de sinais (DSP) do relé.',
+          aplicacaoMocambique: 'A EDM exige o relatório de comissionamento de relés de proteção com ensaio de injeção de corrente secundária assinado por engenheiro eletrotécnico credenciado pela Ordem dos Engenheiros de Moçambique (OrdEM) antes de fechar a chave de interligação.',
+          exemploPratico: 'TC 100/5A 5P20 15VA com corrente de falta de 1500A. A corrente no secundário é: I_sec = 1500 × (5 / 100) = 75A. Como 1500A é 15 vezes a corrente nominal (15 × In), e o TC é classe 5P20 (suporta até 20 × In sem saturar), a medição do relé é perfeitamente linear e confiável.',
+          calculationSnippet: '50/51 = Fase | 50N/51N = Neutro/Terra | Nunca abrir secundário de TC! | Curto-circuitar TCs antes de retirar relés'
+        },
+        quiz: {
+          question: 'Segundo as normas internacionais IEC 60255 e IEC 61869, qual procedimento de segurança é estritamente MANDATÓRIO antes de desconectar ou substituir um relé de proteção secundária conectado aos secundários dos Transformadores de Corrente (TCs) com o circuito primário de Média Tensão em operação?',
+          options: [
+            { id: 'A', text: 'Curto-circuitar firmemente os bornes do enrolamento secundário do TC através de blocos terminais específicos com pontes de curto antes de soltar a fiação.', isCorrect: true, feedback: 'Correto! Um secundário de TC aberto em carga comporta-se como um transformador elevador extremo, desenvolvendo tensões letais de milhares de volts que explodem o isolamento e matam operadores.' },
+            { id: 'B', text: 'Deixar os cabos do secundário soltos e pendurados no ar.', isCorrect: false, feedback: 'Causaria surto de altíssima tensão, queima por arco e morte por eletrocussão.' },
+            { id: 'C', text: 'Ligar o secundário do TC em uma tomada de 230 V para energizar o relé.', isCorrect: false, feedback: 'Explosão imediata.' },
+            { id: 'D', text: 'Mergulhar as pontas dos cabos em óleo mineral em balde plástico.', isCorrect: false, feedback: 'Improviso absurdo e inútil.' }
+          ],
+          explanation: 'O enrolamento primário de um TC é percorrido pela corrente da rede elétrica, que age como uma fonte de corrente forçada. Se o circuito secundário for aberto com o primário sob carga, a corrente secundária cai a zero, extinguindo a força magnetomotriz desmagnetizante. Todo o fluxo primário passa a magnetizar o núcleo, induzindo nos terminais abertos uma sobretensão destrutiva de vários quilovolts (frequentemente superior a 5.000 V), com risco iminente de ruptura dielétrica explosiva e eletrocussão fatal.',
+          keyTakeaway: 'NUNCA abra o secundário de um TC sob carga: sempre curto-circuite antes de intervir no relé.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m8_ec5_cabos_subterraneos_mt_muflas',
+        moduleId: 'elec_mod_8_media_tensao_pt',
+        moduleTitle: 'Módulo 8: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
+        order: 5,
+        code: 'EC 8.5',
+        title: 'Cabos Subterrâneos de Média Tensão, Terminações Muflas e Ensaio VLF',
+        norma: 'IEC 60502-2 / CENELEC HD 629 / IEEE 400.2',
+        level: 'Avançado',
+        durationMinutes: 17,
+        theory: {
+          conceito: 'A distribuição subterrânea de Média Tensão (11kV a 33kV) utiliza cabos unipolares ou tripolares isolados com polietileno reticulado (XLPE) ou borracha etileno-propileno (EPR). Devido à altíssima intensidade de campo elétrico radial, estes cabos contêm camadas semicondutoras interna e externa e blindagem metálica de fitas ou fios de cobre aterrados. Nas extremidades do cabo, o corte da blindagem cria uma concentração extrema de estresse elétrico que exige a instalação de terminações especiais (Muflas terminais termo ou contráteis a frio) com tubo de alívio de campo de alta permissividade.',
+          formulas: [
+            { label: 'Campo Elétrico Radial no Isolamento', formula: 'E(r) = V_fase / [r × ln(R_ext / R_int)]', explicacao: 'O campo é máximo na superfície do condutor central e mínimo sob a blindagem externa' },
+            { label: 'Ensaio de Rigidez Dielétrica VLF (Very Low Frequency)', formula: 'Frequência do Ensaio = 0,1 Hz (Senoide CA)', explicacao: 'IEEE 400.2: Permite testar cabos longos com fontes de ensaio compactas de baixa potência' },
+            { label: 'Tensão de Ensaio VLF para Comissionamento (Cabo 22 kV)', formula: 'V_ensaio_VLF ≈ 3 × U_0 (ex: 38 kV a 42 kV pico a 0,1 Hz durante 30 a 60 min)', explicacao: 'Revela defeitos de montagem de muflas e trincas de isolamento sem danificar o XLPE' }
+          ],
+          pontosOperacionais: [
+            'Alívio de Campo Elétrico nas Muflas: ao descascar a camada semicondutora preta externa, NUNCA utilize lâminas comuns que façam ranhuras no XLPE; utilize desencapador circular calibrado. Ranhuras microscópicas de 0,1 mm no XLPE originam descargas parciais (treeing elétrico) que perfuram o cabo em semanas.',
+            'Aterramento das blindagens de cobre: as blindagens metálicas devem ser aterradas nas duas extremidades ou em ponto único com limitador de tensão de bainha (SVL) dependendo do comprimento para evitar correntes circulantes induzidas que superaquecem o cabo.',
+            'Por que NUNCA fazer teste Hi-Pot de Corrente Contínua (DC) em cabos XLPE: a tensão contínua aprisiona cargas espaciais na matriz polimérica que criam sobretensões internas na religação AC, destruindo cabos bons. Em cabos XLPE, o ensaio mandatório normatizado pela IEEE 400.2 é com VLF (0,1 Hz CA).',
+            'Prevenção de entrada de umidade: cabos subterrâneos devem ter fita hidrófila expansiva (Water-blocking tape) que incha instantaneamente em contato com água, impedindo o alagamento longitudinal do cabo em caso de perfuração da capa externa.'
+          ],
+          fieldCase: {
+            localizacao: 'Matola Gare, Província de Maputo',
+            cenario: 'Cabo subterrâneo trifásico de 22 kV XLPE 150 mm² de 800 metros conectando o PT da fábrica à rede aérea da EDM explodiu na terminação do poste após 3 meses de energização.',
+            diagnostico: 'A análise da mufla rompida revelou que o técnico instalador raspou a camada semicondutora externa com faca de cozinha comum, deixando sulcos longitudinais no isolamento de XLPE e não posicionou o tubo de alívio de estresse no limite exato da fita semicondutora. Ensaios de descargas parciais acusaram atividade contínua de 450 pC que carbonizou o isolamento por árvore elétrica (electrical treeing).',
+            solucaoNormativa: 'Corte do trecho danificado de 2 metros, instalação de nova mufla terminal contrátil a frio com kit homologado segundo CENELEC HD 629.1, utilizando ferramenta decapadora de precisão e ensaio VLF a 0,1 Hz com 38 kV durante 30 minutos com monitoramento de tangente de perdas (Tan Delta < 1,2 × 10^-3). O cabo opera sem falhas há 3 anos.'
+          },
+          funcionamento: 'A mufla contrátil a frio possui um tubo elastomérico de silicone pré-expandido sobre um núcleo plástico espiral descartável; ao puxar a fita, o silicone encolhe sob pressão constante, expulsando todo o ar e garantindo vedação dielétrica absoluta contra umidade e poeira.',
+          aplicacaoMocambique: 'Em áreas com lençol freático alto e solos alagadiços na época chuvosa em Moçambique, cabos diretamente enterrados exigem leito de areia lavada de 10 cm, tijolo ou placas de concreto protetoras e fita de aviso amarela enterrada a 40 cm da superfície.',
+          exemploPratico: 'Ensaio VLF 0,1 Hz: Para uma capacitância típica de 0,25 μF/km em 1 km de cabo 22 kV, a corrente capacitiva a 50 Hz seria: I = 2π × 50 × C × V = centenas de Amperes (exigiria caminhão gerador imenso). A 0,1 Hz, a corrente cai 500 vezes, permitindo fazer o ensaio com uma mala portátil de 25 kg ligada em tomada de 230V.',
+          calculationSnippet: 'Muflas: alívio de campo mandatório | Teste de cabos XLPE: VLF 0,1 Hz (IEEE 400.2) | Proibido teste DC em XLPE'
+        },
+        quiz: {
+          question: 'Por qual razão técnica a norma internacional IEEE 400.2 e as principais concessionárias mundiais PROÍBEM terminantemente a realização de ensaios de rigidez dielétrica com alta tensão em Corrente Contínua (DC Hi-Pot) em cabos de Média Tensão com isolamento de Polietileno Reticulado (XLPE) e prescrevem o ensaio VLF a 0,1 Hz?',
+          options: [
+            { id: 'A', text: 'Porque cabos de XLPE funcionam melhor com corrente contínua e a corrente contínua atrai relâmpagos.', isCorrect: false, feedback: 'Completamente inverídico.' },
+            { id: 'B', text: 'Porque a alta tensão contínua injeta e aprisiona cargas espaciais na estrutura polimérica do XLPE que não se dissipam facilmente, distorcendo o campo elétrico e causando perfuração dielétrica destrutiva prematura na religação do sistema em corrente alternada.', isCorrect: true, feedback: 'Exato! A tensão contínua polariza armadilhas de elétrons no polímero XLPE (cargas espaciais residuais). Quando o cabo volta a operar em AC, o estresse elétrico combinado rompe a isolação em cabos perfeitamente sãos.' },
+            { id: 'C', text: 'Porque os instrumentos de corrente contínua pesam mais de 10 toneladas.', isCorrect: false, feedback: 'Instrumentos DC são compactos, mas o problema é físico no dielétrico do cabo.' },
+            { id: 'D', text: 'Porque a água do solo evapora com corrente contínua.', isCorrect: false, feedback: 'Não tem relação com a degradação do isolamento XLPE.' }
+          ],
+          explanation: 'O isolamento em polietileno reticulado (XLPE) é um material apolar de altíssima resistividade volumétrica. A aplicação de alta tensão contínua (DC) induz a injeção e aprisionamento de cargas espaciais (space charges) no interior do isolamento. Essas cargas permanecem retidas por horas ou dias. Quando o cabo é reconectado à rede de corrente alternada (AC), as inversões de ciclo provocam sobretensões locais extremas no ponto onde a carga está retida, desencadeando descargas parciais destrutivas e provocando falhas catastróficas que não ocorreriam em operação normal. Por isso, a norma IEEE 400.2 estabelece o teste VLF (Very Low Frequency a 0,1 Hz CA) como método oficial e seguro.',
+          keyTakeaway: 'Ensaios em cabos XLPE de MT: use sempre VLF 0,1 Hz CA; teste DC aprisiona cargas e destrói o isolamento.',
+          xpReward: 50
+        }
       }
     ]
   },
@@ -263,6 +358,102 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
           ],
           explanation: 'Os compressores Inverter com motores BLDC de ímãs permanentes possuem enrolamentos estatóricos simétricos de altíssima precisão. As resistências ôhmicas medidas entre qualquer par de fases (U-V, V-W e W-U) devem ser estritamente iguais com tolerância máxima de 2%. Uma leitura de 0,22 Ω enquanto as outras medem 1,42 Ω confirma um curto-circuito interno severo entre espiras de cobre da fase W-U, o que provoca sobrecorrente destrutiva no módulo IPM e inviabiliza a partida.',
           keyTakeaway: 'Compressores Inverter BLDC: R_UV = R_VW = R_WU. Diferença ôhmica indica queima do estator.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m9_ec4_sistemas_chillers_fancoil',
+        moduleId: 'elec_mod_9_climatizacao_hvac',
+        moduleTitle: 'Módulo 9: Climatização, HVAC & Refrigeração (Norma EN 378)',
+        order: 4,
+        code: 'EC 9.4',
+        title: 'Sistemas Centrais de Água Gelada: Chillers, Torres de Resfriamento e Fancoils',
+        norma: 'ASHRAE 90.1 / EN 378-1 / AHRI 550/590',
+        level: 'Avançado',
+        durationMinutes: 17,
+        theory: {
+          conceito: 'Em grandes edifícios comerciais, hospitais e aeroportos, a climatização por expansão indireta (Água Gelada) substitui a expansão direta. Unidades resfriadoras de líquido (Chillers) produzem água gelada a 7 °C que é bombeada por circuitos primário e secundário até Unidades de Tratamento de Ar (UTA) e Fancoils. O calor absorvido é rejeitado em condensadores a ar ou condensadores a água acoplados a Torres de Resfriamento evaporativas.',
+          formulas: [
+            { label: 'Capacidade Térmica de Refrigeração (kW)', formula: 'Q_chiller = m_dot × c_p × (T_retorno - T_suprimento)', explicacao: 'Ex: Vazão em L/s × 4,186 kJ/kg·K × ΔT (típico: T_ret = 12°C, T_sup = 7°C -> ΔT = 5°C)' },
+            { label: 'Tonelada de Refrigeração (TR)', formula: '1 TR = 12.000 BTU/h = 3,517 kW térmicos', explicacao: 'Equivale à taxa de fusão de 1 tonelada de gelo em 24 horas' },
+            { label: 'Coeficiente de Performance (COP)', formula: 'COP = Q_refrigeração (kW) / P_elétrica_consumida (kW)', explicacao: 'Chillers de alta eficiência modernos atingem COP entre 5,5 e 7,0' },
+            { label: 'Aproximação da Torre de Resfriamento (Approach)', formula: 'Approach = T_agua_saida_torre - T_bulbo_umido_ar', explicacao: 'Limite termodinâmico de resfriamento pela temperatura de bulbo úmido ambiente' }
+          ],
+          pontosOperacionais: [
+            'Controle de vazão variável por VFD nas bombas de água gelada (BAGs): o controle diferencial de pressão (ΔP) na ponta mais desfavorável da rede modula os inversores de frequência das bombas, economizando até 60% de energia elétrica de bombeamento.',
+            'Tratamento químico da água de condensação: a água da torre evaporativa evapora continuamente, concentrando sais minerais (sílica, cálcio). Sem purga automática de condutividade e dosagem de biocida (anti-legionella) e inibidor de incrustação, os tubos de cobre do condensador criam biofilme e calcário que quadruplicam o consumo elétrico.',
+            'Válvula de expansão eletrônica (EXV) e sensor anti-congelamento: se a temperatura de saída da água cair abaixo de 3,5 °C ou a pressão de sucção cair muito, o chiller desliga para não congelar e romper os tubos do evaporador inundado (shell & tube ou placas brasadas).',
+            'Chave de fluxo de líquido (Flow Switch): intertravamento físico mandatória; o compressor NUNCA pode ligar se o flow switch acusar falta de circulação de água no evaporador.'
+          ],
+          fieldCase: {
+            localizacao: 'Aeroporto Internacional de Maputo',
+            cenario: 'Chiller parafuso condensado a água de 300 TR desarmando repetidamente por alarme de alta pressão de condensação (High Condenser Pressure Trip) nos horários mais quentes da tarde.',
+            diagnostico: 'A aproximação (approach) da torre de resfriamento estava em 11 °C (o normal projetado era 3,5 °C). A inspeção na bacia da torre revelou colmatação massiva dos bicos aspersores com lodo biológico e incrustação calcária nas aletas de enchimento devido a falha na bomba dosadora de biocida, impedindo a evaporação e a troca térmica da água.',
+            solucaoNormativa: 'Limpeza mecânica e química com desincrustante ácido inibido na torre e condensador, restabelecimento do sistema dosador automático com biocida oxidante e ajuste da purga contínua para condutividade máxima de 1800 μS/cm. O approach caiu para 3,2 °C e o chiller normalizou a pressão sem desarmes.'
+          },
+          funcionamento: 'A água possui elevadíssimo calor específico (4,186 kJ/kg·K), permitindo transportar imensas quantidades de energia térmica através de tubulações hidráulicas compactas de aço ou polipropileno sem risco de vazamento de gás tóxico nos ambientes ocupados.',
+          aplicacaoMocambique: 'A umidade relativa do ar em cidades costeiras de Moçambique limita o rendimento de torres de resfriamento em dias de mormaço quente (temperatura de bulbo úmido ultrapassando 28 °C), exigindo torres de tiragem mecânica induzida superdimensionadas.',
+          exemploPratico: 'Chiller de 100 TR (351,7 kW) com ΔT = 5 °C (12 °C -> 7 °C): Vazão de água gelada necessária = Q / (c_p × ΔT) = 351,7 / (4,186 × 5) = 16,8 L/s (aprox. 60,5 m³/h). A bomba hidráulica deve ser dimensionada para vencer a perda de carga do circuito fechado de distribuição.',
+          calculationSnippet: 'Q = m_dot × cp × ΔT | 1 TR = 3,517 kW | Flow Switch mandatória no evaporador | T_bulbo_úmido'
+        },
+        quiz: {
+          question: 'Em um sistema central de climatização por água gelada de um grande hospital segundo a ASHRAE 90.1, qual dispositivo de segurança eletromecânico é estritamente obrigatório no circuito primário para impedir a partida do compressor do chiller e evitar o congelamento e explosão mecânica dos tubos do evaporador caso a bomba d\'água pare ou a circulação seja interrompida?',
+          options: [
+            { id: 'A', text: 'Chave de Fluxo de Líquido (Flow Switch mecânico de palheta ou térmico-diferencial) intertravada eletricamente no comando de partida do compressor.', isCorrect: true, feedback: 'Correto! A Chave de Fluxo (Flow Switch) garante que o compressor só receba comando de partida se houver vazão comprovada de água no evaporador. Sem fluxo de água, a temperatura do refrigerante cairia abaixo de 0°C, congelando a água estagnada e rompendo os tubos por expansão do gelo.' },
+            { id: 'B', text: 'Um sensor de umidade de parede no corredor.', isCorrect: false, feedback: 'Não tem qualquer relação com a segurança hidráulica interna do chiller.' },
+            { id: 'C', text: 'Uma torneira de boia plástica na cobertura.', isCorrect: false, feedback: 'Totalmente inadequado e sem ação elétrica rápida.' },
+            { id: 'D', text: 'Uma lâmpada incandescente ligada em série com o motor.', isCorrect: false, feedback: 'Sem qualquer embasamento técnico.' }
+          ],
+          explanation: 'No evaporador de um Chiller, o refrigerante evapora tipicamente a cerca de 2 °C a 3 °C para resfriar a água que entra a 12 °C e sai a 7 °C. Se a bomba de água parar ou uma válvula for fechada, a água no interior do evaporador fica estagnada; a troca térmica contínua faz essa água atingir 0 °C e congelar em poucos minutos. Como a água se expande ao congelar em volume de 9%, a formação de gelo rompe os tubos de cobre internos, causando a contaminação catastrófica do circuito frigorífico por água. A Chave de Fluxo (Flow Switch) é a proteção primária e inegociável que bloqueia o compressor imediatamente na ausência de circulação.',
+          keyTakeaway: 'Chave de Fluxo (Flow Switch) é intertravamento obrigatório: sem fluxo de água, o chiller desliga para não congelar.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m9_ec5_compressores_parafuso_oleo',
+        moduleId: 'elec_mod_9_climatizacao_hvac',
+        moduleTitle: 'Módulo 9: Climatização, HVAC & Refrigeração (Norma EN 378)',
+        order: 5,
+        code: 'EC 9.5',
+        title: 'Compressores Parafuso Industriais: Válvula Slide de Capacidade e Análise de Óleo',
+        norma: 'ISO 6743-3 / EN 378-2 / AHRI 520',
+        level: 'Avançado',
+        durationMinutes: 18,
+        theory: {
+          conceito: 'Compressores parafuso bi-helicoidais (duplo fuso: macho e fêmea) dominam a refrigeração industrial e grandes chillers de 100 kW a 2000 kW. A capacidade de refrigeração é modulada continuamente de 25% a 100% por uma Válvula de Gaveta (Slide Valve) acionada hidraulicamente pela pressão do próprio óleo lubrificante. Como o óleo é injetado diretamente nos rotores para vedação entre lóbulos, resfriamento e lubrificação de mancais de rolamento, a manutenção do separador de óleo e o monitoramento físico-químico do lubrificante são cruciais.',
+          formulas: [
+            { label: 'Volume de Deslocamento Teórico', formula: 'V_geom = C_perfil × L_rotor × D_rotor² × n_rpm', explicacao: 'Determina a vazão mássica de fluido refrigerante aspirado por revolução' },
+            { label: 'Relação de Compressão Intrínseca de Volume (Vi)', formula: 'Vi = V_aspirado / V_descarga_final = (P_desc / P_asp)^(1/k)', explicacao: 'Se Vi de projeto não casar com as pressões do sistema, ocorrem perdas por sobre ou subcompressão' },
+            { label: 'Número de Neutralização Ácida do Óleo (TAN)', formula: 'TAN ≤ 0,10 mg KOH/g de óleo', explicacao: 'Valores acima de 0,20 indicam acidificação crítica e degradação do lubrificante por umidade' },
+            { label: 'Teor de Umidade Tolerável no Óleo Sintético POE', formula: 'H2O ≤ 50 ppm (partes por milhão)', explicacao: 'Óleos polioléster são altamente higroscópicos e quebram na presença de água' }
+          ],
+          pontosOperacionais: [
+            'Resfriamento e separação de óleo: a descarga de um compressor parafuso expele uma névoa densa de gás quente e óleo. O separador de óleo coalescente multiestágio de alta eficiência deve reter mais de 99,9% do óleo e retorná-lo aos mancais através de filtro fino e resfriador de óleo dedicado.',
+            'Aquecedor de cárter de óleo: o óleo de refrigeração absorve fluido refrigerante em repouso frio. A resistência de cárter DEVE ficar ligada 24 horas por dia com a máquina desligada para manter o óleo a pelo menos 45 °C a 50 °C e evaporar o gás; ligar um compressor parafuso com óleo frio causa cavitação violenta da bomba e arrasto de óleo.',
+            'Controle da Válvula Slide: acionada por solenoides de "Carga" e "Descarga" comandadas pelo CLP. A posição real da válvula é monitorada por um potenciômetro linear ou sensor magnético LVDT de 4-20 mA calibrado.',
+            'Análise de óleo laboratorial preditiva semestral: viscosidade cinemática a 40 °C, espectrometria de desgaste (Fe, Cu, Al, Pb em ppm), número de acidez total (TAN) e índice de umidade (Karl Fischer ppm).'
+          ],
+          fieldCase: {
+            localizacao: 'Porto da Beira, Província de Sofala',
+            cenario: 'Terminal frigorífico de frutas para exportação com dois compressores parafuso industriais de 250 kW usando refrigerante R134a. O compressor da linha 1 começou a vibrar acima de 7,5 mm/s RMS e desarmou por "Pressão diferencial de filtro de óleo elevada".',
+            diagnostico: 'A análise química da amostra de óleo acusou TAN de 0,42 mg KOH/g (óleo extremamente ácido) e 180 ppm de água, além de 85 ppm de ferro no espectrômetro. O elemento coalescente do separador de óleo estava saturado e rasgado, e a acidez estava atacando os rolamentos axiais de contato angular do fuso macho.',
+            solucaoNormativa: 'Parada programada, substituição imediata dos rolamentos de precisão SKF Explorer com folga axial calibrada por lâminas de ajuste de folga para 0,04 mm, troca de todos os filtros de óleo e coalescentes, lavagem do circuito e recarga com óleo sintético POE ISO VG 68 novo em tambor lacrado. Vibração retornou para nível excelente de 1,2 mm/s.'
+          },
+          funcionamento: 'Os rotores helicoidais macho (4 lóbulos) e fêmea (6 lóbulos) engranham sem contato metal-metal graças a um filme hidrodinâmico de óleo de 5 micrômetros sob altíssima pressão, confinando e comprimindo os bolsões de gás da sucção para a descarga.',
+          aplicacaoMocambique: 'A alta salinidade e poeira portuária na Beira e Nacala contaminam resfriadores de óleo a ar de compressores parafuso; inspeções quinzenais de limpeza de aletas garantem que a temperatura do óleo não passe de 65 °C.',
+          exemploPratico: 'Teste de calibração do transdutor linear da Slide Valve: com a máquina despressurizada, comanda-se manualmente o pistão para 0% (leitura 4,0 mA no CLP) e 100% (leitura 20,0 mA). Se o retorno ler 12 mA, a válvula está exatamente a 50% de capacidade frigorífica.',
+          calculationSnippet: 'TAN ≤ 0,10 mg KOH/g | Umidade ≤ 50 ppm | Slide Valve: modulação 25-100% | Aquecedor de cárter ligado direto'
+        },
+        quiz: {
+          question: 'Em compressores parafuso industriais utilizados em grandes centrais frigoríficas e chillers industriais, qual é a função essencial desempenhada pela Válvula de Gaveta (Slide Valve) controlada hidraulicamente pelo óleo lubrificante?',
+          options: [
+            { id: 'A', text: 'Abrir a carcaça para permitir a ventilação do recinto.', isCorrect: false, feedback: 'A carcaça do compressor é hermética e pressurizada.' },
+            { id: 'B', text: 'Modular continuamente a capacidade volumétrica de refrigeração (típico de 25% a 100%) retardando o ponto inicial de compressão ao devolver parte do vapor para a sucção antes de ser comprimido.', isCorrect: true, feedback: 'Correto! A Slide Valve desliza axialmente por baixo dos rotores. Ao recuar, ela cria uma abertura que permite ao gás retornar à sucção sem compressão, ajustando com precisão a capacidade do compressor à carga térmica exata da fábrica.' },
+            { id: 'C', text: 'Injetar água salgada nos rotores para diminuir o atrito.', isCorrect: false, feedback: 'Água destrói totalmente o compressor frigorífico.' },
+            { id: 'D', text: 'Inverter o sentido de giro do motor a cada 5 segundos.', isCorrect: false, feedback: 'Compressores parafuso giram em sentido único estrito; rotação inversa quebra os fusos.' }
+          ],
+          explanation: 'A Válvula de Gaveta (Slide Valve) é o mecanismo clássico de regulação de capacidade dos compressores parafuso. Movimentada por um pistão hidráulico acionado pela pressão do óleo (através de válvulas solenoides de carga e descarga comandadas pelo CLP), a gaveta move-se paralelamente aos rotores. Ao abrir, ela permite que uma fração do vapor aspirado retorne livremente para a câmara de sucção antes de iniciar a compressão efetiva. Isso permite modular a capacidade frigorífica de forma contínua e linear (geralmente entre 25% e 100%), reduzindo o consumo de energia elétrica em regimes de carga parcial.',
+          keyTakeaway: 'Slide Valve modula a capacidade frigorífica contínua (25% a 100%) em compressores parafuso industriais.',
           xpReward: 50
         }
       }
@@ -423,6 +614,101 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
           keyTakeaway: 'Rotas de fuga e saídas de emergência: EXIGEM obrigatoriamente fechaduras Fail-Safe (destrancam sem energia).',
           xpReward: 50
         }
+      },
+      {
+        id: 'elec_m10_ec4_centrais_alarme_resistor_eol',
+        moduleId: 'elec_mod_10_seguranca_cctv',
+        moduleTitle: 'Módulo 10: Segurança Eletrônica, CCTV & Controle de Acesso',
+        order: 4,
+        code: 'EC 10.4',
+        title: 'Centrais de Alarme: Zonas Balanceadas com Resistor EOL e Sensores PIR/MW',
+        norma: 'EN 50131-1 / EN 50131-2-2 / IEC 62642-1',
+        level: 'Intermediário',
+        durationMinutes: 16,
+        theory: {
+          conceito: 'Centrais de Alarme de Intrusão profissionais monitoram pontos de acesso através de laços cabeados supervisionados eletronicamente. A simples ligação de contatos secos Normalmente Fechados (NC) sem resistores é vulnerável a sabotagem por corte de fio ou curto-circuito intencional com grampo. Para garantir alta segurança (Grau 2 e Grau 3 segundo a norma EN 50131), as entradas utilizam Zonas Balanceadas com Resistor de Fim de Linha (EOL - End of Line) simples ou duplo (DEOL - Double End of Line com detecção de Tamper/Violação).',
+          formulas: [
+            { label: 'Zona Simples EOL (Supervisão de Fio Partido)', formula: 'R_normal = R_eol (ex: 2,2 kΩ) | Fio cortado = Infinito (Alarme)', explicacao: 'Detecta abertura do sensor ou corte físico do cabo por invasor' },
+            { label: 'Zona Dupla Balanceada DEOL (Grau 3)', formula: 'Normal = R_eol | Alarme = R_eol + R_alarme | Tamper = Infinito | Curto = 0 Ω', explicacao: 'Diferencia 4 estados distintos na mesma linha de 2 fios com precisão milimétrica' },
+            { label: 'Sensor PIR (Infravermelho Passivo)', formula: 'Lente de Fresnel com feixes múltiplos de detecção de calor em movimento', explicacao: 'Detecta a radiação térmica do corpo humano (comprimento de onda de 10 μm)' },
+            { label: 'Sensor Dupla Tecnologia (PIR + Micro-ondas 10 GHz)', formula: 'Disparo = PIR AND Radar Doppler (ambos acionados simultaneamente)', explicacao: 'Elimina 99% dos falsos alarmes causados por correntes de ar ou aquecedores' }
+          ],
+          pontosOperacionais: [
+            'O resistor de fim de linha DEVE ser instalado DENTRO da carcaça do sensor, e NUNCA dentro da placa da central de alarme! Se o resistor for colocado na bornera da central, o cabo externo fica sem supervisão e qualquer invasor pode curto-circuitar os dois fios para anular o alarme sem a central perceber.',
+            'Ajuste de sensibilidade Pet Immunity: sensores de intrusão modernos ignoram animais de estimação de até 20 kg a 35 kg através de lentes volumétricas que não varrem a faixa inferior a 50 cm do piso.',
+            'Supervisão anti-máscara (Anti-Masking): obrigatória em bancos e joalherias (EN 50131 Grau 3); detecta se o invasor borrifou spray de tinta ou colocou uma caixa de papelão na frente da lente do sensor durante o expediente de atendimento.',
+            'Barreiras de Infravermelho Ativo (IVA): pares de feixes duplos ou quádruplos alinhados opticamente em perímetros; exigem ajuste fino de alinhamento com voltímetro na escala milivolt para máxima tensão de recepção.'
+          ],
+          fieldCase: {
+            localizacao: 'Bairro da Manga, Beira',
+            cenario: 'Galpão de distribuição de bebidas arrombado durante a madrugada sem que a central de alarme emitisse nenhum disparo de sirene nem notificação ao aplicativo.',
+            diagnostico: 'A perícia técnica descobriu que o instalador utilizou ligação simples NC sem resistores EOL nos sensores magnéticos das portas de enrolar. Os invasores rasparam a capa do cabo externo exposto e juntaram os condutores com um grampo jacaré antes de forçar a porta: a central continuou lendo circuito fechado perfeito enquanto o galpão era saqueado.',
+            solucaoNormativa: 'Reestruturação completa com configuração de Zonas Duplas Balanceadas (DEOL) com resistores de precisão de 2,2 kΩ / 4,7 kΩ soldados diretamente no interior de cada sensor e protegidos por microchave anti-violação (Tamper). Qualquer tentativa de curto no cabo dispara imediatamente o alarme de Tamper de sabotagem.'
+          },
+          funcionamento: 'A central injeta uma corrente contínua estável na zona e o conversor analógico-digital mede a queda de tensão resultante. Cada estado de resistência (Normal, Disparo, Violação e Curto) corresponde a uma janela de tensão exata.',
+          aplicacaoMocambique: 'A oscilação de temperatura brusca em armazéns de zinco no verão moçambicano gera correntes de ar quente que disparam sensores PIR comuns; a utilização de sensores de dupla tecnologia (PIR + Micro-ondas) é mandatória para evitar deslocamentos inúteis de viaturas de segurança privada.',
+          exemploPratico: 'Zona DEOL com R1 = 2,2 kΩ (série com alarme) e R2 = 2,2 kΩ (Tamper). Estado Normal: resistência lida = 2,2 kΩ. Sensor abre (invasão): resistência = 4,4 kΩ. Fio rompido: circuito aberto (> 100 kΩ). Cabo sabotado em curto: 0 Ω. Todos os eventos geram mensagens distintas no software da central.',
+          calculationSnippet: 'DEOL: Resistor DENTRO do sensor | PIR + MW elimina falso alarme | Anti-masking para Grau 3'
+        },
+        quiz: {
+          question: 'Em um sistema de segurança eletrônica residencial ou comercial com central de alarme cabeada segundo a norma EN 50131, qual é o erro grave de instalação frequentemente cometido por técnicos amadores ao instalar resistores de fim de linha (EOL)?',
+          options: [
+            { id: 'A', text: 'Conectar o resistor diretamente nos bornes da placa da central de alarme, em vez de instalá-lo no interior do próprio sensor na extremidade do cabo.', isCorrect: true, feedback: 'Correto! Se o resistor for colocado dentro da central, o cabeamento até o sensor fica sem supervisão elétrica. Um invasor que descasque o cabo e feche os fios em curto anula o sensor sem que a central perceba.' },
+            { id: 'B', text: 'Usar resistores com cores muito vivas que atraem insetos.', isCorrect: false, feedback: 'Sem fundamento físico.' },
+            { id: 'C', text: 'Ligar o alarme na bateria de 12V.', isCorrect: false, feedback: 'Alimentação por bateria 12V é o padrão normal.' },
+            { id: 'D', text: 'Instalar sensores na parede.', isCorrect: false, feedback: 'Instalação na parede é o correto.' }
+          ],
+          explanation: 'O propósito técnico do Resistor de Fim de Linha (EOL - End of Line) é supervisionar a integridade física de todo o trecho do cabeamento elétrico. Se o instalador colocar o resistor nos bornes da central por preguiça de passar os fios, o resistor "fim de linha" torna-se "início de linha". Caso o cabo que vai até o sensor no cômodo distante seja cortado ou curto-circuitado propositalmente por um invasor, a central não detectará a sabotagem. O resistor DEVE obrigatoriamente estar posicionado fisicamente dentro do invólucro do sensor na extremidade final do laço.',
+          keyTakeaway: 'Resistor EOL deve ficar SEMPRE dentro do sensor, nunca na placa da central de alarme.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m10_ec5_interfonia_ip_videoporteiro',
+        moduleId: 'elec_mod_10_seguranca_cctv',
+        moduleTitle: 'Módulo 10: Segurança Eletrônica, CCTV & Controle de Acesso',
+        order: 5,
+        code: 'EC 10.5',
+        title: 'Interfonia IP SIP e Automação de Portões com Sensores Anti-Esmagamento',
+        norma: 'EN 12453 / EN 12445 / RFC 3261 (SIP)',
+        level: 'Intermediário',
+        durationMinutes: 16,
+        theory: {
+          conceito: 'A comunicação predial e condominial migrou da interfonia analógica tradicional para a Interfonia IP baseada no protocolo aberto SIP (Session Initiation Protocol), permitindo chamadas de áudio e vídeo HD bidirecionais entre portaria, apartamentos e smartphones via rede local e internet. Simultaneamente, a automação de portões deslizantes, pivotantes e basculantes exige sistemas de segurança mecânica e eletrônica contra esmagamento conforme a norma de segurança de máquinas EN 12453.',
+          formulas: [
+            { label: 'Força Máxima de Impacto do Portão (EN 12453)', formula: 'F_impacto_dinamico ≤ 400 N (durante 0,75 s) | F_estática ≤ 150 N', explicacao: 'Limite de força de esmagamento para não fraturar ossos de pedestres ou crianças' },
+            { label: 'Tempo de Reversão da Central Inverter de Portão', formula: 't_reversao ≤ 0,5 segundos', explicacao: 'Ao detectar obstáculo ou feixe cortado, o portão deve inverter o sentido imediatamente' },
+            { label: 'Consumo de Banda de Vídeo SIP (Codec H.264)', formula: 'Banda = 1,5 Mbps a 2,5 Mbps por chamada ativa', explicacao: 'Voz em G.711u (64 kbps) e vídeo 720p/1080p de alta definição' }
+          ],
+          pontosOperacionais: [
+            'Instalação OBRIGATÓRIA de Fotocélulas Ativas (Feixe Infravermelho): a altura do feixe de segurança deve ser de 40 cm a 50 cm do chão; se o feixe for interrompido por um veículo ou pedestre durante o fechamento, o portão deve parar e inverter instantaneamente para abrir.',
+            'Embreagem eletrônica e Encoder óptico: motores rápidos tipo Jet Flex com inversor de frequência integrado reduzem a velocidade na aproximação dos fins de curso (rampa de desaceleração suave), evitando pancadas destrutivas no batente.',
+            'Fim de curso com sensor magnético Reed Switch versus Hall: sensores magnéticos selados contra poeira e água garantem que o motor desligue antes de forçar os dentes da cremalheira de aço/nylon.',
+            'Alimentação de fechadura por contato seco de relé auxiliar com fonte externa dedicada para não drenar a corrente da placa controladora do interfone IP.'
+          ],
+          fieldCase: {
+            localizacao: 'Sommerschield II, Maputo',
+            cenario: 'Portão automático deslizante de condomínio com motor rápido fechou sobre a lateral de uma viatura de luxo de um morador, causando amassamento severo e quebra da porta.',
+            diagnostico: 'A equipe de instalação não montou o par de fotocélulas de segurança anti-esmagamento na linha de passagem do portão, confiando apenas no temporizador de fechamento automático da placa. A central estava com a embreagem eletrônica de força no nível máximo.',
+            solucaoNormativa: 'Instalação de dois pares de fotocélulas infravermelhas sincronizadas (um par externo e um par interno a 50 cm de altura), ajuste da força anti-esmagamento na placa com parada e reversão imediata sob pressão de 120 N e integração de vídeoporteiro IP SIP com liberação remota monitorada por câmera grande-angular.'
+          },
+          funcionamento: 'A central do motor envia um sinal infravermelho modulado do transmissor (TX) ao receptor (RX). Qualquer bloqueio interrompe a condução do fototransistor, acionando o circuito de interrupção prioritária do microcontrolador.',
+          aplicacaoMocambique: 'A alta frequência de tempestades com descargas atmosféricas queima centrais de portão e placas de interfone IP; o aterramento da carcaça do motor e instalação de protetores de surto DPS monofásicos de 20 kA são mandatórios.',
+          exemploPratico: 'Ligação do contato da fotocélula na placa do portão: bornes COM (comum) e NC (normalmente fechado) conectados na entrada "FOTO / SENS". O jumper de segurança deve ser removido para habilitar a proteção.',
+          calculationSnippet: 'Fotocélula a 40-50cm de altura mandatória (EN 12453) | Força estática ≤ 150N | SIP RFC 3261'
+        },
+        quiz: {
+          question: 'Em conformidade com a norma técnica de segurança de portões motorizados EN 12453, qual dispositivo de proteção sensorial é OBRIGATÓRIO instalar em qualquer portão automatizado com fechamento temporizado para impedir que pessoas, crianças ou veículos sejam esmagados durante o movimento de fechamento?',
+          options: [
+            { id: 'A', text: 'Um aviso em papel sulfite colado no portão.', isCorrect: false, feedback: 'Papel não impede o esmagamento físico de pessoas.' },
+            { id: 'B', text: 'Par de Fotocélulas Infravermelhas Ativas (Transmissor TX e Receptor RX) instalado na linha de passagem a 40-50 cm do solo, que comanda a parada e reversão imediata do motor ao detectar obstáculo.', isCorrect: true, feedback: 'Correto! As fotocélulas infravermelhas ativas de segurança são o dispositivo essencial de proteção anti-esmagamento segundo a norma EN 12453.' },
+            { id: 'C', text: 'Pintar o portão com listras amarelas.', isCorrect: false, feedback: 'Apenas visual, sem qualquer efeito protetor mecânico.' },
+            { id: 'D', text: 'Colocar uma lâmpada comum piscando no teto da garagem.', isCorrect: false, feedback: 'A sinalização luminosa é complementar, mas não previne o esmagamento físico.' }
+          ],
+          explanation: 'A norma europeia EN 12453 (e regulamentações técnicas mundiais de máquinas automáticas) determina que todos os portões automáticos com modo de fechamento automático devem dispor de dispositivos de proteção primária ativa. O par de fotocélulas infravermelhas instaladas transversalmente ao vão de passagem (altura recomendada entre 40 cm e 50 cm) cria uma barreira óptica invisível. Se um veículo ou pedestre cruzar a linha durante o fechamento, o feixe é interrompido e a central comanda a reversão instantânea do curso do motor para reabertura completa, eliminando o risco de mortes ou danos patrimoniais.',
+          keyTakeaway: 'Fotocélulas de segurança anti-esmagamento são obrigatórias em portões automáticos pela norma EN 12453.',
+          xpReward: 50
+        }
       }
     ]
   },
@@ -580,6 +866,102 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
           ],
           explanation: 'A tecnologia de Lítio Ferro Fosfato (LiFePO4 / IEC 62619) revolucionou os sistemas solares isolados por oferecer quatro vantagens inquestionáveis sobre o Chumbo-Ácido: 1) Profundidade de Descarga (DoD) utilizável de 80% a 90% (contra apenas 50% do chumbo, necessitando de metade da capacidade nominal em Ah); 2) Vida útil de 4.000 a 6.000 ciclos (mais de 12 a 15 anos de uso diário) contra míseros 800 a 1.200 ciclos do chumbo (2 a 3 anos de vida); 3) Alta eficiência de carga e descarga (95% a 98% contra 75% a 80% do chumbo); 4) Resistência a temperaturas de até 40°C a 45°C típicas de Moçambique sem colapso prematuro.',
           keyTakeaway: 'Baterias LiFePO4: 80-90% de descarga útil e mais de 6000 ciclos de vida útil no calor.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m11_ec4_bombeamento_solar_direto',
+        moduleId: 'elec_mod_11_energia_solar',
+        moduleTitle: 'Módulo 11: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
+        order: 4,
+        code: 'EC 11.4',
+        title: 'Bombeamento Solar Direto: VFD Solar para Bombas Submersas sem Baterias',
+        norma: 'IEC 62253 / IEC 61800-2',
+        level: 'Avançado',
+        durationMinutes: 17,
+        theory: {
+          conceito: 'Para irrigação agrícola e abastecimento de água em comunidades rurais desprovidas de rede elétrica, o sistema mais econômico e livre de manutenção de alto custo é o Bombeamento Solar Direto. Os módulos solares fotovoltaicos alimentam diretamente um Inversor/Drive VFD Solar com algoritmo MPPT avançado que aciona uma bomba submersa trifásica de poço profundo (3×400V ou 3×230V) variando a rotação e a vazão continuamente conforme a irradiação solar, dispensando completamente o uso de baterias químicas.',
+          formulas: [
+            { label: 'Potência Hidráulica Útil da Água', formula: 'P_hidraulica (W) = ρ × g × Q × H = 9,81 × Q (L/s) × H_total (m)', explicacao: 'Ex: 5 L/s (18 m³/h) a 80 metros de altura manométrica: P_hidr = 9,81 × 5 × 80 = 3924 W (3,92 kW)' },
+            { label: 'Potência Nominal do Gerador Solar Fotovoltaico', formula: 'P_solar_FV ≥ 1,35 a 1,50 × P_nominal_bomba', explicacao: 'Compensa perdas de rendimento térmico e permite partida precoce às 7h30 da manhã' },
+            { label: 'Tensão Mínima do Barramento CC do VFD', formula: 'V_dc_bus ≥ √2 × V_linha_bomba = 1,414 × 400 V ≈ 565 Vcc', explicacao: 'A string de painéis em série DEVE fornecer tensão contínua suficiente para sintetizar 400 Vca trifásicos' },
+            { label: 'Frequência Mínima de Bombeamento', formula: 'f_corte_min ≈ 30 Hz a 35 Hz', explicacao: 'Abaixo desta rotação a bomba não atinge a altura manométrica e apenas agita a água, aquecendo o motor' }
+          ],
+          pontosOperacionais: [
+            'Armazenamento em Caixa d\'Água/Tanque elevado: em bombeamento solar, armazena-se ÁGUA em vez de ELETRICIDADE em baterias; o custo por metro cúbico de água em reservatório elevado é 20 vezes menor do que armazenar energia em baterias!',
+            'Sensor de Nível de Poço Seco (Dry Run Protection): obrigatório para desligar o inversor se o nível dinâmico do poço cair abaixo da carcaça da bomba, evitando queima dos rotores por falta de lubrificação hídrica.',
+            'Filtro de Saída dV/dt ou Filtro Senoidal: em poços profundos onde o cabo submerso ultrapassa 50 a 100 metros de comprimento, as reflexões de alta frequência do chaveamento PWM do inversor duplicam a tensão no motor (picos de 1200V), perfurando o esmalte das bobinas da bomba; o filtro senoidal restaura uma onda pura.',
+            'Boia de nível de reservatório superior: contato seco intertravado na entrada digital do inversor para parar o bombeamento quando a caixa d\'água encher, evitando transbordamento e desperdício de água potável.'
+          ],
+          fieldCase: {
+            localizacao: 'Chókwè, Província de Gaza',
+            cenario: 'Cooperativa de agricultores familiares com poço artesiano de 110 metros e bomba submersa de 5,5 kW (7,5 CV) 400V onde a bomba só começava a puxar água por volta das 11h da manhã e parava às 14h, mesmo em dias claros de sol.',
+            diagnostico: 'O instalador montou duas strings curtas em paralelo de apenas 10 módulos de 450W (Vmp = 340 Vcc). Para sintetizar 400 Vca trifásicos sem transformador elevador, o inversor exige pelo menos 565 Vcc no barramento DC! O inversor reduzia a frequência para 26 Hz para manter a tensão, rotação na qual a bomba não vencia a altura manométrica do poço.',
+            solucaoNormativa: 'Reagrupamento de todos os 20 módulos em uma única string em série (Vmp = 680 Vcc, Voc_frio = 890 Vcc dentro do limite de 1000V). Com o barramento CC estabilizado em 680V, o inversor atingiu 50 Hz com facilidade, iniciando o bombeamento às 7h20 da manhã e estendendo a vazão até as 16h50 com produção de 140.000 litros de água diários.'
+          },
+          funcionamento: 'O algoritmo MPPT de rastreamento do drive varia a rotação do motor em tempo real: se uma nuvem passageira passa, o inversor desacelera de 50 Hz para 41 Hz em vez de desligar, mantendo a vazão reduzida sem interrupção.',
+          aplicacaoMocambique: 'O programa de irrigação e furos de água potável em Gaza, Tete e Inhambane utiliza amplamente inversores solares IP65 montados diretamente sob os suportes metálicos dos painéis solares no campo.',
+          exemploPratico: 'Bomba de 3 kW (4 CV) 400V trifásica: Gerador solar recomendado = 1,4 × 3000 W = 4200 Wp. Adotam-se 10 módulos solares de 550W (5,5 kWp total) em série com Vmp = 10 × 41,5V = 415Vcc (com inversor com booster elevador integrado) ou 16 módulos para entrada direta 400V.',
+          calculationSnippet: 'Armazene água e não baterias! | V_dc_bus ≥ 565 Vcc para 400V | Dry Run Protection obrigatória'
+        },
+        quiz: {
+          question: 'Em um projeto de bombeamento solar direto para irrigação agrícola sem baterias químicas segundo a IEC 62253, qual é a principal razão técnica para programar uma Frequência Mínima de Corte (f_corte típica entre 30 Hz e 35 Hz) no Inversor VFD Solar da bomba submersa?',
+          options: [
+            { id: 'A', text: 'Para que a água não saia muito gelada do poço.', isCorrect: false, feedback: 'A rotação do motor não altera a temperatura geotérmica da água.' },
+            { id: 'B', text: 'Porque abaixo dessa rotação mínima a bomba centrífuga não consegue gerar pressão manométrica suficiente para vencer o desnível do poço e elevar a água até a superfície, fazendo o motor apenas girar em falso e superaquecer sem produzir vazão útil.', isCorrect: true, feedback: 'Correto! Pelas leis de afinidade das bombas hidráulicas, a pressão manométrica varia com o quadrado da rotação (H ∝ n²). Abaixo de 30-35 Hz a bomba não atinge a altura do poço e consome energia à toa superaquecendo o estator.' },
+            { id: 'C', text: 'Porque motores elétricos explodem se girarem abaixo de 50 Hz.', isCorrect: false, feedback: 'Motores podem girar em baixa velocidade, mas a bomba hidráulica perde a capacidade manométrica.' },
+            { id: 'D', text: 'Para assustar pássaros com o ruído sonoro da vibração.', isCorrect: false, feedback: 'Afirmação sem sentido.' }
+          ],
+          explanation: 'Pelas leis de semelhança hidráulica de bombas centrífugas (Affinity Laws), a vazão é proporcional à rotação (Q ∝ n), mas a altura manométrica gerada é proporcional ao quadrado da rotação (H ∝ n²). Quando a irradiação solar cai e o inversor reduz a frequência do motor abaixo de um certo limite crítico (geralmente entre 30 Hz e 35 Hz dependendo da profundidade do lençol freático), a pressão hidrostática criada pela coluna de água no tubo se torna maior que a pressão gerada pelos rotores da bomba. A água para de subir até a superfície e o motor permanece girando submerso sem fluxo de refrigeração externa, dissipando calor na água estagnada e correndo risco de queima térmica do enrolamento.',
+          keyTakeaway: 'Frequência mínima de corte (30-35 Hz): impede que a bomba gire sem vazão no fundo do poço.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m11_ec5_comissionamento_iec62446',
+        moduleId: 'elec_mod_11_energia_solar',
+        moduleTitle: 'Módulo 11: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
+        order: 5,
+        code: 'EC 11.5',
+        title: 'Comissionamento e Ensaios Normativos Fotovoltaicos (Norma IEC 62446)',
+        norma: 'IEC 62446-1 / IEC 60904-1 / IEC 62446-2',
+        level: 'Avançado',
+        durationMinutes: 18,
+        theory: {
+          conceito: 'O comissionamento e a verificação inicial de instalações fotovoltaicas conectadas à rede devem seguir rigorosamente a norma internacional IEC 62446-1 (Ensaios de Categoria 1 e Categoria 2). Nenhum sistema solar deve ser entregue ao cliente ou conectado à concessionária sem os ensaios mandatórios de Continuidade dos Condutores de Proteção (PE), Polaridade CC, Tensão de Circuito Aberto (Voc), Corrente de Curto-Circuito (Isc), Resistência de Isolação em Corrente Contínua (Riso CC) e Levantamento da Curva I-V com sensor de irradiação solar acoplado.',
+          formulas: [
+            { label: 'Ensaio de Resistência de Isolação CC (Tabela 1 - IEC 62446)', formula: 'Tensões ≤ 500V: Ensaio a 500 Vcc (Riso ≥ 1,0 MΩ) | Tensões > 500V: Ensaio a 1000 Vcc (Riso ≥ 1,0 MΩ)', explicacao: 'Medição entre polos CC curto-circuitados e a terra metálica da estrutura' },
+            { label: 'Critério de Discrepância de Tensão Voc entre Strings', formula: 'ΔV_oc = |V_oc_stringA - V_oc_stringB| ≤ 5%', explicacao: 'Variação superior a 5% indica módulos em curto, díodo de bypass aberto ou string com número incorreto de painéis' },
+            { label: 'Fator de Forma da Curva I-V (Fill Factor - FF)', formula: 'FF = (V_mp × I_mp) / (V_oc × I_sc)', explicacao: 'Módulos de silício cristalino novos de alta qualidade apresentam FF entre 0,75 e 0,82' },
+            { label: 'Irradiação Mínima para Curva I-V Válida', formula: 'G_solar ≥ 700 W/m² (no plano dos módulos)', explicacao: 'Ensaios com irradiação solar fraca distorcem a translação para STC e invalidam a garantia' }
+          ],
+          pontosOperacionais: [
+            'Método correto do ensaio de isolamento CC (IEC 62446): NUNCA meça a resistência de isolamento com a chave de CC fechada no inversor! Desconecte a string da entrada do inversor; curto-circuite os polos positivo e negativo da string com caixa de ensaio segura e aplique a tensão de 1000 Vcc do megômetro entre o barramento curto-circuitado e a terra metálica da carcaça aterrada.',
+            'Inspeção Termográfica Aérea ou Portátil (IEC 62446-3): realizada com irradiação solar acima de 700 W/m² sob carga normal. Revela "Hotspots" (células solares superaquecidas por trincas, sujeira de pássaro ou diodos de bypass defeituosos) com ΔT > 10 °C a 20 °C.',
+            'Verificação de torque nos conectores MC4 e quadros de CC: o aperto insuficiente dos conectores crimpados à mão sem alicate catracado padronizado MC4 é a causa número 1 de incêndios em telhados solares no mundo.',
+            'Emissão obrigatória do Livro de Comissionamento (As-Built, esquemas unifilares, certificados dos módulos e inversores e folhas de ensaio assinadas).'
+          ],
+          fieldCase: {
+            localizacao: 'Zumbo, Província de Tete',
+            cenario: 'Mini-rede solar comunitária de 50 kWp com inversor central onde o inversor recusava-se a sincronizar com a rede todas as manhãs às 6h00 acusando código de erro "Low Insulation Resistance PV-Ground".',
+            diagnostico: 'Com tempo seco à tarde o sistema operava, mas na madrugada com orvalho e umidade a isolação caía. Realizou-se o ensaio de Riso CC conforme IEC 62446 em cada string individual com megômetro a 1000 Vcc. A string 3 acusou Riso de apenas 0,08 MΩ (80 kΩ, violando o mínimo normativo de 1,0 MΩ). A inspeção física ao longo dos eletrodutos identificou que o cabo solar de 6 mm² foi prensado e esmagado na borda afiada da calha metálica do telhado, rompendo a dupla isolação e encostando o cobre na chapa úmida.',
+            solucaoNormativa: 'Substituição do lance de cabo solar de 6 mm² 1,5 kV com capa resistente a UV/ozônio, colocação de buchas de proteção de borracha nas saídas das calhas e reaplicação do ensaio de isolamento que atestou Riso = 450 MΩ. O inversor sincronizou perfeitamente no dia seguinte sem falhas.'
+          },
+          funcionamento: 'O traçador de curva I-V carrega um capacitor eletrônico interno em fração de segundo, registrando simultaneamente centenas de pares de pontos de corrente e tensão desde o circuito aberto (Voc) até o curto-circuito (Isc), comparando com os dados de fábrica STC.',
+          aplicacaoMocambique: 'A poeira de carvão em Tete e a poeira de terra vermelha no centro do país cobrem módulos solares rapidamente, reduzindo a irradiação útil e gerando pontos quentes severos; planos de lavagem mensal com água desmineralizada ou filtrada são obrigatórios para preservar a garantia dos fabricantes.',
+          exemploPratico: 'Leitura de Voc de 10 strings de 18 módulos no mesmo telhado: strings 1 a 9 medem 882 V ± 3 V. String 10 mede apenas 833 V (diferença de 49 V = exatamente a tensão de 1 módulo). Conclusão imediata: a string 10 foi montada com 17 módulos por engano da equipe em vez de 18.',
+          calculationSnippet: 'Riso CC ≥ 1,0 MΩ a 1000 Vcc | ΔVoc entre strings ≤ 5% | Irradiação para curva I-V ≥ 700 W/m²'
+        },
+        quiz: {
+          question: 'De acordo com a norma internacional IEC 62446-1 para comissionamento, verificação e ensaios de aceitação em sistemas fotovoltaicos, qual é o valor MÍNIMO normativo de Resistência de Isolação (Riso) exigido para circuitos CC com tensão máxima superior a 500 Vcc (como arranjos típicos de 1000 Vcc) medido a 1000 Vcc entre os condutores ativos e a terra metálica?',
+          options: [
+            { id: 'A', text: 'Riso mínimo de 1,0 MΩ (1 Megohm ou 1.000.000 de Ohms).', isCorrect: true, feedback: 'Correto! A Tabela 1 da norma IEC 62446-1 estipula expressamente que para tensões de arranjo superiores a 500 Vcc, o ensaio de isolamento deve ser feito a 1000 Vcc e o valor medido deve ser igual ou superior a 1,0 MΩ.' },
+            { id: 'B', text: 'Riso de 0,001 Ω.', isCorrect: false, feedback: 'Isso é um curto-circuito direto que causaria incêndio e choque elétrico.' },
+            { id: 'C', text: 'Não existe valor mínimo normatizado; qualquer valor é aceito.', isCorrect: false, feedback: 'A norma IEC 62446-1 é estrita e mandatória.' },
+            { id: 'D', text: 'Riso mínimo de 1.000 GΩ.', isCorrect: false, feedback: 'Valor irreal e desproporcional para cabos em campo.' }
+          ],
+          explanation: 'A norma internacional IEC 62446-1 (Grid connected photovoltaic systems - Part 1: Minimum requirements for system documentation, commissioning tests and inspection) define na Tabela 1 os requisitos mínimos para o ensaio de isolamento de circuitos de corrente contínua. Para sistemas fotovoltaicos com tensão nominal máxima de circuito aberto superior a 500 Vcc (como a esmagadora maioria das instalações industriais e comerciais que operam entre 600 V e 1000 Vcc), a tensão de ensaio contínua aplicada deve ser de 1000 Vcc e a resistência de isolação mínima permissível entre os condutores da string e a terra é de 1,0 MΩ. Qualquer leitura inferior a 1,0 MΩ reprova a instalação por risco de choque elétrico e fuga de corrente.',
+          keyTakeaway: 'IEC 62446-1: Riso mínima em CC para arranjos até 1000 Vcc é de 1,0 MΩ a 1000 Vcc de ensaio.',
           xpReward: 50
         }
       }

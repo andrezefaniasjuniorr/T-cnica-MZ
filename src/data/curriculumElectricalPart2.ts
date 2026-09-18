@@ -155,6 +155,100 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
           keyTakeaway: 'Topologia Buck: V_out = D × V_in. Com D = 25% e Vin = 48V, a saída é 12V.',
           xpReward: 50
         }
+      },
+      {
+        id: 'elec_m4_ec4_amplificadores_operacionais_sensores',
+        moduleId: 'elec_mod_4_eletronica',
+        moduleTitle: 'Módulo 4: Eletrônica Analógica & Digital e Fontes de Alimentação',
+        order: 4,
+        code: 'EC 4.4',
+        title: 'Amplificadores Operacionais e Condicionamento de Sinais 4-20mA / 0-10V',
+        norma: 'IEC 60381-1 / IEC 60747-3',
+        level: 'Avançado',
+        durationMinutes: 15,
+        theory: {
+          conceito: 'Na instrumentação e controle de processos industriais, grandezas físicas (pressão, vazão, nível, temperatura) são convertidas em sinais elétricos padronizados: laço de corrente 4-20 mA ou tensão 0-10 V. Amplificadores operacionais (Op-Amps) realizam o condicionamento analógico: amplificação, filtragem ativa de ruído de alta frequência e conversão I/V ou V/I.',
+          formulas: [
+            { label: 'Conversão Corrente para Tensão', formula: 'V = I × R_shunt', explicacao: 'Resistor de precisão de 250 Ω converte 4-20 mA em 1-5 Vcc para entradas de microcontroladores' },
+            { label: 'Ganho do Amplificador Não-Inversor', formula: 'A_v = 1 + (R_f / R_in)', explicacao: 'Determina a amplificação do sinal fraco de células de carga e termopares' },
+            { label: 'Zero Vivo (Live Zero)', formula: 'I_min = 4 mA', explicacao: 'Permite distinguir imediatamente entre grandeza no zero (4 mA) e fio partido (0 mA)' }
+          ],
+          pontosOperacionais: [
+            'O laço de corrente 4-20 mA é imune à queda de tensão ao longo de cabos longos (até 1000 metros), pois a fonte de corrente regula a tensão automaticamente para manter a corrente exata.',
+            'O conceito de "Zero Vivo" (4 mA na escala mínima): se o transmissor medir 0 mA, o CLP dispara alarme imediato de "Falha de Linha / Cabo Rompido".',
+            'Sempre utilize cabos de instrumentação trançados e blindados (par trançado blindado STP) com a malha aterrada em apenas UM ponto para evitar loops de terra.',
+            'Ao medir 4-20 mA com multímetro, abra o laço e insira o amperímetro em série, ou use um alicate de corrente para processos (de miliamperes DC).'
+          ],
+          fieldCase: {
+            localizacao: 'Chókwè, Província de Gaza',
+            cenario: 'Sensor de nível hidrostático de represa com saída 4-20 mA enviando leituras oscilantes e erráticas para o painel da bomba de irrigação.',
+            diagnostico: 'O técnico anterior aterrou a malha do cabo de sinal em ambas as pontas (no poço e no painel). A diferença de potencial de terra de 2,4V entre os dois locais induziu uma corrente espúria de 60 Hz na blindagem que se somava ao sinal analógico de 4-20 mA.',
+            solucaoNormativa: 'Desconexão da malha no lado do sensor e aterramento exclusivo no borne PE do painel central. As oscilações cessaram imediatamente e a leitura de nível estabilizou em 4,20 mA (represa em nível mínimo calibrado).'
+          },
+          funcionamento: 'A impedância de saída de um transmissor de corrente é teoricamente infinita, forçando a corrente exata através de qualquer resistência de loop até o limite de carga permissível (típico 500 Ω a 750 Ω em 24 Vcc).',
+          aplicacaoMocambique: 'Açucareiras de Maragra e cervejarias em Maputo utilizam milhares de laços de 4-20 mA para controlar pasteurização, dosagem de químicos e pressão de vapor em caldeiras.',
+          exemploPratico: 'Transmissor de pressão de 0 a 10 bar com saída 4-20 mA. Se a pressão for 5 bar (50%), a corrente deve ser: I = 4 + (20 - 4) × 0,5 = 12 mA. Com resistor de carga de 250 Ω: V = 12 mA × 250 Ω = 3,0 Vcc medidos na entrada do CLP.',
+          calculationSnippet: 'I = 4 + 16 × (Valor / Span) | R_shunt = 250 Ω para 1-5V | Malha aterrada em 1 só ponto'
+        },
+        quiz: {
+          question: 'Em automação e instrumentação industrial, por qual motivo técnico o padrão de corrente 4-20 mA utiliza 4 mA como ponto de escala zero (Live Zero) em vez de 0 mA?',
+          options: [
+            { id: 'A', text: 'Para gastar menos bateria dos transmissores.', isCorrect: false, feedback: 'Consumir 4 mA gasta mais do que 0 mA.' },
+            { id: 'B', text: 'Para permitir a detecção imediata de rompimento físico do cabo (quando o sinal cai para 0 mA) e permitir alimentar o próprio sensor através dos dois fios do laço.', isCorrect: true, feedback: 'Correto! Se a linha romper, a corrente cai para 0 mA, o que o CLP reconhece como falha de hardware e não como valor de medição zero.' },
+            { id: 'C', text: 'Porque a norma proíbe a passagem de corrente contínua inferior a 4 mA.', isCorrect: false, feedback: 'Não existe proibição física dessa natureza.' },
+            { id: 'D', text: 'Para compensar a resistência térmica dos condutores de alumínio.', isCorrect: false, feedback: 'Laços de instrumentação usam condutores de cobre.' }
+          ],
+          explanation: 'O padrão 4-20 mA adota o "Zero Vivo" (4 mA): quando a variável física está no valor mínimo da escala (ex: 0 bar), o sensor drena 4 mA. Se o cabo partir ou o sensor queimar, a corrente é zero (0 mA). O CLP identifica imediatamente a diferença entre "leitura mínima normal" (4 mA) e "defeito na fiação" (0 mA). Além disso, os 4 mA garantem energia mínima para alimentar a eletrônica interna do próprio transmissor (sensores a 2 fios).',
+          keyTakeaway: 'Live Zero (4 mA): Garante alimentação do sensor e diferencia medição zero de cabo partido.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m4_ec5_fontes_chaveadas_retificadores_flyback',
+        moduleId: 'elec_mod_4_eletronica',
+        moduleTitle: 'Módulo 4: Eletrônica Analógica & Digital e Fontes de Alimentação',
+        order: 5,
+        code: 'EC 4.5',
+        title: 'Topologia Flyback, Isolamento Óptico e Diagnóstico de Fontes SMPS',
+        norma: 'IEC 61204 / IEC 60950',
+        level: 'Avançado',
+        durationMinutes: 16,
+        theory: {
+          conceito: 'As fontes chaveadas isoladas (SMPS - Switched-Mode Power Supply) convertem AC de entrada (85-265V universal) para tensões CC estabilizadas (12V, 24V) com isolamento galvânico total através de um transformador de alta frequência. A topologia Flyback armazena energia magnética no núcleo durante a condução do MOSFET e a transfere para a saída quando o transistor desliga. A regulação de tensão é garantida por um optoacoplador e um circuito de referência zener de precisão (TL431).',
+          formulas: [
+            { label: 'Equação de Saída Flyback', formula: 'V_out = V_in × [D / (1 - D)] × (N_sec / N_pri)', explicacao: 'D = razão cíclica; N = relação de espiras do transformador' },
+            { label: 'Frequência Típica de Chaveamento', formula: 'f_sw = 50 kHz a 130 kHz', explicacao: 'Permite transformadores magnéticos de ferrite extremamente compactos' },
+            { label: 'Tensão de Isolamento de Optoacoplador', formula: 'V_iso ≥ 3750 Vrms a 5000 Vrms', explicacao: 'Segurança contra choque entre lado primário e secundário' }
+          ],
+          pontosOperacionais: [
+            'Em diagnóstico de fontes chaveadas paradas: NUNCA meça com multímetro referenciado ao terra comum; o primário é referenciado ao negativo do retificador (-310 Vcc flutuante em relação à carcaça), exigindo transformador de isolamento para osciloscópio.',
+            'Falha mais comum em fontes SMPS de CLPs e painéis: capacitores eletrolíticos de filtragem de saída estufados com aumento excessivo de ESR (Resistência Série Equivalente), gerando ripple e reinicialização contínua do CLP.',
+            'O circuito "Snubber" RCD colocado em paralelo com o primário absorve picos de tensão indutiva (L · di/dt) que destruiriam o MOSFET no momento do corte da condução.',
+            'Se o optoacoplador ou o TL431 abrir por defeito, a malha de realimentação é interrompida e a fonte pode entrar em sobretensão descontrolada ou acionar a proteção "hiccup" (soluço).'
+          ],
+          fieldCase: {
+            localizacao: 'Dondo, Província de Sofala',
+            cenario: 'Fonte chaveada de 24V 10A de um CLP de esteira de cimento parou de funcionar após um pico de tensão na rede. O led de "DC OK" piscava repetidamente a cada 1 segundo (hiccup mode).',
+            diagnostico: 'O modo soluçante indicava que o CI modulador tentava dar partida, mas a tensão caía por sobrecarga no secundário. O teste de semicondutores no secundário localizou o diodo duplo Schottky de saída de 24V em curto-circuito pleno (0,0 Ω nos bornes).',
+            solucaoNormativa: 'Substituição do diodo Schottky por modelo original de 40A 100V com pasta térmica nova e substituição preventiva dos dois capacitores eletrolíticos de 2200 μF 35V de baixo ESR. A fonte restaurou saída de 24,1 Vcc cravados sob carga plena.'
+          },
+          funcionamento: 'Ao alternar entre saturação e corte em mais de 65.000 vezes por segundo, a fonte SMPS atinge rendimento superior a 88%, dissipando pouquíssimo calor comparada a fontes lineares com transformadores de ferro 50 Hz.',
+          aplicacaoMocambique: 'Em locais com variações severas de tensão (como 160V a 250V na mesma tarde), fontes SMPS automáticas "Full-Range" garantem 24V perfeitamente estáveis para sistemas de automação sem risco de desligamento.',
+          exemploPratico: 'Teste rápido de fonte sem instrumentos complexos: meça a tensão no grande capacitor do primário (deve ler ~325 Vcc em rede 230V). Se tiver 0V, o fusível de entrada, termistor NTC ou ponte de diodos retificadora estão queimados.',
+          calculationSnippet: 'Flyback: V_out proporcional a D/(1-D) | Ripple alto = capacitores de baixo ESR esgotados'
+        },
+        quiz: {
+          question: 'Durante a manutenção de uma fonte de alimentação chaveada industrial (SMPS) de 24 Vcc de um quadro de automação, o técnico nota que a fonte não liga e que o fusível de entrada de vidro de 2A está aberto e completamente enegrecido (com marca de arco elétrico violento). Qual é a causa mais provável segundo o procedimento de bancada?',
+          options: [
+            { id: 'A', text: 'O led indicador frontal de DC OK está com defeito.', isCorrect: false, feedback: 'O led queimado não provocaria queima violenta do fusível principal de entrada.' },
+            { id: 'B', text: 'Curto-circuito pleno nos componentes de chaveamento de alta tensão do primário (como a ponte retificadora de diodos ou o transistor MOSFET/IGBT principal).', isCorrect: true, feedback: 'Correto! Um fusível enegrecido por arco elétrico indica curto violento no primário com corrente instantânea de dezenas de amperes, tipicamente por destruição do MOSFET ou diodos da ponte.' },
+            { id: 'C', text: 'A tensão de saída de 24V está com 23,8V.', isCorrect: false, feedback: 'Pequenas variações na saída não queimam o fusível da entrada AC.' },
+            { id: 'D', text: 'O cabo de rede Ethernet do CLP está desconectado.', isCorrect: false, feedback: 'Totalmente sem relação com a alimentação da fonte.' }
+          ],
+          explanation: 'Quando um fusível abre com queima preta e vestígios de arco no vidro, ocorreu uma corrente de curto-circuito severa no estágio primário da fonte. Os candidatos imediatos são: varistor de proteção em curto por sobretensão, ponte de diodos retificadores perfurada ou o transistor chaveador (MOSFET) principal com quebra entre dreno e fonte (D-S).',
+          keyTakeaway: 'Fusível enegrecido na entrada SMPS = Curto catastrófico no primário (Ponte de diodos ou MOSFET).',
+          xpReward: 50
+        }
       }
     ]
   },
@@ -312,6 +406,147 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
           keyTakeaway: '4-20 mA: Imune à queda de tensão em cabos longos e detecta fio quebrado via Zero Vivo (I < 3,6 mA).',
           xpReward: 50
         }
+      },
+      {
+        id: 'elec_m5_ec4_redes_industriais_modbus',
+        moduleId: 'elec_mod_5_motores_automacao',
+        moduleTitle: 'Módulo 5: Motores Elétricos, Automação & Controladores Lógicos (PLCs)',
+        order: 4,
+        code: 'EC 5.4',
+        title: 'Redes Industriais: RS-485 Modbus RTU/TCP e Resistor de Terminação 120Ω',
+        norma: 'IEC 61158 / EIA-485',
+        level: 'Avançado',
+        durationMinutes: 15,
+        theory: {
+          conceito: 'O protocolo Modbus é a espinha dorsal da comunicação entre CLPs, inversores de frequência, multimedidores de energia e sistemas SCADA. O meio físico RS-485 utiliza transmissão diferencial de tensão entre duas vias (A e B ou D+ e D-), permitindo conectar até 32 dispositivos em distâncias de até 1200 metros com alta imunidade a ruídos industriais.',
+          formulas: [
+            { label: 'Tensão Diferencial RS-485', formula: 'V_ab = V_a - V_b', explicacao: 'Nível lógico 1: V_ab < -200 mV | Nível lógico 0: V_ab > +200 mV' },
+            { label: 'Resistor de Terminação de Linha', formula: 'R_t = 120 Ω (1/4 W)', explicacao: 'Instalado obrigatoriamente nas DUAS pontas extremas do barramento físico' },
+            { label: 'Topologia Obrigatória', formula: 'Barramento Daisy-Chain (em linha)', explicacao: 'Proibido derivações em estrela ou ramais longos (stubs > 30 cm)' }
+          ],
+          pontosOperacionais: [
+            'A topologia do cabo RS-485 DEVE ser estritamente em cadeia linear (Daisy-Chain: entra num aparelho e sai para o próximo). Ramificações em "T" ou estrela causam reflexão de sinal que derrubam a rede inteira.',
+            'O resistor de terminação de 120 Ω casa com a impedância característica do cabo de par trançado. Deve ser ligado APENAS no primeiro e no último equipamento da linha.',
+            'Polaridade A e B: se inverter os fios A e B em qualquer escravo, aquele aparelho não comunica (e em alguns fabricantes derruba toda a linha).',
+            'Cada dispositivo escravo na rede Modbus RTU deve ter um endereço único (ID de 1 a 247) e rigorosamente a mesma taxa de transmissão (Baud Rate, ex: 9600 ou 19200 bps), paridade e bits de parada.'
+          ],
+          fieldCase: {
+            localizacao: 'Nacala-Porto, Província de Nampula',
+            cenario: 'Terminal de grãos com 12 inversores de frequência que comunicavam com o CLP central via Modbus RS-485. Frequentemente a leitura de velocidade travava e dava timeout em todos os motores.',
+            diagnostico: 'A fiação foi instalada em topologia estrela com cabo paralelo comum de interfone e sem resistores de terminação. As reflexões de onda na ponta aberta do cabo geravam colisão de dados no barramento.',
+            solucaoNormativa: 'Reestruturação para topologia Daisy-Chain com cabo blindado de par trançado próprio para RS-485 (120 Ω) e inclusão de dois resistores de terminação de 120 Ω nas duas extremidades físicas da rede. Taxa de erros de comunicação reduziu para 0%.'
+          },
+          funcionamento: 'A sinalização diferencial cancela o ruído induzido: qualquer interferência eletromagnética afeta ambos os fios A e B igualmente; como o receptor mede a diferença de tensão (Va - Vb), o ruído comum é rejeitado (CMRR elevado).',
+          aplicacaoMocambique: 'A leitura remota de contadores de energia em painéis solares e grupos geradores em locais remotos de Moçambique utiliza quase universalmente Modbus RTU integrado a roteadores 4G.',
+          exemploPratico: 'Leitura de corrente de um multimedidor Schneider com ID = 5. O CLP mestre envia comando Modbus função 03 (Read Holding Registers) para o registrador 3001. O medidor responde em 15 ms com o valor em ponto flutuante da corrente de fase.',
+          calculationSnippet: 'Daisy-Chain linear obrigatória | 2 resistores de 120 Ω nas pontas | Par trançado blindado'
+        },
+        quiz: {
+          question: 'Em uma rede de comunicação industrial RS-485 Modbus RTU conectando um CLP a 8 inversores de frequência ao longo de 250 metros, onde devem ser instalados os resistores de terminação de 120 Ω?',
+          options: [
+            { id: 'A', text: 'Em todos os 8 inversores e também no CLP (total de 9 resistores).', isCorrect: false, feedback: 'Isso sobrecarregaria os transceptores, reduzindo a impedância para menos de 15 Ω e queimando as portas de comunicação!' },
+            { id: 'B', text: 'Apenas nos dois pontos extremos físicos do barramento (no primeiro dispositivo e no último dispositivo da linha).', isCorrect: true, feedback: 'Correto! Apenas os dois extremos recebem o resistor de 120 Ω para casar a impedância da linha e evitar reflexão de ondas.' },
+            { id: 'C', text: 'No meio do cabo, enrolado com fita isolante.', isCorrect: false, feedback: 'No meio da linha não evita a reflexão das extremidades abertas.' },
+            { id: 'D', text: 'Em nenhum lugar se a velocidade for inferior a 1 Megabaud.', isCorrect: false, feedback: 'Sem terminação em distâncias de 250m ocorrem reflexões destrutivas mesmo a 9600 bps.' }
+          ],
+          explanation: 'As linhas de transmissão RS-485 comportam-se como guias de onda. Quando o pulso elétrico atinge o fim do cabo e encontra um circuito aberto (alta impedância), a onda reflete de volta e colide com os bits seguintes. A instalação de exatamente dois resistores de 120 Ω (um em cada extremidade da linha) absorve a energia da onda sem reflexão.',
+          keyTakeaway: 'Terminação RS-485: Exatamente dois resistores de 120 Ω, um em cada extremidade física da rede.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m5_ec5_sensores_industriais_pnp_npn',
+        moduleId: 'elec_mod_5_motores_automacao',
+        moduleTitle: 'Módulo 5: Motores Elétricos, Automação & Controladores Lógicos (PLCs)',
+        order: 5,
+        code: 'EC 5.5',
+        title: 'Sensores de Proximidade Indutivos, Ópticos e Ligação PNP vs NPN',
+        norma: 'IEC 60947-5-2 / EN 60947-5-2',
+        level: 'Intermediário',
+        durationMinutes: 14,
+        theory: {
+          conceito: 'Sensores de proximidade detectam a presença física de objetos sem contato mecânico. Indutivos operam por correntes parasitas e detectam metais; capacitivos detectam materiais dielétricos (água, plástico, cereais); fotoelétricos utilizam feixes de luz infravermelha ou laser. A saída transistorizada de estado sólido chaveia a carga segundo duas arquiteturas: PNP (Sourcing - chaveia o polo positivo +24V) e NPN (Sinking - chaveia o polo negativo 0V).',
+          formulas: [
+            { label: 'Cores Padronizadas de Cabos (IEC)', formula: 'Marrom = +24V | Azul = 0V | Preto = Sinal de Saída', explicacao: 'Branco = Saída complementar NC em sensores de 4 fios' },
+            { label: 'Sensor PNP (Comum na Europa/IEC)', formula: 'Saída = +24 Vcc quando acionado', explicacao: 'Liga no borne de entrada digital tipo Sink do CLP' },
+            { label: 'Sensor NPN (Comum no Japão/Ásia)', formula: 'Saída = 0 Vcc (GND) quando acionado', explicacao: 'Drena a corrente da entrada Source do CLP' }
+          ],
+          pontosOperacionais: [
+            'Código de cores universal IEC 60947-5-2: Marrom (Brown) = Alimentação Positiva (+Vcc, 10-30V); Azul (Blue) = Alimentação Negativa (0V GND); Preto (Black) = Sinal de Saída (Normalmente Aberto NO); Branco (White) = Sinal Normalmente Fechado NC.',
+            'Fator de correção de distância sensora (Sn) para metais: Aço carbono = 1,0 (100% da distância); Aço inox = 0,7 (70%); Alumínio = 0,4 (40%); Cobre = 0,3 (30%). Para detectar alumínio ou cobre, o sensor deve estar bem mais próximo!',
+            'Se você ligar um sensor PNP em uma entrada configurada para NPN, o CLP nunca reconhecerá o sinal, mesmo que o led do sensor acenda perfeitamente.',
+            'Sempre instale o sensor com porca travada em suporte rígido com folga mecânica para que peças móveis na esteira não colidam contra a face frontal do sensor.'
+          ],
+          fieldCase: {
+            localizacao: 'Marracuene, Província de Maputo',
+            cenario: 'Máquina enchedora de garrafas de refrigerante importada da China substituída por peças de reposição locais. O sensor de fim de curso acendia a luz vermelha na garrafa, mas o CLP não registrava a entrada digital.',
+            diagnostico: 'A máquina chinesa operava com lógica NPN (entradas digitais do CLP esperavam conexão ao 0V). O técnico local comprou um sensor padrão europeu PNP (que injeta +24V). A entrada digital recebia 24V em ambos os lados e a corrente de entrada era nula.',
+            solucaoNormativa: 'Substituição pelo modelo correto com saída NPN transistorizada (ou inclusão de relé acoplador intermediário de 24V para conversão de nível lógico). O sinal passou a responder imediatamente.'
+          },
+          funcionamento: 'O oscilador interno do sensor indutivo cria um campo magnético alternado de alta frequência na face sensora. Quando um metal se aproxima, correntes parasitas (Foucault) amortecem a oscilação, disparando o circuito Schmitt-Trigger interno.',
+          aplicacaoMocambique: 'Contagem de sacos de cimento, detecção de garrafas em engarrafadoras e posicionamento de guinchos em minas dependem de sensores indutivos e ópticos robustos com grau de proteção IP67.',
+          exemploPratico: 'Teste com multímetro de sensor PNP: Ponta preta no fio Azul (0V), ponta vermelha no fio Preto (Sinal). Ao aproximar uma chave de fenda da face sensora, a tensão lida deve subir de 0V para aproximadamente 23,5 Vcc.',
+          calculationSnippet: 'Marrom = +24V | Azul = 0V | Preto = Sinal | PNP = injeta +24V | NPN = drena para 0V'
+        },
+        quiz: {
+          question: 'Em um sensor de proximidade industrial indutivo de 3 fios com saída PNP Normalmente Aberta (NO) de acordo com o padrão de cores da norma IEC 60947-5-2, qual é a ligação correta dos condutores?',
+          options: [
+            { id: 'A', text: 'Marrom = 230V AC; Azul = Neutro; Preto = Terra PE.', isCorrect: false, feedback: 'Isso ligaria alta tensão alternada em um sensor DC de 24V, explodindo o componente!' },
+            { id: 'B', text: 'Marrom = +24 Vcc; Azul = 0 Vcc (GND); Preto = Sinal de saída (entrega +24 Vcc ao detectar o metal).', isCorrect: true, feedback: 'Perfeito! Marrom é o positivo (+24V), Azul é a referência (0V) e Preto é a saída de sinal PNP que conduz o positivo para a entrada do CLP.' },
+            { id: 'C', text: 'Preto = +24 Vcc; Branco = 0 Vcc; Verde = Saída analógica.', isCorrect: false, feedback: 'Não segue o código normativo internacional de sensores.' },
+            { id: 'D', text: 'Os fios podem ser ligados em qualquer ordem sem polaridade.', isCorrect: false, feedback: 'Sensores semicondutores DC têm polaridade rígida e diodo de proteção reversa.' }
+          ],
+          explanation: 'O padrão internacional IEC 60947-5-2 define para sensores CC de 3 fios: Fio Marrom (Brown) = Alimentação Positiva (+Vcc, 10-30Vcc); Fio Azul (Blue) = Negativo (0V / GND); Fio Preto (Black) = Saída de sinal (em sensores PNP, fornece +24Vcc à entrada digital quando comutado).',
+          keyTakeaway: 'Código IEC 60947-5-2: Marrom = +24V, Azul = 0V, Preto = Sinal PNP (+24V na ativação).',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m5_ec6_seguranca_funcional_maquinas',
+        moduleId: 'elec_mod_5_motores_automacao',
+        moduleTitle: 'Módulo 5: Motores Elétricos, Automação & Controladores Lógicos (PLCs)',
+        order: 6,
+        code: 'EC 5.6',
+        title: 'Segurança Funcional de Máquinas: Relés de Segurança e Parada de Emergência',
+        norma: 'ISO 13849-1 / IEC 62061 / IEC 60204-1',
+        level: 'Avançado',
+        durationMinutes: 16,
+        theory: {
+          conceito: 'A segurança em máquinas industriais exige sistemas de comando à prova de falhas (Fail-Safe). A norma ISO 13849-1 estabelece Níveis de Desempenho (Performance Levels - PL de "a" até "e") e Categorias de Segurança (B, 1, 2, 3 e 4). Na Categoria 4 / PL e (risco de mutilação ou morte), uma única falha de componente (curto-circuito entre fios, contato soldado) não pode levar à perda da função de segurança e a falha deve ser detectada na próxima manobra.',
+          formulas: [
+            { label: 'Canal Duplo Redundante', formula: 'Arquitetura com 2 canais independentes (1oo2)', explicacao: 'Dois contatos NF monitorados simultaneamente pelo relé de segurança' },
+            { label: 'Parada Categoria 0 (IEC 60204-1)', formula: 'Corte imediato de energia (desarme mecânico)', explicacao: 'Desenergização instantânea dos atuadores sem frenagem controlada' },
+            { label: 'Parada Categoria 1', formula: 'Parada controlada seguida de corte de energia', explicacao: 'Inversor freia a máquina em 1 segundo e contator corta a alimentação em seguida' }
+          ],
+          pontosOperacionais: [
+            'REGRA DE OURO DA SEGURANÇA: Botões de emergência e sensores de proteção NUNCA devem ser ligados diretamente a entradas comuns de CLP padrão de processo. Devem ser ligados a Relés de Segurança dedicados com saídas redundantes por contatos mecanicamente guiados (Force-guided).',
+            'O botão de parada de emergência tipo "cogumelo" deve ter retenção mecânica, ação de abertura positiva (símbolo de seta em círculo) e ser acionado por corte de circuito NF (contato Normalmente Fechado).',
+            'Discrepância de tempo (Cross-monitoring): o relé de segurança monitora se ambos os canais abrem em um intervalo menor que 400 ms. Se um canal abrir e o outro travar fechado, o relé entra em bloqueio de falha e proíbe o rearme.',
+            'O circuito de rearme (Reset) deve ser manual, supervisionado (Rearme no pulso de desacionamento) e com visão total da zona de perigo pelo operador.'
+          ],
+          fieldCase: {
+            localizacao: 'Mavalane, Maputo',
+            cenario: 'Prensa enfardadeira de papel reciclado onde o operador sofreu amputação parcial da mão porque o botão de emergência falhou: um dos contatos auxiliares soldou eletricamente devido a um arco anterior.',
+            diagnostico: 'A fábrica utilizava um botão de emergência com apenas 1 contato simples ligado direto a uma entrada de CLP comercial. Quando o contato soldou fechado, o CLP não leu a abertura do botão.',
+            solucaoNormativa: 'Reconstrução total do circuito de segurança: instalação de botão com duplo contato NF de ruptura positiva, relé de segurança dedicado Categoria 4 / PLe e dois contatores de potência em série com monitoramento de contatos espelho (EDM - External Device Monitoring). A máquina agora é incapaz de operar se qualquer contato colar.'
+          },
+          funcionamento: 'Os relés de segurança utilizam microprocessadores redundantes ou relés mecânicos com contatos solidários (se o contato NA soldar, o contato NF é fisicamente impedido de fechar, acusando falha permanente).',
+          aplicacaoMocambique: 'Serralharias de esquadrias, indústrias de moagem e linhas de prensagem em Moçambique sofrem elevados índices de acidentes de trabalho por falta de relés de segurança normatizados em prensas e serras circulares.',
+          exemploPratico: 'Esquema de Emergência Categoria 4: [Botão Cogumelo 2 contatos NF] -> [Canais S11-S12 e S21-S22 do Relé de Segurança] -> [Saídas 13-14 e 23-24 acionam as bobinas dos contatores K1 e K2 em série] -> [Contatos auxiliares NF de K1 e K2 em série no laço de realimentação S33-S34 de Reset].',
+          calculationSnippet: 'Categoria 4 / PLe | Canal Duplo Redundante | Contatos guiados com monitoramento de solda'
+        },
+        quiz: {
+          question: 'De acordo com a norma internacional ISO 13849-1 e IEC 60204-1 para segurança funcional de máquinas, por que um circuito de Parada de Emergência de Categoria 4 exige a utilização de duplo canal independente com contatos de ruptura positiva em vez de um contato simples?',
+          options: [
+            { id: 'A', text: 'Para que a máquina funcione com o dobro da velocidade produtiva.', isCorrect: false, feedback: 'Segurança funcional não altera a velocidade produtiva de processo.' },
+            { id: 'B', text: 'Para garantir redundância e monitoramento cruzado: se um contato colar, romper ou sofrer curto com a carcaça, o segundo canal abre o circuito com segurança e o sistema impede a religação até o conserto.', isCorrect: true, feedback: 'Correto! A Categoria 4 exige que nenhuma falha isolada leve à perda da função de segurança e que a falha seja imediatamente detectada antes de uma nova partida.' },
+            { id: 'C', text: 'Porque botões de emergência de um único canal são proibidos em Moçambique pela alfândega.', isCorrect: false, feedback: 'É uma exigência técnica de integridade de segurança (SIL / PL), não aduaneira.' },
+            { id: 'D', text: 'Para alimentar lâmpadas decorativas no painel frontal.', isCorrect: false, feedback: 'Totalmente descabido.' }
+          ],
+          explanation: 'A Categoria 4 (ISO 13849-1) requer arquitetura tolerante a falhas (duplo canal redundante). Se um dos contatos bolar ou soldar por arco, o outro canal independente interrompe a energia imediatamente. O relé de segurança detecta a discordância entre canais e bloqueia a máquina, exigindo intervenção técnica antes de autorizar qualquer novo reset.',
+          keyTakeaway: 'Categoria 4 / PLe: Duplo canal redundante com monitoramento de falha garante parada mesmo se um contato soldar.',
+          xpReward: 50
+        }
       }
     ]
   },
@@ -419,6 +654,147 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
           ],
           explanation: 'O cálculo da potência reativa capacitiva necessária para correção do fator de potência é obtido pela fórmula fundamental: Qc = P × (tan φ1 - tan φ2). Substituindo os valores fornecidos: Qc = 200 kW × (1,02 - 0,33) = 200 × 0,69 = 138 kVAr. Na prática, seleciona-se um banco comercial automático padronizado de 140 kVAr ou 150 kVAr subdividido em passos.',
           keyTakeaway: 'Qc = P × (tan φ1 - tan φ2): Fórmula fundamental para cálculo de bancos de capacitores industriais.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m6_ec3_barramentos_cobre_esforcos',
+        moduleId: 'elec_mod_6_industriais',
+        moduleTitle: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+        order: 3,
+        code: 'EC 6.3',
+        title: 'Barramentos de Cobre: Densidade de Corrente e Esforços de Curto-Circuito',
+        norma: 'DIN 43671 / IEC 61439-1',
+        level: 'Avançado',
+        durationMinutes: 15,
+        theory: {
+          conceito: 'Em quadros de distribuição geral de baixa tensão (QGBTs) acima de 250A, os cabos são substituídos por barramentos de cobre eletrolítico nu ou pintado. O dimensionamento envolve a densidade de corrente térmica contínua (A/mm²), o efeito pelicular (Skin Effect) em barras paralelas e, fundamentalmente, os suportes isoladores para resistir às forças eletrodinâmicas de repulsão entre barras durante um curto-circuito de pico (Ipk).',
+          formulas: [
+            { label: 'Densidade de Corrente Empírica', formula: 'J = I / S (A/mm²)', explicacao: 'Típico: 1,5 a 2,0 A/mm² para barras isoladas; até 2,5 A/mm² para barras pintadas foscas' },
+            { label: 'Força Eletrodinâmica de Curto (IEC 60865)', formula: 'F = (μ0 / 2π) × (I_pk² / d) × L', explicacao: 'Força mecânica de impacto em Newtons que tenta arrancar e quebrar os isoladores' },
+            { label: 'Corrente de Pico de Curto (Ipk)', formula: 'I_pk = k × √2 × I_cw', explicacao: 'k varia de 1,7 a 2,2 conforme a relação R/X do transformador' }
+          ],
+          pontosOperacionais: [
+            'Pintura de barramentos em preto fosco: barras pintadas dissipam até 15% a 20% mais calor por radiação térmica do que barras de cobre nu polido (que têm baixa emissividade).',
+            'Espaçamento entre isoladores de barramento: não basta o barramento aguentar a corrente contínua; a distância entre os suportes isoladores de epóxi ou poliamida reforçada deve ser calculada para suportar os impactos mecânicos de curto-circuito (ex: 50 kA de curto gera toneladas de força por metro!).',
+            'Torque de aperto em barramentos: conexões parafusadas devem utilizar parafusos de aço 8.8 bicromatizado, arruelas cônicas Belleville de alta pressão e torquímetro calibrado (ex: M10 = 45 Nm, M12 = 75 Nm).',
+            'Identificação por cores normatizadas IEC: Fase L1 = Castanho/Marrom; Fase L2 = Preto; Fase L3 = Cinzento; Neutro = Azul-claro; Terra PE = Verde/Amarelo.'
+          ],
+          fieldCase: {
+            localizacao: 'Beira, Província de Sofala',
+            cenario: 'Durante um curto-circuito trifásico no motor de um guindaste portuário de 250 kW, o QGBT principal sofreu destruição catastrófica interna: os barramentos de cobre entortaram como arame e os suportes isoladores de resina explodiram em pedaços.',
+            diagnostico: 'Os barramentos foram montados com isoladores distanciados a cada 80 cm, sem cálculo dos esforços mecânicos da IEC 60865. A corrente de curto de pico de 65 kA produziu uma força de repulsão de mais de 12.000 N/m, rompendo os isoladores mecânicos.',
+            solucaoNormativa: 'Reconstrução do painel com redução do vão entre isoladores para 25 cm, utilização de barras duplas em paralelo com separadores intermediários e isoladores de resina epóxi reforçada com fibra de vidro testados para 70 kA. O painel agora suporta qualquer curto-circuito pleno.'
+          },
+          funcionamento: 'Pela Lei de Biot-Savart e Força de Lorentz, condutores paralelos percorridos por correntes em sentidos opostos repelem-se com força proporcional ao quadrado da corrente (I²).',
+          aplicacaoMocambique: 'Próximo a subestações da EDM de 66/33 kV e grandes transformadores de 1000 kVA a 2500 kVA em indústrias, os níveis de curto-circuito presumido são violentos (35 a 50 kA), tornando o cálculo de suportes de barramento uma questão de vida ou morte.',
+          exemploPratico: 'Barra de cobre 50 × 10 mm (seção 500 mm²). Na tabela DIN 43671 para cobre nu a 35°C ambiente com elevação de 30°C: suporta aproximadamente 1020 A contínuos (J ≈ 2,04 A/mm²).',
+          calculationSnippet: 'DIN 43671: J ≈ 2 A/mm² | Isoladores calculados para Ipk (IEC 60865) | Torque M10 = 45 Nm'
+        },
+        quiz: {
+          question: 'Em um quadro geral QGBT industrial de 1600 A, por que é tecnicamente recomendado pintar os barramentos de cobre eletrolítico com tinta fosca escura (ou preto fosco) em vez de deixá-los em cobre nu polido?',
+          options: [
+            { id: 'A', text: 'Porque a cor escura atrai a eletricidade para dentro da barra.', isCorrect: false, feedback: 'Cor física não altera a atração de portadores de carga elétrica.' },
+            { id: 'B', text: 'Porque a pintura fosca aumenta significativamente o coeficiente de emissividade térmica (de 0,1 para ~0,9), melhorando a dissipação de calor por radiação e aumentando a capacidade de condução de corrente em até 15-20%.', isCorrect: true, feedback: 'Exato! O cobre polido reflete a radiação térmica (baixa emissividade); a pintura fosca emite calor por infravermelho para o ar muito mais facilmente, permitindo à barra trabalhar mais fria com a mesma corrente.' },
+            { id: 'C', text: 'Porque a tinta serve exclusivamente para esconder eventuais rachaduras no metal.', isCorrect: false, feedback: 'Isso seria negligência técnica grave.' },
+            { id: 'D', text: 'Porque a tinta reduz a tensão da rede de 400V para 230V.', isCorrect: false, feedback: 'Pintura externa não altera a diferença de potencial elétrico entre fases.' }
+          ],
+          explanation: 'O cobre nu polido tem um coeficiente de emissividade muito baixo (ε ≈ 0,1 a 0,15), o que significa que ele quase não dissipa calor por radiação. Ao pintar o barramento com tinta fosca (preta, cinza ou das cores de identificação de fase), a emissividade sobe para ε ≈ 0,90 a 0,95. Essa melhoria na emissão térmica por radiação permite elevar a capacidade de condução de corrente contínua da barra em 15% a 20% para a mesma elevação de temperatura limite (DIN 43671).',
+          keyTakeaway: 'Pintura fosca no barramento eleva a emissividade (ε ≈ 0,95), aumentando a dissipação térmica em até 20%.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m6_ec4_diagramas_trifilares_bornes',
+        moduleId: 'elec_mod_6_industriais',
+        moduleTitle: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+        order: 4,
+        code: 'EC 6.4',
+        title: 'Diagramas Trifilares, Bornes de Passagem Sak e Anilhas IEC 61082',
+        norma: 'IEC 61082-1 / IEC 60947-7-1',
+        level: 'Intermediário',
+        durationMinutes: 15,
+        theory: {
+          conceito: 'A engenharia de painéis elétricos exige padronização rigorosa da documentação e da fiação interna. Diagramas funcionais e trifilares representam todas as conexões ponto a ponto com identificação unívoca de fios (anilhas numéricas). Bornes de passagem (conhecidos no campo como réguas de bornes SAK ou tipo mola Push-In) formam a interface limpa e organizada entre o cabeamento interno do painel e os cabos externos de campo que vão para os motores e sensores.',
+          formulas: [
+            { label: 'Identificação de Bornes (IEC 60947-7-1)', formula: '-X1:1, -X1:2, -X1:3...', explicacao: '-X representa régua de bornes; o número após dois-pontos é o borne físico' },
+            { label: 'Código de Letras IEC 81346', formula: 'Q = Disjuntor | K = Contator | F = Fusível | T = Trafo', explicacao: 'Padronização internacional de tags de componentes em esquemas elétricos' },
+            { label: 'Seção Mínima de Comando', formula: 'S_comando ≥ 0,75 mm² a 1,0 mm²', explicacao: 'Fios flexíveis de cobre classe 5 com terminais ilhós prensados' }
+          ],
+          pontosOperacionais: [
+            'Proibido decapar cabo e apertar condutor multifilar nu direto sob o parafuso do borne: é obrigatório cravar terminal ilhós tubular (ferrule) com alicate de crimpagem catracado hexagonal ou quadrangular.',
+            'Separação de canaletas plásticas (ranhuradas): cabos de potência de 400V devem passar em canaletas separadas dos cabos de comando de 24V e sinais analógicos sensíveis para evitar interferência cruzada (Crosstalk).',
+            'Numeração de cabos (Anilhamento): cada fio que sai de um borne deve levar uma anilha com o mesmo número impresso na outra extremidade e correspondente à folha e linha do projeto esquemático (ex: 204.3 = folha 2, linha 4, fio 3).',
+            'Bornes seccionáveis com faca (-X:F): utilizados em circuitos analógicos de 4-20 mA para permitir abrir o laço e conectar o miliamperímetro sem soltar nenhum parafuso.'
+          ],
+          fieldCase: {
+            localizacao: 'Zimpeto, Maputo',
+            cenario: 'Painel de controle de câmaras frigoríficas recém-instalado com 48 motores e válvulas solenoides. Em caso de defeito, os técnicos levavam 4 horas para identificar qual fio correspondia a qual motor.',
+            diagnostico: 'O instalador utilizou fios da mesma cor (todos azuis) sem nenhuma anilha de numeração e emendou os cabos no fundo do painel com fita isolante, sem nenhuma régua de bornes de passagem.',
+            solucaoNormativa: 'Readequação completa: instalação de trilhos DIN com bornes de passagem tipo Push-In identificados com réguas -X1 (Potência 400V) e -X2 (Comando 24V), terminais ilhós em 100% dos fios e anilhamento térmico impresso ponto a ponto de acordo com as folhas do novo diagrama trifilar. O tempo de diagnóstico de falhas caiu de 4 horas para 10 minutos.'
+          },
+          funcionamento: 'A documentação estruturada segundo a IEC 61082 organiza o diagrama em folhas numeradas com coordenadas em colunas (1 a 8), permitindo que referências cruzadas indiquem exatamente em qual página cada contato auxiliar de contator ou relé atua.',
+          aplicacaoMocambique: 'A rotatividade de equipes técnicas em mineradoras e agroindústrias de Moçambique torna painéis sem anilhas e sem bornes uma fonte crônica de acidentes graves e paradas prolongadas de produção.',
+          exemploPratico: 'Leitura de referência cruzada: sob a bobina do contator -K1 na folha 3 coluna 2, há a anotação "4.5 NA / 6.1 NF". Isso indica ao técnico que um contato NA de K1 está na folha 4 coluna 5 e o NF está na folha 6 coluna 1.',
+          calculationSnippet: 'IEC 81346: -Q (Disjuntor), -K (Contator), -X (Bornes) | Terminais ilhós obrigatórios'
+        },
+        quiz: {
+          question: 'Em um projeto de montagem e cabeamento de um painel de automação industrial segundo a norma IEC 60947-7-1 e boas práticas internacionais, qual procedimento é considerado mandatório antes de conectar condutores flexíveis de cobre classe 5 nos bornes de passagem?',
+          options: [
+            { id: 'A', text: 'Soldar as pontas dos fios com estanho e ácido muriático.', isCorrect: false, feedback: 'O estanho escoa plasticamente sob pressão do parafuso (creep), afrouxando a conexão com o tempo!' },
+            { id: 'B', text: 'Aplicar e prensar adequadamente terminais tubulares ilhós (ferrules) com alicate de crimpagem apropriado para garantir contato homogêneo e evitar a quebra de filamentos de cobre.', isCorrect: true, feedback: 'Correto! Terminais ilhós evitam a quebra de pernas de cobre, protegem contra mau contato e garantem a segurança de fixação no borne.' },
+            { id: 'C', text: 'Cortar metade dos filamentos de cobre se o fio for muito grosso para o borne.', isCorrect: false, feedback: 'Prática inaceitável que causa sobreaquecimento e incêndio!' },
+            { id: 'D', text: 'Prender o fio com fita crepe amarela.', isCorrect: false, feedback: 'Totalmente fora de cogitação técnica.' }
+          ],
+          explanation: 'Cabos flexíveis (classe 5) são formados por dezenas de filamentos finos de cobre. Se inseridos crus sob o aperto mecânico do borne, filamentos rompem-se ou escapam lateralmente, gerando faiscamento e resistência de contato. A aplicação de terminais tubulares do tipo ilhós (ferrules) com alicate de compressão calibrado é obrigatória para assegurar a integridade elétrica e mecânica.',
+          keyTakeaway: 'Terminais ilhós tubulares são mandatórios em condutores flexíveis para conexão em bornes.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m6_ec5_grupos_geradores_transferencia_ats',
+        moduleId: 'elec_mod_6_industriais',
+        moduleTitle: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+        order: 5,
+        code: 'EC 6.5',
+        title: 'Grupos Geradores a Diesel e Painéis de Transferência Automática (ATS)',
+        norma: 'ISO 8528 / IEC 60947-6-1',
+        level: 'Avançado',
+        durationMinutes: 16,
+        theory: {
+          conceito: 'Em hospitais, data centers e indústrias onde a interrupção da rede concessionária gera prejuízos incalculáveis ou risco à vida, instalam-se Grupos Geradores de emergência (Gensets) a diesel acoplados a Painéis de Transferência Automática (ATS - Automatic Transfer Switch). O painel monitora a tensão da rede (subtensão, sobretensão, falta de fase) e gerencia o ciclo automático: partida do motor a diesel, confirmação de frequência/tensão e comutação segura da carga com intertravamento mecânico e elétrico absoluto.',
+          formulas: [
+            { label: 'Potência Aparente do Gerador', formula: 'S_kva = P_kw / cos φ', explicacao: 'Geralmente especificado para cos φ = 0,80 (ex: 200 kW -> 250 kVA)' },
+            { label: 'Frequência do Alternador Síncrono', formula: 'f = (p × n) / 120', explicacao: 'Alternador de 4 polos em 50 Hz deve girar rigorosamente a 1500 RPM' },
+            { label: 'Tempo Típico de Comutação ATS', formula: 't_total = t_deteccao + t_partida + t_estabilizacao ≈ 10 a 15 segundos', explicacao: 'Tempo até a carga ser re-alimentada pelo gerador após queda da rede' }
+          ],
+          pontosOperacionais: [
+            'REGRA DE SEGURANÇA MÁXIMA - INTERTRAVAMENTO FÍSICO: A chave de transferência Rede/Gerador DEVE possuir intertravamento elétrico (por contatos NF) E intertravamento mecânico rígido (haste de bloqueio mecânico). É terminantemente PROIBIDO que a rede da EDM e o gerador fechem simultaneamente sem sincronizador, pois isso causaria explosão catastrófica do alternador!',
+            'Tempo de Arrefecimento (Cool-Down): após o retorno estável da rede da EDM, a carga é re-transferida para a rede imediatamente, mas o motor a diesel DEVE continuar girando em vazio por 3 a 5 minutos para dissipar o calor do turbo e do bloco antes de desligar.',
+            'Regulador Automático de Tensão (AVR): placa eletrônica que controla a corrente de excitação no rotor do alternador para manter os 400V fixos mesmo quando cargas pesadas são ligadas.',
+            'Carregador de Baterias de Flutuação: montado dentro do painel ATS para manter as baterias de partida do motor diesel 100% carregadas 24 horas por dia.'
+          ],
+          fieldCase: {
+            localizacao: 'Inhambane, Cidade de Inhambane',
+            cenario: 'Hospital provincial onde o gerador a diesel de 150 kVA partia quando faltava energia, mas ao transferir a carga a chave comutadora travava no meio, deixando o bloco cirúrgico sem energia elétrica.',
+            diagnostico: 'A chave de comutação motorizada estava descalibrada e não possuía intertravamento mecânico confiável; os operadores tentaram acionar a chave com uma alavanca manual enquanto a rede da EDM voltava, gerando um princípio de curto de retorno.',
+            solucaoNormativa: 'Instalação de uma chave de transferência automática modular homologada IEC 60947-6-1 de transição aberta com quebra antes do fechamento (Break-Before-Make), com duplo intertravamento mecânico de gaveta e módulo microprocessado com registro de eventos. O sistema passou a transferir em 8 segundos sem falhas.'
+          },
+          funcionamento: 'Ao faltar energia na rede pública, o relé de supervisão despolariza, enviando sinal de partida remota (Remote Start) ao controlador do gerador. O motor diesel arranca pela bateria, atinge 1500 RPM e 400V, autorizando o contator do gerador a fechar.',
+          aplicacaoMocambique: 'Dada a frequência de cortes de energia durante a época chuvosa e ciclones em Moçambique, a manutenção preventiva mensal de grupos geradores (teste semanal sob carga de 30 minutos) é a garantia de sobrevivência de empresas e hospitais.',
+          exemploPratico: 'Alternador de 4 polos: rotação necessária para 50 Hz em Moçambique: n = (120 × 50) / 4 = 1500 rpm. Se a rotação cair para 1440 rpm por filtro de combustível entupido, a frequência cai para 48 Hz, afetando computadores e motores.',
+          calculationSnippet: 'Intertravamento mecânico + elétrico obrigatório | n = 1500 RPM para 50 Hz | Cool-Down = 3 min'
+        },
+        quiz: {
+          question: 'Em um sistema de emergência com Grupo Gerador a diesel e Painel de Transferência Automática (ATS) segundo a norma IEC 60947-6-1, por que é estritamente obrigatório que a comutação entre a Rede Concessionária (EDM) e o Gerador possua intertravamento mecânico além do elétrico?',
+          options: [
+            { id: 'A', text: 'Para garantir que o motor do gerador consuma menos combustível.', isCorrect: false, feedback: 'O intertravamento é um dispositivo puramente de segurança e manobra.' },
+            { id: 'B', text: 'Para impedir fisicamente e de forma absoluta que as fontes Rede e Gerador fechem simultaneamente em oposição de fase, o que causaria um curto-circuito de retorno devastador com explosão do alternador e risco de eletrocutar técnicos da EDM na linha pública.', isCorrect: true, feedback: 'Correto! O intertravamento mecânico impede fisicamente o fechamento de ambos os contatores ao mesmo tempo, mesmo se uma bobina colar ou o comando eletrônico enlouquecer.' },
+            { id: 'C', text: 'Para que a bateria do gerador nunca descarregue.', isCorrect: false, feedback: 'Quem cuida da bateria é o carregador de flutuação.' },
+            { id: 'D', text: 'Para transformar corrente alternada em corrente contínua.', isCorrect: false, feedback: 'A chave transfere circuitos AC.' }
+          ],
+          explanation: 'O intertravamento elétrico (feito por contatos auxiliares) pode falhar se um dos contatores soldar os contatos de potência por arco elétrico. O intertravamento mecânico é uma trava física de aço que impede fisicamente que uma chave feche se a outra estiver fechada. Se as duas fontes fechassem juntas sem sincronismo perfeito, ocorreria um curto-circuito violento de dezenas de milhares de amperes, destruindo os enrolamentos do alternador e injetando tensão de volta na rede desenergizada da concessionária, podendo matar eletricistas da concessionária que trabalham no poste.',
+          keyTakeaway: 'Intertravamento mecânico no ATS: Impede curto catastrófico entre a rede pública e o gerador.',
           xpReward: 50
         }
       }
@@ -578,6 +954,100 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
           ],
           explanation: 'O gradiente térmico relativo é a diferença de temperatura entre o ponto com anomalia e uma fase de referência com carga idêntica: ΔT = 92 °C - 45 °C = 47 °C. Pela norma ISO 18434-1 e critérios internacionais de termografia elétrica, qualquer anomalia com ΔT superior a 35 °C é classificada como "Crítica / Emergencial", indicando que a conexão está em processo acelerado de degradação térmica com risco iminente de destruição por arco elétrico ou fogo.',
           keyTakeaway: 'ΔT > 35 °C: Gravidade Crítica na termografia elétrica, exigindo reparo emergencial.',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m7_ec4_analise_qualidade_energia_harmonicos',
+        moduleId: 'elec_mod_7_manutencao_ensaios',
+        moduleTitle: 'Módulo 7: Manutenção, Inspeção Técnica & Ensaios Normativos',
+        order: 4,
+        code: 'EC 7.4',
+        title: 'Qualidade da Energia: Harmônicos THD, Desbalanço de Tensão e Fator K',
+        norma: 'IEC 61000-4-30 / IEEE 519 / IEEE C57.110',
+        level: 'Avançado',
+        durationMinutes: 16,
+        theory: {
+          conceito: 'Cargas não lineares (computadores, iluminação LED, inversores VFD, pontes retificadoras) drenam corrente em pulsos, gerando correntes harmônicas de frequências múltiplas da fundamental (150 Hz para 3ª harmônica, 250 Hz para 5ª, 350 Hz para 7ª em rede de 50 Hz). Harmônicas de ordem 3 (triplens: 3ª, 9ª, 15ª) somam-se aritmeticamente no condutor neutro, podendo fazer a corrente de neutro atingir 1,73 a 2 vezes a corrente de fase, incendiando o cabo e superaquecendo transformadores.',
+          formulas: [
+            { label: 'Distorção Harmônica Total de Tensão (THD-V)', formula: 'THD_v = [√(Σ V_h²) / V_1] × 100%', explicacao: 'Limite normativo IEEE 519 / IEC 61000: THD-V ≤ 5% em baixa tensão (ponto de acoplamento comum)' },
+            { label: 'Corrente de Neutro por 3ª Harmônica', formula: 'I_neutro ≈ 3 × I_h3', explicacao: 'As componentes triplens estão em fase no espaço temporal e somam-se diretamente no neutro' },
+            { label: 'Fator K de Transformador (K-Factor)', formula: 'K = Σ [I_h² × h²] / Σ I_h²', explicacao: 'Mede a capacidade térmica do trafo de suportar correntes parasitas por harmônicas (K-4, K-13, K-20)' }
+          ],
+          pontosOperacionais: [
+            'Em edifícios comerciais com maciça carga de TI e informática: o condutor de Neutro NUNCA deve ser reduzido; a norma prescreve neutro com o DOBRO da seção da fase (200% da fase) para evitar incêndio por sobreaquecimento de 3ª harmônica.',
+            'Uso obrigatório de alicates amperímetros TRUE RMS: instrumentos comuns que medem valor médio calibrado em senoide pura erram em até 40% para baixo ao medir correntes distorcidas por fontes chaveadas.',
+            'Filtros Ativos de Harmônicos (AHF): injetam correntes em contrafase em tempo real (cancelamento ativo), reduzindo o THD-I de 45% para menos de 3% no barramento.',
+            'Transformadores fator K (K-Rated): possuem blindagem eletrostática entre primário e secundário e enrolamentos com condutores paralelos transpostos para minimizar perdas por efeito pelicular em alta frequência.'
+          ],
+          fieldCase: {
+            localizacao: 'Polana Cimento, Maputo',
+            cenario: 'Edifício de escritórios corporativos onde o disjuntor geral trifásico de 400A nunca desarmava, mas o barramento de neutro do QGBT derreteu o isolador e pegou fogo.',
+            diagnostico: 'Com analisador de qualidade de energia classe A (IEC 61000-4-30), constatou-se correntes de fase de 220A por fase (cargas de TI equilibradas), mas a corrente medida no Neutro era de 345 Amperes! Análise espectral revelou 82% de 3ª harmônica gerada por centenas de computadores com fontes sem PFC.',
+            solucaoNormativa: 'Substituição do barramento e cabo de neutro por condutor duplo de 240 mm² (capacidade de 500A) e instalação de um Filtro Ativo de Harmônicos (AHF) de 150A na entrada. A corrente no neutro caiu de 345A para 28A.'
+          },
+          funcionamento: 'Harmônicas aumentam as perdas no ferro por histerese (proporcional à frequência f) e por correntes parasitas de Foucault (proporcionais ao quadrado da frequência f²), provocando superaquecimento rápido em transformadores comuns.',
+          aplicacaoMocambique: 'Bancos, empresas de telecomunicações e data centers em Moçambique sofrem queima prematura de transformadores a óleo quando operam com cargas eletrônicas pesadas sem trafos classificados K-13.',
+          exemploPratico: 'Num circuito com 100A de corrente fundamental (50 Hz) e 30A de 3ª harmônica (150 Hz): THD-I = (30 / 100) × 100% = 30%. Corrente RMS real medida por multímetro True RMS: I_rms = √(100² + 30²) = 104,4 A.',
+          calculationSnippet: 'IEEE 519: THD-V ≤ 5% | 3ª harmônica soma no Neutro: I_N ≈ 3 × Ih3 | True RMS obrigatório'
+        },
+        quiz: {
+          question: 'Em uma instalação comercial moderna com alta densidade de computadores e servidores (cargas não lineares monofásicas com fontes comutadas), por que a corrente elétrica medida no condutor de Neutro pode ser superior à corrente medida nos condutores de Fase, mesmo com as três fases perfeitamente equilibradas?',
+          options: [
+            { id: 'A', text: 'Porque as correntes harmônicas de ordem 3 e seus múltiplos ímpares (3ª, 9ª, 15ª harmônicas - Triplens) estão em fase entre si nas três linhas e somam-se aritmeticamente no condutor neutro em vez de se cancelarem.', isCorrect: true, feedback: 'Correto! As harmônicas de ordem 3 (150 Hz) possuem sequência zero: elas não defasam em 120° como a fundamental, somando-se diretamente no neutro (I_N ≈ 3 × I_h3).' },
+            { id: 'B', text: 'Porque o neutro conduz eletricidade estática acumulada no carpete.', isCorrect: false, feedback: 'Eletricidade estática é de pico e não corrente RMS contínua.' },
+            { id: 'C', text: 'Porque o transformador da EDM inverte a polaridade a cada 10 minutos.', isCorrect: false, feedback: 'Redes de distribuição não invertem polaridade de operação.' },
+            { id: 'D', text: 'Porque a impedância do aterramento puxa a tensão do neutro para cima.', isCorrect: false, feedback: 'Não explica a soma de correntes no neutro com fases equilibradas.' }
+          ],
+          explanation: 'Em sistemas trifásicos senoidais puros e equilibrados (50 Hz), as correntes de fase defasam-se em 120° e a soma vetorial no neutro é rigorosamente ZERO. Porém, para as harmônicas de ordem 3 (150 Hz) e seus múltiplos ímpares (denominadas harmônicas triplens ou de sequência zero), a defasagem entre fases é 3 × 120° = 360° = 0° (em fase!). Portanto, elas não se anulam: as componentes de 150 Hz das três fases somam-se diretamente no condutor neutro, podendo fazer a corrente de neutro atingir até 173% da corrente de fase.',
+          keyTakeaway: 'Harmônicas de 3ª ordem (Triplens) somam-se no Neutro, exigindo neutro sobredimensionado (200%).',
+          xpReward: 50
+        }
+      },
+      {
+        id: 'elec_m7_ec5_bloqueio_loto_cinco_regras_ouro',
+        moduleId: 'elec_mod_7_manutencao_ensaios',
+        moduleTitle: 'Módulo 7: Manutenção, Inspeção Técnica & Ensaios Normativos',
+        order: 5,
+        code: 'EC 7.5',
+        title: 'Procedimento LOTO (Lockout/Tagout) e as 5 Regras de Ouro da Eletricidade',
+        norma: 'EN 50110-1 / OSHA 1910.147 / IEC 60364',
+        level: 'Intermediário',
+        durationMinutes: 15,
+        theory: {
+          conceito: 'O trabalho em instalações elétricas desenergizadas é o método prioritário e mais seguro de manutenção. Para que um circuito seja considerado legalmente e tecnicamente "desenergizado" (e não apenas desligado), é obrigatório cumprir em ordem sequencial estrita as Cinco Regras de Ouro da Segurança Elétrica e aplicar o procedimento LOTO (Lockout / Tagout: Bloqueio Mecânico por Cadeado, Etiquetagem e Travamento).',
+          formulas: [
+            { label: 'As 5 Regras de Ouro (Sequência Obrigatória)', formula: '1. Seccionar | 2. Bloquear (LOTO) | 3. Constatar Ausência de Tensão | 4. Aterrar e Curto-circuitar | 5. Sinalizar a Zona', explicacao: 'Procedimento internacional rígido da EN 50110-1 para liberação de intervenção' },
+            { label: 'Teste de Ausência de Tensão (Método 3 Pontos)', formula: 'Testar no Vivo -> Testar no Desligado -> Re-testar no Vivo', explicacao: 'Valida se o próprio detector de tensão ou voltímetro não está quebrado antes de confiar nele' },
+            { label: 'Cadeado Pessoal LOTO', formula: '1 Homem = 1 Chave = 1 Cadeado', explicacao: 'Proibido chave-mestra compartilhada; cada técnico é dono exclusivo do seu cadeado' }
+          ],
+          pontosOperacionais: [
+            'REGRA CRÍTICA - TESTE DE AUSÊNCIA DE TENSÃO: NUNCA confie apenas em chaves seccionadoras abertas ou em leds apagados no painel. É obrigatório utilizar detector de tensão sonoro/luminoso aprovado e calibrado, testando fase-fase e fase-terra.',
+            'O teste dos 3 pontos do voltímetro: 1) Testa em um ponto sabidamente energizado (para ver se o voltímetro apita); 2) Testa nos condutores onde você vai trabalhar (deve dar zero volts); 3) Volta a testar no ponto energizado para garantir que o aparelho não quebrou nem a bateria acabou durante o teste!',
+            'Aterramento temporário e curto-circuitamento: caso alguém ligue a energia por engano ou ocorra indução de linha aérea próxima, o aterramento temporário escoa a corrente para a terra e força o desarme instantâneo da proteção a montante sem atingir o operador.',
+            'Garras de bloqueio múltiplo (Hasps): se 4 técnicos estão trabalhando na mesma máquina, a garra recebe 4 cadeados. O circuito só pode ser religado quando o último trabalhador retirar o seu cadeado pessoal.'
+          ],
+          fieldCase: {
+            localizacao: 'Marracuene, Maputo',
+            cenario: 'Técnico de manutenção realizava substituição de contator de uma esteira industrial desligada no botão frontal da máquina. Um colega de trabalho passou pelo painel geral, achou que o disjuntor caiu por acidente e religou a chave geral, eletrocutando o técnico que sofreu queimaduras graves por arco elétrico de 400V.',
+            diagnostico: 'Não foi aplicado o procedimento LOTO. O técnico confiou em um comando de desligamento funcional (botão de stop) em vez de seccionar a fonte principal com cadeado mecânico pessoal e cartão de advertência.',
+            solucaoNormativa: 'Implementação de política rígida de LOTO na fábrica: aquisição de estações de bloqueio com cadeados vermelhos individuais numerados, garras de bloqueio de 6 furos e treinamento prático obrigatório nas 5 Regras de Ouro com emissão de Permissão de Trabalho (PT).'
+          },
+          funcionamento: 'O bloqueio físico impede qualquer acionamento acidental humano ou religamento remoto por sistema supervisório ou desarme de temporizador automático.',
+          aplicacaoMocambique: 'As normas de segurança do Ministério do Trabalho e da EDM em Moçambique exigem aplicação estrita das 5 Regras de Ouro para intervenções em quadros de distribuição e linhas aéreas.',
+          exemploPratico: 'Sequência prática: 1) Abrir disjuntor geral -Q1; 2) Travar alavanca com garra e cadeado LOTO pessoal; 3) Testar com voltímetro nas 3 fases (0,0V); 4) Instalar conjunto de aterramento temporário trifásico em curto com o barramento PE; 5) Colocar fita zebrada e cone com etiqueta "HOMENS A TRABALHAR".',
+          calculationSnippet: '5 Regras de Ouro: Seccionar -> Bloquear -> Verificar Ausência -> Aterrar -> Sinalizar'
+        },
+        quiz: {
+          question: 'Segundo a norma internacional de segurança elétrica EN 50110-1 e os procedimentos de LOTO (Lockout/Tagout), qual é a sequência correta e mandatória das "Cinco Regras de Ouro" para garantir a desenergização segura antes de qualquer intervenção em instalações elétricas?',
+          options: [
+            { id: 'A', text: '1. Desligar o interruptor de parede; 2. Tocar rapidamente no fio com as costas da mão; 3. Começar a trabalhar.', isCorrect: false, feedback: 'Tocar no fio para testar é uma prática suicida que causa mortes por choque elétrico!' },
+            { id: 'B', text: '1. Seccionar completamente todas as fontes; 2. Bloquear e travar contra religação intempestiva (LOTO); 3. Constatar a ausência de tensão com instrumento testado; 4. Aterrar e colocar em curto-circuito as fases; 5. Delimitar e sinalizar a zona de trabalho.', isCorrect: true, feedback: 'Perfeito! Esta é a sequência exata e consagrada mundialmente pelas 5 Regras de Ouro da Segurança Elétrica.' },
+            { id: 'C', text: '1. Colocar o cadeado; 2. Ligar a máquina para testar; 3. Tirar o cadeado; 4. Cortar os cabos com alicate; 5. Avisar o supervisor.', isCorrect: false, feedback: 'Total inversão de etapas que causaria acidentes fatais.' },
+            { id: 'D', text: '1. Usar luvas de couro comuns; 2. Trabalhar com a linha energizada para economizar tempo.', isCorrect: false, feedback: 'Trabalho desenergizado é a prioridade normativa absoluta.' }
+          ],
+          explanation: 'As Cinco Regras de Ouro (EN 50110-1 / NR-10) estabelecem a sequência rigorosa de vida para o eletrotécnico: 1) Seccionamento visível; 2) Impedimento de reenergização mecânico por bloqueio (LOTO); 3) Constatação da ausência de tensão através do teste de 3 pontos; 4) Instalação de aterramento temporário e curto-circuitamento de condutores ativos; 5) Proteção dos elementos sob tensão vizinhos e sinalização clara da zona de trabalho.',
+          keyTakeaway: '5 Regras de Ouro da Segurança Elétrica salvam vidas: Seccionar, Bloquear, Verificar Tensão, Aterrar e Sinalizar.',
           xpReward: 50
         }
       }
