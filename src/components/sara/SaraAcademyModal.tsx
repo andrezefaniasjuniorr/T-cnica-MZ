@@ -41,6 +41,7 @@ import {
   recordLessonCompletion,
   getTodayDateString
 } from '../../services/saraAcademyService';
+import { setActiveAcademyContext } from '../../services/saraAcademyContext';
 import { soundFX } from '../../utils/audio';
 import { useModalHistory } from '../../utils/modalHistory';
 import { FontScaleControl, useAcademyFontScale } from '../academy/FontScaleControl';
@@ -135,6 +136,13 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
     }
   }, [userArea, courseProgress, selectedLesson.id]);
 
+  // Conexão de Contexto Global (Academia <-> Sara IA)
+  useEffect(() => {
+    if (isOpen && selectedLesson) {
+      setActiveAcademyContext(selectedModule, selectedLesson, userArea);
+    }
+  }, [isOpen, selectedModule, selectedLesson, userArea]);
+
   // Gerenciamento com History API (botão voltar fecha a academia e retorna à Sara IA)
   // DEVE ser chamado antes de qualquer early return para respeitar as Regras dos Hooks
   useModalHistory(isOpen, 'sara_academy', onClose);
@@ -204,22 +212,15 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
   };
 
   // Botão "Tirar Dúvida na Aula com a Sara"
+  // Diretriz técnica: passe ao modal apenas: { elementName: currentLesson.topicTitle, norm: currentLesson.normCode }.
+  // Não envie o texto longo da aula. A Sara IA explica em detalhes com base apenas no nome do elemento e na norma correspondente.
   const handleAskSara = () => {
-    const chosenOption = selectedLesson.quiz.options.find(o => o.id === selectedOptionId);
-    const chosenText = chosenOption ? `Minha resposta no teste foi: (${chosenOption.id}) "${chosenOption.text}".` : '';
-
-    const promptText = `Olá Eng. Sara! Estou estudando a aula "${selectedLesson.title}" (${selectedLesson.norma}) na Minha Academia Técnica e gostaria de aprofundar uma dúvida de campo:
-
-• Conceito: "${selectedLesson.theory.conceito}"
-• Realidade em Moçambique: "${selectedLesson.theory.aplicacaoMocambique}"
-• Pergunta do Desafio: "${selectedLesson.quiz.question}"
-${chosenText}
-• Resolução Oficial IEC/EN: "${selectedLesson.quiz.explanation}"
-
-Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança em instalações reais em Moçambique e quais os erros mais comuns cometidos em campo?`;
+    const elementName = selectedLesson.title;
+    const norm = selectedLesson.norma;
+    const doubtPayload = `Elemento: ${elementName} | Norma: ${norm}`;
 
     onClose();
-    onAskSara(promptText, `Dúvida da Aula: ${selectedLesson.title} (${selectedLesson.norma})`);
+    onAskSara(doubtPayload, `Elemento: ${elementName} (${norm})`);
   };
 
   // Avançar para a próxima aula não concluída
@@ -688,8 +689,8 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
                 </p>
               </div>
 
-              {/* DIAGRAMA TÉCNICO INTERATIVO VETORIZADO NATIVO */}
-              <div className="rounded-2xl overflow-hidden border border-[#1E293B]">
+              {/* DIAGRAMA TÉCNICO INTERATIVO VETORIZADO NATIVO (SEM CORTES) */}
+              <div className="rounded-2xl border border-[#1E293B]">
                 <CircuitDiagramViewer
                   lessonCode={selectedLesson.code}
                   lessonTitle={selectedLesson.title}

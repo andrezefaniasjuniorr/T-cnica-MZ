@@ -518,116 +518,149 @@ export function generateAssessmentForLesson(
     descRawPool = isReassessment && bank.descSet2.length > 0 ? bank.descSet2 : bank.descSet1;
   }
 
-  // Fallback inteligente para garantir 100% de cobertura curricular para qualquer EC da grade:
+  // Fallback didático avançado (Diretriz: Cenários Diferenciados de Campo, Percepção Direta e Foco em Raciocínio Prático):
   if (mcRawPool.length < 3) {
+    const isMec = lesson.moduleId?.includes('mec') || lesson.id?.startsWith('mec_');
+    const localidade1 = attemptNumber % 2 === 1 ? 'Matola' : 'Beira';
+    const localidade2 = attemptNumber % 2 === 1 ? 'Nampula' : 'Tete';
+    const localidade3 = attemptNumber % 2 === 1 ? 'Nacala' : 'Maputo';
+
     const fallbackMC: AssessmentMCQuestion[] = [
       {
         id: `${lesson.id}_gen_mc1_${attemptNumber}`,
         type: 'multiple_choice',
-        question: `Considerando os requisitos normativos de ${lesson.norma} aplicados a ${lesson.title}, qual é o critério técnico mandatório para assegurar a operação correta dos componentes e a proteção contra falhas operacionais?`,
-        scenario: lesson.theory.fieldCase?.cenario || lesson.theory.conceito,
-        diagramId: (lesson.moduleId?.includes('mec') || lesson.id?.startsWith('mec_')) ? 'hydraulic_circuit' : 'distribution_board_qgd',
-        diagramTitle: `Esquema de Aplicação Normativa: ${lesson.norma}`,
+        question: isMec
+          ? `Em uma intervenção técnica na ${localidade1}, um técnico precisa comissionar componentes de ${lesson.title} operando sob vibração e carga contínua. Considerando as exigências da norma ${lesson.norma}, qual critério mandatório deve ser adotado no dimensionamento e fixação para assegurar a confiabilidade mecânica?`
+          : `Em uma instalação técnica na ${localidade1}, o alimentador de ${lesson.title} opera sob temperatura ambiente de 35 °C. Segundo as regras de coordenação e dimensionamento da norma ${lesson.norma}, qual relação matemática entre a corrente de projeto (Ib), a corrente nominal da proteção (In) e a capacidade de condução dos condutores (Iz) deve ser rigorosamente respeitada?`,
+        scenario: `Dimensionamento e comissionamento técnico de ${lesson.title} na ${localidade1} (${lesson.norma}).`,
+        diagramId: isMec ? 'hydraulic_circuit' : 'distribution_board_qgd',
+        diagramTitle: `Esquema de Aplicação de Campo: ${lesson.norma}`,
         norma: lesson.norma,
         points: 20,
-        explanation: lesson.quiz.explanation || 'A conformidade normativa garante a integridade dos isolamentos e a segurança das pessoas.',
-        keyTakeaway: lesson.quiz.keyTakeaway || 'Sempre verificar os parâmetros nominais antes de energizar ou colocar em carga.',
+        explanation: isMec
+          ? `Segundo a ${lesson.norma}, o torque de aperto controlado por torquímetro calibrado e o alinhamento geométrico são mandatórios para evitar fadiga por vibração.`
+          : `A regra fundamental de proteção da IEC 60364 é: Ib ≤ In ≤ Iz (com I2 ≤ 1,45 × Iz), garantindo que o condutor nunca sofra sobreaquecimento antes da atuação do disjuntor.`,
+        keyTakeaway: isMec
+          ? 'Respeite as tabelas de torque e folga da norma com instrumento calibrado.'
+          : 'Regra de ouro: Ib ≤ In ≤ Iz. O cabo deve suportar mais corrente que a proteção nominal.',
         options: [
           {
             id: 'opt_c1',
-            text: `Atendimento integral às prescrições da norma ${lesson.norma}, coordenando os dispositivos de proteção de acordo com as correntes nominais e ambientais.`,
+            text: isMec
+              ? `Aplicar torque de aperto conforme a classe do fixador com torquímetro calibrado e verificar alinhamento e folgas conforme ${lesson.norma}.`
+              : `Atender rigorosamente à condição Ib ≤ In ≤ Iz, aplicando previamente os fatores de correção de temperatura e agrupamento para determinar Iz.`,
             isCorrect: true,
-            feedback: 'Correto! A conformidade técnica estrita garante confiabilidade operacional de longo prazo.'
+            feedback: 'Exato! Essa é a regra técnica primária para garantir integridade física e evitar colapso operacional.'
           },
           {
             id: 'opt_w1',
-            text: 'Operar sem dispositivos de proteção individuais para maximizar a continuidade ininterrupta do processo fabril.',
+            text: isMec
+              ? 'Apertar as conexões até o limite mecânico com chave de impacto manual sem controle de torque.'
+              : 'Dimensionar a proteção In com valor menor que a corrente de projeto Ib para economizar energia.',
             isCorrect: false,
-            feedback: 'Incorreto e de alto risco. A ausência de proteção gera perigo iminente de danos e incêndio.'
+            feedback: 'Incorreto. Isso gera disparos intempestivos imediatos assim que o circuito atingir a carga nominal.'
           },
           {
             id: 'opt_w2',
-            text: 'Desconsiderar as curvas características dos componentes desde que a tensão nominal seja aproximadamente respeitada.',
+            text: isMec
+              ? 'Omitir a verificação de folgas operacionais desde que o óleo lubrificante esteja no nível máximo.'
+              : 'Aumentar a bitola do disjuntor sem verificar se os cabos existentes suportam a nova corrente térmica.',
             isCorrect: false,
-            feedback: 'Incorreto. A coordenação eletromecânica depende estritamente das curvas características.'
+            feedback: 'Incorreto e perigoso. Elevar a proteção sem redimensionar cabos anula a proteção contra incêndio.'
           },
           {
             id: 'opt_w3',
-            text: 'Substituir condutores e elementos de comutação por qualquer bitola disponível no estoque no momento.',
+            text: isMec
+              ? 'Instalar peças com folga livre sem verificar tolerâncias ISO de ajuste.'
+              : 'Desconsiderar o fator de correção de temperatura porque o aquecimento dos cabos dissipa naturalmente à noite.',
             isCorrect: false,
-            feedback: 'Incorreto. O subdimensionamento provoca sobreaquecimento e falha prematura.'
+            feedback: 'Incorreto. Em climas quentes como Moçambique, a omissão do fator térmico provoca degradação acelerada do isolamento.'
           }
         ]
       },
       {
         id: `${lesson.id}_gen_mc2_${attemptNumber}`,
         type: 'multiple_choice',
-        question: `Em uma instalação real em Moçambique sujeita a temperaturas elevadas e poeira, qual cuidado operacional é indispensável segundo as boas práticas de ${lesson.title}?`,
-        scenario: lesson.theory.aplicacaoMocambique || 'Ambientes industriais e prediais em clima tropical úmido e quente.',
+        question: isMec
+          ? `Durante a manutenção preventiva de ${lesson.title} em ${localidade2}, qual instrumento de medição metrológica deve ser utilizado para inspecionar o desgaste radial e excentricidade, e qual critério normativo deve guiar o técnico?`
+          : `Durante os ensaios de verificação inicial (comissionamento) de ${lesson.title} em ${localidade2} antes da energização, qual ensaio com instrumento dedicado é mandatório pela norma ${lesson.norma} para assegurar que não há risco de fuga de corrente ou curto-circuito?`,
+        scenario: `Ensaios de campo e verificação metrológica em ${localidade2} em conformidade com ${lesson.norma}.`,
         norma: lesson.norma,
         points: 20,
-        explanation: 'Fatores de correção de temperatura ambiente e grau de proteção IP/IK devem ser rigorosamente aplicados.',
-        keyTakeaway: 'Aplique fatores de desclassificação térmica para condições climáticas tropicais.',
+        explanation: isMec
+          ? 'Para medição de desgaste e folgas radiais/axiais, o relógio comparador milesimal ou micrômetro calibrado é o instrumento padrão normatizado.'
+          : `Pela norma ${lesson.norma} (IEC 60364-6), a medição da Resistência de Isolamento com megômetro a 500 Vcc deve apresentar valor mínimo de 1,0 MΩ entre condutores vivos e terra.`,
+        keyTakeaway: isMec
+          ? 'Instrumentos metrológicos calibrados garantem que folgas mecânicas estejam na tolerância de projeto.'
+          : 'Resistência de Isolamento: Ensaio a 500 Vcc com circuito desenergizado, aceitação ≥ 1,0 MΩ.',
         options: [
           {
             id: 'opt_c2',
-            text: 'Aplicar fatores de correção para temperatura ambiente e garantir grau de proteção adequado de invólucros (IP) e filtros.',
+            text: isMec
+              ? `Relógio comparador com base magnética e micrômetro externo, comparando as folgas com a tolerância prescrita na ${lesson.norma}.`
+              : `Ensaio de Resistência de Isolamento com megômetro a 500 Vcc com o circuito desenergizado, exigindo valor mínimo de 1,0 MΩ entre fases, neutro e PE.`,
             isCorrect: true,
-            feedback: 'Exato! O clima tropical exige desclassificação de corrente e manutenção da vedação de poeira.'
+            feedback: 'Correto! Procedimento normativo mandatório executado antes de liberar a máquina ou linha para serviço.'
           },
           {
             id: 'opt_w4',
-            text: 'Remover as tampas e portas dos quadros para que o vento natural resfrie os componentes energizados.',
+            text: isMec
+              ? 'Verificação visual aproximada à luz do dia sem uso de instrumentos com escala métrica.'
+              : 'Teste rápido encostando uma lâmpada piloto de 230 V entre a carcaça e o condutor neutro energizado.',
             isCorrect: false,
-            feedback: 'Incorreto e ilegal. Deixar quadros abertos expõe pessoas a contatos diretos e permite entrada de sujeira.'
+            feedback: 'Incorreto e anti-técnico. Lâmpadas piloto não medem resistência de isolamento e colocam o operador em risco direto.'
           },
           {
             id: 'opt_w5',
-            text: 'Aumentar a capacidade do disjuntor sem alterar a seção dos cabos quando a linha aquecer.',
+            text: isMec
+              ? 'Medição com régua comum de plástico de 30 cm sobre a carcaça externa.'
+              : 'Medição apenas da corrente com alicate amperímetro após energizar o circuito defeituoso.',
             isCorrect: false,
-            feedback: 'Incorreto. Isso anula a proteção contra sobrecarga e leva ao incêndio do condutor.'
+            feedback: 'Incorreto. Energizar um circuito sem testar o isolamento prévio pode gerar arco elétrico ou explosão em caso de curto.'
           },
           {
             id: 'opt_w6',
-            text: 'Eliminar a conexão de aterramento de carcaças metálicas para evitar correntes parasitas.',
+            text: isMec
+              ? 'Aquecimento manual com maçarico para testar a dilatação sem aferição de temperatura.'
+              : 'Verificação com caneta de teste de neon simples encostada no isolamento dos cabos desligados.',
             isCorrect: false,
-            feedback: 'Incorreto. O aterramento é a espinha dorsal da proteção contra choques indiretos.'
+            feedback: 'Incorreto. Canetas de teste neon são apenas detectores qualitativos de presença de fase, não medem isolação.'
           }
         ]
       },
       {
         id: `${lesson.id}_gen_mc3_${attemptNumber}`,
         type: 'multiple_choice',
-        question: `Qual é a consequência técnica direta de violar as recomendações normativas de ${lesson.norma} no dimensionamento de ${lesson.title}?`,
-        scenario: 'Análise de modos de falha e confiabilidade de instalações de campo.',
+        question: `Em uma ocorrência real de campo em ${localidade3}, um sistema associado a ${lesson.title} apresentou aquecimento anormal e desarmes recorrentes em horário de pico. Ao analisar o caso segundo a ${lesson.norma}, qual fator operacional de campo causou essa anomalia e qual a solução correta?`,
+        scenario: `Diagnóstico de falha real e intervenção corretiva em ${localidade3}.`,
         norma: lesson.norma,
         points: 20,
-        explanation: 'O dimensionamento incorreto gera sobrecargas, perdas Joule elevadas, disparos intempestivos ou falha catastrófica.',
-        keyTakeaway: 'Respeitar as normas é imperativo para proteger o investimento e salvar vidas.',
+        explanation: `O subdimensionamento por não considerar a temperatura ambiente elevada e conexões com torque insuficiente criam pontos quentes (efeito Joule: P = R × I²), provocando desarmes prematuros do disjuntor térmico. A solução é reapertar com torquímetro e corrigir a capacidade de condução.`,
+        keyTakeaway: 'Mau contato e calor ambiente multiplicam as perdas térmicas. Sempre use torque correto e desclassificação térmica.',
         options: [
           {
             id: 'opt_c3',
-            text: 'Risco de sobreaquecimento por efeito Joule, queima precoce do isolamento e desarme intermitente sob pico de carga.',
+            text: 'Conexões frouxas gerando resistência de contato e omissão do fator de temperatura ambiente; solução: reaperto com torquímetro e readequação de condutores.',
             isCorrect: true,
-            feedback: 'Correto! Essa é a manifestação física direta do subdimensionamento técnico.'
+            feedback: 'Excelente análise prática! Resistência de contato somada à alta temperatura é a causa número 1 de falhas em campo.'
           },
           {
             id: 'opt_w7',
-            text: 'Redução espontânea do consumo de energia elétrica pela concessionária de distribuição.',
+            text: 'Tensão excessiva fornecida pela concessionária pública que queimou as resistências internas.',
             isCorrect: false,
-            feedback: 'Incorreto. Perdas por calor na verdade aumentam o desperdício de energia faturada.'
+            feedback: 'Incorreto. A queima por mau contato e sobreaquecimento pontual decorre de perdas locais nas conexões e cabos.'
           },
           {
             id: 'opt_w8',
-            text: 'Aumento na velocidade nominal de rotação de todos os motores conectados na linha.',
+            text: 'Substituição da proteção térmica por um jumper de cobre maciço para impedir novos desarmes.',
             isCorrect: false,
-            feedback: 'Incorreto. A velocidade depende da frequência em Hertz e do número de polos magnéticos.'
+            feedback: 'Crime técnico gravíssimo. Eliminar proteções destrói a instalação e gera risco fatal de incêndio.'
           },
           {
             id: 'opt_w9',
-            text: 'Isolação infinita dos condutores decorrente do endurecimento do plástico de proteção.',
+            text: 'Inversão dos cabos de aterramento (PE) com a fase para aumentar o fluxo de elétrons.',
             isCorrect: false,
-            feedback: 'Incorreto. O plástico ressecado perde a rigidez dielétrica e trinca, causando fugas à terra.'
+            feedback: 'Incorreto e letal. Ligar fase na carcaça eletrifica as partes metálicas e causa choque elétrico mortal.'
           }
         ]
       }
@@ -637,23 +670,36 @@ export function generateAssessmentForLesson(
   }
 
   if (descRawPool.length === 0) {
+    const isMec = lesson.moduleId?.includes('mec') || lesson.id?.startsWith('mec_');
+    const localidadeCenario = attemptNumber % 2 === 1 ? 'Matola' : 'Beira';
+
     descRawPool = [
       {
         id: `${lesson.id}_gen_desc1_${attemptNumber}`,
         type: 'descriptive',
         title: `Estudo de Caso Prático: ${lesson.title}`,
-        question: `Descreva detalhadamente o procedimento técnico de comissionamento, verificação operacional ou diagnóstico de defeito relacionado a "${lesson.title}" segundo a norma ${lesson.norma}. Cite expressamente os instrumentos de medição utilizados, os valores e critérios de aceitação e os cuidados de segurança obrigatórios.`,
-        contextScenario: lesson.theory.fieldCase?.cenario || `Instalação e manutenção técnica profissional em conformidade com as diretrizes de Moçambique e a norma ${lesson.norma}.`,
-        diagramId: (lesson.moduleId?.includes('mec') || lesson.id?.startsWith('mec_')) ? 'hydraulic_circuit' : 'distribution_board_qgd',
-        diagramTitle: `Esquema de Circuito e Pontos de Medição: ${lesson.norma}`,
+        question: isMec
+          ? `Você foi designado para executar o comissionamento e testes de aceitação técnica de "${lesson.title}" em uma instalação fabril na ${localidadeCenario}, em conformidade com a norma ${lesson.norma}.
+Apresente seu plano de intervenção estruturado em 3 pontos obrigatórios:
+1. Instrumentação & Medições: Quais ferramentas e instrumentos calibrados você usará (ex: torquímetro, relógio comparador, manômetro)?
+2. Critérios e Tolerâncias: Quais grandezas e limites estabelecidos pela norma ${lesson.norma} determinarão se o equipamento está aprovado?
+3. Procedimento de Segurança: Quais medidas de bloqueio e despressurização/desenergização (LOTO) devem ser tomadas antes da intervenção?`
+          : `Você foi acionado para uma intervenção técnica e certificação normativa de "${lesson.title}" em uma unidade industrial/comercial na ${localidadeCenario}, segundo a norma ${lesson.norma}.
+Apresente o seu parecer técnico e roteiro de ensaios estruturado em 3 pontos obrigatórios:
+1. Instrumentos e Ensaios Prévios: Quais instrumentos calibrados (ex: Megômetro, Multímetro True-RMS, Alicate de fuga) você utilizará e quais ensaios executará com o circuito desenergizado?
+2. Critérios de Aceitação Normativa: Quais valores mínimos de isolamento, continuidade ou queda de tensão estabelecidos pela ${lesson.norma} indicarão conformidade?
+3. Ações Corretivas e Segurança: Descreva as precauções de segurança obrigatórias (LOTO, EPIs, teste de ausência de tensão) e as boas práticas de fixação e aperto para evitar sobreaquecimento futuro.`,
+        contextScenario: `Cenário real de campo: Intervenção técnica e certificação de conformidade para ${lesson.title} em ${localidadeCenario} (${lesson.norma}).`,
+        diagramId: isMec ? 'hydraulic_circuit' : 'distribution_board_qgd',
+        diagramTitle: `Esquema de Circuito e Pontos de Teste: ${lesson.norma}`,
         norma: lesson.norma,
         points: 40,
-        expectedKeywords: ['procedimento', 'medição', 'norma', 'segurança', 'ensaio', 'proteção', 'conformidade'],
-        guidelineAnswer: `O procedimento técnico segundo a ${lesson.norma} requer: 1) Desenergização segura com bloqueio e etiquetagem (LOTO) e teste de ausência de tensão; 2) Inspeção visual rigorosa do estado físico de condutores, terminais, torque de aperto e conexões de terra; 3) Medições com instrumentos calibrados (multímetro True-RMS, megômetro para ensaio de resistência de isolamento ou torquímetro/relógio comparador); 4) Comparação dos valores aferidos com as tabelas de referência da norma; 5) Registro formal dos ensaios em relatório técnico com parecer de conformidade assinado.`,
+        expectedKeywords: ['procedimento', 'medição', 'norma', 'segurança', 'ensaio', 'proteção', 'conformidade', 'loto', 'isolamento', 'torque'],
+        guidelineAnswer: `O procedimento técnico segundo a ${lesson.norma} requer: 1) Desenergização segura com bloqueio e etiquetagem (LOTO) e teste de ausência de tensão; 2) Inspeção visual minuciosa do estado físico de cabos, terminais, torque de aperto e conexões de terra; 3) Medições com instrumentos calibrados (multímetro True-RMS, megômetro para ensaio de resistência de isolamento ≥ 1,0 MΩ a 500 Vcc ou torquímetro calibrado para fixações mecânicas); 4) Comparação dos valores aferidos com os limites da norma ${lesson.norma}; 5) Emissão de relatório técnico conclusivo assinado.`,
         rubricCriteria: [
-          { criterion: 'Detalhamento do procedimento operacional sequencial de medição ou montagem.', weightPercent: 35 },
-          { criterion: 'Especificação da instrumentação correta e valores de referência aceitáveis.', weightPercent: 35 },
-          { criterion: 'Aderência às normas técnicas de segurança e boas práticas de campo.', weightPercent: 30 }
+          { criterion: 'Detalhamento do procedimento operacional sequencial de medição ou montagem com instrumentação correta.', weightPercent: 35 },
+          { criterion: `Especificação dos critérios normativos e limites de aceitação da norma ${lesson.norma}.`, weightPercent: 35 },
+          { criterion: 'Aderência às normas de segurança de campo (LOTO, EPIs, torque e prevenção de sobreaquecimento).', weightPercent: 30 }
         ]
       }
     ];

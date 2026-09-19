@@ -29,6 +29,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { SaraAcademyCard } from '../sara/SaraAcademyCard';
+import { subscribeToAcademyContext, ActiveAcademyContext } from '../../services/saraAcademyContext';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.VITE_GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY : '') || '';
 
@@ -539,6 +540,16 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   // Mensagem amigável de status durante espera ou alta demanda
   const [thinkingStatus, setThinkingStatus] = useState<string>('');
 
+  // Contexto Ativo da Minha Academia Técnica (Sincronização Bidirecional)
+  const [activeAcademyContext, setActiveAcademyContext] = useState<ActiveAcademyContext | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAcademyContext((ctx) => {
+      setActiveAcademyContext(ctx);
+    });
+    return unsubscribe;
+  }, []);
+
   const handleDecreaseFontSize = () => {
     setChatFontSize(prev => {
       const next = Math.max(MIN_FONT_SIZE, prev - 1);
@@ -655,11 +666,26 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         return { role, parts };
       });
 
-      const systemInstructionText = `Você é a Eng. Sara IA da TécnicaMZ Pro em Moçambique. Sempre formate suas respostas técnicas utilizando tabelas em Markdown, destaques em negrito usando asteriscos (**exemplo**), listas organizadas e equações em LaTeX para fórmulas e cálculos de engenharia.
+      let systemInstructionText = `Você é a Eng. Sara IA da TécnicaMZ Pro em Moçambique. Sempre formate suas respostas técnicas utilizando tabelas em Markdown, destaques em negrito usando asteriscos (**exemplo**), listas organizadas e equações em LaTeX para fórmulas e cálculos de engenharia.
 Você está conversando com o usuário: ${userName} (Perfil: ${currentUser?.role || 'Técnico'}).
 IMPORTANTE: Trate o usuário pelo nome real dele ("${userName}") durante a conversa de forma natural e amigável.
 Responda em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
 Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais longas a cada mensagem.`;
+
+      if (activeAcademyContext) {
+        systemInstructionText += `\n\n[CONTEXTO ACADÊMICO SINCRONIZADO - MINHA ACADEMIA TÉCNICA]:
+Curso: ${activeAcademyContext.courseTitle}
+Módulo: ${activeAcademyContext.moduleTitle}
+Aula / Tópico Ativo: ${activeAcademyContext.lessonTitle} (${activeAcademyContext.lessonCode})
+Norma Técnica de Referência: ${activeAcademyContext.norma}
+
+DIRETRIZ PARA DÚVIDAS TÉCNICAS DA AULA:
+Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em detalhes aprofundados com base no nome do elemento e na norma correspondente, estruturando em:
+1. Função do Elemento e Princípio de Operação
+2. Requisitos Mandatórios e Limites da Norma
+3. Procedimento de Ligação / Montagem e Testes de Isolamento/Continuidade
+4. Diagnóstico de Falhas Comuns e Cuidados Críticos em Moçambique.`;
+      }
 
       let fullText = '';
 
@@ -909,6 +935,24 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
           </div>
         </div>
 
+        {/* Banner de Contexto Ativo da Academia Técnica (Sincronizado) */}
+        {activeAcademyContext && (
+          <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-blue-800/40 flex items-center justify-between gap-2 text-xs shrink-0 shadow-inner">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="text-[10px] uppercase tracking-wider font-black px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50 shrink-0">
+                Contexto Ativo
+              </span>
+              <span className="text-slate-200 font-medium truncate text-[11px] sm:text-xs">
+                {activeAcademyContext.lessonTitle} • <span className="text-blue-400 font-bold">{activeAcademyContext.norma}</span>
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 font-mono shrink-0 hidden md:inline">
+              {activeAcademyContext.courseTitle}
+            </span>
+          </div>
+        )}
+
         {/* Minha Academia Técnica IEC / EN (Exclusivo para Técnicos) */}
         {isTechnicianUser && (
           <SaraAcademyCard
@@ -917,6 +961,13 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
               chatInputRef.current?.setInputText(promptText);
               chatInputRef.current?.focus();
               scrollToBottom();
+
+              // Auto-envio imediato para fluxo conciso "Tirar Dúvida da Aula com a Sara"
+              if (promptText.startsWith('Elemento:') || promptText.includes('Norma:')) {
+                setTimeout(() => {
+                  handleSend(promptText, null);
+                }, 150);
+              }
             }}
           />
         )}
