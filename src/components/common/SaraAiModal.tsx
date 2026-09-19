@@ -187,10 +187,11 @@ ChatMessageItem.displayName = 'ChatMessageItem';
 const ChatMessagesList = memo<{
   messages: Message[];
   isThinking: boolean;
+  thinkingStatus?: string;
   userName: string;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   fontSize: number;
-}>(({ messages, isThinking, userName, messagesEndRef, fontSize }) => {
+}>(({ messages, isThinking, thinkingStatus, userName, messagesEndRef, fontSize }) => {
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50">
       {messages.map((m, idx) => {
@@ -206,9 +207,9 @@ const ChatMessagesList = memo<{
       })}
 
       {isThinking && (
-        <div className="flex items-center gap-3 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs text-xs text-slate-600 max-w-sm">
+        <div className="flex items-center gap-3 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs text-xs text-slate-600 max-w-md animate-in fade-in duration-200">
           <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
-          <span>Sara IA a processar para {userName}...</span>
+          <span>{thinkingStatus || `Sara IA a processar para ${userName}...`}</span>
         </div>
       )}
 
@@ -535,6 +536,9 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     return DEFAULT_FONT_SIZE;
   });
 
+  // Mensagem amigável de status durante espera ou alta demanda
+  const [thinkingStatus, setThinkingStatus] = useState<string>('');
+
   const handleDecreaseFontSize = () => {
     setChatFontSize(prev => {
       const next = Math.max(MIN_FONT_SIZE, prev - 1);
@@ -620,6 +624,16 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     saveMessagesToStorage(updatedHistory);
 
     setIsThinking(true);
+    setThinkingStatus(`Eng. Sara IA a formular resposta técnica para ${userName}...`);
+
+    // Mensagens amigáveis caso a resposta demore mais do que o esperado
+    const delayTimer = setTimeout(() => {
+      setThinkingStatus('A consultar normas técnicas e cálculos em Meticais... Obrigado por aguardar um instante.');
+    }, 4500);
+
+    const highDemandTimer = setTimeout(() => {
+      setThinkingStatus('A rede está sob alta demanda momentânea. A Eng. Sara IA está a finalizar o seu parecer técnico...');
+    }, 9000);
 
     try {
       const recentHistory = updatedHistory.slice(-6);
@@ -650,65 +664,100 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
       let fullText = '';
 
       if (GEMINI_API_KEY) {
-        const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
+        // Tentativa de streaming direto no client com Retry e Exponential Backoff para 503/429
+        const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
+        let streamSuccess = false;
 
-        const response = await fetch(STREAM_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: contentsPayload,
-            system_instruction: {
-              parts: [{ text: systemInstructionText }]
-            }
-          })
-        });
+        for (const modelName of candidateModels) {
+          if (streamSuccess) break;
+          const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || `Erro na API: ${response.status}`);
-        }
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              if (attempt > 1) {
+                setThinkingStatus(`Alta demanda na rede. Reconectando à Sara IA (tentativa ${attempt} de 3)...`);
+              }
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder('utf-8');
-
-        if (reader) {
-          setIsThinking(false);
-          let buffer = '';
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const jsonString = line.replace('data: ', '').trim();
-                if (!jsonString) continue;
-
-                try {
-                  const parsed = JSON.parse(jsonString);
-                  const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                  if (chunkText) {
-                    fullText += chunkText;
-
-                    setMessages(prev =>
-                      prev.map(msg =>
-                        msg.id === saraMessageId ? { ...msg, text: fullText } : msg
-                      )
-                    );
+              const response = await fetch(STREAM_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: contentsPayload,
+                  system_instruction: {
+                    parts: [{ text: systemInstructionText }]
                   }
-                } catch (e) {
-                  // Parse parcial
+                })
+              });
+
+              // Tratamento de alta demanda (503 / 429 / 500)
+              if (response.status === 503 || response.status === 429 || response.status === 500) {
+                if (attempt < 3) {
+                  const backoffMs = Math.min(800 * Math.pow(2, attempt - 1), 3000);
+                  await new Promise(r => setTimeout(r, backoffMs));
+                  continue;
                 }
+              }
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `Erro na API: ${response.status}`);
+              }
+
+              const reader = response.body?.getReader();
+              const decoder = new TextDecoder('utf-8');
+
+              if (reader) {
+                setIsThinking(false);
+                let buffer = '';
+
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split('\n');
+                  buffer = lines.pop() || '';
+
+                  for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                      const jsonString = line.replace('data: ', '').trim();
+                      if (!jsonString) continue;
+
+                      try {
+                        const parsed = JSON.parse(jsonString);
+                        const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        if (chunkText) {
+                          fullText += chunkText;
+
+                          setMessages(prev =>
+                            prev.map(msg =>
+                              msg.id === saraMessageId ? { ...msg, text: fullText } : msg
+                            )
+                          );
+                        }
+                      } catch (e) {
+                        // Parse parcial
+                      }
+                    }
+                  }
+                }
+                streamSuccess = true;
+                break;
+              }
+            } catch (streamErr: any) {
+              if (attempt < 3) {
+                await new Promise(r => setTimeout(r, 1000 * attempt));
+              } else {
+                console.warn(`[Sara IA] Tentativa com modelo ${modelName} falhou:`, streamErr?.message || streamErr);
               }
             }
           }
         }
-      } else {
-        // Sem chave pública no browser -> roteia pelo backend seguro /api/sara
+      }
+
+      // Se não havia GEMINI_API_KEY no browser ou se o streaming direto não produziu texto:
+      if (!fullText) {
+        // Roteia pelo backend seguro /api/sara com retry automático e resiliência a 503/429
         const proxyRes = await fetch('/api/sara', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -728,7 +777,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
       }
 
       if (!fullText) {
-        fullText = `Desculpe, ${userName}. Não consegui processar a resposta técnica no momento. Por favor, tente novamente.`;
+        fullText = `Olá, ${userName}. A Eng. Sara IA está temporariamente sob alta demanda técnica de atendimentos simultâneos. Por favor, aguarde alguns instantes e tente novamente.`;
       }
 
       const finalSaraMsg: Message = {
@@ -765,7 +814,14 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
       }
     } catch (err: any) {
       console.warn('Erro na conexão com a Sara IA:', err);
-      const errorMsgText = `Sara IA: Não foi possível obter resposta no momento. Detalhe: ${err.message || 'Verifique a conexão.'}`;
+      const isHighDemand = String(err?.message || '').toLowerCase().includes('503') ||
+        String(err?.message || '').toLowerCase().includes('429') ||
+        String(err?.message || '').toLowerCase().includes('overloaded');
+
+      const errorMsgText = isHighDemand
+        ? `Eng. Sara IA: No momento os servidores estão com alta demanda técnica de consultas simultâneas. Por favor, aguarde alguns instantes e clique para tentar novamente.`
+        : `Eng. Sara IA: Não foi possível obter a resposta técnica no momento. Detalhe: ${err.message || 'Verifique a conexão de rede.'}`;
+
       const finalErrorMsg: Message = {
         id: saraMessageId,
         sender: 'sara',
@@ -781,7 +837,10 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
 
       saveMessagesToStorage([...updatedHistory, finalErrorMsg]);
     } finally {
+      clearTimeout(delayTimer);
+      clearTimeout(highDemandTimer);
       setIsThinking(false);
+      setThinkingStatus('');
     }
   };
 
@@ -902,6 +961,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
         <ChatMessagesList
           messages={messages}
           isThinking={isThinking}
+          thinkingStatus={thinkingStatus}
           userName={userName}
           messagesEndRef={messagesEndRef}
           fontSize={chatFontSize}

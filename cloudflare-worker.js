@@ -10,6 +10,7 @@
  * 2. Oculta a GEMINI_API_KEY no servidor Edge (zero exposição no client/browser).
  * 3. Trata requisições preflight OPTIONS instantaneamente (status 204).
  * 4. Repassa o histórico contínuo (contents) e a system_instruction para a IA.
+ * 5. Sistema de Retry com Exponential Backoff para resiliência a alta demanda (503/429).
  * 
  * Configuração no Cloudflare Dashboard:
  * - Variável de Ambiente / Secret: GEMINI_API_KEY = "sua_chave_aqui"
@@ -41,7 +42,7 @@ export default {
         JSON.stringify({
           status: "online",
           service: "Proxy Sara IA - TécnicaMZ Pro",
-          model: "gemini-3.8-flash",
+          model: "gemini-2.5-flash",
           timestamp: new Date().toISOString(),
         }),
         {
@@ -147,22 +148,89 @@ export default {
         );
       }
 
-      // 6. Chamada segura para a API do Google Gemini (gemini-3.8-flash)
-      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+      // 6. Chamada segura para a API do Google Gemini com Retry e Exponential Backoff (gemini-2.5-flash)
+      const candidateModels = ["gemini-2.5-flash", "gemini-flash-latest"];
+      let geminiResponse = null;
+      let geminiData = null;
+      let lastError = null;
 
-      const geminiResponse = await fetch(geminiEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(geminiPayload),
-      });
+      for (const model of candidateModels) {
+        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-      const geminiData = await geminiResponse.json();
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            geminiResponse = await fetch(geminiEndpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(geminiPayload),
+            });
+
+            // Se obteve sucesso (200 OK)
+            if (geminiResponse.ok) {
+              geminiData = await geminiResponse.json();
+              break;
+            }
+
+            // Erros de alta demanda ou limite de requisições (503 / 429 / 500)
+            if (geminiResponse.status === 503 || geminiResponse.status === 429 || geminiResponse.status === 500) {
+              if (attempt < 3) {
+                const backoffMs = Math.min(800 * Math.pow(2, attempt - 1), 3000);
+                await new Promise((resolve) => setTimeout(resolve, backoffMs));
+                continue;
+              }
+            }
+
+            // Para outros erros (ex: 400), obtém a resposta e interrompe o loop do modelo atual
+            geminiData = await geminiResponse.json();
+            break;
+          } catch (fetchErr) {
+            lastError = fetchErr;
+            if (attempt < 3) {
+              await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+            }
+          }
+        }
+
+        // Se conseguiu resposta com sucesso deste modelo, não tenta os modelos seguintes
+        if (geminiResponse && geminiResponse.ok && geminiData) {
+          break;
+        }
+      }
+
+      // Caso persista sobrecarga ou erro após todas as tentativas
+      if (!geminiData) {
+        return new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: "A Eng. Sara IA está temporariamente com alta demanda de consultas técnicas simultâneas. Por favor, aguarde alguns segundos e envie novamente sua pergunta.",
+                    },
+                  ],
+                  role: "model",
+                },
+              },
+            ],
+            reply: "A Eng. Sara IA está temporariamente com alta demanda de consultas técnicas simultâneas. Por favor, aguarde alguns segundos e envie novamente sua pergunta.",
+            warning: "Serviço sobrecarregado (503/429) após 3 tentativas de reconexão automática.",
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              ...CORS_HEADERS,
+            },
+          }
+        );
+      }
 
       // 7. Retorna a resposta ao PWA com os devidos cabeçalhos CORS
       return new Response(JSON.stringify(geminiData), {
-        status: geminiResponse.status,
+        status: geminiResponse ? geminiResponse.status : 200,
         headers: {
           "Content-Type": "application/json",
           ...CORS_HEADERS,

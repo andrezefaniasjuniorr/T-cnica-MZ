@@ -55,6 +55,53 @@ function toPlainText(text: string): string {
     .trim();
 }
 
+// Helper para chamadas ao Gemini com Retry e Exponential Backoff contra alta demanda (503 / 429 / overloaded)
+async function executeWithBackoffRetry<T>(
+  action: (modelName: string) => Promise<T>,
+  candidateModels: string[] = ['gemini-2.5-flash', 'gemini-flash-latest'],
+  maxRetries: number = 3
+): Promise<T> {
+  let lastError: any = null;
+
+  for (const modelName of candidateModels) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await action(modelName);
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || err).toLowerCase();
+        const status = err?.status || err?.statusCode || (err?.response && err.response.status);
+        const isHighDemand =
+          status === 503 ||
+          status === 429 ||
+          status === 500 ||
+          msg.includes('503') ||
+          msg.includes('429') ||
+          msg.includes('overloaded') ||
+          msg.includes('high demand') ||
+          msg.includes('resource exhausted') ||
+          msg.includes('quota') ||
+          msg.includes('rate limit');
+
+        if (isHighDemand && attempt < maxRetries) {
+          const delayMs = Math.min(800 * Math.pow(2, attempt - 1), 3000);
+          console.warn(`[Sara IA Retry] Alta demanda/sobrecarga detectada em ${modelName} (tentativa ${attempt}/${maxRetries}). Aguardando ${delayMs}ms...`);
+          await new Promise(res => setTimeout(res, delayMs));
+          continue;
+        }
+
+        // Se o erro não for de sobrecarga (ex: validação 400), não insiste neste modelo
+        if (!isHighDemand) {
+          console.warn(`[Sara IA] Erro ao executar ${modelName}:`, err?.message || err);
+          break;
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error('Não foi possível obter resposta da Sara IA após tentativas de recuperação de alta demanda.');
+}
+
 // Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
@@ -126,14 +173,10 @@ Responda de forma direta, clara, técnica e precisa em português de Moçambique
       return res.status(400).json({ error: 'Nenhum conteúdo ou mensagem fornecida.' });
     }
 
-    // Lista de modelos resilientes para alta disponibilidade conforme diretrizes oficiais
-    const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
-    let response: any = null;
-    let lastError: any = null;
-
-    for (const modelName of candidateModels) {
-      try {
-        response = await ai.models.generateContent({
+    // Execução resiliente com Retry e Exponential Backoff contra 503 / 429
+    const response: any = await executeWithBackoffRetry(
+      async (modelName) => {
+        return await ai.models.generateContent({
           model: modelName,
           contents: geminiContents,
           config: {
@@ -141,17 +184,13 @@ Responda de forma direta, clara, técnica e precisa em português de Moçambique
             temperature: 0.6,
           }
         });
-        if (response && response.text) {
-          break;
-        }
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`[Sara IA] Tentativa com modelo ${modelName} falhou:`, err?.message || err);
-      }
-    }
+      },
+      ['gemini-2.5-flash', 'gemini-flash-latest'],
+      3
+    );
 
     if (!response || !response.text) {
-      throw lastError || new Error('Não foi possível obter resposta de nenhum dos modelos disponíveis.');
+      throw new Error('Não foi possível obter resposta de texto válida da Sara IA.');
     }
 
     const replyText = toPlainText(response.text || 'Resposta processada pela Sara IA.');
@@ -169,13 +208,21 @@ Responda de forma direta, clara, técnica e precisa em português de Moçambique
       reply: replyText
     });
   } catch (error: any) {
-    console.error('Erro no endpoint /api/sara:', error);
-    return res.status(500).json({
-      error: error?.message || 'Falha ao processar requisição com a Sara IA.',
+    console.error('Erro no endpoint /api/sara:', error?.message || error);
+    const errMsg = String(error?.message || '').toLowerCase();
+    const isHighDemand = errMsg.includes('503') || errMsg.includes('429') || errMsg.includes('overloaded') || errMsg.includes('alta demanda');
+    
+    const fallbackText = isHighDemand
+      ? 'A Eng. Sara IA está no momento atendendo a um grande volume de consultas técnicas simultâneas. Por favor, aguarde alguns instantes e envie sua mensagem novamente.'
+      : 'Houve uma instabilidade temporária ao conectar com a Sara IA. Por favor, tente enviar sua pergunta novamente em instantes.';
+
+    return res.status(200).json({
+      reply: fallbackText,
+      warning: 'Instabilidade ou alta demanda temporária.',
       candidates: [
         {
           content: {
-            parts: [{ text: 'Houve uma instabilidade temporária ao conectar com o serviço da Sara IA. Por favor, tente novamente.' }],
+            parts: [{ text: fallbackText }],
             role: 'model'
           }
         }
@@ -230,23 +277,29 @@ O usuário atual é: ${userName || 'Usuário'} (${userRole || 'visitante'}).`;
       parts: [{ text: message }]
     });
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: contents,
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.5,
-      }
-    });
+    const response: any = await executeWithBackoffRetry(
+      async (modelName) => {
+        return await ai.models.generateContent({
+          model: modelName,
+          contents: contents,
+          config: {
+            systemInstruction: systemInstruction,
+            temperature: 0.5,
+          }
+        });
+      },
+      ['gemini-2.5-flash', 'gemini-flash-latest'],
+      3
+    );
 
-    const rawReply = response.text || 'Não consegui formular uma resposta técnica no momento.';
+    const rawReply = response?.text || 'Não consegui formular uma resposta técnica no momento.';
     const replyText = toPlainText(rawReply);
     return res.json({ reply: replyText });
   } catch (error: any) {
     console.error('Error in /api/sara/chat:', error);
-    return res.status(500).json({
-      error: error?.message || 'Falha ao processar solicitação com a Sara IA.',
-      fallback: 'Desculpe, houve uma instabilidade temporária na conexão da Sara IA. Por favor tente novamente.'
+    return res.status(200).json({
+      reply: 'A Eng. Sara IA está temporariamente sob alta demanda técnica de consultas. Por favor, tente novamente em alguns instantes.',
+      fallback: 'A Eng. Sara IA está temporariamente sob alta demanda técnica de consultas. Por favor, tente novamente em alguns instantes.'
     });
   }
 });
@@ -274,13 +327,9 @@ Estruture em tópicos numerados:
 5. Cuidados de segurança: desligamento da rede e equipamentos de proteção.
 6. Solução e próximos passos: materiais necessários e estimativa em Meticais.`;
 
-    const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
-    let response: any = null;
-    let lastError: any = null;
-
-    for (const modelName of candidateModels) {
-      try {
-        response = await ai.models.generateContent({
+    const response: any = await executeWithBackoffRetry(
+      async (modelName) => {
+        return await ai.models.generateContent({
           model: modelName,
           contents: [
             {
@@ -298,17 +347,13 @@ Estruture em tópicos numerados:
             temperature: 0.3
           }
         });
-        if (response && response.text) {
-          break;
-        }
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`[Sara IA Visão] Modelo ${modelName} falhou:`, err?.message || err);
-      }
-    }
+      },
+      ['gemini-2.5-flash', 'gemini-flash-latest'],
+      3
+    );
 
     if (!response || !response.text) {
-      throw lastError || new Error('Não foi possível processar a análise da imagem em nenhum modelo.');
+      throw new Error('Não foi possível processar a análise da imagem.');
     }
 
     const rawAnalysis = response.text || 'Não foi possível extrair a análise da imagem.';
@@ -316,9 +361,9 @@ Estruture em tópicos numerados:
     return res.json({ analysis });
   } catch (error: any) {
     console.error('Error in /api/sara/analyze-image:', error);
-    return res.status(500).json({
-      error: error?.message || 'Falha ao analisar a imagem.',
-      fallback: 'Houve um erro ao processar a imagem com a visão computacional da Sara IA. Verifique a resolução e iluminação da foto e tente novamente.'
+    return res.status(200).json({
+      analysis: 'A análise visual da Eng. Sara IA está temporariamente sob alta demanda de processamento. Por favor, envie a foto novamente em instantes.',
+      fallback: 'A análise visual da Eng. Sara IA está temporariamente sob alta demanda de processamento. Por favor, envie a foto novamente em instantes.'
     });
   }
 });
@@ -379,29 +424,29 @@ RESPONDA OBRIGATORIAMENTE EM FORMATO JSON VÁLIDO (sem markdown ou texto extra f
   "normativeAlignment": "Conformidade com a norma ${norma}"
 }`;
 
-    const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
     let response: any = null;
-    let lastError: any = null;
 
-    for (const modelName of candidateModels) {
-      try {
-        response = await ai.models.generateContent({
-          model: modelName,
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: {
-            temperature: 0.2,
-            responseMimeType: 'application/json'
-          }
-        });
-        if (response && response.text) break;
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`[Sara Avaliação] Modelo ${modelName} falhou:`, err?.message || err);
-      }
+    try {
+      response = await executeWithBackoffRetry(
+        async (modelName) => {
+          return await ai.models.generateContent({
+            model: modelName,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+              temperature: 0.2,
+              responseMimeType: 'application/json'
+            }
+          });
+        },
+        ['gemini-2.5-flash', 'gemini-flash-latest'],
+        3
+      );
+    } catch (evalErr: any) {
+      console.warn('[Sara Avaliação] Gemini sob alta demanda após retries. Utilizando avaliação de contingência normativa local...');
     }
 
     if (!response || !response.text) {
-      console.warn('[Sara Avaliação] Modelos Gemini indisponíveis ou limite de cota atingido. Utilizando avaliação de contingência normativa local...');
+      console.warn('[Sara Avaliação] Ativando motor de avaliação de contingência normativa local...');
 
       const cleanAnswer = studentAnswer.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const keywords: string[] = Array.isArray(expectedKeywords) ? expectedKeywords : [];
