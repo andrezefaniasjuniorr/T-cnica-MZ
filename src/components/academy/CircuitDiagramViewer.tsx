@@ -30,6 +30,74 @@ export interface CircuitDiagramViewerProps {
   initialView?: DiagramViewType;
 }
 
+export function resolveDiagramFamily(
+  diagramId?: string,
+  lessonCode?: string,
+  lessonTitle?: string
+): string {
+  const rawId = (diagramId || '').toLowerCase().trim();
+  if (rawId === 'distribution_board_qgd' || rawId === 'distribution') return 'distribution';
+  if (rawId === 'direct_motor_starter' || rawId === 'motors' || rawId === 'motor_star_delta') return 'motors';
+  if (rawId === 'water_pump_automation' || rawId === 'pump') return 'pump';
+  if (rawId === 'earthing_systems' || rawId === 'earthing') return 'earthing';
+  if (rawId === 'solar_pv_system' || rawId === 'solar') return 'solar';
+  if (rawId === 'hydraulic_circuit' || rawId === 'hydraulic') return 'hydraulic';
+  if (rawId === 'pneumatic_circuit' || rawId === 'pneumatic') return 'pneumatic';
+  if (rawId === 'substation_transformer' || rawId === 'substation') return 'substation';
+  if (rawId === 'hvac_chiller' || rawId === 'hvac') return 'hvac';
+  if (rawId === 'three_way_lighting' || rawId === 'lighting_three_way' || rawId === 'lighting_four_way' || rawId === 'lighting') return 'lighting';
+
+  // Verificação por código do Elemento de Competência
+  const code = (lessonCode || '').toLowerCase();
+  if (code.includes('ec 1.') || code.includes('ec1.')) return 'physics';
+  if (code.includes('ec 2.') || code.includes('ec2.')) return 'lighting';
+  if (code.includes('ec 3.') || code.includes('ec3.')) return 'distribution';
+  if (code.includes('ec 4.') || code.includes('ec4.')) return 'motors';
+  if (code.includes('ec 5.') || code.includes('ec5.')) return 'pump';
+  if (code.includes('ec 6.') || code.includes('ec6.')) return 'physics';
+  if (code.includes('ec 7.') || code.includes('ec7.')) return 'earthing';
+  if (code.includes('ec 8.') || code.includes('ec8.')) return 'substation';
+  if (code.includes('ec 9.') || code.includes('ec9.')) return 'hvac';
+  if (code.includes('ec 10.') || code.includes('ec10.')) return 'distribution';
+  if (code.includes('ec 11.') || code.includes('ec11.')) return 'solar';
+  if (code.includes('mec 1') || code.includes('mec 2')) return 'pneumatic';
+  if (code.includes('mec 3') || code.includes('mec 4') || code.includes('mec 5')) return 'hydraulic';
+
+  // Verificação por título
+  const lower = (lessonTitle || '').toLowerCase();
+  if (lower.includes('comutador') || lower.includes('escada') || lower.includes('ilumina') || lower.includes('three-way') || lower.includes('four-way') || lower.includes('interruptor') || lower.includes('cruzamento')) {
+    return 'lighting';
+  }
+  if (lower.includes('motor') || lower.includes('contator') || lower.includes('partida') || lower.includes('trifásico') || lower.includes('estrela')) {
+    return 'motors';
+  }
+  if (lower.includes('solar') || lower.includes('fotovoltaic') || lower.includes('inversor') || lower.includes('bateria') || lower.includes('mppt')) {
+    return 'solar';
+  }
+  if (lower.includes('aterramento') || lower.includes('terra') || lower.includes('elétrodo') || lower.includes('tn-s') || lower.includes('tt') || lower.includes('spda')) {
+    return 'earthing';
+  }
+  if (lower.includes('bomba') || lower.includes('automação') || lower.includes('boia') || lower.includes('nível')) {
+    return 'pump';
+  }
+  if (lower.includes('pt') || lower.includes('transformador') || lower.includes('média tensão') || lower.includes('subestação')) {
+    return 'substation';
+  }
+  if (lower.includes('climatiz') || lower.includes('ar condicionado') || lower.includes('refrigera') || lower.includes('hvac') || lower.includes('chiller')) {
+    return 'hvac';
+  }
+  if (lower.includes('física') || lower.includes('ohm') || lower.includes('potência') || lower.includes('fator') || lower.includes('kirchhoff') || lower.includes('harmônic')) {
+    return 'physics';
+  }
+  if (lower.includes('hidráulic') || lower.includes('óleo')) {
+    return 'hydraulic';
+  }
+  if (lower.includes('pneumátic') || lower.includes('ar comprimido') || lower.includes('frl')) {
+    return 'pneumatic';
+  }
+  return 'distribution';
+}
+
 export const CircuitDiagramViewer: React.FC<CircuitDiagramViewerProps> = ({
   diagramId,
   lessonCode = 'EC',
@@ -68,51 +136,19 @@ export const CircuitDiagramViewer: React.FC<CircuitDiagramViewerProps> = ({
     setHighlight('all');
   };
 
-  // Determina família de diagramas
+  // Determina família de diagramas com resolução robusta e tolerante a IDs
   const diagramFamily = React.useMemo(() => {
-    if (diagramId) return diagramId;
-    const lower = (lessonTitle || '').toLowerCase();
+    return resolveDiagramFamily(diagramId, lessonCode, lessonTitle);
+  }, [diagramId, lessonCode, lessonTitle]);
 
-    if (lower.includes('comutador') || lower.includes('escada') || lower.includes('ilumina') || lower.includes('three-way') || lower.includes('interruptor')) {
-      return 'lighting';
-    }
-    if (lower.includes('motor') || lower.includes('contator') || lower.includes('partida') || lower.includes('trifásico') || lower.includes('estrela')) {
-      return 'motors';
-    }
-    if (lower.includes('solar') || lower.includes('fotovoltaic') || lower.includes('inversor') || lower.includes('bateria') || lower.includes('mppt')) {
-      return 'solar';
-    }
-    if (lower.includes('aterramento') || lower.includes('terra') || lower.includes('elétrodo') || lower.includes('tn-s') || lower.includes('tt')) {
-      return 'earthing';
-    }
-    if (lower.includes('bomba') || lower.includes('automação') || lower.includes('boia')) {
-      return 'pump';
-    }
-    if (lower.includes('pt') || lower.includes('transformador') || lower.includes('média tensão') || lower.includes('subestação')) {
-      return 'substation';
-    }
-    if (lower.includes('climatiz') || lower.includes('ar condicionado') || lower.includes('refrigera') || lower.includes('hvac')) {
-      return 'hvac';
-    }
-    if (lower.includes('física') || lower.includes('ohm') || lower.includes('potência') || lower.includes('fator') || lower.includes('kirchhoff')) {
-      return 'physics';
-    }
-    if (lower.includes('hidráulic') || lower.includes('óleo')) {
-      return 'hydraulic';
-    }
-    if (lower.includes('pneumátic') || lower.includes('ar comprimido')) {
-      return 'pneumatic';
-    }
-    return 'distribution';
-  }, [diagramId, lessonTitle]);
-
-  // Abas de visualização didática disponíveis para este tópico (Multiplicidade)
+  // Abas de visualização didática disponíveis para este tópico (Multiplicidade Técnica)
   const availableViews = React.useMemo(() => {
     switch (diagramFamily) {
       case 'lighting':
         return [
-          { id: 'multifilar' as DiagramViewType, label: 'Esquema Multifilar (Conexões)', icon: Zap },
-          { id: 'unifilar' as DiagramViewType, label: 'Esquema Unifilar Normativo (Tubulação)', icon: FileCode }
+          { id: 'multifilar' as DiagramViewType, label: 'Comutação Three-Way (2 Pontos)', icon: Zap },
+          { id: 'comando' as DiagramViewType, label: 'Comutação Four-Way / Cruzamento (3 Pontos)', icon: Sliders },
+          { id: 'unifilar' as DiagramViewType, label: 'Planta & Tubulação Unifilar Normativo IEC', icon: FileCode }
         ];
       case 'motors':
         return [
@@ -121,7 +157,7 @@ export const CircuitDiagramViewer: React.FC<CircuitDiagramViewerProps> = ({
         ];
       case 'physics':
         return [
-          { id: 'vetorial' as DiagramViewType, label: 'Diagrama Vetorial Fasorial & Triângulo de Potências', icon: Compass },
+          { id: 'vetorial' as DiagramViewType, label: 'Diagrama Vetorial Fasorial & Potências', icon: Compass },
           { id: 'multifilar' as DiagramViewType, label: 'Circuito AC Fundamental de Medição', icon: Zap }
         ];
       case 'solar':
@@ -129,13 +165,38 @@ export const CircuitDiagramViewer: React.FC<CircuitDiagramViewerProps> = ({
           { id: 'multifilar' as DiagramViewType, label: 'Instalação Híbrida Completa (CC / CA)', icon: Zap },
           { id: 'unifilar' as DiagramViewType, label: 'String Box & Proteções Normativas', icon: FileCode }
         ];
-      case 'distribution':
       case 'earthing':
+        return [
+          { id: 'multifilar' as DiagramViewType, label: 'Esquema de Aterramento TT / TN-S', icon: ShieldCheck },
+          { id: 'vetorial' as DiagramViewType, label: 'Barramento BEP & Equipotencialização', icon: Compass }
+        ];
+      case 'substation':
+        return [
+          { id: 'multifilar' as DiagramViewType, label: 'Posto Transformação PT 22kV / 400V', icon: Zap },
+          { id: 'unifilar' as DiagramViewType, label: 'Esquema Unifilar MT / BT', icon: FileCode }
+        ];
+      case 'hvac':
+        return [
+          { id: 'multifilar' as DiagramViewType, label: 'Ciclo Frigorífico por Compressão de Vapor', icon: Zap },
+          { id: 'comando' as DiagramViewType, label: 'Quadro Elétrico & Pressostatos AVAC', icon: Sliders }
+        ];
+      case 'pump':
+        return [
+          { id: 'multifilar' as DiagramViewType, label: 'Comando e Força: Eletrobomba com Boias', icon: Zap }
+        ];
+      case 'hydraulic':
+        return [
+          { id: 'multifilar' as DiagramViewType, label: 'Circuito Hidráulico Industrial (ISO 1219)', icon: Zap }
+        ];
+      case 'pneumatic':
+        return [
+          { id: 'multifilar' as DiagramViewType, label: 'Circuito Pneumático Industrial (ISO 1219)', icon: Zap }
+        ];
+      case 'distribution':
       default:
         return [
           { id: 'multifilar' as DiagramViewType, label: 'Quadro Geral QGD (Multifilar)', icon: Zap },
-          { id: 'unifilar' as DiagramViewType, label: 'Diagrama Unifilar IEC 60364', icon: FileCode },
-          { id: 'vetorial' as DiagramViewType, label: 'Aterramento & Equipotencialização (TT/TN-S)', icon: ShieldCheck }
+          { id: 'unifilar' as DiagramViewType, label: 'Diagrama Unifilar IEC 60364', icon: FileCode }
         ];
     }
   }, [diagramFamily]);
@@ -527,6 +588,104 @@ export const CircuitDiagramViewer: React.FC<CircuitDiagramViewerProps> = ({
               />
               <text x="360" y="344" fill="#6EE7B7" fontSize="10" fontWeight="bold" opacity={getWireOpacity('earth')}>
                 Condutor de Proteção PE (Equipotencialização de Massas)
+              </text>
+            </svg>
+          )}
+
+          {/* =============================================================== */}
+          {/* 1.B ILUMINAÇÃO: COMUTAÇÃO FOUR-WAY / INTERMEDIÁRIO (3 PONTOS)   */}
+          {/* =============================================================== */}
+          {diagramFamily === 'lighting' && activeView === 'comando' && (
+            <svg
+              viewBox="0 0 920 400"
+              className="w-full max-w-[920px] h-auto object-contain"
+              style={{ filter: 'drop-shadow(0 4px 14px rgba(0,0,0,0.6))' }}
+            >
+              <rect width="920" height="400" fill="#0A0F1D" rx="16" />
+              <text x="30" y="34" fill="#94A3B8" fontSize="12" fontWeight="bold" fontFamily="monospace">
+                CIRCUITO FOUR-WAY (CRUZAMENTO) • IEC 60364-5-52 • CONTROLE DE ILUMINAÇÃO A PARTIR DE 3 PONTOS
+              </text>
+
+              {/* Quadro QGD Alimentador */}
+              <g transform="translate(30, 70)">
+                <rect x="0" y="0" width="100" height="290" rx="10" fill="#111827" stroke="#38BDF8" strokeWidth="1.5" />
+                <text x="14" y="24" fill="#38BDF8" fontSize="11" fontWeight="bold">QGD 230V</text>
+                <circle cx="50" cy="70" r="7" fill="#E11D48" />
+                <text x="16" y="94" fill="#FDA4AF" fontSize="9" fontWeight="bold">Fase L (Castanho)</text>
+                <circle cx="50" cy="150" r="7" fill="#0284C7" />
+                <text x="14" y="174" fill="#7DD3FC" fontSize="9" fontWeight="bold">Neutro N (Azul)</text>
+                <circle cx="50" cy="230" r="7" fill="#10B981" />
+                <text x="12" y="254" fill="#6EE7B7" fontSize="9" fontWeight="bold">Terra PE (V/A)</text>
+              </g>
+
+              {/* Comutador 1: Escada Inicial S1 */}
+              <g transform="translate(160, 80)">
+                <rect x="0" y="0" width="140" height="180" rx="10" fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5" />
+                <text x="14" y="24" fill="#38BDF8" fontSize="11" fontWeight="bold">S1: COMUTADOR ESCADA</text>
+                <text x="14" y="40" fill="#94A3B8" fontSize="9">Ponto Inicial (3 Bornes)</text>
+                <circle cx="20" cy="90" r="6" fill="#E11D48" />
+                <text x="10" y="112" fill="#FDA4AF" fontSize="8" fontWeight="bold">Comum (Fase)</text>
+                <circle cx="120" cy="65" r="6" fill="#F59E0B" />
+                <text x="80" y="62" fill="#FDE68A" fontSize="8">Viajante 1</text>
+                <circle cx="120" cy="120" r="6" fill="#F59E0B" />
+                <text x="80" y="135" fill="#FDE68A" fontSize="8">Viajante 2</text>
+                <line x1="20" y1="90" x2="120" y2="65" stroke="#F8FAFC" strokeWidth="3" strokeLinecap="round" />
+              </g>
+
+              {/* Fios Viajantes 1 e 2 */}
+              <line x1="280" y1="145" x2="350" y2="145" stroke="#F59E0B" strokeWidth="3" opacity={getWireOpacity('return')} />
+              <line x1="280" y1="200" x2="350" y2="200" stroke="#F59E0B" strokeWidth="3" opacity={getWireOpacity('return')} />
+
+              {/* Comutador 2: FOUR-WAY (Cruzamento / Intermediário) S2 */}
+              <g transform="translate(350, 70)">
+                <rect x="0" y="0" width="180" height="200" rx="10" fill="#1E293B" stroke="#F59E0B" strokeWidth="2" />
+                <text x="14" y="24" fill="#F59E0B" fontSize="11" fontWeight="bold">S2: FOUR-WAY (CRUZADOR)</text>
+                <text x="14" y="40" fill="#94A3B8" fontSize="9">Ponto Intermediário (4 Bornes)</text>
+                {/* Entradas */}
+                <circle cx="15" cy="75" r="6" fill="#F59E0B" />
+                <circle cx="15" cy="130" r="6" fill="#F59E0B" />
+                {/* Saídas */}
+                <circle cx="165" cy="75" r="6" fill="#F59E0B" />
+                <circle cx="165" cy="130" r="6" fill="#F59E0B" />
+                {/* Cruzamento Interno em X */}
+                <line x1="15" y1="75" x2="165" y2="130" stroke="#F8FAFC" strokeWidth="3" strokeLinecap="round" />
+                <line x1="15" y1="130" x2="165" y2="75" stroke="#F8FAFC" strokeWidth="3" strokeLinecap="round" />
+                <rect x="30" y="160" width="120" height="24" rx="4" fill="#0F172A" stroke="#334155" />
+                <text x="42" y="176" fill="#FCD34D" fontSize="9" fontWeight="bold">Mecanismo Cruzado X</text>
+              </g>
+
+              {/* Fios Viajantes 3 e 4 */}
+              <line x1="515" y1="145" x2="580" y2="145" stroke="#F59E0B" strokeWidth="3" opacity={getWireOpacity('return')} />
+              <line x1="515" y1="200" x2="580" y2="200" stroke="#F59E0B" strokeWidth="3" opacity={getWireOpacity('return')} />
+
+              {/* Comutador 3: Escada Final S3 */}
+              <g transform="translate(580, 80)">
+                <rect x="0" y="0" width="140" height="180" rx="10" fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5" />
+                <text x="14" y="24" fill="#38BDF8" fontSize="11" fontWeight="bold">S3: COMUTADOR ESCADA</text>
+                <text x="14" y="40" fill="#94A3B8" fontSize="9">Ponto Final (3 Bornes)</text>
+                <circle cx="20" cy="65" r="6" fill="#F59E0B" />
+                <circle cx="20" cy="120" r="6" fill="#F59E0B" />
+                <circle cx="120" cy="90" r="6" fill="#F97316" />
+                <text x="65" y="112" fill="#FDBA74" fontSize="8" fontWeight="bold">Retorno R</text>
+                <line x1="120" y1="90" x2="20" y2="65" stroke="#F8FAFC" strokeWidth="3" strokeLinecap="round" />
+              </g>
+
+              {/* Fio de Retorno R até a Luminária */}
+              <line x1="700" y1="170" x2="770" y2="170" stroke="#F97316" strokeWidth="3.5" opacity={getWireOpacity('return')} strokeLinecap="round" />
+
+              {/* Luminária no Teto */}
+              <g transform="translate(770, 110)">
+                <circle cx="50" cy="60" r="30" fill="url(#bulbGlow)" stroke="#F59E0B" strokeWidth="2" />
+                <text x="36" y="65" fill="#78350F" fontSize="11" fontWeight="black">LUZ</text>
+                <text x="24" y="110" fill="#F8FAFC" fontSize="10" fontWeight="bold">Lâmpada LED</text>
+                <text x="28" y="125" fill="#94A3B8" fontSize="9">230V • 50Hz</text>
+              </g>
+
+              {/* Neutro N e Terra PE */}
+              <path d="M 80 220 L 820 220 L 820 170" fill="none" stroke="#0284C7" strokeWidth="3" opacity={getWireOpacity('neutral')} />
+              <path d="M 80 300 L 850 300 L 850 170" fill="none" stroke="#10B981" strokeWidth="2.5" strokeDasharray="8,4" opacity={getWireOpacity('earth')} />
+              <text x="320" y="325" fill="#6EE7B7" fontSize="10" fontWeight="bold">
+                Condutor PE e Neutro N contínuos por toda a tubulação (Norma IEC 60364)
               </text>
             </svg>
           )}
@@ -1154,6 +1313,250 @@ export const CircuitDiagramViewer: React.FC<CircuitDiagramViewerProps> = ({
                 <text x="16" y="24" fill="#34D399" fontSize="11" fontWeight="bold">ATUADOR PNEUMÁTICO</text>
                 <rect x="30" y="100" width="160" height="60" rx="6" fill="#1E293B" stroke="#10B981" strokeWidth="2" />
                 <text x="50" y="135" fill="#34D399" fontSize="10" fontWeight="bold">CILINDRO ISO 15552</text>
+              </g>
+            </svg>
+          )}
+
+          {/* =============================================================== */}
+          {/* 12. ATERRAMENTO: BARRAMENTO BEP & EQUIPOTENCIALIZAÇÃO (VETORIAL)*/}
+          {/* =============================================================== */}
+          {diagramFamily === 'earthing' && activeView === 'vetorial' && (
+            <svg
+              viewBox="0 0 880 390"
+              className="w-full max-w-[880px] h-auto object-contain"
+              style={{ filter: 'drop-shadow(0 4px 14px rgba(0,0,0,0.6))' }}
+            >
+              <rect width="880" height="390" fill="#0A0F1D" rx="16" />
+              <text x="30" y="34" fill="#94A3B8" fontSize="12" fontWeight="bold" fontFamily="monospace">
+                SISTEMA DE EQUIPOTENCIALIZAÇÃO E BEP • IEC 60364-5-54 • LIGAÇÃO À TERRA TT / TN-S
+              </text>
+
+              {/* Barra de Equipotencialização Principal BEP */}
+              <g transform="translate(80, 160)">
+                <rect x="0" y="0" width="720" height="40" rx="6" fill="#047857" stroke="#10B981" strokeWidth="2.5" />
+                <text x="210" y="26" fill="#FFFFFF" fontSize="13" fontWeight="black" letterSpacing="1">
+                  BARRAMENTO DE EQUIPOTENCIALIZAÇÃO PRINCIPAL (BEP)
+                </text>
+                {/* Parafusos e Bornes de Conexão */}
+                <circle cx="50" cy="20" r="7" fill="#F8FAFC" stroke="#065F46" strokeWidth="2" />
+                <circle cx="170" cy="20" r="7" fill="#F8FAFC" stroke="#065F46" strokeWidth="2" />
+                <circle cx="300" cy="20" r="7" fill="#F8FAFC" stroke="#065F46" strokeWidth="2" />
+                <circle cx="430" cy="20" r="7" fill="#F8FAFC" stroke="#065F46" strokeWidth="2" />
+                <circle cx="560" cy="20" r="7" fill="#F8FAFC" stroke="#065F46" strokeWidth="2" />
+                <circle cx="670" cy="20" r="7" fill="#F8FAFC" stroke="#065F46" strokeWidth="2" />
+              </g>
+
+              {/* Elétrodo de Aterramento (Terra de Fundação e Varas de Cobre) */}
+              <g transform="translate(90, 240)">
+                <line x1="40" y1="0" x2="40" y2="80" stroke="#10B981" strokeWidth="4" strokeDasharray="6,3" />
+                <rect x="0" y="80" width="80" height="50" rx="6" fill="#1E293B" stroke="#F59E0B" strokeWidth="1.5" />
+                <text x="8" y="100" fill="#FCD34D" fontSize="9" fontWeight="bold">CAIXA DE</text>
+                <text x="8" y="115" fill="#FCD34D" fontSize="9" fontWeight="bold">INSPEÇÃO</text>
+                <line x1="40" y1="130" x2="40" y2="150" stroke="#D97706" strokeWidth="5" />
+                <text x="-15" y="145" fill="#6EE7B7" fontSize="8">Elétrodo Cu ≥ 2m</text>
+              </g>
+
+              {/* Elementos Equipotencializados Conectados ao BEP */}
+              {/* Armadura de Betão */}
+              <g transform="translate(210, 60)">
+                <rect x="0" y="0" width="100" height="60" rx="8" fill="#1E293B" stroke="#64748B" />
+                <text x="10" y="24" fill="#F8FAFC" fontSize="9" fontWeight="bold">ARMADURAS</text>
+                <text x="10" y="38" fill="#94A3B8" fontSize="8">Betão / Fundações</text>
+                <line x1="40" y1="60" x2="40" y2="100" stroke="#10B981" strokeWidth="3" />
+              </g>
+
+              {/* Tubulações Metálicas de Água e Gás */}
+              <g transform="translate(340, 60)">
+                <rect x="0" y="0" width="110" height="60" rx="8" fill="#1E293B" stroke="#0284C7" />
+                <text x="10" y="24" fill="#38BDF8" fontSize="9" fontWeight="bold">TUBULAÇÃO</text>
+                <text x="10" y="38" fill="#94A3B8" fontSize="8">Água Metálica (Gás)</text>
+                <line x1="40" y1="60" x2="40" y2="100" stroke="#10B981" strokeWidth="3" />
+              </g>
+
+              {/* Barramento PE do QGD */}
+              <g transform="translate(480, 60)">
+                <rect x="0" y="0" width="120" height="60" rx="8" fill="#111827" stroke="#10B981" strokeWidth="2" />
+                <text x="12" y="24" fill="#34D399" fontSize="10" fontWeight="bold">BARRA PE (QGD)</text>
+                <text x="12" y="40" fill="#94A3B8" fontSize="8.5">Condutor PE Geral</text>
+                <line x1="60" y1="60" x2="60" y2="100" stroke="#10B981" strokeWidth="4" />
+              </g>
+
+              {/* Sistema SPDA / Para-Raios com DPS Classe I */}
+              <g transform="translate(630, 60)">
+                <rect x="0" y="0" width="120" height="60" rx="8" fill="#1E293B" stroke="#EF4444" strokeWidth="1.5" />
+                <text x="10" y="24" fill="#FCA5A5" fontSize="9" fontWeight="bold">SPDA &amp; DPS T1</text>
+                <text x="10" y="38" fill="#94A3B8" fontSize="8">Proteção Descargas</text>
+                <line x1="50" y1="60" x2="50" y2="100" stroke="#EF4444" strokeWidth="3" />
+              </g>
+
+              <text x="310" y="270" fill="#94A3B8" fontSize="10">
+                Resistência de Terra Recomendada pela Concessionária EDM / IEC: R ≤ 10 Ω (ou ≤ 20 Ω em solos rochosos)
+              </text>
+            </svg>
+          )}
+
+          {/* =============================================================== */}
+          {/* 13. POSTO DE TRANSFORMAÇÃO PT 22kV / 400V (SUBESTAÇÃO)          */}
+          {/* =============================================================== */}
+          {diagramFamily === 'substation' && (
+            <svg
+              viewBox="0 0 900 390"
+              className="w-full max-w-[900px] h-auto object-contain"
+              style={{ filter: 'drop-shadow(0 4px 14px rgba(0,0,0,0.6))' }}
+            >
+              <rect width="900" height="390" fill="#0A0F1D" rx="16" />
+              <text x="30" y="34" fill="#94A3B8" fontSize="12" fontWeight="bold" fontFamily="monospace">
+                POSTO DE TRANSFORMAÇÃO MT/BT (IEC 61936-1) • REDE EDM 22kV, TRAFO Dyn11 &amp; QGBT 400V
+              </text>
+
+              {/* Entrada MT 22kV */}
+              <g transform="translate(40, 75)">
+                <rect x="0" y="0" width="140" height="260" rx="10" fill="#111827" stroke="#EF4444" strokeWidth="2" />
+                <text x="14" y="24" fill="#FCA5A5" fontSize="11" fontWeight="bold">ENTRADA MT EDM</text>
+                <text x="14" y="42" fill="#94A3B8" fontSize="9">Linha Trifásica 22 kV</text>
+                <circle cx="70" cy="90" r="10" fill="#EF4444" />
+                <text x="32" y="125" fill="#FDA4AF" fontSize="10" fontWeight="bold">Seccionador MT</text>
+                <rect x="25" y="150" width="90" height="40" rx="4" fill="#0F172A" stroke="#F59E0B" />
+                <text x="34" y="175" fill="#FDE68A" fontSize="9" fontWeight="bold">Fusíveis HH</text>
+              </g>
+
+              {/* Transformador Óleo 22kV / 400V */}
+              <g transform="translate(260, 75)">
+                <rect x="0" y="0" width="280" height="260" rx="12" fill="#1E293B" stroke="#3B82F6" strokeWidth="2" />
+                <text x="20" y="26" fill="#60A5FA" fontSize="12" fontWeight="black">TRANSFORMADOR DE FORÇA</text>
+                <text x="20" y="44" fill="#94A3B8" fontSize="9">22.000 V / 400 V • 630 kVA • Dyn11</text>
+                {/* Buchas Primárias MT */}
+                <circle cx="60" cy="90" r="14" fill="#111827" stroke="#EF4444" strokeWidth="2" />
+                <text x="52" y="94" fill="#FDA4AF" fontSize="9" fontWeight="bold">MT</text>
+                {/* Buchas Secundárias BT */}
+                <circle cx="220" cy="90" r="14" fill="#111827" stroke="#10B981" strokeWidth="2" />
+                <text x="212" y="94" fill="#6EE7B7" fontSize="9" fontWeight="bold">BT</text>
+                {/* Relé Buchholz */}
+                <rect x="95" y="140" width="90" height="45" rx="6" fill="#0F172A" stroke="#F59E0B" />
+                <text x="105" y="160" fill="#FCD34D" fontSize="9" fontWeight="bold">BUCHHOLZ</text>
+                <text x="102" y="174" fill="#CBD5E1" fontSize="8">Gás &amp; Nível Óleo</text>
+                <rect x="40" y="205" width="200" height="35" rx="4" fill="#111827" stroke="#334155" />
+                <text x="55" y="226" fill="#94A3B8" fontSize="9">Termômetro com Disparo 95°C</text>
+              </g>
+
+              {/* Saída para QGBT 400V */}
+              <g transform="translate(610, 75)">
+                <rect x="0" y="0" width="240" height="260" rx="10" fill="#111827" stroke="#10B981" strokeWidth="2" />
+                <text x="16" y="26" fill="#34D399" fontSize="12" fontWeight="bold">QUADRO GERAL QGBT</text>
+                <text x="16" y="44" fill="#94A3B8" fontSize="9">Barramento Trifásico 400V / 230V</text>
+                <rect x="25" y="70" width="190" height="50" rx="6" fill="#1E293B" stroke="#10B981" />
+                <text x="40" y="95" fill="#6EE7B7" fontSize="10" fontWeight="bold">DISJUNTOR ABERTO ACB</text>
+                <text x="40" y="110" fill="#94A3B8" fontSize="9">In 1000A • Micrológico</text>
+                <rect x="25" y="140" width="190" height="90" rx="6" fill="#1E293B" stroke="#334155" />
+                <text x="35" y="165" fill="#F8FAFC" fontSize="10" fontWeight="bold">Derivações dos Alimentadores</text>
+                <text x="35" y="185" fill="#94A3B8" fontSize="9">Alimentadores de Fábrica &amp; Escritórios</text>
+              </g>
+            </svg>
+          )}
+
+          {/* =============================================================== */}
+          {/* 14. CLIMATIZAÇÃO / HVAC: CICLO FRIGORÍFICO POR COMPRESSÃO       */}
+          {/* =============================================================== */}
+          {diagramFamily === 'hvac' && (
+            <svg
+              viewBox="0 0 900 390"
+              className="w-full max-w-[900px] h-auto object-contain"
+              style={{ filter: 'drop-shadow(0 4px 14px rgba(0,0,0,0.6))' }}
+            >
+              <rect width="900" height="390" fill="#0A0F1D" rx="16" />
+              <text x="30" y="34" fill="#94A3B8" fontSize="12" fontWeight="bold" fontFamily="monospace">
+                CICLO DE REFRIGERAÇÃO POR COMPRESSÃO DE VAPOR (ISO 5149 / EN 378) • R410A / R32
+              </text>
+
+              {/* 1. Compressor Scroll */}
+              <g transform="translate(60, 110)">
+                <circle cx="65" cy="65" r="55" fill="#1E293B" stroke="#EF4444" strokeWidth="2.5" />
+                <text x="32" y="60" fill="#FCA5A5" fontSize="11" fontWeight="bold">COMPRESSOR</text>
+                <text x="45" y="78" fill="#94A3B8" fontSize="9">SCROLL</text>
+                <text x="18" y="145" fill="#EF4444" fontSize="9" fontWeight="bold">Descarga Alta P (Gás Quente)</text>
+              </g>
+
+              {/* Tubulação Alta Pressão Gás */}
+              <line x1="175" y1="140" x2="310" y2="140" stroke="#EF4444" strokeWidth="4" />
+
+              {/* 2. Condensador Ventilado */}
+              <g transform="translate(310, 80)">
+                <rect x="0" y="0" width="160" height="130" rx="10" fill="#111827" stroke="#F59E0B" strokeWidth="2" />
+                <text x="16" y="24" fill="#F59E0B" fontSize="11" fontWeight="bold">CONDENSADOR</text>
+                <text x="16" y="40" fill="#94A3B8" fontSize="8.5">Ambiente Externo</text>
+                <text x="16" y="70" fill="#FDE68A" fontSize="9">Rejeição de Calor</text>
+                <text x="16" y="90" fill="#CBD5E1" fontSize="8">Gás condensa em líquido</text>
+              </g>
+
+              {/* Tubulação Alta Pressão Líquido com Filtro Secador */}
+              <line x1="470" y1="140" x2="560" y2="140" stroke="#F59E0B" strokeWidth="3.5" />
+              <g transform="translate(490, 125)">
+                <rect x="0" y="0" width="40" height="30" rx="4" fill="#1E293B" stroke="#64748B" />
+                <text x="6" y="18" fill="#94A3B8" fontSize="7">FILTRO</text>
+              </g>
+
+              {/* 3. Válvula de Expansão TXV */}
+              <g transform="translate(560, 95)">
+                <polygon points="0,20 40,45 0,70" fill="#3B82F6" />
+                <polygon points="40,20 0,45 40,70" fill="#3B82F6" />
+                <text x="-5" y="15" fill="#38BDF8" fontSize="9" fontWeight="bold">TXV / EEV</text>
+                <text x="-15" y="90" fill="#94A3B8" fontSize="8">Queda Abrupta P e T</text>
+              </g>
+
+              {/* Tubulação Baixa Pressão Líquido/Vapor */}
+              <line x1="600" y1="140" x2="680" y2="140" stroke="#0284C7" strokeWidth="4" />
+
+              {/* 4. Evaporador */}
+              <g transform="translate(680, 80)">
+                <rect x="0" y="0" width="160" height="130" rx="10" fill="#111827" stroke="#0284C7" strokeWidth="2" />
+                <text x="16" y="24" fill="#38BDF8" fontSize="11" fontWeight="bold">EVAPORADOR</text>
+                <text x="16" y="40" fill="#94A3B8" fontSize="8.5">Ambiente Interno</text>
+                <text x="16" y="70" fill="#7DD3FC" fontSize="9">Absorção de Calor</text>
+                <text x="16" y="90" fill="#CBD5E1" fontSize="8">Gera Ar Refrescado</text>
+              </g>
+
+              {/* Linha de Retorno Sucção de Baixa Pressão até o Compressor */}
+              <path
+                d="M 760 210 L 760 300 L 125 300 L 125 220"
+                fill="none"
+                stroke="#0284C7"
+                strokeWidth="4"
+                strokeDasharray="8,3"
+              />
+              <text x="350" y="320" fill="#38BDF8" fontSize="10" fontWeight="bold">
+                Linha de Sucção (Baixa Pressão / Vapor Frio ➔ Compressor)
+              </text>
+            </svg>
+          )}
+
+          {/* =============================================================== */}
+          {/* 15. RENDERER DE SEGURANÇA (FALLBACK NUNCA VAZIO)                */}
+          {/* =============================================================== */}
+          {/* Se a combinação de família/view não corresponder a nenhuma das anteriores, renderiza o QGD geral */}
+          {diagramFamily !== 'lighting' &&
+           diagramFamily !== 'motors' &&
+           diagramFamily !== 'solar' &&
+           diagramFamily !== 'physics' &&
+           diagramFamily !== 'pump' &&
+           diagramFamily !== 'hydraulic' &&
+           diagramFamily !== 'pneumatic' &&
+           diagramFamily !== 'substation' &&
+           diagramFamily !== 'hvac' &&
+           diagramFamily !== 'earthing' &&
+           diagramFamily !== 'distribution' && (
+            <svg
+              viewBox="0 0 880 390"
+              className="w-full max-w-[880px] h-auto object-contain"
+              style={{ filter: 'drop-shadow(0 4px 14px rgba(0,0,0,0.6))' }}
+            >
+              <rect width="880" height="390" fill="#0A0F1D" rx="16" />
+              <text x="30" y="34" fill="#94A3B8" fontSize="12" fontWeight="bold" fontFamily="monospace">
+                ESQUEMA TÉCNICO NORMATIVO IEC • INSTALAÇÃO E COORDENAÇÃO DE PROTEÇÕES
+              </text>
+              <g transform="translate(60, 100)">
+                <rect x="0" y="0" width="760" height="220" rx="12" fill="#111827" stroke="#38BDF8" strokeWidth="1.5" />
+                <text x="30" y="45" fill="#38BDF8" fontSize="14" fontWeight="bold">Painel de Comissionamento Técnico IEC 60364</text>
+                <text x="30" y="75" fill="#94A3B8" fontSize="11">Proteção contra contatos diretos e indiretos com seccionamento automático.</text>
               </g>
             </svg>
           )}

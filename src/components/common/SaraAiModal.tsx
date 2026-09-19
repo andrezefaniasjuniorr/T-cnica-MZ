@@ -958,16 +958,15 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           <SaraAcademyCard
             currentUser={currentUser}
             onAskSara={(promptText) => {
-              chatInputRef.current?.setInputText(promptText);
+              // Limpeza do campo de entrada: não injeta texto de prompt técnico no input do utilizador
+              chatInputRef.current?.setInputText('');
               chatInputRef.current?.focus();
               scrollToBottom();
 
-              // Auto-envio imediato para fluxo conciso "Tirar Dúvida da Aula com a Sara"
-              if (promptText.startsWith('Elemento:') || promptText.includes('Norma:')) {
-                setTimeout(() => {
-                  handleSend(promptText, null);
-                }, 150);
-              }
+              // Auto-processamento imediato da dúvida pela Sara IA
+              setTimeout(() => {
+                handleSend(promptText, null);
+              }, 100);
             }}
           />
         )}

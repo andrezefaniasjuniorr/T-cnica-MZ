@@ -16,7 +16,13 @@ import {
   ShieldCheck,
   Send,
   Loader2,
-  FileText
+  FileText,
+  LayoutList,
+  Columns,
+  HelpCircle,
+  Wrench,
+  Shield,
+  Check
 } from 'lucide-react';
 import { AcademyLesson } from '../../types/academy';
 import {
@@ -34,6 +40,7 @@ import {
   generateAssessmentPDF
 } from '../../utils/pdfAssessmentGenerator';
 import { CircuitDiagramViewer } from './CircuitDiagramViewer';
+import { CircuitBlockFlowViewer } from './CircuitBlockFlowViewer';
 
 export interface AssessmentExamViewProps {
   lesson: AcademyLesson;
@@ -43,6 +50,14 @@ export interface AssessmentExamViewProps {
   onCompleteSuccess: (earnedXp: number) => void;
   onAskSara: (contextQuestion: string) => void;
   onGoToLesson: () => void;
+}
+
+type DescSubField = 'sub1' | 'sub2' | 'sub3';
+
+interface DescSubAnswers {
+  sub1: string; // 1. Instrumentos e Ensaios (15 pts)
+  sub2: string; // 2. Critérios Normativos (15 pts)
+  sub3: string; // 3. Ações Corretivas e Segurança (10 pts)
 }
 
 export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
@@ -64,6 +79,11 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
   const [mcAnswers, setMcAnswers] = useState<Record<string, string>>({});
   const [descAnswers, setDescAnswers] = useState<Record<string, string>>({});
 
+  // Subquestões da questão de desenvolvimento (Instrumentos, Critérios Normativos, Ações Corretivas)
+  const [activeSubTab, setActiveSubTab] = useState<Record<string, DescSubField>>({});
+  const [subAnswersMap, setSubAnswersMap] = useState<Record<string, DescSubAnswers>>({});
+  const [subViewMode, setSubViewMode] = useState<'tabs' | 'stacked'>('tabs');
+
   // Estados de submissão e avaliação
   const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
   const [hasEvaluated, setHasEvaluated] = useState<boolean>(false);
@@ -74,10 +94,56 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
     setAttemptNumber(1);
     setMcAnswers({});
     setDescAnswers({});
+    setSubAnswersMap({});
+    setActiveSubTab({});
     setHasEvaluated(false);
     setIsEvaluating(false);
     setCurrentExam(generateAssessmentForLesson(lesson, 1, userName, userId));
   }, [lesson.id, userName, userId]);
+
+  // Parser para carregar subquestões se houver texto pré-existente
+  const parseSubSections = (text: string): DescSubAnswers => {
+    if (!text) return { sub1: '', sub2: '', sub3: '' };
+    if (text.includes('1. INSTRUMENTOS') || text.includes('1. Instrumentos')) {
+      const p1 = text.split(/1\.\s*INSTRUMENTOS[^:]*:/i)[1] || '';
+      const p2Split = p1.split(/2\.\s*CRITÉRIOS[^:]*:/i);
+      const sub1 = (p2Split[0] || '').trim();
+      if (p2Split[1]) {
+        const p3Split = p2Split[1].split(/3\.\s*AÇÕES[^:]*:/i);
+        const sub2 = (p3Split[0] || '').trim();
+        const sub3 = (p3Split[1] || '').trim();
+        return { sub1, sub2, sub3 };
+      }
+    }
+    return { sub1: text, sub2: '', sub3: '' };
+  };
+
+  const getSubAnswers = (qId: string): DescSubAnswers => {
+    if (subAnswersMap[qId]) return subAnswersMap[qId];
+    const existing = descAnswers[qId] || '';
+    return parseSubSections(existing);
+  };
+
+  // Manipulador de digitação por subquestão com consolidação estruturada
+  const handleTypeSubAnswer = (qId: string, field: DescSubField, value: string) => {
+    if (hasEvaluated) return;
+    const current = getSubAnswers(qId);
+    const updated = { ...current, [field]: value };
+    setSubAnswersMap(prev => ({ ...prev, [qId]: updated }));
+
+    const consolidated = [
+      `1. INSTRUMENTOS E ENSAIOS:`,
+      updated.sub1.trim(),
+      ``,
+      `2. CRITÉRIOS NORMATIVOS:`,
+      updated.sub2.trim(),
+      ``,
+      `3. AÇÕES CORRETIVAS E SEGURANÇA:`,
+      updated.sub3.trim()
+    ].join('\n').trim();
+
+    setDescAnswers(prev => ({ ...prev, [qId]: consolidated }));
+  };
 
   // Manipulador de seleção de alternativa em questão de múltipla escolha
   const handleSelectMCOption = (questionId: string, displayLetter: string) => {
@@ -315,21 +381,14 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
 
               {/* Diagrama Vetorial SVG Integrado em Casos Técnicos */}
               {q.diagramId && (
-                <div className="p-3 rounded-xl bg-[#070D18] border border-blue-900/30 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-blue-400">
-                    <span className="flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5" />
-                      <span>{q.diagramTitle || 'Esquema Vetorial IEC do Circuito'}</span>
-                    </span>
-                    <span className="text-[11px] text-slate-500">Padrão IEC: Fase / Neutro / Terra / Retorno</span>
-                  </div>
+                <div className="rounded-2xl overflow-hidden border border-slate-700/80 bg-[#0B132B]/80 shadow-md">
                   <CircuitDiagramViewer
                     diagramId={q.diagramId}
                     lessonCode={currentExam.lessonCode}
                     lessonTitle={q.diagramTitle || currentExam.lessonTitle}
                     norma={q.norma}
                     baseFontSize={baseFontSize}
-                    className="max-h-[300px]"
+                    className=""
                   />
                 </div>
               )}
@@ -472,55 +531,274 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
 
               {/* Diagrama Esquemático quando aplicável */}
               {dq.diagramId && (
-                <div className="p-3 rounded-xl bg-[#070D18] border border-blue-900/30 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-blue-400">
-                    <span className="flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5" />
-                      <span>{dq.diagramTitle || 'Esquema Funcional de Diagnóstico'}</span>
-                    </span>
-                    <span className="text-[11px] text-slate-500">{dq.norma}</span>
-                  </div>
+                <div className="rounded-2xl overflow-hidden border border-slate-700/80 bg-[#0B132B]/80 shadow-md">
                   <CircuitDiagramViewer
                     diagramId={dq.diagramId}
                     lessonCode={currentExam.lessonCode}
                     lessonTitle={dq.diagramTitle || currentExam.lessonTitle}
                     norma={dq.norma}
                     baseFontSize={baseFontSize}
-                    className="max-h-[300px]"
+                    className=""
                   />
                 </div>
               )}
 
-              {/* Enunciado do Desenvolvimento */}
-              <div className="space-y-1">
-                <label
-                  htmlFor={`desc_input_${dq.id}`}
-                  className="block text-xs sm:text-sm font-black text-white leading-relaxed"
-                >
+              {/* Diagrama Interativo de Blocos/Fluxo quando envolver Comutação Four-Way/Three-Way */}
+              {((dq.question + ' ' + dq.contextScenario).toLowerCase().includes('four-way') ||
+                (dq.question + ' ' + dq.contextScenario).toLowerCase().includes('comutad') ||
+                (dq.question + ' ' + dq.contextScenario).toLowerCase().includes('escada') ||
+                (dq.question + ' ' + dq.contextScenario).includes('->')) && (
+                <div className="pt-1">
+                  <CircuitBlockFlowViewer
+                    rawText="four-way comutador cruzamento"
+                    topic="Simulador Funcional de Comutação Four-Way / Escada Intermediária"
+                    norma={dq.norma}
+                  />
+                </div>
+              )}
+
+              {/* Enunciado do Desenvolvimento Geral */}
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-purple-400">
+                  <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                  <span>DESAFIO DE ENGENHARIA DE CAMPO:</span>
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-white leading-relaxed">
                   {dq.question}
-                </label>
-                <p className="text-[11px] sm:text-xs text-slate-400">
-                  💡 Dica da Tutora Sara: Cite termos técnicos, instrumentos de medição e a justificativa segundo a norma {dq.norma}.
                 </p>
-              </div>
-
-              {/* Área de Texto Aberto (Textarea) */}
-              <div className="space-y-1.5">
-                <textarea
-                  id={`desc_input_${dq.id}`}
-                  value={studentText}
-                  onChange={e => handleTypeDescAnswer(dq.id, e.target.value)}
-                  disabled={hasEvaluated}
-                  rows={5}
-                  placeholder="Descreva aqui o seu procedimento técnico passo a passo, instrumentos utilizados, medições e justificativa segundo as normas IEC/ISO..."
-                  className="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-xs sm:text-sm leading-relaxed resize-y transition"
-                />
-
-                <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
-                  <span>Palavras digitadas: <strong className="text-slate-300">{wordCount}</strong></span>
-                  <span>Mínimo recomendado: 20 palavras</span>
+                <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-amber-300/90 pt-1">
+                  <HelpCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                  <span>Dica da Tutora Sara: Responda ordenadamente às 3 subquestões abaixo citando instrumentos, grandezas e ações segundo a norma {dq.norma}.</span>
                 </div>
               </div>
+
+              {/* ======================================================= */}
+              {/* REESTRUTURAÇÃO EM 3 SUBQUESTÕES INDEPENDENTES (40 PTS)  */}
+              {/* ======================================================= */}
+              {(() => {
+                const subAns = getSubAnswers(dq.id);
+                const currentTab = activeSubTab[dq.id] || 'sub1';
+
+                const subQuestionsMeta: Array<{
+                  id: DescSubField;
+                  title: string;
+                  points: number;
+                  icon: any;
+                  subtitle: string;
+                  guide: string;
+                  placeholder: string;
+                  value: string;
+                }> = [
+                  {
+                    id: 'sub1',
+                    title: '1. Instrumentos e Ensaios',
+                    points: 15,
+                    icon: Wrench,
+                    subtitle: 'Equipamentos calibrados e testes com circuito desenergizado',
+                    guide: 'Quais instrumentos de ensaio (ex: Megômetro 500Vcc, Multímetro True-RMS, Torquímetro, etc.) você utilizará e que testes executará?',
+                    placeholder: 'Ex: Com o circuito desenergizado, utilizarei o Megômetro a 500Vcc para medir a resistência de isolamento entre condutores ativos e terra, e multímetro True-RMS para verificação de continuidade ôhmica...',
+                    value: subAns.sub1
+                  },
+                  {
+                    id: 'sub2',
+                    title: '2. Critérios Normativos',
+                    points: 15,
+                    icon: Shield,
+                    subtitle: 'Limites matemáticos, grandezas e tolerâncias regulamentares',
+                    guide: `Quais limites mínimos de isolamento, queda de tensão e tolerâncias da norma ${dq.norma} determinarão a conformidade técnica?`,
+                    placeholder: 'Ex: Conforme a norma aplicável, a resistência de isolamento mínima deve ser ≥ 1,0 MΩ. A queda de tensão máxima tolerada é de 3% para iluminação e 5% para força...',
+                    value: subAns.sub2
+                  },
+                  {
+                    id: 'sub3',
+                    title: '3. Ações Corretivas',
+                    points: 10,
+                    icon: ShieldCheck,
+                    subtitle: '5 Regras de Ouro (LOTO), EPIs e torque controlado',
+                    guide: 'Quais medidas de segurança (LOTO, bloqueio mecânico, teste de ausência de tensão) e ações de correção de aperto serão adotadas?',
+                    placeholder: 'Ex: Aplicação das 5 Regras de Ouro: seccionamento visível, bloqueio mecânico LOTO com cadeado e etiqueta, constatação de ausência de tensão com detector bipolar, luvas isolantes 1000V e aperto com torquímetro calibrado para evitar sobreaquecimento...',
+                    value: subAns.sub3
+                  }
+                ];
+
+                return (
+                  <div className="space-y-3 pt-1">
+                    {/* Barra de Seleção de Subquestões & Alternância de Visualização */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {subQuestionsMeta.map(sq => {
+                          const isFilled = sq.value.trim().length >= 15;
+                          const isActive = currentTab === sq.id;
+                          const IconComp = sq.icon;
+
+                          return (
+                            <button
+                              key={sq.id}
+                              type="button"
+                              onClick={() => setActiveSubTab(prev => ({ ...prev, [dq.id]: sq.id }))}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border ${
+                                isActive
+                                  ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
+                                  : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                              }`}
+                            >
+                              <IconComp className="w-3.5 h-3.5 shrink-0" />
+                              <span>{sq.title}</span>
+                              <span className="px-1 py-0.2 rounded bg-black/40 text-[10px] text-purple-200">
+                                {sq.points} pts
+                              </span>
+                              {isFilled && (
+                                <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Alternador de Modo: Abas vs Lista Completa */}
+                      <button
+                        type="button"
+                        onClick={() => setSubViewMode(m => (m === 'tabs' ? 'stacked' : 'tabs'))}
+                        className="self-end sm:self-auto px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-400 bg-slate-950 border border-slate-800 hover:text-white transition flex items-center gap-1.5"
+                      >
+                        {subViewMode === 'tabs' ? (
+                          <>
+                            <LayoutList className="w-3 h-3" />
+                            <span>Ver 3 Subquestões Juntas</span>
+                          </>
+                        ) : (
+                          <>
+                            <Columns className="w-3 h-3" />
+                            <span>Modo Abas Individuais</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* MODO 1: ABAS INDIVIDUAIS (FOCADO & RESPONSIVO) */}
+                    {subViewMode === 'tabs' && (
+                      <div className="space-y-3">
+                        {subQuestionsMeta
+                          .filter(sq => sq.id === currentTab)
+                          .map(sq => {
+                            const subWords = sq.value.trim() ? sq.value.trim().split(/\s+/).length : 0;
+                            return (
+                              <div
+                                key={sq.id}
+                                className="p-4 rounded-xl bg-slate-950/70 border border-purple-900/30 space-y-3"
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800/80 pb-2">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs font-black">
+                                        Subquestão {sq.title.split('.')[0]} • {sq.points} Pontos
+                                      </span>
+                                      <span className="text-xs font-bold text-white">
+                                        {sq.title.split('. ')[1]}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 mt-1">{sq.subtitle}</p>
+                                  </div>
+                                  <span className="text-[11px] text-slate-500">
+                                    Palavras: <strong className="text-purple-300">{subWords}</strong> (min. 10)
+                                  </span>
+                                </div>
+
+                                <p className="text-xs sm:text-sm text-slate-200 font-medium leading-relaxed">
+                                  {sq.guide}
+                                </p>
+
+                                <textarea
+                                  value={sq.value}
+                                  onChange={e => handleTypeSubAnswer(dq.id, sq.id, e.target.value)}
+                                  disabled={hasEvaluated}
+                                  rows={4}
+                                  placeholder={sq.placeholder}
+                                  className="w-full p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-xs sm:text-sm leading-relaxed resize-y transition"
+                                />
+
+                                {/* Navegação Rápida entre Subquestões */}
+                                <div className="flex items-center justify-between pt-1">
+                                  <button
+                                    type="button"
+                                    disabled={sq.id === 'sub1'}
+                                    onClick={() => {
+                                      const prevId = sq.id === 'sub3' ? 'sub2' : 'sub1';
+                                      setActiveSubTab(prev => ({ ...prev, [dq.id]: prevId }));
+                                    }}
+                                    className="px-3 py-1 rounded text-xs text-slate-400 bg-slate-900 border border-slate-800 disabled:opacity-40 disabled:cursor-not-allowed hover:text-white"
+                                  >
+                                    ← Subquestão Anterior
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={sq.id === 'sub3'}
+                                    onClick={() => {
+                                      const nextId = sq.id === 'sub1' ? 'sub2' : 'sub3';
+                                      setActiveSubTab(prev => ({ ...prev, [dq.id]: nextId }));
+                                    }}
+                                    className="px-3 py-1 rounded text-xs font-bold text-purple-300 bg-purple-950/60 border border-purple-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-900/60"
+                                  >
+                                    Próxima Subquestão →
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+
+                    {/* MODO 2: TODAS AS 3 SUBQUESTÕES JUNTAS (SETORIZADO E LIMPO) */}
+                    {subViewMode === 'stacked' && (
+                      <div className="space-y-4">
+                        {subQuestionsMeta.map(sq => {
+                          const subWords = sq.value.trim() ? sq.value.trim().split(/\s+/).length : 0;
+                          return (
+                            <div
+                              key={sq.id}
+                              className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2.5"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs font-black">
+                                    {sq.title}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-300">
+                                    ({sq.points} pts)
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-slate-500">
+                                  Palavras: <strong className="text-purple-300">{subWords}</strong>
+                                </span>
+                              </div>
+
+                              <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                                {sq.guide}
+                              </p>
+
+                              <textarea
+                                value={sq.value}
+                                onChange={e => handleTypeSubAnswer(dq.id, sq.id, e.target.value)}
+                                disabled={hasEvaluated}
+                                rows={3}
+                                placeholder={sq.placeholder}
+                                className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-xs sm:text-sm leading-relaxed resize-y transition"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Resumo Consolidado e Contador Global de Palavras */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1">
+                      <span>Total de palavras no desenvolvimento: <strong className="text-slate-300">{wordCount}</strong></span>
+                      <span>Total ponderado: <strong>40 Pontos</strong> (Soma: 15 + 15 + 10)</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Feedback e Parecer Semântico da Eng. Sara IA (Após Avaliação) */}
               {hasEvaluated && evalResult && (
