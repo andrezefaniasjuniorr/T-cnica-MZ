@@ -46,6 +46,7 @@ import { useModalHistory } from '../../utils/modalHistory';
 import { FontScaleControl, useAcademyFontScale } from '../academy/FontScaleControl';
 import { CircuitDiagramViewer } from '../academy/CircuitDiagramViewer';
 import { SaraDailyHacksFeed } from '../academy/SaraDailyHacksFeed';
+import { AssessmentExamView } from '../academy/AssessmentExamView';
 
 interface SaraAcademyModalProps {
   isOpen: boolean;
@@ -173,6 +174,33 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
     );
 
     onUpdateAcademyData(res.updatedData);
+  };
+
+  // Tratar conclusão da avaliação integrada (Múltipla Escolha + Descritiva IA)
+  const handleExamCompletion = async (earnedXp: number) => {
+    try {
+      if (earnedXp >= 80) {
+        soundFX.playSuccess();
+      } else {
+        soundFX.playComment();
+      }
+    } catch {}
+
+    const isPassed = earnedXp >= 80;
+    const res = await recordLessonCompletion(
+      userId,
+      userArea,
+      selectedLesson.id,
+      isPassed
+    );
+
+    onUpdateAcademyData(res.updatedData);
+  };
+
+  // Botão "Tirar Dúvida no Exame com a Sara"
+  const handleAskSaraExam = (questionContext: string) => {
+    onClose();
+    onAskSara(questionContext, `Dúvida do Exame: ${selectedLesson.title} (${selectedLesson.norma})`);
   };
 
   // Botão "Tirar Dúvida na Aula com a Sara"
@@ -349,23 +377,23 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
               </span>
             </button>
 
-            {/* ABA 3: TESTE DE FIXAÇÃO */}
+            {/* ABA 3: AVALIAÇÃO DE COMPETÊNCIA */}
             <button
               type="button"
               onClick={() => setActiveTab('quiz')}
               className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 ${
                 activeTab === 'quiz'
-                  ? 'bg-[#3B82F6] text-white shadow-md'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md font-black'
                   : 'bg-[#111827] hover:bg-slate-800 text-[#94A3B8] hover:text-white border border-[#1E293B]'
               }`}
             >
-              <HelpCircle className="w-4 h-4" />
-              <span>3. Teste de Fixação</span>
+              <HelpCircle className="w-4 h-4 text-purple-400" />
+              <span>3. Avaliação de Competência</span>
               {isLessonCompleted ? (
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" />
               ) : (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-500/20 text-[#F59E0B] font-bold">
-                  +50 XP
+                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">
+                  IA • ≥80%
                 </span>
               )}
             </button>
@@ -822,9 +850,9 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
                 <button
                   type="button"
                   onClick={() => setActiveTab('quiz')}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#3B82F6] hover:bg-blue-600 text-white text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
                 >
-                  <span>Avançar para o Teste de Fixação</span>
+                  <span>Avançar para Avaliação Prática (IA)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -832,155 +860,18 @@ Pode me dar mais detalhes práticos sobre como diagnosticar isso com segurança 
           )}
 
           {/* =============================================================== */}
-          {/* ABA 3: TESTE DE FIXAÇÃO (EXERCÍCIO INTERATIVO & XP)              */}
+          {/* ABA 3: AVALIAÇÃO INTEGRADA (MÚLTIPLA ESCOLHA + DESCRITIVA IA)    */}
           {/* =============================================================== */}
           {activeTab === 'quiz' && (
-            <div className="space-y-4 animate-in fade-in duration-150">
-              {/* Cabeçalho do Teste */}
-              <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-[#3B82F6] border border-blue-500/30 flex items-center justify-center shrink-0">
-                    <HelpCircle className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-white">
-                      Desafio Prático de Avaliação Técnica
-                    </h3>
-                    <p className="text-xs text-[#94A3B8]">
-                      Norma de Referência: <span className="text-blue-300 font-bold">{selectedLesson.norma}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="px-3 py-1 rounded-xl bg-amber-500/20 text-[#F59E0B] border border-amber-500/30 text-xs font-black flex items-center gap-1.5 shrink-0">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>+{selectedLesson.quiz.xpReward} XP</span>
-                </div>
-              </div>
-
-              {/* Pergunta Objetiva */}
-              <div className="p-4 rounded-2xl bg-slate-950 border border-[#1E293B] space-y-3">
-                <p className="text-xs sm:text-sm font-black text-white leading-relaxed flex items-start gap-2">
-                  <span className="text-[#3B82F6] text-base font-black shrink-0">Q:</span>
-                  <span>{selectedLesson.quiz.question}</span>
-                </p>
-
-                {/* Opções Clicáveis com Feedback Visual Imediato (Verde Esmeralda / Vermelho) */}
-                <div className="grid grid-cols-1 gap-2.5 pt-2">
-                  {selectedLesson.quiz.options.map((option) => {
-                    const isSelected = selectedOptionId === option.id;
-                    let style = 'bg-[#111827] hover:bg-slate-800 text-slate-200 border-[#1E293B]';
-
-                    if (hasAnswered) {
-                      if (option.isCorrect) {
-                        style = 'bg-emerald-950/80 border-[#10B981] text-emerald-100 ring-2 ring-emerald-500/40';
-                      } else if (isSelected && !option.isCorrect) {
-                        style = 'bg-rose-950/80 border-rose-500 text-rose-100 ring-2 ring-rose-500/40';
-                      } else {
-                        style = 'bg-slate-950/50 border-slate-900 text-slate-500 opacity-50';
-                      }
-                    }
-
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => handleSelectOption(option)}
-                        disabled={hasAnswered}
-                        className={`w-full text-left p-3 sm:p-3.5 rounded-xl border transition flex items-start gap-3 cursor-pointer text-xs sm:text-sm leading-relaxed ${style}`}
-                      >
-                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs shrink-0 mt-0.5 ${
-                          hasAnswered && option.isCorrect
-                            ? 'bg-[#10B981] text-slate-950'
-                            : hasAnswered && isSelected && !option.isCorrect
-                            ? 'bg-rose-500 text-white'
-                            : 'bg-slate-800 text-slate-300'
-                        }`}>
-                          {option.id}
-                        </span>
-
-                        <div className="flex-1">
-                          <span className="font-medium">{option.text}</span>
-                          {hasAnswered && (isSelected || option.isCorrect) && (
-                            <p className={`mt-1.5 text-xs font-semibold leading-normal ${
-                              option.isCorrect ? 'text-emerald-300' : 'text-rose-300'
-                            }`}>
-                              {option.feedback}
-                            </p>
-                          )}
-                        </div>
-
-                        {hasAnswered && option.isCorrect && (
-                          <CheckCircle2 className="w-5 h-5 text-[#10B981] shrink-0 mt-0.5" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Resolução Comentada Passo a Passo (Exibida após a resposta) */}
-              {hasAnswered && (
-                <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-800/50 space-y-3 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs font-black text-[#3B82F6] uppercase tracking-wider">
-                      <BookOpen className="w-4 h-4" />
-                      <span>Resolução Comentada ({selectedLesson.norma})</span>
-                    </div>
-
-                    {quizFeedback === 'correct' ? (
-                      <span className="px-2.5 py-0.5 rounded-md bg-emerald-950 text-[#10B981] text-xs font-black border border-emerald-800">
-                        +50 XP Conquistados!
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-md bg-amber-950 text-[#F59E0B] text-xs font-bold border border-amber-800">
-                        +15 XP por Esforço
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-xs sm:text-sm leading-relaxed text-slate-200">
-                    {selectedLesson.quiz.explanation}
-                  </p>
-
-                  <div className="p-3 rounded-xl bg-slate-950/80 border border-blue-900/40 text-xs font-bold text-blue-300">
-                    📌 {selectedLesson.quiz.keyTakeaway}
-                  </div>
-                </div>
-              )}
-
-              {/* BOTÕES DE AÇÃO: DUVIDA COM SARA + CONCLUIR E PRÓXIMA AULA */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[#1E293B]">
-                <button
-                  type="button"
-                  onClick={handleAskSara}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border border-[#1E293B]"
-                  title="Abre o chat da Sara IA enviando os dados deste teste para tirar dúvidas"
-                >
-                  <MessageSquare className="w-4 h-4 text-[#3B82F6]" />
-                  <span>Tirar Dúvida na Aula com a Sara</span>
-                </button>
-
-                <div className="w-full sm:w-auto flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('lesson')}
-                    className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer border border-[#1E293B]"
-                  >
-                    Revisar Teoria
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleAdvanceNextLesson}
-                    className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-[#3B82F6] hover:bg-blue-600 text-white text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
-                  >
-                    <span>Concluir & Próxima Aula</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <AssessmentExamView
+              lesson={selectedLesson}
+              baseFontSize={fontSize}
+              userName={currentUser?.name || currentUser?.displayName || 'Técnico Matriculado'}
+              userId={userId}
+              onCompleteSuccess={handleExamCompletion}
+              onAskSara={handleAskSaraExam}
+              onGoToLesson={() => setActiveTab('lesson')}
+            />
           )}
 
           {/* =============================================================== */}

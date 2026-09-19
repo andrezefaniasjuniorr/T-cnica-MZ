@@ -41,7 +41,7 @@ export default {
         JSON.stringify({
           status: "online",
           service: "Proxy Sara IA - TécnicaMZ Pro",
-          model: "gemini-2.5-flash",
+          model: "gemini-3.8-flash",
           timestamp: new Date().toISOString(),
         }),
         {
@@ -147,8 +147,8 @@ export default {
         );
       }
 
-      // 6. Chamada segura para a API do Google Gemini (gemini-2.5-flash)
-      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      // 6. Chamada segura para a API do Google Gemini (gemini-3.8-flash)
+      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
       const geminiResponse = await fetch(geminiEndpoint, {
         method: "POST",

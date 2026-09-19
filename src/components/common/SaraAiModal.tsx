@@ -593,18 +593,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     const trimmedText = userText.trim();
     if ((!trimmedText && !currentImg) || isThinking) return;
 
-    if (!GEMINI_API_KEY) {
-      const noKeyMsg: Message = {
-        id: `sara_${Date.now()}`,
-        sender: 'sara',
-        text: 'Erro de Configuração: A chave da API Gemini não foi encontrada. Por favor, configure a variável VITE_GEMINI_API_KEY no arquivo .env para ativar a Sara IA.',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, noKeyMsg]);
-      saveMessagesToStorage([...messages, noKeyMsg]);
-      return;
-    }
-
     const userMessageId = `user_${Date.now()}`;
     const saraMessageId = `sara_${Date.now()}`;
 
@@ -659,63 +647,84 @@ IMPORTANTE: Trate o usuário pelo nome real dele ("${userName}") durante a conve
 Responda em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
 Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais longas a cada mensagem.`;
 
-      const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
-
-      const response = await fetch(STREAM_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: contentsPayload,
-          system_instruction: {
-            parts: [{ text: systemInstructionText }]
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `Erro na API: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder('utf-8');
       let fullText = '';
 
-      if (reader) {
-        setIsThinking(false);
-        let buffer = '';
+      if (GEMINI_API_KEY) {
+        const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        const response = await fetch(STREAM_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: contentsPayload,
+            system_instruction: {
+              parts: [{ text: systemInstructionText }]
+            }
+          })
+        });
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error?.message || `Erro na API: ${response.status}`);
+        }
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const jsonString = line.replace('data: ', '').trim();
-              if (!jsonString) continue;
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder('utf-8');
 
-              try {
-                const parsed = JSON.parse(jsonString);
-                const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                if (chunkText) {
-                  fullText += chunkText;
+        if (reader) {
+          setIsThinking(false);
+          let buffer = '';
 
-                  setMessages(prev =>
-                    prev.map(msg =>
-                      msg.id === saraMessageId ? { ...msg, text: fullText } : msg
-                    )
-                  );
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const jsonString = line.replace('data: ', '').trim();
+                if (!jsonString) continue;
+
+                try {
+                  const parsed = JSON.parse(jsonString);
+                  const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                  if (chunkText) {
+                    fullText += chunkText;
+
+                    setMessages(prev =>
+                      prev.map(msg =>
+                        msg.id === saraMessageId ? { ...msg, text: fullText } : msg
+                      )
+                    );
+                  }
+                } catch (e) {
+                  // Parse parcial
                 }
-              } catch (e) {
-                // Parse parcial
               }
             }
           }
         }
+      } else {
+        // Sem chave pública no browser -> roteia pelo backend seguro /api/sara
+        const proxyRes = await fetch('/api/sara', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: contentsPayload,
+            system_instruction: {
+              parts: [{ text: systemInstructionText }]
+            },
+            userName,
+            userRole: currentUser?.role || 'Técnico'
+          })
+        });
+
+        const proxyData = await proxyRes.json();
+        fullText = proxyData.reply || proxyData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        setIsThinking(false);
       }
 
       if (!fullText) {

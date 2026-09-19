@@ -123,3 +123,5 @@ export interface AcademyLocalData {
     wasCorrect: boolean;
   }[];
 }
+
+export * from './assessment';
