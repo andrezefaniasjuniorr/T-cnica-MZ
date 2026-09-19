@@ -209,16 +209,11 @@ Responda de forma direta, clara, técnica e precisa em português de Moçambique
     });
   } catch (error: any) {
     console.error('Erro no endpoint /api/sara:', error?.message || error);
-    const errMsg = String(error?.message || '').toLowerCase();
-    const isHighDemand = errMsg.includes('503') || errMsg.includes('429') || errMsg.includes('overloaded') || errMsg.includes('alta demanda');
     
-    const fallbackText = isHighDemand
-      ? 'A Eng. Sara IA está no momento atendendo a um grande volume de consultas técnicas simultâneas. Por favor, aguarde alguns instantes e envie sua mensagem novamente.'
-      : 'Houve uma instabilidade temporária ao conectar com a Sara IA. Por favor, tente enviar sua pergunta novamente em instantes.';
+    const fallbackText = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
 
     return res.status(200).json({
       reply: fallbackText,
-      warning: 'Instabilidade ou alta demanda temporária.',
       candidates: [
         {
           content: {
@@ -298,8 +293,8 @@ O usuário atual é: ${userName || 'Usuário'} (${userRole || 'visitante'}).`;
   } catch (error: any) {
     console.error('Error in /api/sara/chat:', error);
     return res.status(200).json({
-      reply: 'A Eng. Sara IA está temporariamente sob alta demanda técnica de consultas. Por favor, tente novamente em alguns instantes.',
-      fallback: 'A Eng. Sara IA está temporariamente sob alta demanda técnica de consultas. Por favor, tente novamente em alguns instantes.'
+      reply: 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.',
+      fallback: 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.'
     });
   }
 });
@@ -362,8 +357,8 @@ Estruture em tópicos numerados:
   } catch (error: any) {
     console.error('Error in /api/sara/analyze-image:', error);
     return res.status(200).json({
-      analysis: 'A análise visual da Eng. Sara IA está temporariamente sob alta demanda de processamento. Por favor, envie a foto novamente em instantes.',
-      fallback: 'A análise visual da Eng. Sara IA está temporariamente sob alta demanda de processamento. Por favor, envie a foto novamente em instantes.'
+      analysis: 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.',
+      fallback: 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.'
     });
   }
 });

@@ -208,15 +208,14 @@ export default {
                 content: {
                   parts: [
                     {
-                      text: "A Eng. Sara IA está temporariamente com alta demanda de consultas técnicas simultâneas. Por favor, aguarde alguns segundos e envie novamente sua pergunta.",
+                      text: "Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.",
                     },
                   ],
                   role: "model",
                 },
               },
             ],
-            reply: "A Eng. Sara IA está temporariamente com alta demanda de consultas técnicas simultâneas. Por favor, aguarde alguns segundos e envie novamente sua pergunta.",
-            warning: "Serviço sobrecarregado (503/429) após 3 tentativas de reconexão automática.",
+            reply: "Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.",
           }),
           {
             status: 200,
@@ -236,14 +235,25 @@ export default {
           ...CORS_HEADERS,
         },
       });
-    } catch (err) {
+    } catch {
       return new Response(
         JSON.stringify({
-          error: "Erro no Proxy Serverless ao comunicar com a API do Gemini.",
-          details: err?.message || String(err),
+          reply: "Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.",
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: "Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.",
+                  },
+                ],
+                role: "model",
+              },
+            },
+          ],
         }),
         {
-          status: 500,
+          status: 200,
           headers: {
             "Content-Type": "application/json",
             ...CORS_HEADERS,

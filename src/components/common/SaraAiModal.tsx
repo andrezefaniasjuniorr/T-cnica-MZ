@@ -664,7 +664,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
       let fullText = '';
 
       if (GEMINI_API_KEY) {
-        // Tentativa de streaming direto no client com Retry e Exponential Backoff para 503/429
+        // Tentativa de streaming com resiliência e retentativas em segundo plano (silenciosas)
         const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
         let streamSuccess = false;
 
@@ -674,10 +674,6 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
 
           for (let attempt = 1; attempt <= 3; attempt++) {
             try {
-              if (attempt > 1) {
-                setThinkingStatus(`Alta demanda na rede. Reconectando à Sara IA (tentativa ${attempt} de 3)...`);
-              }
-
               const response = await fetch(STREAM_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -689,7 +685,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
                 })
               });
 
-              // Tratamento de alta demanda (503 / 429 / 500)
+              // Tratamento de alta demanda (503 / 429 / 500) com backoff silencioso
               if (response.status === 503 || response.status === 429 || response.status === 500) {
                 if (attempt < 3) {
                   const backoffMs = Math.min(800 * Math.pow(2, attempt - 1), 3000);
@@ -699,8 +695,7 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
               }
 
               if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error?.message || `Erro na API: ${response.status}`);
+                throw new Error('Falha temporária');
               }
 
               const reader = response.body?.getReader();
@@ -735,8 +730,8 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
                             )
                           );
                         }
-                      } catch (e) {
-                        // Parse parcial
+                      } catch {
+                        // Parse parcial de chunk
                       }
                     }
                   }
@@ -744,40 +739,43 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
                 streamSuccess = true;
                 break;
               }
-            } catch (streamErr: any) {
+            } catch {
               if (attempt < 3) {
                 await new Promise(r => setTimeout(r, 1000 * attempt));
-              } else {
-                console.warn(`[Sara IA] Tentativa com modelo ${modelName} falhou:`, streamErr?.message || streamErr);
               }
             }
           }
         }
       }
 
-      // Se não havia GEMINI_API_KEY no browser ou se o streaming direto não produziu texto:
+      // Roteamento resiliente via backend seguro caso o streaming direto não tenha retornado texto
       if (!fullText) {
-        // Roteia pelo backend seguro /api/sara com retry automático e resiliência a 503/429
-        const proxyRes = await fetch('/api/sara', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: contentsPayload,
-            system_instruction: {
-              parts: [{ text: systemInstructionText }]
-            },
-            userName,
-            userRole: currentUser?.role || 'Técnico'
-          })
-        });
+        try {
+          const proxyRes = await fetch('/api/sara', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: contentsPayload,
+              system_instruction: {
+                parts: [{ text: systemInstructionText }]
+              },
+              userName,
+              userRole: currentUser?.role || 'Técnico'
+            })
+          });
 
-        const proxyData = await proxyRes.json();
-        fullText = proxyData.reply || proxyData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (proxyRes.ok) {
+            const proxyData = await proxyRes.json().catch(() => ({}));
+            fullText = proxyData.reply || proxyData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          }
+        } catch {
+          // Erro silencioso; cairá no fallback amigável abaixo
+        }
         setIsThinking(false);
       }
 
       if (!fullText) {
-        fullText = `Olá, ${userName}. A Eng. Sara IA está temporariamente sob alta demanda técnica de atendimentos simultâneos. Por favor, aguarde alguns instantes e tente novamente.`;
+        fullText = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
       }
 
       const finalSaraMsg: Message = {
@@ -812,20 +810,13 @@ Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais
           console.warn('Erro ao salvar conversa no Firestore:', fireErr);
         }
       }
-    } catch (err: any) {
-      console.warn('Erro na conexão com a Sara IA:', err);
-      const isHighDemand = String(err?.message || '').toLowerCase().includes('503') ||
-        String(err?.message || '').toLowerCase().includes('429') ||
-        String(err?.message || '').toLowerCase().includes('overloaded');
-
-      const errorMsgText = isHighDemand
-        ? `Eng. Sara IA: No momento os servidores estão com alta demanda técnica de consultas simultâneas. Por favor, aguarde alguns instantes e clique para tentar novamente.`
-        : `Eng. Sara IA: Não foi possível obter a resposta técnica no momento. Detalhe: ${err.message || 'Verifique a conexão de rede.'}`;
+    } catch {
+      const friendlyErrorMsgText = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
 
       const finalErrorMsg: Message = {
         id: saraMessageId,
         sender: 'sara',
-        text: errorMsgText,
+        text: friendlyErrorMsgText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 

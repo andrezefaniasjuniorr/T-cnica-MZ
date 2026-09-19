@@ -1681,20 +1681,18 @@ Estruture seu Laudo Técnico com a seguinte formatação objetiva:
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Erro de comunicação com o servidor (${response.status})`);
+        throw new Error('Falha de conexão');
       }
 
       const data = await response.json();
       if (data.analysis) {
         setLaudo(data.analysis);
       } else {
-        throw new Error('A resposta da análise não retornou dados técnicos.');
+        throw new Error('Resposta sem dados');
       }
-    } catch (err: any) {
-      console.error('Erro na análise de imagem do quadro:', err);
+    } catch {
       setErroMsg(
-        err.message || 'Não foi possível completar a análise visual no momento. Verifique a conexão com a internet.'
+        'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.'
       );
     } finally {
       setAnalisando(false);

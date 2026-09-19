@@ -164,7 +164,7 @@ async function enviarMensagemSaraIA(textoManual) {
     } else if (data.text) {
       respostaTexto = data.text;
     } else {
-      throw new Error('Formato de resposta inesperado do modelo Gemini.');
+      throw new Error('Formato de resposta inesperado.');
     }
 
     // 6. Adiciona a resposta da Sara ao histórico contínuo para manter o contexto nas próximas mensagens
@@ -178,11 +178,10 @@ async function enviarMensagemSaraIA(textoManual) {
     renderizarBalaoChat(respostaTexto, 'sara');
 
     return respostaTexto;
-  } catch (erro) {
+  } catch {
     alternarIndicadorDigitando(false);
-    console.error('[Sara IA] Falha na comunicação com o Proxy:', erro);
 
-    const mensagemErro = `⚠️ Desculpe, não consegui obter a resposta no momento (${erro.message}). Por favor, verifique a sua conexão ou se a chave GEMINI_API_KEY está configurada no Proxy Serverless e tente novamente.`;
+    const mensagemErro = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
     
     renderizarBalaoChat(mensagemErro, 'sara');
     return null;
