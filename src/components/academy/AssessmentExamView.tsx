@@ -39,8 +39,6 @@ import {
 import {
   generateAssessmentPDF
 } from '../../utils/pdfAssessmentGenerator';
-import { CircuitDiagramViewer } from './CircuitDiagramViewer';
-import { CircuitBlockFlowViewer } from './CircuitBlockFlowViewer';
 
 export interface AssessmentExamViewProps {
   lesson: AcademyLesson;
@@ -379,20 +377,6 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
                 )}
               </div>
 
-              {/* Diagrama Vetorial SVG Integrado em Casos Técnicos */}
-              {q.diagramId && (
-                <div className="rounded-2xl overflow-hidden border border-slate-700/80 bg-[#0B132B]/80 shadow-md">
-                  <CircuitDiagramViewer
-                    diagramId={q.diagramId}
-                    lessonCode={currentExam.lessonCode}
-                    lessonTitle={q.diagramTitle || currentExam.lessonTitle}
-                    norma={q.norma}
-                    baseFontSize={baseFontSize}
-                    className=""
-                  />
-                </div>
-              )}
-
               {/* Enunciado */}
               <p className="text-xs sm:text-sm font-black text-white leading-relaxed">
                 {q.question}
@@ -522,40 +506,12 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
               <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-900/30 space-y-1.5">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>Cenário de Campo em Moçambique:</span>
+                  <span>Cenário Prático de Engenharia:</span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                   {dq.contextScenario}
                 </p>
               </div>
-
-              {/* Diagrama Esquemático quando aplicável */}
-              {dq.diagramId && (
-                <div className="rounded-2xl overflow-hidden border border-slate-700/80 bg-[#0B132B]/80 shadow-md">
-                  <CircuitDiagramViewer
-                    diagramId={dq.diagramId}
-                    lessonCode={currentExam.lessonCode}
-                    lessonTitle={dq.diagramTitle || currentExam.lessonTitle}
-                    norma={dq.norma}
-                    baseFontSize={baseFontSize}
-                    className=""
-                  />
-                </div>
-              )}
-
-              {/* Diagrama Interativo de Blocos/Fluxo quando envolver Comutação Four-Way/Three-Way */}
-              {((dq.question + ' ' + dq.contextScenario).toLowerCase().includes('four-way') ||
-                (dq.question + ' ' + dq.contextScenario).toLowerCase().includes('comutad') ||
-                (dq.question + ' ' + dq.contextScenario).toLowerCase().includes('escada') ||
-                (dq.question + ' ' + dq.contextScenario).includes('->')) && (
-                <div className="pt-1">
-                  <CircuitBlockFlowViewer
-                    rawText="four-way comutador cruzamento"
-                    topic="Simulador Funcional de Comutação Four-Way / Escada Intermediária"
-                    norma={dq.norma}
-                  />
-                </div>
-              )}
 
               {/* Enunciado do Desenvolvimento Geral */}
               <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
@@ -912,7 +868,7 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
           <p className="text-xs sm:text-sm text-slate-200 leading-relaxed text-center sm:text-left">
             {currentExam.isPassed
               ? `Parabéns, ${userName}! Você atingiu a proficiência mandatória na competência ${currentExam.lessonCode} segundo a norma ${currentExam.norma}. Sua folha oficial de avaliação foi autenticada com sucesso.`
-              : `Atenção, ${userName}. Para garantir a segurança e a conformidade nas instalações reais de Moçambique, a aprovação exige nota mínima de 80%. Não desanime! Uma nova reavaliação com perguntas totalmente inéditas está pronta para você.`}
+              : `Atenção, ${userName}. Para garantir a segurança e a conformidade nas instalações técnicas normatizadas, a aprovação exige nota mínima de 80%. Não desanime! Uma nova reavaliação com perguntas totalmente inéditas está pronta para você.`}
           </p>
 
           {/* BOTÕES DE AÇÃO: BAIXAR PDF, REAVALIAÇÃO OU CONCLUIR */}

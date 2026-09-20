@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
-import { TECHNICAL_CATEGORIES, MOZAMBIQUE_PROVINCES } from '../../types';
+import { TECHNICAL_CATEGORIES, MOZAMBIQUE_PROVINCES, CadCircuitProject } from '../../types';
 import { StoriesCarousel } from './StoriesCarousel';
 import { SeloMZModal } from '../common/SeloMZModal';
+import { CadCircuitPreviewCard } from './CadCircuitPreviewCard';
+import { CadSimulatorWorkbenchModal } from './CadSimulatorWorkbenchModal';
 import { compressImageToDataUrl } from '../../utils/imageUpload';
 import { soundFX } from '../../utils/audio';
 import { UserRankBadge } from '../../utils/gamification';
@@ -19,6 +21,7 @@ import {
   Phone,
   Send,
   Plus,
+  Zap,
   Image as ImageIcon,
   Tag,
   Search,
@@ -66,6 +69,14 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [isCadSimulatorOpen, setIsCadSimulatorOpen] = useState<boolean>(false);
+  const [activeCadCircuit, setActiveCadCircuit] = useState<CadCircuitProject | null>(null);
+
+  const handleOpenCadSimulator = (circuit?: CadCircuitProject | null) => {
+    soundFX.playClick();
+    setActiveCadCircuit(circuit || null);
+    setIsCadSimulatorOpen(true);
+  };
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isSeloModalOpen, setIsSeloModalOpen] = useState<boolean>(false);
   const [seloFeatureName, setSeloFeatureName] = useState<string>('Publicações no Mural');
@@ -211,19 +222,56 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     }
   };
 
-  // Filter posts
-  const filteredPosts = communityPosts.filter(post => {
-    const matchCategory = selectedCategory === 'all' || post.category === selectedCategory;
-    const term = (searchTerm || '').toLowerCase().trim();
-    const matchSearch =
-      !term ||
-      (post.title || '').toLowerCase().includes(term) ||
-      (post.content || '').toLowerCase().includes(term) ||
-      (post.authorName || '').toLowerCase().includes(term) ||
-      (post.tags && post.tags.some(t => (t || '').toLowerCase().includes(term)));
+  // Resolve CAD circuit for each post
+  const resolveCircuitForPost = (post: any): CadCircuitProject => {
+    if (post.circuitData) return post.circuitData;
+    const titleLower = (post.title || '').toLowerCase();
+    const contentLower = (post.content || '').toLowerCase();
+    if (
+      titleLower.includes('motor') ||
+      contentLower.includes('motor') ||
+      titleLower.includes('contator') ||
+      titleLower.includes('botoeira') ||
+      post.category === 'Comandos Elétricos'
+    ) {
+      return {
+        title: post.title || 'Partida Direta de Motor Trifásico (IEC 60947)',
+        category: 'Comandos Elétricos',
+        norma: 'IEC 60947-4-1',
+        description: post.content,
+        allowTesting: true,
+        circuitType: 'direct_motor'
+      };
+    }
+    if (
+      titleLower.includes('four-way') ||
+      titleLower.includes('three-way') ||
+      titleLower.includes('cruzamento') ||
+      titleLower.includes('comutad') ||
+      titleLower.includes('ilumina') ||
+      post.category === 'Instalações Elétricas'
+    ) {
+      return {
+        title: post.title || 'Comutação Four-Way / Three-Way (IEC 60364)',
+        category: 'Instalações Elétricas',
+        norma: 'IEC 60364',
+        description: post.content,
+        allowTesting: true,
+        circuitType: 'four_way'
+      };
+    }
+    return {
+      title: post.title || 'Quadro de Distribuição QGD com IDR 30mA',
+      category: post.category || 'Proteção & Aterramento',
+      norma: 'IEC 60364',
+      description: post.content,
+      allowTesting: true,
+      circuitType: 'qgd_protection'
+    };
+  };
 
-    return matchCategory && matchSearch;
-  });
+  // Filter posts (fallback or full feed)
+  const filteredPosts = communityPosts;
 
   const formatDate = (isoString: string) => {
     try {
@@ -245,15 +293,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
             className="w-full h-40 sm:h-52 md:h-64 object-cover object-center"
             referrerPolicy="no-referrer"
           />
-          {/* Subtle gradient only at bottom-right corner for high-contrast compact action */}
+          {/* Action Button: ⚡ Criar no Simulador CAD */}
           <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-2">
             <button
-              onClick={handleOpenCreatePost}
-              className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-blue-600/90 hover:bg-blue-600 text-white font-bold rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-900/40 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
-              title="Criar nova publicação no mural"
+              onClick={() => handleOpenCadSimulator()}
+              className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
+              title="Abrir a bancada de simulação de circuitos CAD"
             >
-              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-              <span>Publicar no Mural</span>
+              <Zap className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
+              <span>⚡ Criar no Simulador CAD</span>
             </button>
           </div>
         </div>
@@ -262,87 +310,28 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
           {/* Main Feed Column */}
           <div className="lg:col-span-8 space-y-6">
-            {/* Stories / Status 24h Carousel */}
+            {/* Stories / Status 24h Carousel (Preservado Intacto) */}
             <div className="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-xl">
               <StoriesCarousel />
-            </div>
-
-            {/* Filters and Search Bar */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    placeholder="Pesquisar por assunto, técnica, esquema, inversor ou autor..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-indigo-500 focus:bg-white transition"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedCategory}
-                    onChange={e => setSelectedCategory(e.target.value)}
-                    className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="all">Todas as Áreas Técnicas</option>
-                    {TECHNICAL_CATEGORIES.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Quick Category Chips */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
-                <button
-                  onClick={() => setSelectedCategory('all')}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition ${
-                    selectedCategory === 'all'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Todos ({communityPosts.length})
-                </button>
-                {TECHNICAL_CATEGORIES.slice(0, 6).map(cat => {
-                  const count = communityPosts.filter(p => p.category === cat).length;
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition ${
-                        selectedCategory === cat
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {cat} {count > 0 && `(${count})`}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Posts List */}
             <div className="space-y-6">
           {filteredPosts.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-xs space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
-                <MessageSquare className="w-8 h-8" />
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                <Zap className="w-8 h-8 text-blue-600" />
               </div>
-              <h3 className="text-lg font-black text-slate-800">Nenhuma publicação encontrada</h3>
+              <h3 className="text-lg font-black text-slate-800">Nenhum circuito publicado ainda</h3>
               <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Seja o primeiro a compartilhar uma experiência técnica, dica de instalação ou dúvida com os profissionais de Moçambique!
+                Abra a bancada de simulação CAD para desenhar seu primeiro circuito esquemático e compartilhá-lo no mural técnico!
               </p>
               <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs inline-flex items-center gap-2"
+                onClick={() => handleOpenCadSimulator()}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-xs inline-flex items-center gap-2 cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>Criar Publicação</span>
+                <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                <span>⚡ Abrir Simulador CAD</span>
               </button>
             </div>
           ) : (
@@ -368,6 +357,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
               const postDisplayProvince = isPostAuthor ? (currentUser?.province || post.authorProvince || 'Moçambique') : (post.authorProvince || 'Moçambique');
               const postDisplaySpecialty = isPostAuthor ? (currentUser?.specialty || currentUser?.specialties?.[0] || post.authorSpecialty) : post.authorSpecialty;
               const postWhatsappNumber = isPostAuthor ? (currentUser?.whatsapp || currentUser?.phone || post.authorWhatsapp) : post.authorWhatsapp;
+              const postCircuit = resolveCircuitForPost(post);
 
               return (
                 <article
@@ -387,8 +377,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                     </div>
                   )}
 
-                  <div className="p-6 sm:p-8 space-y-5">
-                    {/* Author Header */}
+                  <div className="p-5 sm:p-7 space-y-5">
+                    {/* a) Cabeçalho do Técnico (Foto, Nome e Titulação) */}
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3.5">
                         <UserAvatar
@@ -444,7 +434,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                           </span>
                         )}
 
-                        <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+                        <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
                           {post.category}
                         </span>
 
@@ -455,7 +445,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                                 deleteCommunityPost(post.id);
                               }
                             }}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
                             title="Excluir Publicação"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -464,8 +454,18 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                       </div>
                     </div>
 
-                    {/* Post Content */}
-                    <div className="space-y-3">
+                    {/* b) Área do Diagrama CAD (Preview visual interativo do circuito projetado) */}
+                    {postCircuit && (
+                      <div className="pt-1">
+                        <CadCircuitPreviewCard
+                          circuit={postCircuit}
+                          onTestCircuit={() => handleOpenCadSimulator(postCircuit)}
+                        />
+                      </div>
+                    )}
+
+                    {/* c) Descrição / Legenda técnica do circuito */}
+                    <div className="space-y-2.5">
                       <h2 className="text-base sm:text-lg font-black text-slate-900 leading-snug">
                         {post.title}
                       </h2>
@@ -489,20 +489,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                       </div>
                     )}
 
-                    {/* Post Images Gallery */}
-                    {post.images && post.images.length > 0 && (
-                      <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 max-h-96">
-                        <img
-                          src={post.images[0]}
-                          alt={post.title}
-                          className="w-full h-full object-cover max-h-96 hover:scale-[1.01] transition duration-200"
-                        />
-                      </div>
-                    )}
-
-                    {/* Action Bar (Reactions, Comments, WhatsApp Contact) */}
+                    {/* Action Bar (Reactions, Test Circuit, Comments, WhatsApp Contact) */}
                     <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                      {/* Technical Reaction Buttons */}
+                      {/* e) Botões de interação técnica (Curtir) */}
                       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         {/* 1. Useful / Prático */}
                         <button
@@ -510,7 +499,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                             soundFX.playLike();
                             togglePostReaction(post.id, 'useful');
                           }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                             hasUseful
                               ? 'bg-amber-100 text-amber-800 border border-amber-300 font-black'
                               : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -532,7 +521,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                             soundFX.playLike();
                             togglePostReaction(post.id, 'insightful');
                           }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                             hasInsightful
                               ? 'bg-blue-100 text-blue-800 border border-blue-300 font-black'
                               : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -554,7 +543,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                             soundFX.playLike();
                             togglePostReaction(post.id, 'applause');
                           }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                             hasApplause
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-black'
                               : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -569,35 +558,23 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                             </span>
                           )}
                         </button>
-
-                        {/* 4. Question / Dúvida */}
-                        <button
-                          onClick={() => {
-                            soundFX.playLike();
-                            togglePostReaction(post.id, 'question');
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
-                            hasQuestion
-                              ? 'bg-purple-100 text-purple-800 border border-purple-300 font-black'
-                              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-                          }`}
-                          title="Tenho uma dúvida sobre isso"
-                        >
-                          <HelpCircle className={`w-3.5 h-3.5 ${hasQuestion ? 'text-purple-600' : 'text-slate-500'}`} />
-                          <span>Dúvida</span>
-                          {questionCount > 0 && (
-                            <span className="ml-1 px-1.5 py-0.2 bg-white/80 rounded-full text-[10px]">
-                              {questionCount}
-                            </span>
-                          )}
-                        </button>
                       </div>
 
-                      {/* Right: Comments Toggle & Direct Contact */}
-                      <div className="flex items-center gap-2">
+                      {/* Right: d) Botão de Ação Destacado: "⚡ Testar Circuito", Comments & Contact */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCadSimulator(postCircuit)}
+                          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs transition flex items-center gap-1.5 shadow-md shadow-blue-900/30 cursor-pointer active:scale-95"
+                          title="Carregar e testar o circuito na bancada CAD interativa"
+                        >
+                          <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300 animate-pulse" />
+                          <span>⚡ Testar Circuito</span>
+                        </button>
+
                         <button
                           onClick={() => setActiveCommentPostId(isCommentOpen ? null : post.id)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <MessageSquare className="w-3.5 h-3.5 text-slate-600" />
                           <span>Comentários ({post.commentsCount || 0})</span>
@@ -606,7 +583,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                         {postWhatsappNumber && (
                           <a
                             href={`https://wa.me/${(postWhatsappNumber || '').replace(/\D/g, '')}?text=${encodeURIComponent(
-                              `Olá ${postDisplayName}, vi a sua publicação no Mural Técnico da TécnicaMZ ("${post.title}") e gostaria de conversar.`
+                              `Olá ${postDisplayName}, vi o seu circuito técnico no Mural da TécnicaMZ ("${post.title}") e gostaria de conversar.`
                             )}`}
                             target="_blank"
                             rel="noreferrer"
@@ -1199,6 +1176,30 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
         }}
         featureName={seloFeatureName}
       />
+
+      {/* Bancada CAD de Simulação Interativa */}
+      {isCadSimulatorOpen && (
+        <CadSimulatorWorkbenchModal
+          isOpen={isCadSimulatorOpen}
+          onClose={() => {
+            setIsCadSimulatorOpen(false);
+            setActiveCadCircuit(null);
+          }}
+          initialCircuit={activeCadCircuit}
+          onPublishCircuit={async (circuitData, publishDetails) => {
+            await addCommunityPost({
+              title: publishDetails.title,
+              content: publishDetails.description,
+              category: publishDetails.category,
+              tags: publishDetails.tags,
+              circuitData: circuitData,
+              isCircuitProject: true
+            });
+          }}
+          currentUser={currentUser}
+          temSeloMZ={temSeloMZ}
+        />
+      )}
     </div>
   );
 };

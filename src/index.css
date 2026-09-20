@@ -227,6 +227,25 @@ html, body {
     background: #ffffff !important;
     color: #0f172a !important;
   }
+
+  /* Prevenção rigorosa de corte no meio de blocos técnicos (break-inside: avoid) */
+  .assessment-card,
+  .exam-question-card,
+  .exam-section-card,
+  .print-avoid-break,
+  .assessment-sheet,
+  article,
+  figure {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: auto;
+  }
+
+  /* Elimina sobreposição de linhas e corte de margem na impressão */
+  p, h1, h2, h3, h4, span, div {
+    orphans: 3;
+    widows: 3;
+  }
 }
 
 /* =========================================================================

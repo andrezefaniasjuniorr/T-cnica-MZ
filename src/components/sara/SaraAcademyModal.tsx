@@ -46,6 +46,7 @@ import { soundFX } from '../../utils/audio';
 import { useModalHistory } from '../../utils/modalHistory';
 import { FontScaleControl, useAcademyFontScale } from '../academy/FontScaleControl';
 import { CircuitDiagramViewer } from '../academy/CircuitDiagramViewer';
+import { CircuitBlockFlowViewer } from '../academy/CircuitBlockFlowViewer';
 import { SaraDailyHacksFeed } from '../academy/SaraDailyHacksFeed';
 import { AssessmentExamView } from '../academy/AssessmentExamView';
 
@@ -753,6 +754,22 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* DIAGRAMA INTERATIVO / SIMULAÇÃO DE FLUXO & COMUTADORES (SE APLICÁVEL) */}
+              {((selectedLesson.title + ' ' + selectedLesson.theory.conceito + ' ' + selectedLesson.theory.funcionamento).toLowerCase().includes('comutad') ||
+                (selectedLesson.title + ' ' + selectedLesson.theory.conceito + ' ' + selectedLesson.theory.funcionamento).toLowerCase().includes('four-way') ||
+                (selectedLesson.title + ' ' + selectedLesson.theory.conceito + ' ' + selectedLesson.theory.funcionamento).toLowerCase().includes('three-way') ||
+                (selectedLesson.title + ' ' + selectedLesson.theory.conceito + ' ' + selectedLesson.theory.funcionamento).toLowerCase().includes('escada') ||
+                (selectedLesson.theory.funcionamento.includes('->'))) && (
+                <div className="pt-1">
+                  <CircuitBlockFlowViewer
+                    rawText={selectedLesson.theory.funcionamento}
+                    topic={selectedLesson.title}
+                    norma={selectedLesson.norma}
+                    baseFontSize={fontSize}
+                  />
+                </div>
+              )}
 
               {/* PONTOS OPERACIONAIS DE CAMPO (SE DISPONÍVEIS) */}
               {selectedLesson.theory.pontosOperacionais && selectedLesson.theory.pontosOperacionais.length > 0 && (

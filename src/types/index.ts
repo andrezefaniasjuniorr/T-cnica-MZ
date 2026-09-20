@@ -612,6 +612,36 @@ export interface CommunityComment {
   createdAt: string;
 }
 
+export interface CadCircuitComponent {
+  id: string;
+  type: string;
+  label: string;
+  tag?: string;
+  state?: any;
+  params?: Record<string, any>;
+}
+
+export interface CadCircuitProject {
+  id?: string;
+  title: string;
+  category: string;
+  norma?: string;
+  description?: string;
+  allowTesting?: boolean;
+  circuitType: 'direct_motor' | 'four_way' | 'qgd_protection' | 'solar_system' | 'custom' | string;
+  components?: CadCircuitComponent[];
+  initialState?: Record<string, any>;
+  tags?: string[];
+  createdAt?: string;
+  cadData?: {
+    version: number;
+    name: string;
+    components: any[];
+    wires: any[];
+    updated?: number;
+  };
+}
+
 export interface CommunityPost {
   id: string;
   authorId: string;
@@ -626,6 +656,8 @@ export interface CommunityPost {
   category: string;
   tags?: string[];
   images?: string[];
+  circuitData?: CadCircuitProject;
+  isCircuitProject?: boolean;
   solucaoAceita?: boolean;
   comentarioSolucaoId?: string;
   reactions: {

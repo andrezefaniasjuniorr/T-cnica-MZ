@@ -49,10 +49,8 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
       {
         id: 'elec_ec1_mc1',
         type: 'multiple_choice',
-        question: 'Um aquecedor industrial de água em Moçambique opera sob tensão nominal de 230 V monofásico 50 Hz consumindo 10 A de corrente nominal em regime contínuo. Ao medir a resistência da resistência desligada em bancada, qual valor ôhmico teórico deve ser obtido segundo a 1ª Lei de Ohm?',
-        scenario: 'Manutenção preventiva em boiler industrial de 2,3 kW em Maputo.',
-        diagramId: 'distribution_board_qgd',
-        diagramTitle: 'Quadro Geral de Alimentação da Carga Resistiva',
+        question: 'Um aquecedor industrial de água opera sob tensão nominal de 230 V monofásico 50 Hz consumindo 10 A de corrente nominal em regime contínuo. Ao medir a resistência da resistência desligada em bancada, qual valor ôhmico teórico deve ser obtido segundo a 1ª Lei de Ohm?',
+        scenario: 'Manutenção preventiva em termoacumulador/boiler industrial de 2,3 kW em instalação fabril.',
         norma: 'IEC 60038 / IEC 60364-1',
         points: 20,
         explanation: 'Pela 1ª Lei de Ohm: R = V / I = 230 V / 10 A = 23 Ω.',
@@ -67,8 +65,8 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
       {
         id: 'elec_ec1_mc2',
         type: 'multiple_choice',
-        question: 'Em uma linha alimentadora em Moçambique de 100 metros de comprimento em condutores de cobre (resistividade ρ = 0,0225 Ω·mm²/m a 70°C), qual é a consequência técnica imediata do aumento excessivo da temperatura ambiente (ex: 42°C em Tete) sobre a resistência elétrica dos cabos?',
-        scenario: 'Dimensionamento de alimentador externo sob sol escaldante na província de Tete.',
+        question: 'Em uma linha alimentadora de 100 metros de comprimento em condutores de cobre (resistividade ρ = 0,0225 Ω·mm²/m a 70°C), qual é a consequência técnica imediata do aumento excessivo da temperatura ambiente (ex: 42°C em área fabril quente) sobre a resistência elétrica dos cabos?',
+        scenario: 'Dimensionamento de alimentador externo sob exposição solar severa em instalação industrial.',
         norma: 'IEC 60364-5-52',
         points: 20,
         explanation: 'O cobre tem coeficiente de temperatura positivo (α = +0,00393/°C). O aumento da temperatura eleva a resistividade ρ, aumentando a resistência ôhmica total do cabo e agravando a queda de tensão.',
@@ -77,14 +75,14 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
           { id: 'opt_1', text: 'A resistência ôhmica diminui, facilitando a condução de elétrons livres.', isCorrect: false, feedback: 'Incorreto. Em condutores metálicos como o cobre, o aquecimento aumenta a vibração da rede cristalina e eleva a resistência.' },
           { id: 'opt_2', text: 'A resistência ôhmica se eleva, provocando maior queda de tensão (ΔU) e perdas Joule no alimentador.', isCorrect: true, feedback: 'Correto! Coeficiente térmico positivo do cobre eleva R e agrava a queda de tensão.' },
           { id: 'opt_3', text: 'A resistência permanece constante, pois depende apenas da seção transversal em milímetros quadrados.', isCorrect: false, feedback: 'Incorreto. A resistência depende de R = ρ·(L/S), e a resistividade ρ varia fortemente com a temperatura.' },
-          { id: 'opt_4', text: 'A tensão da rede pública da EDM dobra automaticamente para compensar a dissipação.', isCorrect: false, feedback: 'Incorreto. A tensão da concessionária é independente do aquecimento pontual da fiação interna.' }
+          { id: 'opt_4', text: 'A tensão da rede pública dobra automaticamente para compensar a dissipação.', isCorrect: false, feedback: 'Incorreto. A tensão da concessionária é independente do aquecimento pontual da fiação interna.' }
         ]
       },
       {
         id: 'elec_ec1_mc3',
         type: 'multiple_choice',
         question: 'Segundo as normas de segurança IEC 61010, qual procedimento de medição com multímetro digital em bancada causará queima catastrófica do fusível interno ou do aparelho?',
-        scenario: 'Aferição de grandezas elétricas no quadro geral por eletricista recém-admitido.',
+        scenario: 'Aferição de grandezas elétricas no quadro geral por eletricista em treinamento.',
         norma: 'IEC 61010-1',
         points: 20,
         explanation: 'Tentar medir resistência (escala de Ohms) ou continuidade com o circuito energizado coloca a fonte de tensão diretamente sobre a ponte de medição interna de baixa impedância do multímetro.',
@@ -119,8 +117,6 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         type: 'multiple_choice',
         question: 'Segundo o triângulo de potências da IEC 60027, quando alimentamos uma carga indutiva (motor elétrico de indução), qual relação trigonométrica define a Potência Aparente (S, em kVA)?',
         scenario: 'Reavaliação: Cargas reativas e correção do fator de potência industrial.',
-        diagramId: 'direct_motor_starter',
-        diagramTitle: 'Esquema de Partida de Motor de Indução Trifásico',
         norma: 'IEC 60027',
         points: 20,
         explanation: 'A potência aparente S é a hipotenusa do triângulo de potências: S = √(P² + Q²), onde P é a potência ativa em kW e Q é a potência reativa em kvar.',
@@ -135,10 +131,8 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
       {
         id: 'elec_ec1_mc6_var',
         type: 'multiple_choice',
-        question: 'Em uma instalação trifásica equilibrada a quatro fios (3F+N) em Moçambique com 400 V entre fases e 230 V entre qualquer fase e o condutor neutro, qual deve ser a corrente teórica circulando pelo condutor neutro em condições ideais de equilíbrio de cargas?',
+        question: 'Em uma instalação trifásica equilibrada a quatro fios (3F+N) com 400 V entre fases e 230 V entre qualquer fase e o condutor neutro, qual deve ser a corrente teórica circulando pelo condutor neutro em condições ideais de equilíbrio de cargas?',
         scenario: 'Reavaliação: Balanceamento de fases no barramento principal.',
-        diagramId: 'distribution_board_qgd',
-        diagramTitle: 'Barramento Tetrapolar QGD - Distribuição Equilibrada',
         norma: 'IEC 60364-1',
         points: 20,
         explanation: 'Pela 1ª Lei de Kirchhoff (Lei dos Nós), a soma fasorial das correntes em um sistema trifásico equilibrado com defasagem angular de 120° é nula: I_N = I_L1 + I_L2 + I_L3 = 0 A.',
@@ -157,13 +151,11 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         type: 'descriptive',
         title: 'Diagnóstico de Queda de Tensão Crítica em Bomba Submersível de 1,5 kW',
         question: 'Explique passo a passo o procedimento técnico de diagnóstico de queda de tensão em campo. Indique quais medições você deve executar, com qual instrumento, a fórmula da queda de tensão (ΔU), e justifique a solução normativa de aumento de seção de condutor segundo a IEC 60364.',
-        contextScenario: 'Um agricultor em Boane relata que sua eletrobomba submersível monofásica de 230V 1,5 kW (9,5 A nominais), localizada a 110 metros do quadro elétrico principal, desliga misteriosamente após alguns minutos de funcionamento nos horários de pico.',
-        diagramId: 'water_pump_automation',
-        diagramTitle: 'Diagrama Unifilar do Circuito Alimentador da Eletrobomba',
+        contextScenario: 'Um operador de instalação fabril relata que sua eletrobomba submersível monofásica de 230V 1,5 kW (9,5 A nominais), localizada a 110 metros do quadro elétrico principal, desliga após alguns minutos de funcionamento nos horários de pico.',
         norma: 'IEC 60364-5-52 / IEC 60038',
         expectedKeywords: ['queda de tensão', 'multímetro', 'tensão nos bornes', 'seção do cabo', 'resistência', 'efeito joule', 'relé térmico'],
         points: 40,
-        guidelineAnswer: 'Procedimento correto: 1) Medir a tensão no quadro geral (230 V) e nos bornes do motor durante a partida e em operação contínua com multímetro True-RMS. 2) Se a tensão na bomba cair para menos de 218 V (queda > 5% limite da IEC), o motor drena sobrecorrente para manter a potência mecânica, superaquecendo as bobinas e disparando o protetor térmico. 3) Calcular a resistência do condutor R = 2·ρ·(L/S). 4) Substituir o condutor subdimensionado (ex: 1,5 mm²) por seção adequada (mínimo 4 mm² ou 6 mm²), reduzindo a resistência de loop para restabelecer a tensão dentro da faixa nominal da EDM (230 V ± 10%).',
+        guidelineAnswer: 'Procedimento correto: 1) Medir a tensão no quadro geral (230 V) e nos bornes do motor durante a partida e em operação contínua com multímetro True-RMS. 2) Se a tensão na bomba cair para menos de 218 V (queda > 5% limite da IEC), o motor drena sobrecorrente para manter a potência mecânica, superaquecendo as bobinas e disparando o protetor térmico. 3) Calcular a resistência do condutor R = 2·ρ·(L/S). 4) Substituir o condutor subdimensionado (ex: 1,5 mm²) por seção adequada (mínimo 4 mm² ou 6 mm²), reduzindo a resistência de loop para restabelecer a tensão dentro da faixa nominal regulamentar (230 V ± 10%).',
         rubricCriteria: [
           { criterion: 'Identificação da causa raiz: Queda de tensão excessiva na linha de 110m provocando sobrecorrente e desarme térmico.', weightPercent: 35 },
           { criterion: 'Procedimento metrológico de medição nos bornes com carga e circuito energizado via multímetro.', weightPercent: 25 },
@@ -177,9 +169,7 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         type: 'descriptive',
         title: 'Reavaliação: Superaquecimento de Linha por Efeito Joule e Sobrecarga Térmica',
         question: 'Descreva a fundamentação física do Efeito Joule (P = R·I²) em cabos elétricos. Quais são os riscos normativos de instalar um cabo com bitola inferior à capacidade de corrente calculada? Detalhe 3 verificações operacionais indispensáveis antes de liberar a instalação.',
-        contextScenario: 'Durante vistoria técnica em um armazém frigorífico em Nacala, o técnico detecta canaletas plásticas deformadas pelo calor excessivo de cabos de 2,5 mm² alimentando motores de compressores que drenam 22 A continuamente.',
-        diagramId: 'distribution_board_qgd',
-        diagramTitle: 'Esquema de Alimentadores e Proteção Termomagnética',
+        contextScenario: 'Durante vistoria técnica em um entreposto frigorífico industrial, o técnico detecta canaletas plásticas deformadas pelo calor excessivo de cabos de 2,5 mm² alimentando motores de compressores que drenam 22 A continuamente.',
         norma: 'IEC 60364-4-43 / IEC 60364-5-52',
         expectedKeywords: ['efeito joule', 'degradação do isolamento', 'capacidade de condução', 'disjuntor', 'temperatura', 'seção transversal'],
         points: 40,
@@ -201,10 +191,8 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
       {
         id: 'elec_ec3_mc1',
         type: 'multiple_choice',
-        question: 'Em regiões com elevado índice isoceráunico em Moçambique (como Tete, Zambézia e Niassa), qual é a configuração recomendada de Descarregadores de Sobretensão (DPS) na entrada de um edifício alimentado por linha aérea segundo a IEC 60364-5-53?',
-        scenario: 'Projeto de proteção atmosférica para edifício comercial em Tete.',
-        diagramId: 'distribution_board_qgd',
-        diagramTitle: 'Quadro Geral com Disposição de DPS Classe I+II e Barramento BEP',
+        question: 'Em regiões com elevado índice isoceráunico e alta incidência de tempestades elétricas, qual é a configuração recomendada de Descarregadores de Sobretensão (DPS) na entrada de um edifício alimentado por linha aérea segundo a IEC 60364-5-53?',
+        scenario: 'Projeto de proteção contra sobretensões para edifício corporativo.',
         norma: 'IEC 61643-11 / IEC 60364-5-53',
         points: 20,
         explanation: 'Linhas aéreas expostas exigem DPS Classe I (capaz de drenar correntes parciais de raio em onda 10/350 μs) no quadro principal, associado a DPS Classe II (onda 8/20 μs) nos quadros de distribuição.',
@@ -221,8 +209,6 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         type: 'multiple_choice',
         question: 'Segundo a IEC 60364-5-53, qual é o comprimento máximo recomendado para a soma das conexões do condutor do DPS (fase até o DPS + DPS até o barramento de terra PE)?',
         scenario: 'Instalação de DPS em trilho DIN no interior do quadro elétrico.',
-        diagramId: 'distribution_board_qgd',
-        diagramTitle: 'Regra dos 50 cm: Conexão Ultracurta dos Condutores de DPS',
         norma: 'IEC 60364-5-53',
         points: 20,
         explanation: 'A indutância do condutor (L ≈ 1 μH/m) gera uma queda de tensão indutiva L·(di/dt) gigantesca durante o surto rápido. O comprimento total das conexões deve ser ≤ 0,5 m (50 cm).',
@@ -231,7 +217,7 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
           { id: 'opt_1', text: 'Máximo de 50 cm (0,5 metro) para minimizar a impedância indutiva (L·di/dt).', isCorrect: true, feedback: 'Correto! A regra dos 50 cm evita sobretensões adicionais causadas pela indutância dos fios longos.' },
           { id: 'opt_2', text: 'Mínimo de 3 metros para amortecer o choque elétrico.', isCorrect: false, feedback: 'Incorreto. Fios compridos aumentam a indutância e invalidam a proteção do DPS.' },
           { id: 'opt_3', text: 'Qualquer comprimento, desde que o cabo seja verde-amarelo.', isCorrect: false, feedback: 'Incorreto. O comprimento físico é determinante na proteção contra surtos.' },
-          { id: 'opt_4', text: 'Exatamente 1,2 metros segundo o código predial da EDM.', isCorrect: false, feedback: 'Incorreto. A norma internacional fixa o limite estrito em 0,5 m.' }
+          { id: 'opt_4', text: 'Exatamente 1,2 metros segundo o código predial local.', isCorrect: false, feedback: 'Incorreto. A norma internacional fixa o limite estrito em 0,5 m.' }
         ]
       },
       {
@@ -257,8 +243,6 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         type: 'multiple_choice',
         question: 'Em um sistema de aterramento do tipo TT (onde as massas da instalação são ligadas a um elétrodo de terra independente do neutro do transformador), qual configuração de DPS (conexão 1+1 ou 3+1) deve ser utilizada segundo a IEC 60364-5-53?',
         scenario: 'Reavaliação: Esquemas de aterramento e conexão CT2 de DPS.',
-        diagramId: 'earthing_systems',
-        diagramTitle: 'Esquema de Aterramento TT e Conexão de DPS',
         norma: 'IEC 60364-5-53',
         points: 20,
         explanation: 'No esquema TT, usa-se a configuração 3+1 (ou 1+1 em monofásico): DPSs de varistor entre as fases e o neutro, e um centelhador a gás (GDT) de alta robustez entre o neutro e a terra (PE).',
@@ -296,7 +280,7 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         explanation: 'O nível de proteção Up do DPS deve ser inferior à tensão suportável de impulso (Uw) dos equipamentos sensíveis (ex: para equipamentos eletrônicos Categoria I/II, Uw = 1,5 kV; logo, Up do DPS deve ser ≤ 1,5 kV).',
         keyTakeaway: 'Up do DPS deve ser menor que o Uw (tensão suportável de impulso) dos equipamentos.',
         options: [
-          { id: 'opt_v1', text: 'Com a tensão nominal de operação da concessionária EDM (230 V).', isCorrect: false, feedback: 'Incorreto. A tensão nominal é a tensão de rede, não a tensão de impulso.' },
+          { id: 'opt_v1', text: 'Com a tensão nominal de operação da rede elétrica (230 V).', isCorrect: false, feedback: 'Incorreto. A tensão nominal é a tensão de rede, não a tensão de impulso.' },
           { id: 'opt_v2', text: 'Com a tensão suportável de impulso (Uw) dos equipamentos eletrônicos sensíveis.', isCorrect: true, feedback: 'Exato! Up < Uw garante que a tensão residual não destrua os circuitos eletrônicos.' },
           { id: 'opt_v3', text: 'Com a corrente de curto-circuito do disjuntor de entrada.', isCorrect: false, feedback: 'Incorreto. Up é uma grandeza de tensão (Volts/kV).' },
           { id: 'opt_v4', text: 'Com o tempo de atuação do diferencial residual de 30 mA.', isCorrect: false, feedback: 'Incorreto.' }
@@ -308,10 +292,8 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         id: 'elec_ec3_desc1',
         type: 'descriptive',
         title: 'Plano de Proteção Contra Raios e Surtos em Estação de Telecomunicações',
-        question: 'Você foi contratado para projetar a proteção contra sobretensões transitórias em uma torre de telecomunicações no interior de Nampula que sofreu queima repetida de placas de inversores e retificadores durante tempestades. Descreva detalhadamente a topologia de DPS recomendada (Classes I, II e III), o esquema de equipotencialização no BEP e a regra física de roteamento dos cabos de terra.',
-        contextScenario: 'Instalação isolada no topo de elevação rochosa em Nampula com linha aérea de média/baixa tensão exposta e histórico de 3 queimas catastróficas na última estação chuvosa.',
-        diagramId: 'solar_pv_system',
-        diagramTitle: 'Esquema de Equipotencialização e Proteção DPS em Telecom',
+        question: 'Você foi contratado para projetar a proteção contra sobretensões transitórias em uma estação de telecomunicações isolada que sofreu queima repetida de placas de inversores e retificadores durante tempestades. Descreva detalhadamente a topologia de DPS recomendada (Classes I, II e III), o esquema de equipotencialização no BEP e a regra física de roteamento dos cabos de terra.',
+        contextScenario: 'Instalação técnica isolada no topo de elevação rochosa com linha aérea de média/baixa tensão exposta e histórico de 3 queimas catastróficas na última estação chuvosa.',
         norma: 'IEC 62305 / IEC 61643-11',
         expectedKeywords: ['dps classe i', 'dps classe ii', 'barramento de equipotencialização', 'bep', 'regra dos 50 cm', 'varistor', 'centelhador', 'aterramento'],
         points: 40,
@@ -328,10 +310,8 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         id: 'elec_ec3_desc2_var',
         type: 'descriptive',
         title: 'Reavaliação: Auditoria de Instalação de DPS e Não Conformidades de Campo',
-        question: 'Durante uma auditoria técnica em uma indústria têxtil na Beira, você encontra DPS instalados com cabos de conexão de 1,4 metros de comprimento formando voltas dentro da canaleta plástica. Justifique por que essa instalação NÃO cumpre a IEC 60364-5-53 e explique a consequência matemática da indutância (V = L·di/dt) sobre a proteção das máquinas.',
+        question: 'Durante uma auditoria técnica em uma fábrica industrial, você encontra DPS instalados com cabos de conexão de 1,4 metros de comprimento formando voltas dentro da canaleta plástica. Justifique por que essa instalação NÃO cumpre a IEC 60364-5-53 e explique a consequência matemática da indutância (V = L·di/dt) sobre a proteção das máquinas.',
         contextScenario: 'Auditoria elétrica pós-incêndio em quadro de comando de teares industriais que sofreram falha catastrófica apesar de terem DPS instalados.',
-        diagramId: 'distribution_board_qgd',
-        diagramTitle: 'Auditoria de Conexões em QGD Industrial',
         norma: 'IEC 60364-5-53',
         expectedKeywords: ['indutância', 'comprimento dos cabos', 'regra dos 50 cm', 'queda de tensão indutiva', 'nível de proteção up', 'iec 60364-5-53'],
         points: 40,
@@ -355,8 +335,6 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         type: 'multiple_choice',
         question: 'No sistema internacional de ajustes e tolerâncias ISO 286, o que define a designação de acoplamento Ø50 H7/g6?',
         scenario: 'Ajuste mecânico de rolamento em eixo de ventilador de exaustão industrial.',
-        diagramId: 'hydraulic_circuit',
-        diagramTitle: 'Ajuste de Mancal e Eixo Retificado',
         norma: 'ISO 286-1 / ISO 286-2',
         points: 20,
         explanation: 'Furo H7 tem afastamento inferior nulo (zona de tolerância H no furo base). O eixo com letra minúscula "g" situa-se abaixo da linha zero, resultando em folga suave que permite rotação ou deslizamento com filme de óleo.',
@@ -372,7 +350,7 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         id: 'mec_ec1_mc2',
         type: 'multiple_choice',
         question: 'Para montar a pista interna de um rolamento de esferas com interferência (ajuste H7/p6) em um eixo retificado sem danificar os corpos rolantes nem as pistas, qual método térmico é mandatório segundo a ISO 15243?',
-        scenario: 'Montagem de rolamento em oficina de manutenção industrial em Matola.',
+        scenario: 'Montagem de rolamento em oficina de manutenção industrial.',
         norma: 'ISO 15243 / DIN 5425',
         points: 20,
         explanation: 'O aquecedor por indução eletromagnética com desmagnetização automática aquece uniformemente a pista interna até 110°C, expandindo o diâmetro para encaixe suave e sem choque mecânico.',
@@ -456,10 +434,8 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         id: 'mec_ec1_desc1',
         type: 'descriptive',
         title: 'Diagnóstico de Falha Prematura e Procedimento de Montagem de Rolamento C3',
-        question: 'Um redutor industrial de velocidade em uma mineradora em Moatize apresentou quebra prematura do rolamento de rolos cônicos do eixo de saída após apenas 70 horas de operação. A pista apresentava marcas profundas de lascamento (spalling) e coloração azulada decorrente de atrito térmico severo. Descreva o procedimento de diagnóstico de folga interna radial (ex: necessidade de folga C3 em altas temperaturas), o método correto de montagem com controle de pré-carga e a instrumentação necessária.',
+        question: 'Um redutor industrial de velocidade em uma planta mineradora apresentou quebra prematura do rolamento de rolos cônicos do eixo de saída após apenas 70 horas de operação. A pista apresentava marcas profundas de lascamento (spalling) e coloração azulada decorrente de atrito térmico severo. Descreva o procedimento de diagnóstico de folga interna radial (ex: necessidade de folga C3 em altas temperaturas), o método correto de montagem com controle de pré-carga e a instrumentação necessária.',
         contextScenario: 'Redutor operando em ambiente de mineração com temperatura operacional de carcaça atingindo 85°C e poeira abrasiva de carvão.',
-        diagramId: 'hydraulic_circuit',
-        diagramTitle: 'Mancal e Conjunto de Rolamentos com Ajuste Cônico',
         norma: 'ISO 15243 / ISO 286',
         expectedKeywords: ['folga radial c3', 'dilatação térmica', 'aquecimento por indução', 'relógio comparador', 'pré-carga', 'lubrificação', 'spalling'],
         points: 40,
@@ -476,10 +452,8 @@ export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
         id: 'mec_ec1_desc2_var',
         type: 'descriptive',
         title: 'Reavaliação: Alinhamento de Precisão e Correção de Pé Manco (Soft Foot)',
-        question: 'Durante a instalação de uma bomba centrífuga acoplada a um motor elétrico de 55 kW em uma cervejaria em Maputo, o técnico nota vibrações elevadas ao apertar o pé de fixação dianteiro direito do motor. Explique o que é o fenômeno de "Pé Manco" (Soft Foot), como diagnosticá-lo com relógio comparador e qual é a técnica correta de nivelamento com calços calibrados segundo a ISO 10816.',
+        question: 'Durante a instalação de uma bomba centrífuga acoplada a um motor elétrico de 55 kW em uma unidade fabril de envase, o técnico nota vibrações elevadas ao apertar o pé de fixação dianteiro direito do motor. Explique o que é o fenômeno de "Pé Manco" (Soft Foot), como diagnosticá-lo com relógio comparador e qual é a técnica correta de nivelamento com calços calibrados segundo a ISO 10816.',
         contextScenario: 'Comissionamento de conjunto motobomba industrial pós-manutenção mecânica.',
-        diagramId: 'direct_motor_starter',
-        diagramTitle: 'Base Mecânica do Motor e Pontos de Calço',
         norma: 'ISO 10816 / ISO 20816',
         expectedKeywords: ['pé manco', 'soft foot', 'relógio comparador', 'calços calibrados', 'alinhamento a laser', 'tensão na carcaça'],
         points: 40,
@@ -521,20 +495,18 @@ export function generateAssessmentForLesson(
   // Fallback didático avançado (Diretriz: Cenários Diferenciados de Campo, Percepção Direta e Foco em Raciocínio Prático):
   if (mcRawPool.length < 3) {
     const isMec = lesson.moduleId?.includes('mec') || lesson.id?.startsWith('mec_');
-    const localidade1 = attemptNumber % 2 === 1 ? 'Matola' : 'Beira';
-    const localidade2 = attemptNumber % 2 === 1 ? 'Nampula' : 'Tete';
-    const localidade3 = attemptNumber % 2 === 1 ? 'Nacala' : 'Maputo';
+    const localidade1 = attemptNumber % 2 === 1 ? 'Instalação Fabril Contínua' : 'Oficina Central de Manutenção';
+    const localidade2 = attemptNumber % 2 === 1 ? 'Subestação Auxiliar Industrial' : 'Estação de Bombeamento';
+    const localidade3 = attemptNumber % 2 === 1 ? 'Planta de Processamento' : 'Centro de Distribuição';
 
     const fallbackMC: AssessmentMCQuestion[] = [
       {
         id: `${lesson.id}_gen_mc1_${attemptNumber}`,
         type: 'multiple_choice',
         question: isMec
-          ? `Em uma intervenção técnica na ${localidade1}, um técnico precisa comissionar componentes de ${lesson.title} operando sob vibração e carga contínua. Considerando as exigências da norma ${lesson.norma}, qual critério mandatório deve ser adotado no dimensionamento e fixação para assegurar a confiabilidade mecânica?`
-          : `Em uma instalação técnica na ${localidade1}, o alimentador de ${lesson.title} opera sob temperatura ambiente de 35 °C. Segundo as regras de coordenação e dimensionamento da norma ${lesson.norma}, qual relação matemática entre a corrente de projeto (Ib), a corrente nominal da proteção (In) e a capacidade de condução dos condutores (Iz) deve ser rigorosamente respeitada?`,
-        scenario: `Dimensionamento e comissionamento técnico de ${lesson.title} na ${localidade1} (${lesson.norma}).`,
-        diagramId: isMec ? 'hydraulic_circuit' : 'distribution_board_qgd',
-        diagramTitle: `Esquema de Aplicação de Campo: ${lesson.norma}`,
+          ? `Em uma intervenção técnica em ${localidade1}, um técnico precisa comissionar componentes de ${lesson.title} operando sob vibração e carga contínua. Considerando as exigências da norma ${lesson.norma}, qual critério mandatório deve ser adotado no dimensionamento e fixação para assegurar a confiabilidade mecânica?`
+          : `Em uma instalação técnica em ${localidade1}, o alimentador de ${lesson.title} opera sob temperatura ambiente de 35 °C. Segundo as regras de coordenação e dimensionamento da norma ${lesson.norma}, qual relação matemática entre a corrente de projeto (Ib), a corrente nominal da proteção (In) e a capacidade de condução dos condutores (Iz) deve ser rigorosamente respeitada?`,
+        scenario: `Dimensionamento e comissionamento técnico de ${lesson.title} em ${localidade1} (${lesson.norma}).`,
         norma: lesson.norma,
         points: 20,
         explanation: isMec
@@ -574,7 +546,7 @@ export function generateAssessmentForLesson(
               ? 'Instalar peças com folga livre sem verificar tolerâncias ISO de ajuste.'
               : 'Desconsiderar o fator de correção de temperatura porque o aquecimento dos cabos dissipa naturalmente à noite.',
             isCorrect: false,
-            feedback: 'Incorreto. Em climas quentes como Moçambique, a omissão do fator térmico provoca degradação acelerada do isolamento.'
+            feedback: 'Incorreto. Em ambientes quentes e instalações com ventilação restrita, a omissão do fator térmico provoca degradação acelerada do isolamento.'
           }
         ]
       },
@@ -646,7 +618,7 @@ export function generateAssessmentForLesson(
           },
           {
             id: 'opt_w7',
-            text: 'Tensão excessiva fornecida pela concessionária pública que queimou as resistências internas.',
+            text: 'Tensão excessiva fornecida pela rede pública que queimou as resistências internas.',
             isCorrect: false,
             feedback: 'Incorreto. A queima por mau contato e sobreaquecimento pontual decorre de perdas locais nas conexões e cabos.'
           },
@@ -671,7 +643,7 @@ export function generateAssessmentForLesson(
 
   if (descRawPool.length === 0) {
     const isMec = lesson.moduleId?.includes('mec') || lesson.id?.startsWith('mec_');
-    const localidadeCenario = attemptNumber % 2 === 1 ? 'Matola' : 'Beira';
+    const localidadeCenario = attemptNumber % 2 === 1 ? 'Unidade de Produção Industrial' : 'Complexo Eletromecânico';
 
     descRawPool = [
       {
@@ -679,19 +651,17 @@ export function generateAssessmentForLesson(
         type: 'descriptive',
         title: `Estudo de Caso Prático: ${lesson.title}`,
         question: isMec
-          ? `Você foi designado para executar o comissionamento e testes de aceitação técnica de "${lesson.title}" em uma instalação fabril na ${localidadeCenario}, em conformidade com a norma ${lesson.norma}.
+          ? `Você foi designado para executar o comissionamento e testes de aceitação técnica de "${lesson.title}" em uma instalação fabril em ${localidadeCenario}, em conformidade com a norma ${lesson.norma}.
 Apresente seu plano de intervenção estruturado em 3 pontos obrigatórios:
 1. Instrumentação & Medições: Quais ferramentas e instrumentos calibrados você usará (ex: torquímetro, relógio comparador, manômetro)?
 2. Critérios e Tolerâncias: Quais grandezas e limites estabelecidos pela norma ${lesson.norma} determinarão se o equipamento está aprovado?
 3. Procedimento de Segurança: Quais medidas de bloqueio e despressurização/desenergização (LOTO) devem ser tomadas antes da intervenção?`
-          : `Você foi acionado para uma intervenção técnica e certificação normativa de "${lesson.title}" em uma unidade industrial/comercial na ${localidadeCenario}, segundo a norma ${lesson.norma}.
+          : `Você foi acionado para uma intervenção técnica e certificação normativa de "${lesson.title}" em uma unidade industrial/comercial em ${localidadeCenario}, segundo a norma ${lesson.norma}.
 Apresente o seu parecer técnico e roteiro de ensaios estruturado em 3 pontos obrigatórios:
 1. Instrumentos e Ensaios Prévios: Quais instrumentos calibrados (ex: Megômetro, Multímetro True-RMS, Alicate de fuga) você utilizará e quais ensaios executará com o circuito desenergizado?
 2. Critérios de Aceitação Normativa: Quais valores mínimos de isolamento, continuidade ou queda de tensão estabelecidos pela ${lesson.norma} indicarão conformidade?
 3. Ações Corretivas e Segurança: Descreva as precauções de segurança obrigatórias (LOTO, EPIs, teste de ausência de tensão) e as boas práticas de fixação e aperto para evitar sobreaquecimento futuro.`,
         contextScenario: `Cenário real de campo: Intervenção técnica e certificação de conformidade para ${lesson.title} em ${localidadeCenario} (${lesson.norma}).`,
-        diagramId: isMec ? 'hydraulic_circuit' : 'distribution_board_qgd',
-        diagramTitle: `Esquema de Circuito e Pontos de Teste: ${lesson.norma}`,
         norma: lesson.norma,
         points: 40,
         expectedKeywords: ['procedimento', 'medição', 'norma', 'segurança', 'ensaio', 'proteção', 'conformidade', 'loto', 'isolamento', 'torque'],

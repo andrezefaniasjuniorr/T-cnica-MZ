@@ -173,61 +173,64 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   // ==========================================================================
   // 4. DETALHAMENTO: QUESTÕES DE MÚLTIPLA ESCOLHA
   // ==========================================================================
-  checkPageBreak(30);
+  checkPageBreak(25);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(30, 58, 138); // Dark blue
   doc.text('1. QUESTÕES DE MÚLTIPLA ESCOLHA (CENÁRIOS TÉCNICOS)', margin, cursorY);
-  cursorY += 4;
+  cursorY += 5;
 
   attempt.mcQuestions.forEach((q, idx) => {
-    checkPageBreak(38);
-
     const chosenLetter = attempt.mcAnswers[q.id];
     const correctOpt = q.options.find(o => o.isCorrect);
     const chosenOpt = q.options.find(o => o.displayLetter === chosenLetter);
     const isCorrect = chosenOpt?.isCorrect === true;
 
+    // Altura da caixa calculada ANTES de verificar quebra de página
+    const qTextLines = doc.splitTextToSize(`Questão 1.${idx + 1}: ${q.question}`, contentWidth - 10);
+    const boxHeight = 22 + qTextLines.length * 3.8;
+
+    // Evita corte no meio da questão (break-inside: avoid)
+    checkPageBreak(boxHeight + 5);
+
     doc.setFillColor(250, 250, 250);
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.3);
-
-    // Altura da caixa ajustada conforme o texto
-    const qTextLines = doc.splitTextToSize(`Questão 1.${idx + 1}: ${q.question}`, contentWidth - 8);
-    const boxHeight = 18 + qTextLines.length * 3.5;
-    doc.roundedRect(margin, cursorY, contentWidth, boxHeight, 1, 1, 'FD');
+    doc.roundedRect(margin, cursorY, contentWidth, boxHeight, 1.5, 1.5, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
-    doc.text(qTextLines, margin + 4, cursorY + 5);
+    doc.text(qTextLines, margin + 4, cursorY + 5.5);
 
-    let optY = cursorY + 6 + qTextLines.length * 3.5;
+    let optY = cursorY + 6.5 + qTextLines.length * 3.8;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
 
     // Resposta assinalada vs Gabarito
     doc.setTextColor(isCorrect ? 16 : 220, isCorrect ? 149 : 38, isCorrect ? 93 : 38);
     doc.setFont('helvetica', 'bold');
+    const ansSummary = chosenOpt?.text ? (chosenOpt.text.length > 72 ? chosenOpt.text.substring(0, 72) + '...' : chosenOpt.text) : 'Não respondida';
     doc.text(
-      `Resposta Assinalada: [ ${chosenLetter || 'N/A'} ] - ${chosenOpt?.text ? chosenOpt.text.substring(0, 70) + '...' : 'Não respondida'}`,
+      `Resposta Assinalada: [ ${chosenLetter || 'N/A'} ] - ${ansSummary}`,
       margin + 4,
       optY
     );
 
-    optY += 4;
+    optY += 4.5;
     doc.setTextColor(100, 116, 139);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Gabarito Correto: [ ${correctOpt?.displayLetter} ] - ${correctOpt?.text.substring(0, 75)}...`, margin + 4, optY);
+    const gabSummary = correctOpt?.text ? (correctOpt.text.length > 75 ? correctOpt.text.substring(0, 75) + '...' : correctOpt.text) : '';
+    doc.text(`Gabarito Correto: [ ${correctOpt?.displayLetter} ] - ${gabSummary}`, margin + 4, optY);
 
     // Status da Questão no canto direito
     doc.setFont('helvetica', 'bold');
     if (isCorrect) {
       doc.setTextColor(16, 185, 129);
-      doc.text(`CORRETO (+${q.points} pts)`, pageWidth - margin - 4, cursorY + 5, { align: 'right' });
+      doc.text(`CORRETO (+${q.points} pts)`, pageWidth - margin - 4, cursorY + 5.5, { align: 'right' });
     } else {
       doc.setTextColor(239, 68, 68);
-      doc.text(`INCORRETO (0 pts)`, pageWidth - margin - 4, cursorY + 5, { align: 'right' });
+      doc.text(`INCORRETO (0 pts)`, pageWidth - margin - 4, cursorY + 5.5, { align: 'right' });
     }
 
     cursorY += boxHeight + 4;
@@ -238,50 +241,53 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   // ==========================================================================
   // 5. DETALHAMENTO: QUESTÃO DE DESENVOLVIMENTO / DESCRITIVA COM CORREÇÃO POR IA
   // ==========================================================================
-  checkPageBreak(50);
+  checkPageBreak(30);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(30, 58, 138);
   doc.text('2. QUESTÃO DE DESENVOLVIMENTO (AVALIAÇÃO SEMÂNTICA POR IA)', margin, cursorY);
-  cursorY += 4;
+  cursorY += 5;
 
   attempt.descQuestions.forEach((dq, idx) => {
     const studentAnswer = attempt.descAnswers[dq.id] || '(Nenhuma resposta redigida)';
     const evalResult = attempt.descEvaluations[dq.id];
 
-    checkPageBreak(65);
+    const promptLines = doc.splitTextToSize(`Caso Técnico 2.${idx + 1}: ${dq.question}`, contentWidth - 10);
+    const answerLines = doc.splitTextToSize(`Resposta do Candidato:\n"${studentAnswer}"`, contentWidth - 10);
+    const feedbackLines = doc.splitTextToSize(
+      `Parecer Técnico da Tutora Eng. Sara IA: ${evalResult?.technicalFeedback || 'Avaliação pendente'}`,
+      contentWidth - 12
+    );
+
+    const feedbackBoxHeight = feedbackLines.length * 3.4 + 6;
+    const totalHeight = 24 + promptLines.length * 3.8 + answerLines.length * 3.4 + feedbackBoxHeight;
+
+    // Garante que o bloco não quebre ao meio e não vaze para o rodapé
+    checkPageBreak(totalHeight + 6);
 
     doc.setFillColor(250, 250, 250);
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.3);
-
-    const promptLines = doc.splitTextToSize(`Caso Técnico 2.${idx + 1}: ${dq.question}`, contentWidth - 8);
-    const answerLines = doc.splitTextToSize(`Resposta do Candidato: "${studentAnswer}"`, contentWidth - 8);
-    const feedbackLines = doc.splitTextToSize(
-      `Parecer da Eng. Sara IA: ${evalResult?.technicalFeedback || 'Avaliação pendente'}`,
-      contentWidth - 8
-    );
-
-    const totalHeight = 22 + promptLines.length * 3.5 + answerLines.length * 3.2 + feedbackLines.length * 3.2;
     doc.roundedRect(margin, cursorY, contentWidth, totalHeight, 1.5, 1.5, 'FD');
 
     // Título / Enunciado
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
-    doc.text(promptLines, margin + 4, cursorY + 5);
+    doc.text(promptLines, margin + 4, cursorY + 5.5);
 
     // Pontuação atribuída pela IA
     const scoreColor = (evalResult?.scorePercent || 0) >= 80 ? [16, 185, 129] : (evalResult?.scorePercent || 0) >= 50 ? [217, 119, 6] : [239, 68, 68];
     doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+    doc.setFontSize(7.5);
     doc.text(
       `PONTUAÇÃO IA: ${evalResult?.scorePercent ?? 0}% (${evalResult?.earnedPoints ?? 0}/${dq.points} pts) • [ ${evalResult?.verdict || 'AVALIADO'} ]`,
       pageWidth - margin - 4,
-      cursorY + 5,
+      cursorY + 5.5,
       { align: 'right' }
     );
 
-    let innerY = cursorY + 7 + promptLines.length * 3.5;
+    let innerY = cursorY + 7.5 + promptLines.length * 3.8;
 
     // Resposta digitada pelo aluno
     doc.setFont('helvetica', 'italic');
@@ -289,15 +295,15 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     doc.setTextColor(51, 65, 85);
     doc.text(answerLines, margin + 4, innerY);
 
-    innerY += answerLines.length * 3.2 + 3;
+    innerY += answerLines.length * 3.4 + 4;
 
-    // Feedback da Eng. Sara IA
+    // Feedback da Eng. Sara IA (Caixa destacada)
     doc.setFillColor(238, 242, 255); // Indigo claro
-    doc.rect(margin + 2, innerY - 2, contentWidth - 4, feedbackLines.length * 3.2 + 4, 'F');
+    doc.roundedRect(margin + 3, innerY - 2, contentWidth - 6, feedbackBoxHeight, 1, 1, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(67, 56, 202);
-    doc.text(feedbackLines, margin + 4, innerY + 2);
+    doc.text(feedbackLines, margin + 5, innerY + 3);
 
     cursorY += totalHeight + 6;
   });

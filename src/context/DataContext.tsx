@@ -30,7 +30,8 @@ import {
   CommunityComment,
   StoryItem,
   StoryViewer,
-  StoryReaction
+  StoryReaction,
+  CadCircuitProject
 } from '../types';
 import {
   INITIAL_TECHNICIANS,
@@ -232,7 +233,9 @@ interface DataContextType {
     category: string;
     tags?: string[];
     images?: string[];
-  }) => void;
+    circuitData?: CadCircuitProject;
+    isCircuitProject?: boolean;
+  }) => Promise<CommunityPost | void>;
   togglePostReaction: (postId: string, reactionType: 'useful' | 'insightful' | 'applause' | 'question') => void;
   addPostComment: (postId: string, text: string, replyToId?: string, replyToName?: string) => Promise<{ success: boolean; error?: string }>;
   toggleCommunityCommentLike: (postId: string, commentId: string) => void;
@@ -332,7 +335,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(() => {
-    return safeGetStorageItem<CommunityPost[]>('tecnicamz_community_posts', []);
+    const saved = safeGetStorageItem<CommunityPost[]>('tecnicamz_community_posts', []);
+    return Array.isArray(saved) && saved.length > 0 ? saved : INITIAL_COMMUNITY_POSTS;
   });
 
   const [academyArticles, setAcademyArticles] = useState<AcademyArticle[]>(() => {
@@ -551,6 +555,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           applause: Array.isArray(rawReactions.applause) ? rawReactions.applause : [],
           question: Array.isArray(rawReactions.question) ? rawReactions.question : []
         },
+        circuitData: data.circuitData || data.cadData || null,
+        isCircuitProject: Boolean(data.isCircuitProject || data.circuitData || data.cadData),
         commentsCount: typeof data.commentsCount === 'number' ? data.commentsCount : (Array.isArray(data.comments) ? data.comments.length : 0),
         comments: Array.isArray(data.comments)
           ? data.comments.map((c: any) => ({
@@ -2150,6 +2156,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     category: string;
     tags?: string[];
     images?: string[];
+    circuitData?: CadCircuitProject;
+    isCircuitProject?: boolean;
   }) => {
     if (!currentUser) return;
 
@@ -2174,6 +2182,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       category: postData.category || 'Geral',
       tags: Array.isArray(postData.tags) ? postData.tags : [],
       images: Array.isArray(postData.images) ? postData.images : [],
+      circuitData: postData.circuitData,
+      isCircuitProject: Boolean(postData.isCircuitProject || postData.circuitData),
       reactions: {
         useful: [],
         insightful: [],
@@ -2206,6 +2216,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           category: newPost.category || 'Geral',
           tags: Array.isArray(newPost.tags) ? newPost.tags : [],
           images: Array.isArray(newPost.images) ? newPost.images : [],
+          circuitData: newPost.circuitData || null,
+          isCircuitProject: Boolean(newPost.isCircuitProject),
           reactions: {
             useful: [],
             insightful: [],
