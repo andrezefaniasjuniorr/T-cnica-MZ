@@ -896,57 +896,142 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           ctx.restore();
 
         } else if (d.kind === 'lamp') {
-          // Lâmpada com Glow Effect
+          // Lâmpada Sinalizadora de Painel Premium
           const lampOn = st.energized && !st.tripped;
+          const lampRadius = 14 * cam.zoom;
+
           if (lampOn) {
             ctx.save();
+            // Glow externo multicamada ultra brilhante
             ctx.shadowColor = '#facc15';
-            ctx.shadowBlur = 25 * cam.zoom;
+            ctx.shadowBlur = 28 * cam.zoom;
             ctx.fillStyle = '#fef08a';
             ctx.beginPath();
-            ctx.arc(0, -4 * cam.zoom, 14 * cam.zoom, 0, Math.PI * 2);
+            ctx.arc(0, -4 * cam.zoom, lampRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Núcleo incandescente reluzente
+            const lampGrad = ctx.createRadialGradient(0, -4 * cam.zoom, 2 * cam.zoom, 0, -4 * cam.zoom, lampRadius);
+            lampGrad.addColorStop(0, '#ffffff');
+            lampGrad.addColorStop(0.4, '#fef08a');
+            lampGrad.addColorStop(1, '#eab308');
+            ctx.fillStyle = lampGrad;
+            ctx.beginPath();
+            ctx.arc(0, -4 * cam.zoom, lampRadius, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
           } else {
-            ctx.fillStyle = '#1e293b';
+            // Lâmpada desligada com reflexo em lente cônica de policarbonato
+            const offGrad = ctx.createRadialGradient(-3 * cam.zoom, -7 * cam.zoom, 1 * cam.zoom, 0, -4 * cam.zoom, lampRadius);
+            offGrad.addColorStop(0, '#334155');
+            offGrad.addColorStop(0.7, '#1e293b');
+            offGrad.addColorStop(1, '#0f172a');
+            ctx.fillStyle = offGrad;
             ctx.beginPath();
-            ctx.arc(0, -4 * cam.zoom, 14 * cam.zoom, 0, Math.PI * 2);
+            ctx.arc(0, -4 * cam.zoom, lampRadius, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 1.8 * cam.zoom;
             ctx.stroke();
           }
-          // Filamento cruzado
-          ctx.strokeStyle = lampOn ? '#854d0e' : '#64748b';
-          ctx.lineWidth = 1.5;
+
+          // Filamento Interno Estilizado e Reforçado
+          ctx.save();
+          ctx.strokeStyle = lampOn ? '#ffffff' : '#94a3b8';
+          ctx.lineWidth = lampOn ? 2.2 * cam.zoom : 1.5 * cam.zoom;
+          if (lampOn) {
+            ctx.shadowColor = '#fef08a';
+            ctx.shadowBlur = 8 * cam.zoom;
+          }
           ctx.beginPath();
-          ctx.moveTo(-6 * cam.zoom, -10 * cam.zoom);
-          ctx.lineTo(6 * cam.zoom, 2 * cam.zoom);
-          ctx.moveTo(6 * cam.zoom, -10 * cam.zoom);
-          ctx.lineTo(-6 * cam.zoom, 2 * cam.zoom);
+          // Filamento em Zig-Zag duplo de Tungstênio
+          ctx.moveTo(-7 * cam.zoom, 2 * cam.zoom);
+          ctx.lineTo(-3 * cam.zoom, -8 * cam.zoom);
+          ctx.lineTo(0, -3 * cam.zoom);
+          ctx.lineTo(3 * cam.zoom, -8 * cam.zoom);
+          ctx.lineTo(7 * cam.zoom, 2 * cam.zoom);
           ctx.stroke();
+          ctx.restore();
 
         } else if (d.kind === 'contactor' || d.kind === 'relay') {
-          // Contator com núcleo atracado/desarmado
+          // Contator Industrial / Relé de Potência
           const coilOn = st.energized;
-          ctx.fillStyle = coilOn ? '#065f46' : '#1e293b';
-          ctx.fillRect(-cw * 0.35, -ch * 0.3, cw * 0.7, ch * 0.35);
-          ctx.fillStyle = coilOn ? '#6ee7b7' : '#94a3b8';
-          ctx.font = `bold ${Math.max(7, 8 * cam.zoom)}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.fillText(coilOn ? 'ATRACADO (ON)' : 'ABERTO (OFF)', 0, -ch * 0.08);
-
-        } else if (d.kind === 'breaker' || d.kind === 'breaker3' || d.kind === 'overload') {
-          // Alavanca de Disjuntor
-          const isTrip = st.tripped;
-          const isClosed = st.closed && !isTrip;
-          ctx.fillStyle = isTrip ? '#ef4444' : isClosed ? '#22c55e' : '#64748b';
+          ctx.save();
+          
+          // Núcleo magnético em gradiente
+          const coreGrad = ctx.createLinearGradient(0, -ch * 0.3, 0, 0);
+          coreGrad.addColorStop(0, coilOn ? '#047857' : '#1e293b');
+          coreGrad.addColorStop(1, coilOn ? '#064e3b' : '#0f172a');
+          
+          ctx.fillStyle = coreGrad;
+          ctx.strokeStyle = coilOn ? '#10b981' : '#334155';
+          ctx.lineWidth = 1.5 * cam.zoom;
+          
+          if (coilOn) {
+            ctx.shadowColor = '#10b981';
+            ctx.shadowBlur = 10 * cam.zoom;
+          }
+          
           ctx.beginPath();
-          ctx.roundRect(-8 * cam.zoom, -18 * cam.zoom, 16 * cam.zoom, 22 * cam.zoom, 3 * cam.zoom);
+          ctx.roundRect(-cw * 0.38, -ch * 0.3, cw * 0.76, ch * 0.32, 4 * cam.zoom);
           ctx.fill();
-          ctx.fillStyle = '#ffffff';
+          ctx.stroke();
+
+          // Indicador de Armadura Atracada
+          ctx.fillStyle = coilOn ? '#34d399' : '#64748b';
           ctx.font = `bold ${Math.max(7, 8 * cam.zoom)}px monospace`;
           ctx.textAlign = 'center';
-          ctx.fillText(isTrip ? 'TRIP' : isClosed ? 'I' : 'O', 0, -5 * cam.zoom);
+          ctx.fillText(coilOn ? '▲ ATRACADO' : '▼ REPOUSO', 0, -ch * 0.12);
+          ctx.restore();
+
+        } else if (d.kind === 'breaker' || d.kind === 'breaker3' || d.kind === 'overload') {
+          // Alavanca de Disjuntor Curva Din/Caixa Moldada Ultra-Realista
+          const isTrip = st.tripped;
+          const isClosed = st.closed && !isTrip;
+          ctx.save();
+
+          // Trilho/Cavidade do Módulo do Disjuntor
+          ctx.fillStyle = '#0f172a';
+          ctx.strokeStyle = '#334155';
+          ctx.lineWidth = 1 * cam.zoom;
+          ctx.beginPath();
+          ctx.roundRect(-10 * cam.zoom, -22 * cam.zoom, 20 * cam.zoom, 28 * cam.zoom, 3 * cam.zoom);
+          ctx.fill();
+          ctx.stroke();
+
+          // Corpo da Manopla com Gradiente 3D
+          const handleGrad = ctx.createLinearGradient(-8 * cam.zoom, 0, 8 * cam.zoom, 0);
+          if (isTrip) {
+            handleGrad.addColorStop(0, '#f87171');
+            handleGrad.addColorStop(0.5, '#ef4444');
+            handleGrad.addColorStop(1, '#991b1b');
+            ctx.shadowColor = '#ef4444';
+            ctx.shadowBlur = 12 * cam.zoom;
+          } else if (isClosed) {
+            handleGrad.addColorStop(0, '#4ade80');
+            handleGrad.addColorStop(0.5, '#22c55e');
+            handleGrad.addColorStop(1, '#15803d');
+            ctx.shadowColor = '#22c55e';
+            ctx.shadowBlur = 10 * cam.zoom;
+          } else {
+            handleGrad.addColorStop(0, '#94a3b8');
+            handleGrad.addColorStop(0.5, '#64748b');
+            handleGrad.addColorStop(1, '#334155');
+          }
+
+          ctx.fillStyle = handleGrad;
+          const leverY = isClosed ? -20 * cam.zoom : isTrip ? -10 * cam.zoom : -2 * cam.zoom;
+          ctx.beginPath();
+          ctx.roundRect(-8 * cam.zoom, leverY, 16 * cam.zoom, 16 * cam.zoom, 4 * cam.zoom);
+          ctx.fill();
+
+          // Símbolo Impresso na Alavanca (I / O / TRIP)
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${Math.max(8, 9 * cam.zoom)}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.shadowColor = 'transparent';
+          ctx.fillText(isTrip ? 'TRIP' : isClosed ? 'I' : 'O', 0, leverY + 11 * cam.zoom);
+          ctx.restore();
 
         } else {
           // Ícone padrão do catálogo
@@ -957,31 +1042,52 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           ctx.fillText(d.icon, 0, -5 * cam.zoom);
         }
 
-        // Nome / Rótulo do componente
-        ctx.fillStyle = '#e2e8f0';
-        ctx.font = `bold ${Math.max(8, 9 * cam.zoom)}px sans-serif`;
+        // Nome / Tag do Componente (Discreto e Centralizado)
+        ctx.save();
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
+        ctx.font = `600 ${Math.max(6, 7.5 * cam.zoom)}px monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText(c.label || d.name, 0, ch / 2 - 8 * cam.zoom);
+        ctx.textBaseline = 'middle';
+        ctx.fillText((c.label || d.name).toUpperCase(), 0, 0);
+        ctx.restore();
 
         ctx.restore();
 
-        // 5. Terminais de Ligação (Pinos)
+        // 5. Terminais de Ligação (Pinos Conectores Alta Visibilidade)
         d.terminals.forEach(term => {
           const tPos = toScreen(terminalPos(c, term[0]));
           ctx.save();
-          ctx.fillStyle = '#38bdf8';
-          ctx.strokeStyle = '#0a1628';
-          ctx.lineWidth = 1.5;
+          
+          // Sombra/Brilho Industrial nos Bornes
+          ctx.shadowColor = '#000000';
+          ctx.shadowBlur = 6 * cam.zoom;
+
+          // Borne Metálico (Parafuso Latão/Níquel)
+          const termGrad = ctx.createRadialGradient(tPos.x - 1, tPos.y - 1, 0.5, tPos.x, tPos.y, 5 * cam.zoom);
+          termGrad.addColorStop(0, '#38bdf8');
+          termGrad.addColorStop(0.5, '#0284c7');
+          termGrad.addColorStop(1, '#0c4a6e');
+
+          ctx.fillStyle = termGrad;
+          ctx.strokeStyle = '#f8fafc';
+          ctx.lineWidth = 1.8 * cam.zoom;
           ctx.beginPath();
-          ctx.arc(tPos.x, tPos.y, 4 * cam.zoom, 0, Math.PI * 2);
+          ctx.arc(tPos.x, tPos.y, 5 * cam.zoom, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
-          // Rótulo do terminal
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = `${Math.max(6, 7 * cam.zoom)}px monospace`;
+          // Ponto Central do Borne
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(tPos.x, tPos.y, 1.5 * cam.zoom, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Rótulo da Anotação do Borne (Ex: A1, 13, L1)
+          ctx.shadowColor = 'transparent';
+          ctx.fillStyle = '#38bdf8';
+          ctx.font = `bold ${Math.max(7, 8 * cam.zoom)}px monospace`;
           ctx.textAlign = 'center';
-          ctx.fillText(term[0], tPos.x, tPos.y - 6 * cam.zoom);
+          ctx.fillText(term[0], tPos.x, tPos.y - 8 * cam.zoom);
           ctx.restore();
         });
 
