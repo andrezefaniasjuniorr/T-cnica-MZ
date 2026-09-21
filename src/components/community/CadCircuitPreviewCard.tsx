@@ -63,6 +63,17 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
       maxY = Math.max(maxY, c.y + h / 2);
     });
 
+    const busbars = circuit.cadData.busbars || [];
+    busbars.forEach((b: any) => {
+      const isH = b.orientation === 'horizontal';
+      const halfLen = (b.length || 600) / 2;
+      const halfH = (b.type === 'din' ? 35 : 14) / 2;
+      minX = Math.min(minX, b.x - (isH ? halfLen : halfH));
+      maxX = Math.max(maxX, b.x + (isH ? halfLen : halfH));
+      minY = Math.min(minY, b.y - (isH ? halfH : halfLen));
+      maxY = Math.max(maxY, b.y + (isH ? halfH : halfLen));
+    });
+
     if (!isFinite(minX)) {
       return { vbX: 0, vbY: 0, vbW: 760, vbH: 240 };
     }
@@ -141,6 +152,53 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 fill={`url(#cad_grid_${circuit.title || 'cad'})`}
                 rx="10"
               />
+
+              {/* Barramentos e Trilhos DIN no Preview */}
+              {(circuit.cadData.busbars || []).map((bb: any) => {
+                const isHoriz = bb.orientation === 'horizontal';
+                const len = bb.length || 600;
+                const bH = bb.type === 'din' ? 35 : 14;
+                const rw = isHoriz ? len : bH;
+                const rh = isHoriz ? bH : len;
+                const isDin = bb.type === 'din';
+                const fillCol = isDin
+                  ? '#334155'
+                  : bb.type === 'phase_l1'
+                  ? '#991b1b'
+                  : bb.type === 'phase_l2'
+                  ? '#0f172a'
+                  : bb.type === 'phase_l3'
+                  ? '#78350f'
+                  : bb.type === 'neutral'
+                  ? '#0369a1'
+                  : '#15803d';
+                const strokeCol = isDin ? '#94a3b8' : '#eab308';
+
+                return (
+                  <g key={bb.id} transform={`translate(${bb.x}, ${bb.y})`}>
+                    <rect
+                      x={-rw / 2}
+                      y={-rh / 2}
+                      width={rw}
+                      height={rh}
+                      rx={isDin ? 2 : 4}
+                      fill={fillCol}
+                      stroke={strokeCol}
+                      strokeWidth={1.5}
+                    />
+                    {isDin && (
+                      <line
+                        x1={-rw / 2}
+                        y1={0}
+                        x2={rw / 2}
+                        y2={0}
+                        stroke="#0f172a"
+                        strokeWidth={2}
+                      />
+                    )}
+                  </g>
+                );
+              })}
 
               {/* Condutores Manhattan Ortogonais a 90° */}
               {(circuit.cadData.wires || []).map((w: any, wireIdx: number) => {

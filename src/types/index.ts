@@ -621,6 +621,15 @@ export interface CadCircuitComponent {
   params?: Record<string, any>;
 }
 
+export interface Busbar {
+  id: string;
+  type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth';
+  x: number;
+  y: number;
+  length: number;
+  orientation: 'horizontal' | 'vertical';
+}
+
 export interface CadCircuitProject {
   id?: string;
   title: string;
@@ -638,6 +647,7 @@ export interface CadCircuitProject {
     name: string;
     components: any[];
     wires: any[];
+    busbars?: Busbar[];
     updated?: number;
   };
 }

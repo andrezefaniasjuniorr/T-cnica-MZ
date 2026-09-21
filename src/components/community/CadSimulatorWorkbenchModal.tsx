@@ -21,6 +21,14 @@ import {
   ComponentDef
 } from './cadEngine';
 import {
+  Busbar,
+  drawBusbars,
+  snapComponentToBusbars,
+  DEFAULT_MOTOR_BUSBARS,
+  DEFAULT_QGD_BUSBARS,
+  DEFAULT_FOURWAY_BUSBARS
+} from './cadBusbars';
+import {
   getTerminalWorldPos,
   calculateManhattanPath,
   autoOrganizeCircuitWiring
@@ -92,12 +100,14 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     name: string;
     components: any[];
     wires: any[];
+    busbars: Busbar[];
     updated?: number;
   }>({
     version: 11,
     name: initialCircuit?.title || 'Projeto TécnicaMz Pro',
     components: [],
     wires: [],
+    busbars: [],
     updated: Date.now()
   });
 
@@ -106,6 +116,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   const [selectedWireType, setSelectedWireType] = useState<string>('L1');
   const [selectedCompId, setSelectedCompId] = useState<string | null>(null);
   const [selectedWireId, setSelectedWireId] = useState<string | null>(null);
+  const [selectedBusbarId, setSelectedBusbarId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
 
   // Painéis Flutuantes Visíveis / Minimizados
@@ -170,8 +181,14 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     scopeHistory: { t: number; v: number; i: number }[];
     wireStart: { c: string; t: string } | null;
     drag: any;
-    touchMap: Map<number, { x: number; y: number }>;
-    pinch: any;
+    touchMap: Map<number, { x: number; y: number; clientX: number; clientY: number }>;
+    pinch: {
+      initialDist: number;
+      initialMid: { x: number; y: number };
+      startZoom: number;
+      startPan: { x: number; y: number };
+    } | null;
+    longPressTimer: any;
     lastContactorState: boolean;
     motorRpm: number;
   }>({
@@ -184,6 +201,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     drag: null,
     touchMap: new Map(),
     pinch: null,
+    longPressTimer: null,
     lastContactorState: false,
     motorRpm: 0
   });
@@ -241,6 +259,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         name: initialCircuit.cadData.name || initialCircuit.title,
         components: initialCircuit.cadData.components,
         wires: initialCircuit.cadData.wires || [],
+        busbars: initialCircuit.cadData.busbars || DEFAULT_MOTOR_BUSBARS,
         updated: Date.now()
       });
       setPublishTitle(initialCircuit.title);
@@ -257,6 +276,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           name: 'Comutação Four-Way / Three-Way (IEC 60364)',
           components: p.components,
           wires: p.wires,
+          busbars: DEFAULT_FOURWAY_BUSBARS,
           updated: Date.now()
         });
         setPublishTitle('Comutação Four-Way / Three-Way em 3 Pavimentos (IEC 60364)');
@@ -269,6 +289,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           name: 'Quadro QGD com Proteção IDR 30mA (IEC 60364)',
           components: p.components,
           wires: p.wires,
+          busbars: DEFAULT_QGD_BUSBARS,
           updated: Date.now()
         });
         setPublishTitle('Quadro de Distribuição QGD com IDR 30mA e Seletividade');
@@ -281,6 +302,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           name: 'Partida Direta de Motor Trifásico (IEC 60947-4-1)',
           components: p.components,
           wires: p.wires,
+          busbars: DEFAULT_MOTOR_BUSBARS,
           updated: Date.now()
         });
         setPublishTitle('Partida Direta de Motor Trifásico com Selo e Relé Térmico (IEC 60947)');
@@ -293,7 +315,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   // Função para centralizar / auto-enquadrar circuito na folha
   const handleFit = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || project.components.length === 0) {
+    if (!canvas || (project.components.length === 0 && (!project.busbars || project.busbars.length === 0))) {
       cameraRef.current.zoom = 1;
       cameraRef.current.pan = { x: canvas ? canvas.width / 4 : 0, y: canvas ? canvas.height / 4 : 0 };
       return;
@@ -305,18 +327,28 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       minY = Math.min(minY, c.y - c.h / 2);
       maxY = Math.max(maxY, c.y + c.h / 2);
     });
+    (project.busbars || []).forEach(b => {
+      const isH = b.orientation === 'horizontal';
+      const halfL = (b.length || 600) / 2;
+      const halfH = (b.type === 'din' ? 35 : 14) / 2;
+      minX = Math.min(minX, b.x - (isH ? halfL : halfH));
+      maxX = Math.max(maxX, b.x + (isH ? halfL : halfH));
+      minY = Math.min(minY, b.y - (isH ? halfH : halfL));
+      maxY = Math.max(maxY, b.y + (isH ? halfH : halfL));
+    });
+
     const padding = 120;
     const w = Math.max(200, maxX - minX + padding * 2);
     const h = Math.max(200, maxY - minY + padding * 2);
     const rect = canvas.getBoundingClientRect();
-    const z = Math.max(0.3, Math.min(1.4, Math.min(rect.width / w, rect.height / h)));
+    const z = Math.max(0.2, Math.min(1.5, Math.min(rect.width / w, rect.height / h)));
     cameraRef.current.zoom = z;
     cameraRef.current.pan = {
       x: rect.width / 2 - ((minX + maxX) / 2) * z,
       y: rect.height / 2 - ((minY + maxY) / 2) * z
     };
     showToast('Circuito enquadrado na tela');
-  }, [project.components, showToast]);
+  }, [project.components, project.busbars, showToast]);
 
   // Carregar Presets Rápidos
   const loadPreset = useCallback((type: 'motor' | 'four_way' | 'qgd' | 'new') => {
@@ -327,10 +359,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         name: 'Novo Projeto Técnico MZ',
         components: [],
         wires: [],
+        busbars: [],
         updated: Date.now()
       });
       setSelectedCompId(null);
       setSelectedWireId(null);
+      setSelectedBusbarId(null);
       showToast('Novo projeto em branco criado');
       return;
     }
@@ -341,6 +375,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         name: 'Partida Direta de Motor Trifásico (IEC 60947)',
         components: p.components,
         wires: p.wires,
+        busbars: DEFAULT_MOTOR_BUSBARS,
         updated: Date.now()
       });
       showToast('Partida Direta carregada');
@@ -351,6 +386,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         name: 'Comutação Four-Way / Three-Way',
         components: p.components,
         wires: p.wires,
+        busbars: DEFAULT_FOURWAY_BUSBARS,
         updated: Date.now()
       });
       showToast('Comutação Four-Way carregada');
@@ -361,10 +397,14 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         name: 'Quadro QGD com IDR 30mA',
         components: p.components,
         wires: p.wires,
+        busbars: DEFAULT_QGD_BUSBARS,
         updated: Date.now()
       });
       showToast('Quadro QGD carregado');
     }
+    setSelectedCompId(null);
+    setSelectedWireId(null);
+    setSelectedBusbarId(null);
     setTimeout(handleFit, 60);
   }, [pushHistory, handleFit, showToast]);
 
@@ -452,7 +492,69 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     showToast('Componente duplicado');
   }, [selectedCompId, project.components, pushHistory, showToast]);
 
-  // Excluir Seleção (Componente ou Fio)
+  // Adicionar Barramento ou Trilho DIN ao Painel
+  const addBusbar = useCallback(
+    (
+      type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
+      x?: number,
+      y?: number,
+      length = 680,
+      orientation: 'horizontal' | 'vertical' = 'horizontal'
+    ) => {
+      pushHistory();
+      const cam = cameraRef.current;
+      const canvas = canvasRef.current;
+      let targetX = 0;
+      let targetY = 0;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        targetX = Math.round((cx - cam.pan.x) / (cam.zoom * 20)) * 20;
+        targetY = Math.round((cy - cam.pan.y) / (cam.zoom * 20)) * 20;
+      }
+      if (x !== undefined) targetX = x;
+      if (y !== undefined) targetY = y;
+
+      const newBusbar: Busbar = {
+        id: `BB_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        type,
+        x: targetX,
+        y: targetY,
+        length,
+        orientation
+      };
+
+      setProject((prev: any) => ({
+        ...prev,
+        busbars: [...(prev.busbars || []), newBusbar],
+        updated: Date.now()
+      }));
+
+      setSelectedBusbarId(newBusbar.id);
+      setSelectedCompId(null);
+      setSelectedWireId(null);
+      setShowProps(true);
+      soundFX?.playClick?.();
+      const typeLabel =
+        type === 'din'
+          ? 'Trilho DIN 35mm'
+          : type === 'phase_l1'
+          ? 'Barramento Fase L1'
+          : type === 'phase_l2'
+          ? 'Barramento Fase L2'
+          : type === 'phase_l3'
+          ? 'Barramento Fase L3'
+          : type === 'neutral'
+          ? 'Barramento Neutro'
+          : 'Barramento Terra PE';
+      showToast(`${typeLabel} adicionado ao painel.`);
+      addEvent(`${typeLabel} inserido no diagrama CAD.`);
+    },
+    [pushHistory, addEvent, showToast]
+  );
+
+  // Excluir Seleção (Componente, Fio ou Barramento)
   const deleteSelected = useCallback(() => {
     if (selectedCompId) {
       pushHistory();
@@ -475,8 +577,46 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       setSelectedWireId(null);
       soundFX.playClick();
       showToast('Condutor removido');
+    } else if (selectedBusbarId) {
+      pushHistory();
+      setProject((prev: any) => ({
+        ...prev,
+        busbars: (prev.busbars || []).filter((b: any) => b.id !== selectedBusbarId),
+        updated: Date.now()
+      }));
+      setSelectedBusbarId(null);
+      soundFX?.playClick?.();
+      showToast('Barramento/Trilho removido');
     }
-  }, [selectedCompId, selectedWireId, pushHistory, showToast]);
+  }, [selectedCompId, selectedWireId, selectedBusbarId, pushHistory, showToast]);
+
+  // Teclas de Atalho CAD (Delete, Backspace, Esc, Ctrl+Z)
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        deleteSelected();
+      } else if (e.key === 'Escape') {
+        setSelectedCompId(null);
+        setSelectedWireId(null);
+        setSelectedBusbarId(null);
+        simRef.current.wireStart = null;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, deleteSelected, handleUndo, handleRedo]);
 
   // Comandos Físicos Rápidos no Componente (Ligar, Desligar, Pulsar, Rearmar)
   const triggerComponentCommand = useCallback((compId: string, action: 'toggle' | 'on' | 'off' | 'pulse' | 'reset') => {
@@ -546,9 +686,17 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         const imported = JSON.parse(event.target?.result as string);
         if (Array.isArray(imported.components) && Array.isArray(imported.wires)) {
           pushHistory();
-          setProject(imported);
+          setProject({
+            version: imported.version || 11,
+            name: imported.name || 'Projeto Importado',
+            components: imported.components,
+            wires: imported.wires,
+            busbars: Array.isArray(imported.busbars) ? imported.busbars : [],
+            updated: Date.now()
+          });
           setSelectedCompId(null);
           setSelectedWireId(null);
+          setSelectedBusbarId(null);
           showToast('Projeto importado com sucesso');
           setTimeout(handleFit, 60);
         } else {
@@ -598,6 +746,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           name: publishTitle.trim(),
           components: project.components,
           wires: project.wires,
+          busbars: project.busbars || [],
           updated: Date.now()
         }
       };
@@ -648,10 +797,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const targetW = Math.round(rect.width * dpr);
+      const targetH = Math.round(rect.height * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
     };
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
@@ -664,32 +816,98 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       const rect = canvas.getBoundingClientRect();
       const w = rect.width;
       const h = rect.height;
+      if (w === 0 || h === 0) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
+
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const targetW = Math.round(w * dpr);
+      const targetH = Math.round(h * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
       const cam = cameraRef.current;
 
       // 1. Limpar Fundo (Dark Industrial Theme)
-      ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = '#060D1A';
       ctx.fillRect(0, 0, w, h);
 
-      // 2. Desenhar Grid CAD
+      // 2. Desenhar Grid CAD Técnico Adaptativo (Milimétrico & Macro)
       ctx.save();
-      const step = cam.grid * cam.zoom;
+      const baseGrid = cam.grid || 20;
+      const step = baseGrid * cam.zoom;
       const ox = ((cam.pan.x % step) + step) % step;
       const oy = ((cam.pan.y % step) + step) % step;
+
+      // Subdivisões finas (quando zoom > 1.8x)
+      if (cam.zoom > 1.8) {
+        const subStep = step / 4;
+        const subOx = ((cam.pan.x % subStep) + subStep) % subStep;
+        const subOy = ((cam.pan.y % subStep) + subStep) % subStep;
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.035)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        for (let x = subOx; x < w; x += subStep) {
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, h);
+        }
+        for (let y = subOy; y < h; y += subStep) {
+          ctx.moveTo(0, y);
+          ctx.lineTo(w, y);
+        }
+        ctx.stroke();
+      }
+
+      // Grade padrão
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.07)';
       ctx.lineWidth = 1;
+      ctx.beginPath();
       for (let x = ox; x < w; x += step) {
-        ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, h);
-        ctx.stroke();
       }
       for (let y = oy; y < h; y += step) {
-        ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
-        ctx.stroke();
       }
+      ctx.stroke();
+
+      // Módulos maiores (a cada 5 passos da grade = 100mm)
+      const macroStep = step * 5;
+      const macroOx = ((cam.pan.x % macroStep) + macroStep) % macroStep;
+      const macroOy = ((cam.pan.y % macroStep) + macroStep) % macroStep;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let x = macroOx; x < w; x += macroStep) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+      }
+      for (let y = macroOy; y < h; y += macroStep) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }
+      ctx.stroke();
+
+      // Cruzetas nos cruzamentos macro (+)
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let x = macroOx; x < w; x += macroStep) {
+        for (let y = macroOy; y < h; y += macroStep) {
+          ctx.moveTo(x - 4, y);
+          ctx.lineTo(x + 4, y);
+          ctx.moveTo(x, y - 4);
+          ctx.lineTo(x, y + 4);
+        }
+      }
+      ctx.stroke();
       ctx.restore();
 
       // Transformação de Câmera
@@ -697,6 +915,9 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         x: p.x * cam.zoom + cam.pan.x,
         y: p.y * cam.zoom + cam.pan.y
       });
+
+      // 2.5 Desenhar Barramentos Elétricos e Trilhos DIN (Norma IEC 60715)
+      drawBusbars(ctx, cam, project.busbars || [], selectedBusbarId);
 
       // 3. Fiação Ortogonal (Manhattan Wiring - Ângulos retos a 90°)
       project.wires.forEach((wire, wireIdx) => {
@@ -1287,6 +1508,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         console.error('Falha no ciclo de simulação protegida:', simErr);
       }
 
+      ctx.restore();
       animationFrameId = requestAnimationFrame(render);
     };
 
@@ -1296,10 +1518,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       window.removeEventListener('resize', resizeCanvas);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [project, isRunning, selectedCompId, selectedWireId, meterV, meterA, showScope, scopeChannel, scopeVoltsDiv, terminalPos]);
+  }, [project, isRunning, selectedCompId, selectedWireId, selectedBusbarId, meterV, meterA, showScope, scopeChannel, scopeVoltsDiv, terminalPos]);
 
   // ==========================================================================
-  // EVENTOS DE MOUSE / TOQUE NO CANVAS (PAN, ZOOM, SELEÇÃO, FIOS)
+  // EVENTOS DE MOUSE / TOQUE NO CANVAS (PAN, ZOOM, SELEÇÃO, FIOS, MULTITOUCH)
   // ==========================================================================
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -1313,6 +1535,31 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
+
+    // Registra ponto de contato para controle multitouch
+    simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
+
+    // Se houver 2 toques simultâneos, inicializa gesto de Pinça (Pinch-to-Zoom e Two-Finger Pan)
+    if (simRef.current.touchMap.size === 2) {
+      const touches = Array.from(simRef.current.touchMap.values());
+      const t1 = touches[0];
+      const t2 = touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const mid = { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+
+      simRef.current.pinch = {
+        initialDist: Math.max(10, dist),
+        initialMid: mid,
+        startZoom: cameraRef.current.zoom,
+        startPan: { ...cameraRef.current.pan }
+      };
+      simRef.current.drag = null;
+      if (simRef.current.longPressTimer) {
+        clearTimeout(simRef.current.longPressTimer);
+        simRef.current.longPressTimer = null;
+      }
+      return;
+    }
 
     const cam = cameraRef.current;
     const worldX = (px - cam.pan.x) / cam.zoom;
@@ -1371,6 +1618,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           } else {
             setSelectedCompId(c.id);
             setSelectedWireId(null);
+            setSelectedBusbarId(null);
             simRef.current.drag.mode = 'comp';
             simRef.current.drag.compId = c.id;
             simRef.current.drag.offsetX = worldX - c.x;
@@ -1393,6 +1641,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       if (Math.abs(rx) <= c.w / 2 && Math.abs(ry) <= c.h / 2) {
         setSelectedCompId(c.id);
         setSelectedWireId(null);
+        setSelectedBusbarId(null);
         simRef.current.drag.mode = 'comp';
         simRef.current.drag.compId = c.id;
         simRef.current.drag.offsetX = worldX - c.x;
@@ -1409,18 +1658,78 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 3. Toque em área vazia
+    // 3. Toque em Barramento ou Trilho DIN
+    for (let i = (project.busbars || []).length - 1; i >= 0; i--) {
+      const b = project.busbars[i];
+      const isH = b.orientation === 'horizontal';
+      const halfL = (b.length || 600) / 2;
+      const halfH = (b.type === 'din' ? 35 : 14) / 2;
+      const rx = isH ? halfL : halfH;
+      const ry = isH ? halfH : halfL;
+
+      if (Math.abs(worldX - b.x) <= rx && Math.abs(worldY - b.y) <= ry) {
+        setSelectedBusbarId(b.id);
+        setSelectedCompId(null);
+        setSelectedWireId(null);
+        setShowProps(true);
+        simRef.current.drag.mode = 'busbar';
+        simRef.current.drag.busbarId = b.id;
+        simRef.current.drag.offsetX = worldX - b.x;
+        simRef.current.drag.offsetY = worldY - b.y;
+        soundFX?.playClick?.();
+        return;
+      }
+    }
+
+    // 4. Toque em área vazia
     setSelectedCompId(null);
     setSelectedWireId(null);
+    setSelectedBusbarId(null);
     setShowProps(false);
     simRef.current.drag.mode = 'pan';
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const drag = simRef.current.drag;
-    if (!drag) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+
+    // Atualiza rastreio no touchMap
+    if (simRef.current.touchMap.has(e.pointerId)) {
+      simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
+    }
+
+    // Gerencia Pinch-to-Zoom e Two-Finger Pan
+    if (simRef.current.pinch && simRef.current.touchMap.size >= 2) {
+      const touches = Array.from(simRef.current.touchMap.values());
+      const t1 = touches[0];
+      const t2 = touches[1];
+      const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const currentMid = { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+
+      const scale = currentDist / simRef.current.pinch.initialDist;
+      const newZoom = Math.max(0.1, Math.min(5.0, simRef.current.pinch.startZoom * scale));
+      const cam = cameraRef.current;
+
+      const midCanvasX = currentMid.x - rect.left;
+      const midCanvasY = currentMid.y - rect.top;
+      const initMidCanvasX = simRef.current.pinch.initialMid.x - rect.left;
+      const initMidCanvasY = simRef.current.pinch.initialMid.y - rect.top;
+
+      const worldMidX = (initMidCanvasX - simRef.current.pinch.startPan.x) / simRef.current.pinch.startZoom;
+      const worldMidY = (initMidCanvasY - simRef.current.pinch.startPan.y) / simRef.current.pinch.startZoom;
+
+      cam.zoom = newZoom;
+      cam.pan.x = midCanvasX - worldMidX * newZoom;
+      cam.pan.y = midCanvasY - worldMidY * newZoom;
+      return;
+    }
+
+    const drag = simRef.current.drag;
+    if (!drag) return;
 
     const moveDist = Math.hypot(
       e.clientX - drag.screenStartX,
@@ -1433,10 +1742,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       simRef.current.longPressTimer = null;
     }
 
-    const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-
     const cam = cameraRef.current;
     const worldX = (px - cam.pan.x) / cam.zoom;
     const worldY = (py - cam.pan.y) / cam.zoom;
@@ -1448,18 +1753,48 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       const offsetX = drag.offsetX ?? 0;
       const offsetY = drag.offsetY ?? 0;
       const grid = cam.grid || 20;
-      const nx = Math.round((worldX - offsetX) / grid) * grid;
-      const ny = Math.round((worldY - offsetY) / grid) * grid;
+      let targetX = Math.round((worldX - offsetX) / grid) * grid;
+      let targetY = Math.round((worldY - offsetY) / grid) * grid;
+
+      const currentComp = project.components.find((c: any) => c.id === compId);
+      if (currentComp) {
+        // Encaixe magnético de precisão a Trilhos DIN e Barramentos Elétricos
+        const snapTolerance = Math.max(16, 26 / cam.zoom);
+        const snapped = snapComponentToBusbars(
+          currentComp,
+          targetX,
+          targetY,
+          project.busbars || [],
+          snapTolerance,
+          project.components
+        );
+        targetX = snapped.x;
+        targetY = snapped.y;
+      }
 
       setProject((prev: any) => {
         const updated = prev.components.map((c: any) => {
           if (c.id === compId) {
-            return { ...c, x: nx, y: ny };
+            return { ...c, x: targetX, y: targetY };
           }
           return c;
         });
         return { ...prev, components: updated };
       });
+    } else if (drag.mode === 'busbar' && drag.busbarId) {
+      const busbarId = drag.busbarId;
+      const offsetX = drag.offsetX ?? 0;
+      const offsetY = drag.offsetY ?? 0;
+      const grid = cam.grid || 20;
+      const targetX = Math.round((worldX - offsetX) / grid) * grid;
+      const targetY = Math.round((worldY - offsetY) / grid) * grid;
+
+      setProject((prev: any) => ({
+        ...prev,
+        busbars: (prev.busbars || []).map((b: any) =>
+          b.id === busbarId ? { ...b, x: targetX, y: targetY } : b
+        )
+      }));
     } else if (drag.mode === 'pan') {
       const dx = e.clientX - drag.screenStartX;
       const dy = e.clientY - drag.screenStartY;
@@ -1471,6 +1806,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Remove do touchMap
+    simRef.current.touchMap.delete(e.pointerId);
+    if (simRef.current.touchMap.size < 2) {
+      simRef.current.pinch = null;
+    }
+
     // Cancela o temporizador se soltar antes do tempo
     if (simRef.current.longPressTimer) {
       clearTimeout(simRef.current.longPressTimer);
@@ -1516,7 +1857,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     e.preventDefault();
     const cam = cameraRef.current;
     const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    const newZoom = Math.max(0.25, Math.min(3.0, cam.zoom * factor));
+    const newZoom = Math.max(0.1, Math.min(5.0, cam.zoom * factor));
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1527,11 +1868,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     cam.pan.x = mouseX - (mouseX - cam.pan.x) * (newZoom / cam.zoom);
     cam.pan.y = mouseY - (mouseY - cam.pan.y) * (newZoom / cam.zoom);
     cam.zoom = newZoom;
+    setProject(prev => ({ ...prev, updated: Date.now() }));
   };
 
   // Componente selecionado ativo para o painel de propriedades
   const selectedComponent = project.components.find((c: any) => c.id === selectedCompId);
   const selectedDef = selectedComponent ? getComponentDef(selectedComponent.code) : null;
+  const selectedBusbar = (project.busbars || []).find((b: any) => b.id === selectedBusbarId);
 
   if (!isOpen) return null;
 
@@ -1825,6 +2168,124 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
             {/* Lista com Componentes */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+              {/* Seção Especial de Trilhos DIN e Barramentos Elétricos (IEC 60715) */}
+              {(selectedCategory === 'busbars' || selectedCategory === 'all') && (!searchQuery.trim() || 'trilho din barramento cobre pe neutro l1 l2 l3 fase'.includes(searchQuery.toLowerCase())) && (
+                <div className="space-y-1.5 pt-0.5 pb-2 border-b border-slate-800/80">
+                  <div className="px-2 py-1 text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Trilhos & Barramentos (IEC 60715)</span>
+                    <span className="text-[9px] font-mono text-slate-500">Mecânica/Elétrica</span>
+                  </div>
+
+                  {/* Trilho DIN 35mm Horizontal */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addBusbar('din', undefined, undefined, 680, 'horizontal');
+                      soundFX?.playClick?.();
+                    }}
+                    className="w-full p-2 rounded-xl bg-slate-900/70 hover:bg-slate-800 border border-slate-700/60 hover:border-amber-500/50 flex items-center justify-between text-left transition group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0 border border-amber-500/20">
+                        DIN
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-200 group-hover:text-amber-300 leading-tight">
+                          Trilho DIN 35mm (Horizontal)
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          IEC 60715 • Alumínio/Aço • 680mm
+                        </div>
+                      </div>
+                    </div>
+                    <Plus className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400" />
+                  </button>
+
+                  {/* Trilho DIN 35mm Vertical */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addBusbar('din', undefined, undefined, 420, 'vertical');
+                      soundFX?.playClick?.();
+                    }}
+                    className="w-full p-2 rounded-xl bg-slate-900/70 hover:bg-slate-800 border border-slate-700/60 hover:border-amber-500/50 flex items-center justify-between text-left transition group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0 border border-amber-500/20">
+                        DIN↕
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-200 group-hover:text-amber-300 leading-tight">
+                          Trilho DIN 35mm (Vertical)
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          IEC 60715 • Montagem em Coluna • 420mm
+                        </div>
+                      </div>
+                    </div>
+                    <Plus className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400" />
+                  </button>
+
+                  {/* Barramento Fases (L1, L2, L3) */}
+                  <div className="grid grid-cols-3 gap-1 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addBusbar('phase_l1', undefined, undefined, 600, 'horizontal');
+                        soundFX?.playClick?.();
+                      }}
+                      className="p-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-[10px] font-bold text-red-300 text-center transition cursor-pointer"
+                    >
+                      + Barr. L1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addBusbar('phase_l2', undefined, undefined, 600, 'horizontal');
+                        soundFX?.playClick?.();
+                      }}
+                      className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-600 text-[10px] font-bold text-slate-200 text-center transition cursor-pointer"
+                    >
+                      + Barr. L2
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addBusbar('phase_l3', undefined, undefined, 600, 'horizontal');
+                        soundFX?.playClick?.();
+                      }}
+                      className="p-1.5 rounded-lg bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/50 text-[10px] font-bold text-amber-300 text-center transition cursor-pointer"
+                    >
+                      + Barr. L3
+                    </button>
+                  </div>
+
+                  {/* Barramento Neutro N & Terra PE */}
+                  <div className="grid grid-cols-2 gap-1 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addBusbar('neutral', undefined, undefined, 600, 'horizontal');
+                        soundFX?.playClick?.();
+                      }}
+                      className="p-1.5 rounded-lg bg-sky-950/40 hover:bg-sky-900/60 border border-sky-800/50 text-[10px] font-bold text-sky-300 text-center transition cursor-pointer"
+                    >
+                      + Neutro (N)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addBusbar('earth', undefined, undefined, 600, 'horizontal');
+                        soundFX?.playClick?.();
+                      }}
+                      className="p-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/50 text-[10px] font-bold text-emerald-300 text-center transition cursor-pointer"
+                    >
+                      + Terra (PE)
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {COMPONENT_CATALOG.filter(c => {
                 const matchCat = selectedCategory === 'all' || c.cat === selectedCategory;
                 const matchSearch =
@@ -1855,6 +2316,143 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   <Plus className="w-3.5 h-3.5 text-slate-600 group-hover:text-blue-400" />
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* PAINEL FLUTUANTE DIREITO: PROPRIEDADES DO BARRAMENTO / TRILHO SELECIONADO */}
+        {showProps && selectedBusbar && (
+          <div className="absolute right-3 top-3 w-80 max-w-[calc(100vw-24px)] max-h-[calc(100%-80px)] bg-[#0A1224]/95 border border-amber-500/40 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden">
+            <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-[#0E1A33]">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-black text-white">
+                  {selectedBusbar.type === 'din' ? 'Trilho DIN 35mm (IEC 60715)' : 'Barramento Elétrico (Cobre)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBusbarId(null)}
+                className="p-1 rounded text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="p-3 overflow-y-auto space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">Padrão Normativo</label>
+                <select
+                  value={selectedBusbar.type}
+                  onChange={e => {
+                    const nextType = e.target.value as any;
+                    setProject((prev: any) => ({
+                      ...prev,
+                      busbars: (prev.busbars || []).map((b: any) =>
+                        b.id === selectedBusbarId ? { ...b, type: nextType } : b
+                      ),
+                      updated: Date.now()
+                    }));
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white font-bold text-xs"
+                >
+                  <option value="din">Trilho DIN 35mm (IEC/EN 60715)</option>
+                  <option value="phase_l1">Barramento Fase L1 (Castanho / Vermelho)</option>
+                  <option value="phase_l2">Barramento Fase L2 (Preto)</option>
+                  <option value="phase_l3">Barramento Fase L3 (Cinza / Âmbar)</option>
+                  <option value="neutral">Barramento Neutro N (Azul Celeste)</option>
+                  <option value="earth">Barramento Proteção PE (Verde/Amarelo)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">Orientação de Montagem</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProject((prev: any) => ({
+                        ...prev,
+                        busbars: (prev.busbars || []).map((b: any) =>
+                          b.id === selectedBusbarId ? { ...b, orientation: 'horizontal' } : b
+                        ),
+                        updated: Date.now()
+                      }));
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                      selectedBusbar.orientation === 'horizontal'
+                        ? 'bg-blue-600 text-white border-blue-400'
+                        : 'bg-slate-900 text-slate-300 border-slate-800'
+                    }`}
+                  >
+                    Horizontal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProject((prev: any) => ({
+                        ...prev,
+                        busbars: (prev.busbars || []).map((b: any) =>
+                          b.id === selectedBusbarId ? { ...b, orientation: 'vertical' } : b
+                        ),
+                        updated: Date.now()
+                      }));
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                      selectedBusbar.orientation === 'vertical'
+                        ? 'bg-blue-600 text-white border-blue-400'
+                        : 'bg-slate-900 text-slate-300 border-slate-800'
+                    }`}
+                  >
+                    Vertical
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-bold text-slate-400">Comprimento Mecânico</label>
+                  <span className="text-[11px] font-mono text-amber-400 font-bold">
+                    {selectedBusbar.length} mm
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="200"
+                  max="1400"
+                  step="20"
+                  value={selectedBusbar.length}
+                  onChange={e => {
+                    const nextLen = Number(e.target.value);
+                    setProject((prev: any) => ({
+                      ...prev,
+                      busbars: (prev.busbars || []).map((b: any) =>
+                        b.id === selectedBusbarId ? { ...b, length: nextLen } : b
+                      ),
+                      updated: Date.now()
+                    }));
+                  }}
+                  className="w-full accent-amber-500"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-blue-950/30 border border-blue-900/40 text-[11px] text-slate-400 space-y-1">
+                <div className="text-blue-300 font-bold">Acoplamento Magnético Ativo</div>
+                <p>
+                  Arraste componentes elétricos (disjuntores, contatores, relés) para perto do trilho/barramento para encaixe automático com travamento DIN.
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={deleteSelected}
+                  className="w-full py-2 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-300 text-xs font-bold flex items-center justify-center gap-1 border border-rose-900 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remover do Diagrama</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -2024,25 +2622,33 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           <button
             type="button"
             onClick={() => {
-              cameraRef.current.zoom = Math.max(0.25, cameraRef.current.zoom * 0.85);
+              cameraRef.current.zoom = Math.max(0.1, cameraRef.current.zoom * 0.85);
               setProject(prev => ({ ...prev, updated: Date.now() }));
             }}
-            className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-xs"
-            title="Zoom Out"
+            className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-xs cursor-pointer"
+            title="Diminuir Zoom (Zoom Out)"
           >
             −
           </button>
-          <span className="text-[11px] font-mono px-1 text-slate-400">
-            {Math.round((cameraRef.current?.zoom || 1) * 100)}%
-          </span>
           <button
             type="button"
             onClick={() => {
-              cameraRef.current.zoom = Math.min(3.0, cameraRef.current.zoom * 1.15);
+              cameraRef.current.zoom = 1.0;
               setProject(prev => ({ ...prev, updated: Date.now() }));
             }}
-            className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-xs"
-            title="Zoom In"
+            className="text-[11px] font-mono px-1.5 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold cursor-pointer"
+            title="Redefinir Zoom para 100%"
+          >
+            {Math.round((cameraRef.current?.zoom || 1) * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              cameraRef.current.zoom = Math.min(5.0, cameraRef.current.zoom * 1.15);
+              setProject(prev => ({ ...prev, updated: Date.now() }));
+            }}
+            className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-xs cursor-pointer"
+            title="Aumentar Zoom (Zoom In)"
           >
             +
           </button>
@@ -2053,8 +2659,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               handleFit();
               setProject(prev => ({ ...prev, updated: Date.now() }));
             }}
-            className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] font-bold"
-            title="Enquadrar Circuito"
+            className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] font-bold cursor-pointer"
+            title="Enquadrar Todo o Circuito (Fit)"
           >
             ⌗ Fit
           </button>

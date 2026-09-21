@@ -9,6 +9,15 @@ export interface TerminalDef {
   2: string; // Terminal Default Net Wire Type: 'L1' | 'L2' | 'L3' | 'N' | 'PE' | '24+' | '24-' | 'CTRL'
 }
 
+export interface Busbar {
+  id: string;
+  type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth';
+  x: number;
+  y: number;
+  length: number;
+  orientation: 'horizontal' | 'vertical';
+}
+
 export interface ComponentDef {
   code: string;
   name: string;
@@ -24,6 +33,7 @@ export interface ComponentDef {
 
 export const CATEGORIES: Record<string, string> = {
   all: 'Todos',
+  busbars: 'Trilhos & Barramentos (DIN)',
   protection: 'Proteção',
   command: 'Comandos & Relés',
   motors: 'Motores & Cargas',
