@@ -785,41 +785,94 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         ctx.rotate((c.rot * Math.PI) / 180);
 
         // Corpo do componente
-        ctx.fillStyle = st.tripped
-          ? '#2e0f14'
-          : isSel
-          ? '#0c2847'
-          : '#0a1628';
-        ctx.strokeStyle = st.tripped
-          ? '#ef4444'
-          : isSel
-          ? '#38bdf8'
-          : isEnergized
-          ? '#10b981'
-          : '#1e3a5f';
-        ctx.lineWidth = isSel ? 2.5 : 1.5;
+        const radius = 8 * cam.zoom;
+        const x = -cw / 2;
+        const y = -ch / 2;
+
+        let gradTop = '#0a1628';
+        let gradBottom = '#040914';
+        let strokeColor = '#1e3a5f';
+        let glowColor = 'transparent';
+
+        if (st.tripped) {
+          gradTop = '#3b0712';
+          gradBottom = '#180307';
+          strokeColor = '#ef4444';
+          glowColor = 'rgba(239, 68, 68, 0.45)';
+        } else if (isSel) {
+          gradTop = '#0c2847';
+          gradBottom = '#041324';
+          strokeColor = '#38bdf8';
+          glowColor = 'rgba(56, 189, 248, 0.5)';
+        } else if (isEnergized) {
+          gradTop = '#062c22';
+          gradBottom = '#02120e';
+          strokeColor = '#10b981';
+          glowColor = 'rgba(16, 185, 129, 0.35)';
+        }
+
+        const bodyGrad = ctx.createLinearGradient(0, y, 0, y + ch);
+        bodyGrad.addColorStop(0, gradTop);
+        bodyGrad.addColorStop(1, gradBottom);
+
+        ctx.save();
+
+        if (glowColor !== 'transparent') {
+          ctx.shadowColor = glowColor;
+          ctx.shadowBlur = isSel ? 16 * cam.zoom : 10 * cam.zoom;
+        }
+
+        ctx.fillStyle = bodyGrad;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = isSel ? 2.5 * cam.zoom : 1.5 * cam.zoom;
 
         // Borda arredondada
         ctx.beginPath();
-        ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 8 * cam.zoom);
+        ctx.roundRect(x, y, cw, ch, radius);
         ctx.fill();
         ctx.stroke();
 
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1 * cam.zoom;
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y + 1.5 * cam.zoom);
+        ctx.lineTo(x + cw - radius, y + 1.5 * cam.zoom);
+        ctx.stroke();
+
+        ctx.restore();
+
         // Animação Eletromecânica Específica
         if (d.kind === 'motor3' || d.kind === 'motor1' || d.kind === 'fan') {
-          // Rotor com rotação contínua
           ctx.save();
-          ctx.fillStyle = st.running ? '#064e3b' : '#1e293b';
+          
+          const isRunning = st.running;
+          const rotorColor = isRunning ? '#064e3b' : '#1e293b';
+          const strokeRotor = isRunning ? '#10b981' : '#475569';
+
+          if (isRunning) {
+            ctx.shadowColor = '#10b981';
+            ctx.shadowBlur = 10 * cam.zoom;
+          }
+
+          // Rotor com rotação contínua
+          ctx.fillStyle = rotorColor;
           ctx.beginPath();
           ctx.arc(0, -5 * cam.zoom, 16 * cam.zoom, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = st.running ? '#34d399' : '#475569';
+          ctx.strokeStyle = strokeRotor;
+          ctx.lineWidth = 1.8 * cam.zoom;
           ctx.stroke();
+          ctx.shadowColor = 'transparent';
 
           // Lâminas girando
-          ctx.rotate(st.running ? (simRef.current.time * (st.rpm || 1500) * 0.05) : 0);
-          ctx.strokeStyle = st.running ? '#a7f3d0' : '#64748b';
+          ctx.save();
+          ctx.translate(0, -5 * cam.zoom);
+          ctx.rotate(isRunning ? (simRef.current.time * (st.rpm || 1500) * 0.05) : 0);
+          ctx.strokeStyle = isRunning ? '#6ee7b7' : '#64748b';
           ctx.lineWidth = 2 * cam.zoom;
+          ctx.lineCap = 'round';
+
           for (let i = 0; i < 4; i++) {
             ctx.rotate(Math.PI / 2);
             ctx.beginPath();
@@ -830,10 +883,17 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           ctx.restore();
 
           // Rótulo RPM
-          ctx.fillStyle = st.running ? '#34d399' : '#94a3b8';
+          ctx.fillStyle = isRunning ? '#34d399' : '#64748b';
           ctx.font = `bold ${Math.max(8, 9 * cam.zoom)}px monospace`;
           ctx.textAlign = 'center';
-          ctx.fillText(st.running ? `${st.rpm || 2920} RPM` : 'PARADO', 0, 24 * cam.zoom);
+
+          if (isRunning) {
+            ctx.shadowColor = 'rgba(52, 211, 153, 0.6)';
+            ctx.shadowBlur = 6 * cam.zoom;
+          }
+          
+          ctx.fillText(isRunning ? `${st.rpm || 2920} RPM` : 'PARADO', 0, 24 * cam.zoom);
+          ctx.restore();
 
         } else if (d.kind === 'lamp') {
           // Lâmpada com Glow Effect
