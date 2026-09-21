@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { TECHNICAL_CATEGORIES, MOZAMBIQUE_PROVINCES, CadCircuitProject } from '../../types';
@@ -77,6 +77,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     setActiveCadCircuit(circuit || null);
     setIsCadSimulatorOpen(true);
   };
+
+  // Suporte global para comando de voz "Sara, abra o simulador"
+  useEffect(() => {
+    const handleGlobalOpen = (e: any) => {
+      handleOpenCadSimulator(e?.detail?.circuit || null);
+    };
+    window.addEventListener('open_cad_simulator', handleGlobalOpen);
+    return () => {
+      window.removeEventListener('open_cad_simulator', handleGlobalOpen);
+    };
+  }, []);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isSeloModalOpen, setIsSeloModalOpen] = useState<boolean>(false);
   const [seloFeatureName, setSeloFeatureName] = useState<string>('Publicações no Mural');

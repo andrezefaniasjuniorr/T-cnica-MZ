@@ -60,8 +60,14 @@ import {
   Cpu,
   Eye,
   Settings2,
-  FileText
+  FileText,
+  Mic,
+  MicOff,
+  Bot,
+  Sparkles
 } from 'lucide-react';
+import { useSaraVoice } from '../../context/SaraVoiceContext';
+import { generateCadProjectPDF } from '../../utils/saraPdfGenerator';
 
 interface CadSimulatorWorkbenchModalProps {
   isOpen: boolean;
@@ -454,6 +460,82 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     addEvent(`${cdef.name} inserido no diagrama.`);
     showToast(`${cdef.name} adicionado`);
   }, [pushHistory, addEvent, showToast]);
+
+  // Integração da Sara IA com a Bancada de Simulação CAD
+  const {
+    registerCadBridge,
+    isListening: isSaraListening,
+    wakeWordDetected: isSaraWake,
+    toggleListening: toggleSaraVoice
+  } = useSaraVoice();
+
+  useEffect(() => {
+    const unregister = registerCadBridge({
+      isOpen: true,
+      openSimulator: () => {},
+      closeSimulator: onClose,
+      getProject: () => project,
+      setProject: setProject,
+      isRunning: isRunning,
+      setIsRunning: setIsRunning,
+      addComponent: (type: string, x?: number, y?: number, onBusbar?: boolean) => {
+        addComponentToCanvas(type);
+        return type;
+      },
+      connectTerminals: (params: any) => {
+        const { sourceCompId, sourceTerminal, targetCompId, targetTerminal, wireType } = params;
+        const compA = project.components.find((c: any) => c.id === sourceCompId || c.code === sourceCompId);
+        const compB = project.components.find((c: any) => c.id === targetCompId || c.code === targetCompId);
+        if (!compA || !compB) return false;
+
+        const defA = getComponentDef(compA.code);
+        const defB = getComponentDef(compB.code);
+        const tA = sourceTerminal || defA?.terminals?.[0]?.[0] || '1';
+        const tB = targetTerminal || defB?.terminals?.[0]?.[0] || '2';
+
+        pushHistory();
+        const newWire = {
+          id: `W_${Math.random().toString(36).substring(2, 7)}`,
+          a: { c: compA.id, t: tA },
+          b: { c: compB.id, t: tB },
+          type: wireType || 'L1',
+          live: isRunning
+        };
+        setProject(prev => ({
+          ...prev,
+          wires: [...prev.wires, newWire],
+          updated: Date.now()
+        }));
+        showToast('Condutores interligados');
+        return true;
+      },
+      removeComponent: (compId: string) => {
+        pushHistory();
+        setProject(prev => ({
+          ...prev,
+          components: prev.components.filter((c: any) => c.id !== compId),
+          wires: prev.wires.filter((w: any) => w.a.c !== compId && w.b.c !== compId),
+          updated: Date.now()
+        }));
+        showToast('Componente removido');
+        return true;
+      },
+      clearCanvas: () => {
+        loadPreset('new');
+      },
+      triggerSimulation: (action: 'start' | 'stop' | 'toggle') => {
+        let nextState = !isRunning;
+        if (action === 'start') nextState = true;
+        else if (action === 'stop') nextState = false;
+        setIsRunning(nextState);
+        return nextState;
+      }
+    });
+
+    return () => {
+      unregister();
+    };
+  }, [registerCadBridge, project, isRunning, addComponentToCanvas, pushHistory, loadPreset, onClose, showToast]);
 
   // Girar Componente Selecionado (90°)
   const rotateSelectedComponent = useCallback(() => {
@@ -2025,8 +2107,47 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </button>
         </div>
 
-        {/* Ações de Direita: Publicar no Mural, Exportar & Fechar */}
+        {/* Ações de Direita: Sara IA, Relatório PDF, Publicar no Mural, Exportar & Fechar */}
         <div className="flex items-center gap-1.5">
+          {/* Sara IA Voice Control na Bancada */}
+          <button
+            type="button"
+            onClick={toggleSaraVoice}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+              isSaraWake
+                ? 'bg-amber-500 text-slate-950 border-amber-300 ring-2 ring-amber-400/50 animate-pulse'
+                : isSaraListening
+                ? 'bg-slate-900 text-emerald-400 border-emerald-500/50 hover:bg-slate-800'
+                : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-white'
+            }`}
+            title={isSaraListening ? 'Sara IA ouvindo: Diga "Sara, adicione contator..."' : 'Ativar Escuta da Sara IA'}
+          >
+            {isSaraWake ? (
+              <Sparkles className="w-3.5 h-3.5 animate-spin text-slate-950" />
+            ) : isSaraListening ? (
+              <Mic className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            ) : (
+              <MicOff className="w-3.5 h-3.5 text-slate-400" />
+            )}
+            <span className="hidden sm:inline">
+              {isSaraWake ? 'Sara Ouvindo...' : isSaraListening ? 'Sara IA Ativa' : 'Sara Voz'}
+            </span>
+          </button>
+
+          {/* Gerar Relatório Técnico em PDF */}
+          <button
+            type="button"
+            onClick={() => {
+              generateCadProjectPDF(project, { authorName: 'Eletro-Jr • Técnico Responsável' });
+              showToast('Relatório Técnico em PDF gerado!');
+            }}
+            className="px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 hover:text-sky-300 border border-slate-800 transition cursor-pointer flex items-center gap-1 text-xs font-bold"
+            title="Gerar e Baixar Relatório Técnico Oficial em PDF (IEC 60947)"
+          >
+            <FileText className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden lg:inline">PDF Técnico</span>
+          </button>
+
           {/* BOTÃO MESTRE: PUBLICAR NO MURAL DO TÉCNICAMZ */}
           <button
             type="button"

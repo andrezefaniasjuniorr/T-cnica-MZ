@@ -454,7 +454,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
       {
         id: 'init_msg',
         sender: 'sara',
-        text: `Olá ${userName}, Sou Eng.Sara IA da TécnicaMZ Pro! Precisa de ajuda?`,
+        text: `Olá, ${userName || 'Eletro-Jr'}, Sou Sara a sua assistente virtual da TécnicaMZ Pro. Como posso colaborar no seu projeto ou simulação elétrica hoje?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ];

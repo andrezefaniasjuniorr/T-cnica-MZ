@@ -28,6 +28,8 @@ import { AcademySection } from './components/academy/AcademySection';
 import { GlobalSearchModal } from './components/common/GlobalSearchModal';
 import { SaraAiModal } from './components/common/SaraAiModal';
 import { SaraAiFloatingButton } from './components/common/SaraAiFloatingButton';
+import { SaraVoiceHUD } from './components/common/SaraVoiceHUD';
+import { SaraVoiceProvider, useSaraVoice } from './context/SaraVoiceContext';
 import { MessagesModal } from './components/common/MessagesModal';
 import { NotificationsModal } from './components/common/NotificationsModal';
 import { WelcomeModal } from './components/common/WelcomeModal';
@@ -592,6 +594,17 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // Integração da Sara IA com o Navegador Global da TécnicaMZ Pro
+  const { registerNavigationBridge } = useSaraVoice();
+  useEffect(() => {
+    const unregister = registerNavigationBridge((route: string) => {
+      handleNavigate(route);
+    });
+    return () => {
+      unregister();
+    };
+  }, [registerNavigationBridge]);
+
   const handleOpenDirectMessage = (userId: string, userName: string, role: string) => {
     setTargetMessageUser({ id: userId, name: userName, role });
     setIsMessagesOpen(true);
@@ -770,6 +783,9 @@ const AppContent: React.FC = () => {
       {/* 4. Desktop Floating Quick Launcher for Sara IA (Exclusivo Técnicos / Oculto para Clientes) */}
       <SaraAiFloatingButton onClick={handleOpenSaraAi} />
 
+      {/* 4.1 Sara IA Voice Agent HUD (Escuta Contínua, Wake Word & Tool Calling) */}
+      <SaraVoiceHUD onOpenSaraChat={handleOpenSaraAi} />
+
       {/* 5. Global Official Footer */}
       <footer className="bg-slate-950 text-slate-400 border-t border-slate-800 text-xs mt-auto hidden md:block">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -924,7 +940,9 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <DataProvider>
-          <AppContent />
+          <SaraVoiceProvider>
+            <AppContent />
+          </SaraVoiceProvider>
         </DataProvider>
       </AuthProvider>
     </ErrorBoundary>
