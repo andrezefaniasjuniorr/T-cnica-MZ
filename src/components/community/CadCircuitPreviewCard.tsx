@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CadCircuitProject } from '../../types';
 import {
   Zap,
@@ -13,6 +13,8 @@ import {
   Activity,
   Maximize2
 } from 'lucide-react';
+import { getComponentDef, WIRE_COLORS } from './cadEngine';
+import { calculateManhattanPath, getTerminalWorldPos, findJunctionDots } from './cadRouting';
 
 interface CadCircuitPreviewCardProps {
   circuit: CadCircuitProject;
@@ -26,6 +28,11 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
   className = ''
 }) => {
   const circuitType = circuit.circuitType || 'direct_motor';
+  const hasCustomCadData = Boolean(
+    circuit.cadData &&
+    Array.isArray(circuit.cadData.components) &&
+    circuit.cadData.components.length > 0
+  );
 
   // Mini interatividade local no preview do feed
   const [motorOn, setMotorOn] = useState<boolean>(false);
@@ -35,6 +42,45 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
   const [drTripped, setDrTripped] = useState<boolean>(false);
 
   const isFourWayLampOn = swA !== swB !== swC;
+
+  // Cálculo da Bounding Box do Circuito Customizado para renderizar SVG perfeito
+  const customSvgBounds = useMemo(() => {
+    if (!hasCustomCadData || !circuit.cadData) {
+      return { vbX: 0, vbY: 0, vbW: 760, vbH: 240 };
+    }
+    const comps = circuit.cadData.components;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    comps.forEach((c: any) => {
+      const w = c.w || 90;
+      const h = c.h || 80;
+      minX = Math.min(minX, c.x - w / 2);
+      maxX = Math.max(maxX, c.x + w / 2);
+      minY = Math.min(minY, c.y - h / 2);
+      maxY = Math.max(maxY, c.y + h / 2);
+    });
+
+    if (!isFinite(minX)) {
+      return { vbX: 0, vbY: 0, vbW: 760, vbH: 240 };
+    }
+
+    const pad = 40;
+    const vbX = minX - pad;
+    const vbY = minY - pad;
+    const vbW = Math.max(380, maxX - minX + pad * 2);
+    const vbH = Math.max(200, maxY - minY + pad * 2);
+
+    return { vbX, vbY, vbW, vbH };
+  }, [hasCustomCadData, circuit.cadData]);
+
+  // Nós de derivação exclusivos (Junction Dots) calculados no circuito
+  const junctionDots = useMemo(() => {
+    if (!hasCustomCadData || !circuit.cadData) return [];
+    return findJunctionDots(circuit.cadData.components, circuit.cadData.wires || []);
+  }, [hasCustomCadData, circuit.cadData]);
 
   return (
     <div className={`rounded-2xl border border-blue-900/40 bg-[#070D1A] overflow-hidden shadow-lg space-y-0 ${className}`}>
@@ -65,9 +111,172 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
       {/* CAD Schematic Canvas Area */}
       <div className="p-3 sm:p-4 bg-[#050A14] select-none relative group">
         {/* ================================================================= */}
-        {/* 1. MOTOR DIRECT STARTER SCHEMATIC                                 */}
+        {/* 0. CIRCUITO CUSTOMIZADO FIEL (DESENHADO PELO TÉCNICO NO WORKBENCH) */}
         {/* ================================================================= */}
-        {circuitType === 'direct_motor' && (
+        {hasCustomCadData && circuit.cadData && (
+          <div className="space-y-3">
+            <svg
+              viewBox={`${customSvgBounds.vbX} ${customSvgBounds.vbY} ${customSvgBounds.vbW} ${customSvgBounds.vbH}`}
+              className="w-full h-auto min-h-[180px] max-h-[260px]"
+            >
+              <defs>
+                <pattern id={`cad_grid_${circuit.title || 'cad'}`} width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1E293B" strokeWidth="0.5" opacity="0.3" />
+                </pattern>
+              </defs>
+
+              <rect
+                x={customSvgBounds.vbX}
+                y={customSvgBounds.vbY}
+                width={customSvgBounds.vbW}
+                height={customSvgBounds.vbH}
+                fill="#070D1A"
+                rx="10"
+              />
+              <rect
+                x={customSvgBounds.vbX}
+                y={customSvgBounds.vbY}
+                width={customSvgBounds.vbW}
+                height={customSvgBounds.vbH}
+                fill={`url(#cad_grid_${circuit.title || 'cad'})`}
+                rx="10"
+              />
+
+              {/* Condutores Manhattan Ortogonais a 90° */}
+              {(circuit.cadData.wires || []).map((w: any, wireIdx: number) => {
+                const compA = circuit.cadData?.components.find((c: any) => c.id === w.a?.c);
+                const compB = circuit.cadData?.components.find((c: any) => c.id === w.b?.c);
+                if (!compA || !compB) return null;
+
+                const posA = getTerminalWorldPos(compA, w.a?.t);
+                const posB = getTerminalWorldPos(compB, w.b?.t);
+                const pathPts = calculateManhattanPath(posA, posB, wireIdx);
+                if (pathPts.length === 0) return null;
+
+                const dStr = pathPts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                const wireColor = WIRE_COLORS[w.type] || '#f59e0b';
+
+                return (
+                  <path
+                    key={w.id || wireIdx}
+                    d={dStr}
+                    stroke={wireColor}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                );
+              })}
+
+              {/* Nós de derivação exclusivos (Junction Dots em derivações T) */}
+              {junctionDots.map((jd, idx) => (
+                <circle
+                  key={`jd_${idx}`}
+                  cx={jd.x}
+                  cy={jd.y}
+                  r="4"
+                  fill={WIRE_COLORS[jd.netType] || '#f59e0b'}
+                  stroke="#050A14"
+                  strokeWidth="1.5"
+                />
+              ))}
+
+              {/* Componentes Elétricos Cadastrados */}
+              {(circuit.cadData.components || []).map((c: any) => {
+                const d = getComponentDef(c.code);
+                const w = c.w || 90;
+                const h = c.h || 80;
+                const isMotor = d.kind === 'motor3' || d.kind === 'motor1';
+
+                return (
+                  <g key={c.id} transform={`translate(${c.x}, ${c.y}) rotate(${c.rot || 0})`}>
+                    {/* Corpo do Componente */}
+                    <rect
+                      x={-w / 2}
+                      y={-h / 2}
+                      width={w}
+                      height={h}
+                      rx="8"
+                      fill="#0B1528"
+                      stroke="#1E3A5F"
+                      strokeWidth="1.5"
+                    />
+
+                    {/* Símbolo central / Ícone */}
+                    {isMotor ? (
+                      <g>
+                        <circle cx="0" cy="-4" r="15" fill="#1E293B" stroke="#34D399" strokeWidth="1.5" />
+                        <text x="0" y="0" fill="#34D399" fontSize="10" fontWeight="bold" textAnchor="middle">
+                          M 3~
+                        </text>
+                      </g>
+                    ) : (
+                      <text x="0" y="-2" fill="#93C5FD" fontSize="18" textAnchor="middle" dominantBaseline="middle">
+                        {d.icon || '⚡'}
+                      </text>
+                    )}
+
+                    {/* Rótulo / Nome do Componente */}
+                    <text
+                      x="0"
+                      y={h / 2 - 8}
+                      fill="#E2E8F0"
+                      fontSize="9"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                      fontFamily="sans-serif"
+                    >
+                      {c.label || d.name}
+                    </text>
+
+                    {/* Terminais Normativos */}
+                    {d.terminals.map(term => {
+                      const tPos = getTerminalWorldPos(c, term[0]);
+                      const localX = tPos.x - c.x;
+                      const localY = tPos.y - c.y;
+
+                      return (
+                        <g key={term[0]}>
+                          <circle
+                            cx={localX}
+                            cy={localY}
+                            r="3.5"
+                            fill="#38BDF8"
+                            stroke="#0B1528"
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            x={localX}
+                            y={localY < 0 ? localY - 5 : localY + 9}
+                            fill="#94A3B8"
+                            fontSize="7"
+                            fontWeight="bold"
+                            textAnchor="middle"
+                            fontFamily="monospace"
+                          >
+                            {term[0]}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              })}
+            </svg>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <span className="font-mono">
+                {circuit.cadData.components.length} dispositivos • {circuit.cadData.wires?.length || 0} conexões ortogonais
+              </span>
+              <span className="text-emerald-400 font-bold">Esquema 100% IEC 60947 / 60364</span>
+            </div>
+          </div>
+        )}
+
+        {/* ================================================================= */}
+        {/* 1. MOTOR DIRECT STARTER SCHEMATIC (FALLBACK PRESET)                */}
+        {/* ================================================================= */}
+        {!hasCustomCadData && circuitType === 'direct_motor' && (
           <div className="space-y-3">
             <svg viewBox="0 0 760 230" className="w-full h-auto min-h-[160px] max-h-[220px]">
               <defs>
@@ -120,183 +329,161 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
               </g>
 
               {/* Fios KM1 -> F1 */}
-              <line x1="375" y1="40" x2="420" y2="40" stroke={motorOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" />
-              <line x1="375" y1="65" x2="420" y2="65" stroke={motorOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" />
-              <line x1="375" y1="90" x2="420" y2="90" stroke={motorOn ? '#3B82F6' : '#64748B'} strokeWidth="2.5" />
+              <line x1="375" y1="40" x2="425" y2="40" stroke={motorOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" />
+              <line x1="375" y1="65" x2="425" y2="65" stroke={motorOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" />
+              <line x1="375" y1="90" x2="425" y2="90" stroke={motorOn ? '#3B82F6' : '#64748B'} strokeWidth="2.5" />
 
-              {/* F1: Relé Térmico */}
-              <g transform="translate(420, 20)">
-                <rect x="0" y="0" width="80" height="95" rx="6" fill="#0F172A" stroke="#F59E0B" strokeWidth="1.5" />
+              {/* F1: Relé Térmico de Sobrecarga (OLR) */}
+              <g transform="translate(425, 20)">
+                <rect x="0" y="0" width="85" height="95" rx="6" fill="#0F172A" stroke="#F59E0B" strokeWidth="1.5" />
                 <text x="14" y="22" fill="#FCD34D" fontSize="10" fontWeight="bold">F1 (Térmico)</text>
-                <text x="14" y="38" fill="#64748B" fontSize="9">18 - 25A</text>
-                <path d="M 25 58 Q 40 48 55 58" fill="none" stroke="#F59E0B" strokeWidth="2" />
-                <path d="M 25 68 Q 40 58 55 68" fill="none" stroke="#F59E0B" strokeWidth="2" />
+                <text x="14" y="38" fill="#64748B" fontSize="9">9-13A • Cl.10</text>
+                <circle cx="42" cy="62" r="10" fill="#1E293B" stroke="#F59E0B" strokeWidth="1.5" />
+                <text x="35" y="66" fill="#FCD34D" fontSize="9" fontWeight="bold">OK</text>
               </g>
 
               {/* Fios F1 -> Motor M1 */}
-              <line x1="500" y1="40" x2="570" y2="50" stroke={motorOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" />
-              <line x1="500" y1="65" x2="570" y2="68" stroke={motorOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" />
-              <line x1="500" y1="90" x2="570" y2="86" stroke={motorOn ? '#3B82F6' : '#64748B'} strokeWidth="2.5" />
+              <line x1="510" y1="40" x2="570" y2="40" stroke={motorOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" />
+              <line x1="510" y1="65" x2="570" y2="65" stroke={motorOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" />
+              <line x1="510" y1="90" x2="570" y2="90" stroke={motorOn ? '#3B82F6' : '#64748B'} strokeWidth="2.5" />
 
-              {/* M1: Motor Trifásico */}
-              <g transform="translate(570, 25)">
-                <circle cx="45" cy="45" r="42" fill="#0B132B" stroke={motorOn ? '#10B981' : '#334155'} strokeWidth="2" />
-                {motorOn && (
-                  <circle cx="45" cy="45" r="36" fill="none" stroke="#10B981" strokeWidth="2" strokeDasharray="8,6" className="animate-spin" style={{ transformOrigin: '45px 45px' }} />
-                )}
-                <text x="35" y="42" fill="#FFFFFF" fontSize="13" fontWeight="black">M1</text>
-                <text x="31" y="58" fill={motorOn ? '#34D399' : '#94A3B8'} fontSize="9" fontWeight="bold">
+              {/* Motor Trifásico M1 */}
+              <g transform="translate(570, 15)">
+                <rect x="0" y="0" width="150" height="105" rx="10" fill="#0F172A" stroke={motorOn ? '#10B981' : '#3B82F6'} strokeWidth={motorOn ? 2.5 : 1.5} />
+                <text x="16" y="26" fill="#FFFFFF" fontSize="11" fontWeight="bold">M1: Motor Trifásico</text>
+                <text x="16" y="44" fill="#94A3B8" fontSize="9">7.5 kW • 400V • 50 Hz</text>
+
+                {/* Rotor animado */}
+                <circle cx="105" cy="65" r="24" fill={motorOn ? 'url(#motorPulseGrad)' : '#1E293B'} stroke={motorOn ? '#34D399' : '#475569'} strokeWidth="2" />
+                <text x="105" y="70" fill={motorOn ? '#FFFFFF' : '#64748B'} fontSize="10" fontWeight="bold" textAnchor="middle">
                   {motorOn ? '2920 RPM' : 'PARADO'}
                 </text>
               </g>
 
-              {/* Circuito de Comando Inferior: Botão S0 (Desliga) e S1 (Liga) */}
-              <g transform="translate(160, 140)">
-                <rect x="0" y="0" width="490" height="70" rx="8" fill="#0A1020" stroke="#1E293B" />
-                <text x="15" y="24" fill="#94A3B8" fontSize="10" fontWeight="bold">Linha de Comando 230V:</text>
+              {/* Circuito de Comando Simplificado */}
+              <g transform="translate(40, 145)">
+                <rect x="0" y="0" width="680" height="70" rx="8" fill="#0A1122" stroke="#1E293B" strokeWidth="1" />
+                <text x="20" y="24" fill="#FCD34D" fontSize="10" fontWeight="bold">Circuito de Comando 230V AC</text>
 
-                {/* S0 Botoeira NF */}
-                <rect x="140" y="14" width="70" height="38" rx="6" fill="#1E293B" stroke="#EF4444" strokeWidth="1" />
-                <text x="150" y="32" fill="#FCA5A5" fontSize="9" fontWeight="bold">S0 (NF)</text>
-                <text x="150" y="44" fill="#64748B" fontSize="8">Desliga</text>
+                {/* S0 Botoeira NF Desliga */}
+                <rect x="220" y="15" width="80" height="40" rx="4" fill="#1E293B" stroke="#EF4444" />
+                <text x="235" y="32" fill="#FCA5A5" fontSize="9" fontWeight="bold">S0 (Parar)</text>
+                <text x="240" y="46" fill="#94A3B8" fontSize="8">NF (1-2)</text>
 
-                {/* S1 Botoeira NA */}
-                <rect x="230" y="14" width="70" height="38" rx="6" fill="#1E293B" stroke="#10B981" strokeWidth="1" />
-                <text x="240" y="32" fill="#86EFAC" fontSize="9" fontWeight="bold">S1 (NA)</text>
-                <text x="240" y="44" fill="#64748B" fontSize="8">Liga</text>
+                {/* S1 Botoeira NA Liga */}
+                <rect x="330" y="15" width="80" height="40" rx="4" fill="#1E293B" stroke="#10B981" />
+                <text x="345" y="32" fill="#86EFAC" fontSize="9" fontWeight="bold">S1 (Ligar)</text>
+                <text x="350" y="46" fill="#94A3B8" fontSize="8">NA (3-4)</text>
 
-                {/* Status da Bobina KM1 */}
-                <rect x="330" y="14" width="140" height="38" rx="6" fill={motorOn ? '#064E3B' : '#1E293B'} stroke={motorOn ? '#10B981' : '#334155'} />
-                <text x="345" y="30" fill={motorOn ? '#6EE7B7' : '#94A3B8'} fontSize="9" fontWeight="bold">
-                  Bobina KM1: {motorOn ? 'ENERGIZADA' : 'DESENERGIZADA'}
+                {/* Selo KM1 */}
+                <rect x="440" y="15" width="100" height="40" rx="4" fill="#1E293B" stroke="#3B82F6" />
+                <text x="455" y="32" fill="#93C5FD" fontSize="9" fontWeight="bold">Selo KM1 (13-14)</text>
+                <text x="455" y="46" fill={motorOn ? '#34D399' : '#64748B'} fontSize="8">
+                  {motorOn ? 'RETIDO' : 'ABERTO'}
                 </text>
-                <text x="345" y="44" fill={motorOn ? '#A7F3D0' : '#64748B'} fontSize="8">
-                  {motorOn ? 'I = 22.4 A (Carga Nominal)' : 'I = 0.0 A'}
-                </text>
+
+                {/* Bobina KM1 (A1-A2) */}
+                <circle cx="610" cy="35" r="16" fill={motorOn ? '#065F46' : '#1E293B'} stroke="#10B981" strokeWidth="2" />
+                <text x="610" y="39" fill="#FFFFFF" fontSize="9" fontWeight="bold" textAnchor="middle">A1-A2</text>
               </g>
             </svg>
 
             {/* Ação rápida de teste no card */}
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-xs">
               <div className="flex items-center gap-2">
-                <span className="text-slate-400 font-medium">Comando Rápido:</span>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setMotorOn(!motorOn);
                   }}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                     motorOn
-                      ? 'bg-rose-900/60 text-rose-300 border border-rose-700 hover:bg-rose-900'
-                      : 'bg-emerald-900/60 text-emerald-300 border border-emerald-700 hover:bg-emerald-900'
+                      ? 'bg-rose-950 text-rose-300 border border-rose-800 hover:bg-rose-900'
+                      : 'bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900'
                   }`}
                 >
-                  <Play className="w-3 h-3" />
-                  <span>{motorOn ? 'Pressionar S0 (Desligar)' : 'Pressionar S1 (Ligar)'}</span>
+                  <Play className={`w-3.5 h-3.5 ${motorOn ? 'rotate-90' : ''}`} />
+                  <span>{motorOn ? 'Pressionar S0 (Parar)' : 'Pressionar S1 (Ligar)'}</span>
                 </button>
               </div>
-              <span className="text-[11px] font-mono text-slate-400">
-                Tensão: <strong className="text-amber-400">380 V</strong> | Freq: <strong className="text-blue-400">50 Hz</strong>
-              </span>
+
+              <div className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
+                motorOn
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${motorOn ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
+                <span>{motorOn ? 'Motor Girando a 2920 RPM' : 'Carga em Repouso'}</span>
+              </div>
             </div>
           </div>
         )}
 
         {/* ================================================================= */}
-        {/* 2. FOUR-WAY / THREE-WAY SCHEMATIC                                 */}
+        {/* 2. FOUR-WAY / THREE-WAY LIGHTING SCHEMATIC (FALLBACK PRESET)       */}
         {/* ================================================================= */}
-        {circuitType === 'four_way' && (
+        {!hasCustomCadData && circuitType === 'four_way' && (
           <div className="space-y-3">
-            <svg viewBox="0 0 760 210" className="w-full h-auto min-h-[160px] max-h-[220px]">
-              <defs>
-                <pattern id="cad_grid_4way" width="16" height="16" patternUnits="userSpaceOnUse">
-                  <path d="M 16 0 L 0 0 0 16" fill="none" stroke="#1E293B" strokeWidth="0.5" opacity="0.35" />
-                </pattern>
-                <linearGradient id="lampGlowCard" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#FEF08A" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#F59E0B" stopOpacity="0.8" />
-                </linearGradient>
-              </defs>
-
+            <svg viewBox="0 0 760 210" className="w-full h-auto min-h-[150px] max-h-[220px]">
               <rect width="760" height="210" fill="#070D1A" rx="10" />
-              <rect width="760" height="210" fill="url(#cad_grid_4way)" rx="10" />
 
-              {/* Alimentação 230V */}
-              <text x="25" y="45" fill="#EF4444" fontSize="11" fontWeight="bold" fontFamily="monospace">FASE L (230V)</text>
-              <text x="25" y="175" fill="#38BDF8" fontSize="11" fontWeight="bold" fontFamily="monospace">NEUTRO N (0V)</text>
+              {/* Barra Fase L1 e Neutro N */}
+              <text x="25" y="45" fill="#EF4444" fontSize="11" fontWeight="bold" fontFamily="monospace">Fase L1 (230V)</text>
+              <text x="25" y="175" fill="#3B82F6" fontSize="11" fontWeight="bold" fontFamily="monospace">Neutro N</text>
 
-              {/* Fio da Fase */}
-              <line x1="120" y1="40" x2="180" y2="40" stroke="#EF4444" strokeWidth="2.5" />
+              <line x1="125" y1="40" x2="160" y2="40" stroke="#EF4444" strokeWidth="2.5" />
+              <line x1="125" y1="170" x2="680" y2="170" stroke="#3B82F6" strokeWidth="2.5" />
 
-              {/* Comutador S1 (Three-Way) */}
-              <g transform="translate(180, 20)">
-                <rect x="0" y="0" width="100" height="90" rx="8" fill="#0F172A" stroke="#3B82F6" strokeWidth="1.5" />
-                <text x="14" y="22" fill="#93C5FD" fontSize="10" fontWeight="bold">S1: Three-Way</text>
-                <text x="14" y="36" fill="#64748B" fontSize="8">Ponto de Entrada</text>
-                <circle cx="20" cy="55" r="4" fill="#EF4444" />
-                <circle cx="80" cy="45" r="4" fill="#F59E0B" />
-                <circle cx="80" cy="65" r="4" fill="#F59E0B" />
-                <line x1="20" y1="55" x2="80" y2={swA ? 65 : 45} stroke="#EF4444" strokeWidth="2.5" />
+              {/* Three-Way 1 (Pavimento 1) */}
+              <g transform="translate(160, 20)">
+                <rect x="0" y="0" width="110" height="85" rx="6" fill="#0F172A" stroke="#3B82F6" strokeWidth="1.5" />
+                <text x="14" y="24" fill="#93C5FD" fontSize="10" fontWeight="bold">S1: Three-Way</text>
+                <text x="14" y="40" fill="#64748B" fontSize="9">Pavimento 1</text>
+                <circle cx="55" cy="58" r="10" fill={swA ? '#3B82F6' : '#1E293B'} stroke="#3B82F6" />
+                <text x="50" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swA ? 'V2' : 'V1'}</text>
               </g>
 
-              {/* Vias Viajantes S1 -> S2 */}
-              <line x1="280" y1="65" x2="350" y2="65" stroke={!swA ? '#EF4444' : '#475569'} strokeWidth="2" />
-              <line x1="280" y1="85" x2="350" y2="85" stroke={swA ? '#EF4444' : '#475569'} strokeWidth="2" />
+              {/* Vias Paralelas 1 e 2 entre S1 e S2 */}
+              <line x1="270" y1="40" x2="330" y2="40" stroke={swA ? '#64748B' : '#F59E0B'} strokeWidth="2" strokeDasharray="3,3" />
+              <line x1="270" y1="75" x2="330" y2="75" stroke={swA ? '#F59E0B' : '#64748B'} strokeWidth="2" strokeDasharray="3,3" />
 
-              {/* Comutador S2 (Four-Way Cruzamento Intermediário) */}
-              <g transform="translate(350, 20)">
-                <rect x="0" y="0" width="120" height="90" rx="8" fill="#0F172A" stroke="#F59E0B" strokeWidth="1.5" />
-                <text x="14" y="22" fill="#FCD34D" fontSize="10" fontWeight="bold">S2: Four-Way</text>
-                <text x="14" y="36" fill="#64748B" fontSize="8">Cruzamento 4 Vias</text>
-                {/* 4 Bornes */}
-                <circle cx="20" cy="45" r="4" fill="#F59E0B" />
-                <circle cx="20" cy="65" r="4" fill="#F59E0B" />
-                <circle cx="100" cy="45" r="4" fill="#F59E0B" />
-                <circle cx="100" cy="65" r="4" fill="#F59E0B" />
-                {swB ? (
-                  <>
-                    <line x1="20" y1="45" x2="100" y2="65" stroke="#F59E0B" strokeWidth="2.5" />
-                    <line x1="20" y1="65" x2="100" y2="45" stroke="#F59E0B" strokeWidth="2.5" />
-                  </>
-                ) : (
-                  <>
-                    <line x1="20" y1="45" x2="100" y2="45" stroke="#F59E0B" strokeWidth="2.5" />
-                    <line x1="20" y1="65" x2="100" y2="65" stroke="#F59E0B" strokeWidth="2.5" />
-                  </>
-                )}
+              {/* Four-Way (Pavimento 2 - Intermediário) */}
+              <g transform="translate(330, 20)">
+                <rect x="0" y="0" width="120" height="85" rx="6" fill="#0F172A" stroke="#F59E0B" strokeWidth="1.5" />
+                <text x="14" y="24" fill="#FCD34D" fontSize="10" fontWeight="bold">S2: Four-Way</text>
+                <text x="14" y="40" fill="#64748B" fontSize="9">Pavimento 2 (Interm.)</text>
+                <circle cx="60" cy="58" r="10" fill={swB ? '#F59E0B' : '#1E293B'} stroke="#F59E0B" />
+                <text x="55" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swB ? '✕' : '═'}</text>
               </g>
 
-              {/* Vias Viajantes S2 -> S3 */}
-              <line x1="470" y1="65" x2="530" y2="65" stroke="#475569" strokeWidth="2" />
-              <line x1="470" y1="85" x2="530" y2="85" stroke="#475569" strokeWidth="2" />
+              {/* Vias Paralelas 1 e 2 entre S2 e S3 */}
+              <line x1="450" y1="40" x2="510" y2="40" stroke={swB ? '#F59E0B' : '#64748B'} strokeWidth="2" strokeDasharray="3,3" />
+              <line x1="450" y1="75" x2="510" y2="75" stroke={swB ? '#64748B' : '#F59E0B'} strokeWidth="2" strokeDasharray="3,3" />
 
-              {/* Comutador S3 (Three-Way Final) */}
-              <g transform="translate(530, 20)">
-                <rect x="0" y="0" width="100" height="90" rx="8" fill="#0F172A" stroke="#3B82F6" strokeWidth="1.5" />
-                <text x="14" y="22" fill="#93C5FD" fontSize="10" fontWeight="bold">S3: Three-Way</text>
-                <text x="14" y="36" fill="#64748B" fontSize="8">Ponto de Saída</text>
-                <circle cx="20" cy="45" r="4" fill="#F59E0B" />
-                <circle cx="20" cy="65" r="4" fill="#F59E0B" />
-                <circle cx="80" cy="55" r="4" fill={isFourWayLampOn ? '#EF4444' : '#64748B'} />
-                <line x1="80" y1="55" x2="20" y2={swC ? 65 : 45} stroke={isFourWayLampOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" />
+              {/* Three-Way 3 (Pavimento 3) */}
+              <g transform="translate(510, 20)">
+                <rect x="0" y="0" width="110" height="85" rx="6" fill="#0F172A" stroke="#3B82F6" strokeWidth="1.5" />
+                <text x="14" y="24" fill="#93C5FD" fontSize="10" fontWeight="bold">S3: Three-Way</text>
+                <text x="14" y="40" fill="#64748B" fontSize="9">Pavimento 3</text>
+                <circle cx="55" cy="58" r="10" fill={swC ? '#3B82F6' : '#1E293B'} stroke="#3B82F6" />
+                <text x="50" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swC ? 'V2' : 'V1'}</text>
               </g>
 
-              {/* Fio de Retorno até Lâmpada */}
-              <line x1="630" y1="75" x2="680" y2="75" stroke={isFourWayLampOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" />
+              {/* Retorno para a Lâmpada H1 */}
+              <line x1="620" y1="58" x2="680" y2="58" stroke={isFourWayLampOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" />
+              <line x1="680" y1="58" x2="680" y2="90" stroke={isFourWayLampOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" />
 
-              {/* Lâmpada E1 */}
-              <g transform="translate(680, 45)">
-                <circle cx="30" cy="30" r="26" fill={isFourWayLampOn ? 'url(#lampGlowCard)' : '#1E293B'} stroke={isFourWayLampOn ? '#F59E0B' : '#475569'} strokeWidth="2" />
-                <text x="22" y="28" fill={isFourWayLampOn ? '#78350F' : '#FFFFFF'} fontSize="11" fontWeight="bold">E1</text>
-                <text x="12" y="42" fill={isFourWayLampOn ? '#78350F' : '#94A3B8'} fontSize="8" fontWeight="bold">
-                  {isFourWayLampOn ? '230V AC' : '0V'}
+              {/* Lâmpada H1 */}
+              <g transform="translate(650, 90)">
+                <circle cx="30" cy="30" r="24" fill={isFourWayLampOn ? '#FEF08A' : '#1E293B'} stroke={isFourWayLampOn ? '#FACC15' : '#475569'} strokeWidth="2" />
+                <text x="30" y="35" fill={isFourWayLampOn ? '#854D0E' : '#94A3B8'} fontSize="11" fontWeight="bold" textAnchor="middle">
+                  {isFourWayLampOn ? '💡 100W' : 'OFF'}
                 </text>
               </g>
 
-              {/* Fio Neutro N contínuo até a lâmpada */}
-              <line x1="120" y1="170" x2="710" y2="170" stroke="#38BDF8" strokeWidth="2.5" />
-              <line x1="710" y1="170" x2="710" y2="100" stroke="#38BDF8" strokeWidth="2.5" />
+              {/* Neutro subindo para a Lâmpada */}
+              <line x1="680" y1="144" x2="680" y2="170" stroke="#3B82F6" strokeWidth="2.5" />
             </svg>
 
             {/* Ação rápida de teste no card */}
@@ -348,9 +535,9 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
         )}
 
         {/* ================================================================= */}
-        {/* 3. QUADRO QGD / IDR / SOLAR / OUTROS                              */}
+        {/* 3. QUADRO QGD / IDR / SOLAR / OUTROS (FALLBACK PRESET)             */}
         {/* ================================================================= */}
-        {circuitType !== 'direct_motor' && circuitType !== 'four_way' && (
+        {!hasCustomCadData && circuitType !== 'direct_motor' && circuitType !== 'four_way' && (
           <div className="space-y-3">
             <svg viewBox="0 0 760 190" className="w-full h-auto min-h-[140px] max-h-[200px]">
               <rect width="760" height="190" fill="#070D1A" rx="10" />
