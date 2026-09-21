@@ -479,6 +479,38 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   }, [selectedCompId, selectedWireId, pushHistory, showToast]);
 
   // Comandos Físicos Rápidos no Componente (Ligar, Desligar, Pulsar, Rearmar)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPressRef = useRef<boolean>(false);
+
+  const handleComponentPointerDown = useCallback((compId: string) => {
+    isLongPressRef.current = false;
+
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      setSelectedCompId(compId);
+      setShowProps(true);
+      soundFX.playClick();
+    }, 450);
+  }, []);
+
+  const handleComponentPointerUp = useCallback((compId: string) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    if (!isLongPressRef.current) {
+      triggerComponentCommand(compId, 'toggle');
+    }
+  }, [triggerComponentCommand]);
+
+  const handleComponentPointerLeave = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
   const triggerComponentCommand = useCallback((compId: string, action: 'toggle' | 'on' | 'off' | 'pulse' | 'reset') => {
     setProject(prev => {
       const updated = prev.components.map(c => {
