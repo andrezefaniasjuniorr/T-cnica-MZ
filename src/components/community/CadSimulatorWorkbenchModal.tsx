@@ -1301,452 +1301,210 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   // ==========================================================================
   // EVENTOS DE MOUSE / TOQUE NO CANVAS (PAN, ZOOM, SELEÇÃO, FIOS)
   // ==========================================================================
-  import React, { useRef, useState, useCallback } from 'react';
-import { RotateCw, Copy, Trash2, Sliders, X } from 'lucide-react';
-
-// Constantes para controle de sensibilidade do Toque Longo
-const LONG_PRESS_DELAY = 400; // Tempo em ms para abrir as propriedades
-const MOVE_THRESHOLD = 6;     // Tolerância em px para cancelar o menu e assumir movimento (drag)
-
-export function SimulatorCanvas({
-  isOpen,
-  project,
-  setProject,
-  activeTool,
-  selectedWireType,
-  isRunning,
-  selectedCompId,
-  setSelectedCompId,
-  setSelectedWireId,
-  showProps,
-  setShowProps,
-  pushHistory,
-  showToast,
-  soundFX,
-  triggerComponentCommand,
-  getComponentDef,
-  terminalPos,
-  rotateSelectedComponent,
-  duplicateSelectedComponent,
-  deleteSelected,
-}) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const cameraRef = useRef({ pan: { x: 0, y: 0 }, zoom: 1, grid: 20 });
-  const simRef = useRef<any>({ drag: null, wireStart: null });
-
-  // Referências para controle do tempo e posição do Long Press
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const pressStartPosRef = useRef<{ x: number; y: number } | null>(null);
-
-  // Auxiliar para cancelar o temporizador do menu lateral
-  const cancelLongPressTimer = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    pressStartPosRef.current = null;
-  };
-
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    try {
-      canvas.setPointerCapture(e.pointerId);
-    } catch {
-      // Ignora falha de captura em dispositivos sem suporte total
-    }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignora erro se pointer capture falhar no dispositivo
+    }
 
-    // Cancela qualquer contagem anterior por segurança
-    cancelLongPressTimer();
-    pressStartPosRef.current = { x: e.clientX, y: e.clientY };
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
 
-    const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
+    const cam = cameraRef.current;
+    const worldX = (px - cam.pan.x) / cam.zoom;
+    const worldY = (py - cam.pan.y) / cam.zoom;
 
-    const cam = cameraRef.current;
-    const worldX = (px - cam.pan.x) / cam.zoom;
-    const worldY = (py - cam.pan.y) / cam.zoom;
+    simRef.current.drag = {
+      id: e.pointerId,
+      startX: worldX,
+      startY: worldY,
+      screenStartX: e.clientX,
+      screenStartY: e.clientY,
+      mode: 'pan',
+      mouse: { x: worldX, y: worldY }
+    };
 
-    simRef.current.drag = {
-      id: e.pointerId,
-      startX: worldX,
-      startY: worldY,
-      screenStartX: e.clientX,
-      screenStartY: e.clientY,
-      mode: 'pan',
-      mouse: { x: worldX, y: worldY }
-    };
+    // 1. Toque em terminal para condutor
+    for (const c of project.components) {
+      const d = getComponentDef(c.code);
+      for (const t of d.terminals) {
+        const tp = terminalPos(c, t[0]);
+        const dist = Math.hypot(tp.x - worldX, tp.y - worldY);
+        if (dist < 14 / cam.zoom) {
+          if (activeTool === 'wire' || e.shiftKey) {
+            if (!simRef.current.wireStart) {
+              simRef.current.wireStart = { c: c.id, t: t[0] };
+              showToast(`Condutor iniciado em ${c.label || d.name} [${t[0]}]. Toque no destino.`);
+            } else {
+              // Conclui fio
+              const startC = simRef.current.wireStart.c;
+              const startT = simRef.current.wireStart.t;
+              if (startC !== c.id) {
+                pushHistory();
+                const newWire = {
+                  id: `W_${Math.random().toString(36).substring(2, 7)}`,
+                  a: { c: startC, t: startT },
+                  b: { c: c.id, t: t[0] },
+                  type: selectedWireType,
+                  live: isRunning
+                };
+                setProject(prev => ({
+                  ...prev,
+                  wires: [...prev.wires, newWire],
+                  updated: Date.now()
+                }));
+                soundFX.playClick();
+                showToast('Condutor conectado com sucesso');
+              }
+              simRef.current.wireStart = null;
+            }
+          } else {
+            setSelectedCompId(c.id);
+            setSelectedWireId(null);
+            simRef.current.drag.mode = 'comp';
+            simRef.current.drag.compId = c.id;
+            simRef.current.drag.offsetX = worldX - c.x;
+            simRef.current.drag.offsetY = worldY - c.y;
+          }
+          return;
+        }
+      }
+    }
 
-    // 1. Toque em terminal para condutor
-    for (const c of project.components) {
-      const d = getComponentDef(c.code);
-      for (const t of d.terminals) {
-        const tp = terminalPos(c, t[0]);
-        const dist = Math.hypot(tp.x - worldX, tp.y - worldY);
-        if (dist < 14 / cam.zoom) {
-          if (activeTool === 'wire' || e.shiftKey) {
-            if (!simRef.current.wireStart) {
-              simRef.current.wireStart = { c: c.id, t: t[0] };
-              showToast(`Condutor iniciado em ${c.label || d.name} [${t[0]}]. Toque no destino.`);
-            } else {
-              // Conclui o condutor
-              const startC = simRef.current.wireStart.c;
-              const startT = simRef.current.wireStart.t;
-              if (startC !== c.id) {
-                pushHistory();
-                const newWire = {
-                  id: `W_${Math.random().toString(36).substring(2, 7)}`,
-                  a: { c: startC, t: startT },
-                  b: { c: c.id, t: t[0] },
-                  type: selectedWireType,
-                  live: isRunning
-                };
-                setProject((prev: any) => ({
-                  ...prev,
-                  wires: [...prev.wires, newWire],
-                  updated: Date.now()
-                }));
-                soundFX.playClick();
-                showToast('Condutor conectado com sucesso');
-              }
-              simRef.current.wireStart = null;
-            }
-          } else {
-            setSelectedCompId(c.id);
-            setSelectedWireId(null);
-            simRef.current.drag.mode = 'comp';
-            simRef.current.drag.compId = c.id;
-            simRef.current.drag.offsetX = worldX - c.x;
-            simRef.current.drag.offsetY = worldY - c.y;
+    // 2. Toque em componente para mover ou acionar
+    for (let i = project.components.length - 1; i >= 0; i--) {
+      const c = project.components[i];
+      const rad = (-c.rot * Math.PI) / 180;
+      const dx = worldX - c.x;
+      const dy = worldY - c.y;
+      const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+      const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
 
-            // Inicia o timer do toque longo para exibir as propriedades
-            longPressTimerRef.current = setTimeout(() => {
-              setShowProps(true);
-            }, LONG_PRESS_DELAY);
-          }
-          return;
-        }
-      }
-    }
+      if (Math.abs(rx) <= c.w / 2 && Math.abs(ry) <= c.h / 2) {
+        setSelectedCompId(c.id);
+        setSelectedWireId(null);
+        simRef.current.drag.mode = 'comp';
+        simRef.current.drag.compId = c.id;
+        simRef.current.drag.offsetX = worldX - c.x;
+        simRef.current.drag.offsetY = worldY - c.y;
+        return;
+      }
+    }
 
-    // 2. Toque em componente para mover ou acionar
-    for (let i = project.components.length - 1; i >= 0; i--) {
-      const c = project.components[i];
-      const rad = (-c.rot * Math.PI) / 180;
-      const dx = worldX - c.x;
-      const dy = worldY - c.y;
-      const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
-      const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+    // 3. Toque em fio para selecionar
+    setSelectedCompId(null);
+    setSelectedWireId(null);
+    simRef.current.drag.mode = 'pan';
+  };
 
-      if (Math.abs(rx) <= c.w / 2 && Math.abs(ry) <= c.h / 2) {
-        setSelectedCompId(c.id);
-        setSelectedWireId(null);
-        simRef.current.drag.mode = 'comp';
-        simRef.current.drag.compId = c.id;
-        simRef.current.drag.offsetX = worldX - c.x;
-        simRef.current.drag.offsetY = worldY - c.y;
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const drag = simRef.current.drag;
+    if (!drag) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-        // Ativa o timer do Long Press se pressionado sobre o componente
-        longPressTimerRef.current = setTimeout(() => {
-          setShowProps(true);
-        }, LONG_PRESS_DELAY);
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
 
-        return;
-      }
-    }
+    const cam = cameraRef.current;
+    const worldX = (px - cam.pan.x) / cam.zoom;
+    const worldY = (py - cam.pan.y) / cam.zoom;
 
-    // 3. Toque em área vazia do Canvas (Mover Pan)
-    setSelectedCompId(null);
-    setSelectedWireId(null);
-    setShowProps(false);
-    simRef.current.drag.mode = 'pan';
-  };
+    drag.mouse = { x: worldX, y: worldY };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const drag = simRef.current.drag;
-    if (!drag) return;
+    if (drag.mode === 'comp' && drag.compId) {
+      const compId = drag.compId;
+      const offsetX = drag.offsetX ?? 0;
+      const offsetY = drag.offsetY ?? 0;
+      const grid = cam.grid || 20;
+      const nx = Math.round((worldX - offsetX) / grid) * grid;
+      const ny = Math.round((worldY - offsetY) / grid) * grid;
 
-    // Cancela o Long Press imediatamente se ultrapassar a distância do Threshold
-    if (pressStartPosRef.current) {
-      const moveDistScreen = Math.hypot(
-        e.clientX - pressStartPosRef.current.x,
-        e.clientY - pressStartPosRef.current.y
-      );
-      if (moveDistScreen > MOVE_THRESHOLD) {
-        cancelLongPressTimer();
-      }
-    }
+      setProject(prev => {
+        const updated = prev.components.map(c => {
+          if (c.id === compId) {
+            return { ...c, x: nx, y: ny };
+          }
+          return c;
+        });
+        return { ...prev, components: updated };
+      });
+    } else if (drag.mode === 'pan') {
+      const dx = e.clientX - drag.screenStartX;
+      const dy = e.clientY - drag.screenStartY;
+      cam.pan.x += dx;
+      cam.pan.y += dy;
+      drag.screenStartX = e.clientX;
+      drag.screenStartY = e.clientY;
+    }
+  };
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      try {
+        if (canvas.hasPointerCapture(e.pointerId)) {
+          canvas.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // Ignora erro de liberação de captura
+      }
+    }
 
-    const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
+    const drag = simRef.current.drag;
+    if (!drag) return;
+    const moveDist = Math.hypot(
+      e.clientX - drag.screenStartX,
+      e.clientY - drag.screenStartY
+    );
 
-    const cam = cameraRef.current;
-    const worldX = (px - cam.pan.x) / cam.zoom;
-    const worldY = (py - cam.pan.y) / cam.zoom;
+    // Se foi um clique rápido sem arrastar num componente mecânico, alterna seu estado físico
+    if (moveDist < 6 && drag.mode === 'comp' && drag.compId) {
+      const compId = drag.compId;
+      const c = project.components.find(item => item.id === compId);
+      if (c) {
+        const d = getComponentDef(c.code);
+        if (d.momentary) {
+          triggerComponentCommand(c.id, 'pulse');
+        } else if (d.kind === 'breaker' || d.kind === 'breaker3' || d.kind === 'switch' || d.kind === 'selector') {
+          triggerComponentCommand(c.id, 'toggle');
+        }
+      }
+    }
 
-    drag.mouse = { x: worldX, y: worldY };
+    simRef.current.drag = null;
+  };
 
-    if (drag.mode === 'comp' && drag.compId) {
-      const compId = drag.compId;
-      const offsetX = drag.offsetX ?? 0;
-      const offsetY = drag.offsetY ?? 0;
-      const grid = cam.grid || 20;
-      const nx = Math.round((worldX - offsetX) / grid) * grid;
-      const ny = Math.round((worldY - offsetY) / grid) * grid;
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const cam = cameraRef.current;
+    const factor = e.deltaY < 0 ? 1.15 : 0.85;
+    const newZoom = Math.max(0.25, Math.min(3.0, cam.zoom * factor));
 
-      setProject((prev: any) => {
-        const updated = prev.components.map((c: any) => {
-          if (c.id === compId) {
-            return { ...c, x: nx, y: ny };
-          }
-          return c;
-        });
-        return { ...prev, components: updated };
-      });
-    } else if (drag.mode === 'pan') {
-      const dx = e.clientX - drag.screenStartX;
-      const dy = e.clientY - drag.screenStartY;
-      cam.pan.x += dx;
-      cam.pan.y += dy;
-      drag.screenStartX = e.clientX;
-      drag.screenStartY = e.clientY;
-    }
-  };
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      try {
-        if (canvas.hasPointerCapture(e.pointerId)) {
-          canvas.releasePointerCapture(e.pointerId);
-        }
-      } catch {
-        // Ignora falha de liberação
-      }
-    }
+    cam.pan.x = mouseX - (mouseX - cam.pan.x) * (newZoom / cam.zoom);
+    cam.pan.y = mouseY - (mouseY - cam.pan.y) * (newZoom / cam.zoom);
+    cam.zoom = newZoom;
+  };
 
-    // Soltou o toque, encerra a contagem pendente
-    cancelLongPressTimer();
+  // Componente selecionado ativo para o painel de propriedades
+  const selectedComponent = project.components.find(c => c.id === selectedCompId);
+  const selectedDef = selectedComponent ? getComponentDef(selectedComponent.code) : null;
 
-    const drag = simRef.current.drag;
-    if (!drag) return;
-    const moveDist = Math.hypot(
-      e.clientX - drag.screenStartX,
-      e.clientY - drag.screenStartY
-    );
+  if (!isOpen) return null;
 
-    // Se foi um toque rápido sem arrastar num componente mecânico, aciona o comando direto
-    if (moveDist < 6 && drag.mode === 'comp' && drag.compId) {
-      const compId = drag.compId;
-      const c = project.components.find((item: any) => item.id === compId);
-      if (c) {
-        const d = getComponentDef(c.code);
-        if (d.momentary) {
-          triggerComponentCommand(c.id, 'pulse');
-        } else if (d.kind === 'breaker' || d.kind === 'breaker3' || d.kind === 'switch' || d.kind === 'selector') {
-          triggerComponentCommand(c.id, 'toggle');
-        }
-      }
-    }
-
-    simRef.current.drag = null;
-  };
-
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const cam = cameraRef.current;
-    const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    const newZoom = Math.max(0.25, Math.min(3.0, cam.zoom * factor));
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    cam.pan.x = mouseX - (mouseX - cam.pan.x) * (newZoom / cam.zoom);
-    cam.pan.y = mouseY - (mouseY - cam.pan.y) * (newZoom / cam.zoom);
-    cam.zoom = newZoom;
-  };
-
-  // Componente selecionado ativo para o painel de propriedades
-  const selectedComponent = project.components.find((c: any) => c.id === selectedCompId);
-  const selectedDef = selectedComponent ? getComponentDef(selectedComponent.code) : null;
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[99999] bg-[#050A14] flex flex-col justify-between overflow-hidden select-none text-slate-200 font-sans">
-      
-      {/* Área do Canvas de Desenho */}
-      <canvas
-        ref={canvasRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-        onWheel={handleWheel}
-        className="w-full h-full cursor-crosshair touch-none"
-      />
-
-      {/* Painel Flutuante Lateral de Propriedades e Comandos */}
-      {showProps && selectedComponent && (
-        <div className="absolute right-3 top-3 w-80 max-w-[calc(100vw-24px)] max-h-[calc(100%-80px)] bg-[#0A1224]/95 border border-blue-900/50 rounded-2xl shadow-2xl flex flex-col z-30 backdrop-blur-md overflow-hidden animate-in fade-in zoom-in-95 duration-150 select-none">
-          
-          {/* Cabeçalho */}
-          <div className="p-3 border-b border-slate-800/80 flex items-center justify-between bg-[#0E1A33]">
-            <div className="flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-blue-400" />
-              <span className="text-xs font-black text-white uppercase tracking-wider">
-                Propriedades & Comandos
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setShowProps(false);
-                setSelectedCompId(null);
-              }}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-              title="Fechar Painel"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Conteúdo das Propriedades */}
-          <div className="p-3.5 overflow-y-auto space-y-4 text-xs">
-            
-            {/* Rótulo / Nome do Componente */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                Nome do Componente
-              </label>
-              <input
-                type="text"
-                value={selectedComponent.label || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setProject((prev: any) => ({
-                    ...prev,
-                    components: prev.components.map((c: any) =>
-                      c.id === selectedComponent.id ? { ...c, label: val } : c
-                    )
-                  }));
-                }}
-                className="w-full px-3 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                placeholder="Ex: K1, S1, M1..."
-              />
-            </div>
-
-            {/* Ações / Comandos de Teste do Componente */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                Comandos de Manobra
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => triggerComponentCommand(selectedComponent.id, 'turn_on')}
-                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 font-bold border border-emerald-500/30 transition-colors active:scale-95"
-                >
-                  Ligar / Fechar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => triggerComponentCommand(selectedComponent.id, 'turn_off')}
-                  className="px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold border border-rose-500/30 transition-colors active:scale-95"
-                >
-                  Desligar / Abrir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => triggerComponentCommand(selectedComponent.id, 'pulse')}
-                  className="px-2.5 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 font-bold border border-amber-500/30 transition-colors active:scale-95"
-                >
-                  Pulsar (300ms)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => triggerComponentCommand(selectedComponent.id, 'reset')}
-                  className="px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 font-bold border border-blue-500/30 transition-colors active:scale-95"
-                >
-                  Rearmar
-                </button>
-              </div>
-            </div>
-
-            {/* Parâmetros Dinâmicos Elétricos */}
-            {selectedComponent.params && Object.keys(selectedComponent.params).length > 0 && (
-              <div className="space-y-2 border-t border-slate-800/80 pt-3">
-                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Parâmetros Elétricos
-                </label>
-                <div className="space-y-2">
-                  {Object.entries(selectedComponent.params).map(([key, val]) => (
-                    <div key={key} className="flex items-center justify-between gap-2">
-                      <span className="text-slate-300 capitalize">{key}:</span>
-                      <input
-                        type="text"
-                        defaultValue={String(val)}
-                        onChange={(e) => {
-                          const newVal = e.target.value;
-                          setProject((prev: any) => ({
-                            ...prev,
-                            components: prev.components.map((c: any) =>
-                              c.id === selectedComponent.id
-                                ? { ...c, params: { ...c.params, [key]: newVal } }
-                                : c
-                            )
-                          }));
-                        }}
-                        className="w-28 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-right text-white focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Barra de Ações Rápidas do Elemento */}
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-              <button
-                type="button"
-                onClick={rotateSelectedComponent}
-                className="flex-1 px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 border border-slate-800 transition-all active:scale-95"
-              >
-                <RotateCw className="w-3.5 h-3.5 text-blue-400" />
-                <span>Girar</span>
-              </button>
-              <button
-                type="button"
-                onClick={duplicateSelectedComponent}
-                className="flex-1 px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 border border-slate-800 transition-all active:scale-95"
-              >
-                <Copy className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Duplicar</span>
-              </button>
-              <button
-                type="button"
-                onClick={deleteSelected}
-                className="flex-1 px-2.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 text-xs font-bold flex items-center justify-center gap-1.5 border border-rose-900/60 transition-all active:scale-95"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Excluir</span>
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+  return (
+    <div className="fixed inset-0 z-[99999] bg-[#050A14] flex flex-col justify-between overflow-hidden select-none text-slate-200 font-sans">
       {/* 1. TOP HEADER / TOOLBAR PROFISSIONAL CAD */}
       <header className="h-14 px-3 sm:px-4 bg-[#0B132B] border-b border-blue-900/50 flex items-center justify-between gap-2 shrink-0 z-30 shadow-xl">
         <div className="flex items-center gap-2.5">
