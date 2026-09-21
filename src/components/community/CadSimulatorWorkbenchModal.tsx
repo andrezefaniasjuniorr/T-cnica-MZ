@@ -1827,6 +1827,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             type="button"
             onClick={() => {
               cameraRef.current.zoom = Math.max(0.25, cameraRef.current.zoom * 0.85);
+              setZoomLevel(cameraRef.current.zoom);
             }}
             className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-xs"
             title="Zoom Out"
@@ -1834,12 +1835,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             −
           </button>
           <span className="text-[11px] font-mono px-1 text-slate-400">
-            {Math.round(cameraRef.current.zoom * 100)}%
+            {Math.round((zoomLevel ?? cameraRef.current?.zoom ?? 1) * 100)}%
           </span>
           <button
             type="button"
             onClick={() => {
               cameraRef.current.zoom = Math.min(3.0, cameraRef.current.zoom * 1.15);
+              setZoomLevel(cameraRef.current.zoom);
             }}
             className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-xs"
             title="Zoom In"
@@ -1849,7 +1851,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           <div className="h-4 w-px bg-slate-800 mx-0.5" />
           <button
             type="button"
-            onClick={handleFit}
+            onClick={() => {
+              handleFit();
+              setZoomLevel(cameraRef.current.zoom);
+            }}
             className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] font-bold"
             title="Enquadrar Circuito"
           >
