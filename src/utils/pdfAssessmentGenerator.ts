@@ -2,8 +2,8 @@ import jsPDF from 'jspdf';
 import { AssessmentAttempt } from '../types/assessment';
 
 /**
- * Gerador de Folha Oficial de Avaliação em PDF (Layout Acadêmico Vertical - A4).
- * Margens padrão de digitação A4 (20mm) com correção total de kerning/fonte.
+ * Gerador de Folha Oficial de Avaliação em PDF (Layout Acadêmico Minimalista - A4).
+ * Design ultra-limpo, sem quadros ou colunas, 100% otimizado para 1 página.
  */
 export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   const doc = new jsPDF({
@@ -12,14 +12,11 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     format: 'a4'
   });
 
-  // Dimensões A4 Padrão (210mm x 297mm)
+  // Dimensões A4
   const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
-  const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
-  
-  // Margens Padrão de Digitação Acadêmica (20mm)
-  const margin = 20; 
-  const contentWidth = pageWidth - (margin * 2); // 170mm úteis
-  let cursorY = margin; // Início aos 20mm no topo
+  const margin = 12; // 12mm de margem
+  const contentWidth = pageWidth - margin * 2; // 186mm úteis
+  let cursorY = 10;
 
   const isPassed = attempt.finalScorePercent >= 80;
   const mcQuestions = attempt.mcQuestions || [];
@@ -38,9 +35,10 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   const finalScorePercent = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : attempt.finalScorePercent;
 
   /**
-   * Utilitário Unificado de Texto: Garante fonte idêntica (Helvetica) sem separação de caracteres.
+   * Utilitário de Impressão Segura Multilinha.
+   * Retorna a altura exata consumida em mm.
    */
-  const printUniformText = (
+  const printText = (
     text: string,
     x: number,
     y: number,
@@ -48,92 +46,95 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     fontSize: number,
     fontStyle: 'normal' | 'bold' | 'italic' = 'normal',
     color: [number, number, number] = [15, 23, 42],
-    lineHeightFactor: number = 1.3
+    lineHeightRatio: number = 1.25
   ): number => {
-    // Força e reseta estritamente a fonte antes do cálculo de texto
     doc.setFont('helvetica', fontStyle);
     doc.setFontSize(fontSize);
     doc.setTextColor(color[0], color[1], color[2]);
 
-    // Limpa caracteres invisíveis ou múltiplos espaços que causam a separação das letras
-    const cleanText = (text || '')
-      .replace(/[\r\n\t]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
+    const cleanText = (text || '').replace(/\s+/g, ' ').trim();
     if (!cleanText) return 0;
 
-    // Quebra de linha exata com base nos 170mm das margens
     const lines: string[] = doc.splitTextToSize(cleanText, maxWidth);
-    const lineHeight = (fontSize * 0.3527) * lineHeightFactor; // Converte pt para mm
+    const lineHeight = (fontSize * 0.3527) * lineHeightRatio;
 
     lines.forEach((line, index) => {
-      // Impressão simples sem alinhamento justificado para evitar kerning artificial
-      doc.text(line, x, y + (index * lineHeight), { align: 'left' });
+      doc.text(line, x, y + (index * lineHeight));
     });
 
     return lines.length * lineHeight;
   };
 
   // ==========================================================================
-  // 1. CABEÇALHO ACADÊMICO UNIFORME (Altura: 26mm)
+  // 1. CABEÇALHO ACADÊMICO MANTIDO (Altura: 28mm)
   // ==========================================================================
-  doc.setFillColor(15, 23, 42); // Navy
-  doc.roundedRect(margin, cursorY, contentWidth, 26, 1, 1, 'F');
+  doc.setFillColor(15, 23, 42); // Dark Navy
+  doc.roundedRect(margin, cursorY, contentWidth, 28, 1.5, 1.5, 'F');
 
-  printUniformText('TÉCNICAMZ PRO', margin + 4, cursorY + 5.5, 110, 10, 'bold', [56, 189, 248]);
-  printUniformText('FOLHA OFICIAL DE AVALIAÇÃO DE COMPETÊNCIAS TÉCNICAS', margin + 4, cursorY + 9.5, 110, 7, 'bold', [255, 255, 255]);
-  printUniformText('Padrão Normativo Europeu IEC / EN • Tutoria: Eng. Sara IA', margin + 4, cursorY + 13, 110, 6, 'normal', [148, 163, 184]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(56, 189, 248);
+  doc.text('TÉCNICAMZ PRO', margin + 4, cursorY + 5.5);
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text('FOLHA OFICIAL DE AVALIAÇÃO DE COMPETÊNCIAS TÉCNICAS', margin + 4, cursorY + 9.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  doc.text('Padrão Normativo Europeu IEC / EN • Tutoria: Eng. Sara IA', margin + 4, cursorY + 13);
 
   // Badge Status do Cabeçalho
-  const badgeW = 34;
-  const badgeH = 8;
+  const badgeW = 36;
+  const badgeH = 9;
   const badgeX = margin + contentWidth - badgeW - 4;
   const badgeY = cursorY + 3.5;
 
   doc.setFillColor(isPassed ? 16 : 225, isPassed ? 185 : 29, isPassed ? 129 : 72);
-  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 0.8, 0.8, 'F');
-  
+  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1, 1, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
+  doc.setFontSize(7);
   doc.setTextColor(255, 255, 255);
-  doc.text(isPassed ? 'ALCANÇADO' : 'NÃO ALCANÇADO', badgeX + badgeW / 2, badgeY + 3.5, { align: 'center' });
-  doc.setFontSize(4.8);
-  doc.text(isPassed ? 'Aprovado (≥ 80%)' : 'Reavaliação (< 80%)', badgeX + badgeW / 2, badgeY + 6.2, { align: 'center' });
+  doc.text(isPassed ? 'ALCANÇADO' : 'NÃO ALCANÇADO', badgeX + badgeW / 2, badgeY + 3.8, { align: 'center' });
+  doc.setFontSize(5);
+  doc.text(isPassed ? 'Aprovado (≥ 80%)' : 'Reavaliação (< 80%)', badgeX + badgeW / 2, badgeY + 7, { align: 'center' });
 
-  // Linha Divisória
+  // Divisor do Cabeçalho
   doc.setDrawColor(51, 65, 85);
   doc.setLineWidth(0.2);
   doc.line(margin + 4, cursorY + 15, margin + contentWidth - 4, cursorY + 15);
 
-  // Metadados do Aluno
+  // Dados do Aluno e Módulo
   const studentName = attempt.technicianName || 'Técnico Autorizado';
-  printUniformText(`Aluno: ${studentName}`, margin + 4, cursorY + 18, 100, 6.2, 'normal', [226, 232, 240]);
-  printUniformText(`Módulo: ${attempt.moduleTitle}`, margin + 4, cursorY + 21.5, 100, 6.2, 'normal', [203, 213, 225]);
+  printText(`Aluno: ${studentName}`, margin + 4, cursorY + 18, 110, 6.5, 'normal', [226, 232, 240]);
+  printText(`Módulo: ${attempt.moduleTitle}`, margin + 4, cursorY + 22.5, 110, 6.5, 'normal', [203, 213, 225]);
 
   const attemptLabel = attempt.attemptNumber === 1 ? '1ª Avaliação Oficial' : `${attempt.attemptNumber - 1}ª Reavaliação`;
-  printUniformText(`Tentativa: ${attemptLabel}`, margin + 110, cursorY + 18, 55, 6.2, 'normal', [226, 232, 240]);
-  printUniformText(`Data: ${attempt.date}`, margin + 110, cursorY + 21.5, 55, 6.2, 'normal', [203, 213, 225]);
+  printText(`Tentativa: ${attemptLabel}`, margin + 120, cursorY + 18, 58, 6.5, 'normal', [226, 232, 240]);
+  printText(`Data: ${attempt.date}`, margin + 120, cursorY + 22.5, 58, 6.5, 'normal', [203, 213, 225]);
 
-  cursorY += 29;
+  cursorY += 31;
 
-  // Barra de Aula e Norma
-  printUniformText(`AULA: ${attempt.lessonTitle.toUpperCase()}`, margin, cursorY, 110, 6.5, 'bold', [15, 23, 42]);
-  
+  // Barra Fina Informativa de Aula
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`AULA: ${attempt.lessonTitle.toUpperCase()}`, margin, cursorY);
+  
   doc.setFontSize(6);
   doc.setTextColor(2, 132, 199);
   doc.text(`Norma: ${attempt.norma || 'IEC 60364'} | Ref: ${attempt.authCode}`, margin + contentWidth, cursorY, { align: 'right' });
 
   cursorY += 2;
   doc.setDrawColor(15, 23, 42);
-  doc.setLineWidth(0.3);
+  doc.setLineWidth(0.4);
   doc.line(margin, cursorY, margin + contentWidth, cursorY);
 
-  cursorY += 4.5;
+  cursorY += 4;
 
   // ==========================================================================
-  // 2. QUESTÕES EM FLUXO ESTRITAMENTE VERTICAL (1 COLUNA PURA, FONTE ÚNICA)
+  // 2. QUESTÕES EM FLUXO ACADÊMICO PURA E SIMPLES (UM ABAIXO DO OUTRO)
   // ==========================================================================
   mcQuestions.forEach((q, idx) => {
     const studentLetter = attempt.mcAnswers[q.id];
@@ -142,46 +143,49 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     const isAnswerCorrect = studentLetter === correctLetter;
     const studentOpt = q.options.find(o => o.displayLetter === studentLetter);
 
-    // Indicador e Número da Questão
-    const statusColor: [number, number, number] = isAnswerCorrect ? [16, 185, 129] : [225, 29, 72];
-    printUniformText(`QUESTÃO ${idx + 1} DE ${totalQuestions}`, margin, cursorY, 80, 6.5, 'bold', [15, 23, 42]);
+    // A. Número da Questão e Status
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`QUESTÃO ${idx + 1} DE ${totalQuestions}`, margin, cursorY);
 
-    const statusLabel = isAnswerCorrect ? 'CORRETO [✓]' : 'INCORRETO [✗]';
+    const statusText = isAnswerCorrect ? 'CORRETO [✓]' : 'INCORRETO [✗]';
+    const statusColor: [number, number, number] = isAnswerCorrect ? [16, 185, 129] : [225, 29, 72];
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.5);
     doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
-    doc.text(statusLabel, margin + contentWidth, cursorY, { align: 'right' });
+    doc.text(statusText, margin + contentWidth, cursorY, { align: 'right' });
 
     cursorY += 3.5;
 
-    // Enunciado (Utiliza todos os 170mm de largura útil)
-    const qHeight = printUniformText(q.question, margin, cursorY, contentWidth, 6, 'normal', [15, 23, 42]);
+    // B. Enunciado
+    const qHeight = printText(q.question, margin, cursorY, contentWidth, 6, 'bold', [15, 23, 42]);
     cursorY += qHeight + 1.2;
 
-    // Sua Resposta (Alinhada verticalmente abaixo do enunciado)
+    // C. Sua Resposta (Abaixo do enunciado)
     const studentText = studentLetter 
       ? `Sua Resposta: [${studentLetter}] ${studentOpt?.text || ''}` 
       : 'Sua Resposta: (Não respondida)';
-    const respHeight = printUniformText(studentText, margin + 2, cursorY, contentWidth - 2, 5.5, 'bold', statusColor);
+    const respHeight = printText(studentText, margin + 3, cursorY, contentWidth - 3, 5.5, 'normal', statusColor);
     cursorY += respHeight + 1;
 
-    // Gabarito Oficial (Abaixo da resposta do aluno)
+    // D. Gabarito Oficial (Abaixo da sua resposta, se tiver errado)
     if (!isAnswerCorrect) {
       const correctText = `Gabarito Oficial: [${correctLetter}] ${correctOpt?.text || ''}`;
-      const corrHeight = printUniformText(correctText, margin + 2, cursorY, contentWidth - 2, 5.5, 'normal', [5, 150, 105]);
+      const corrHeight = printText(correctText, margin + 3, cursorY, contentWidth - 3, 5.5, 'bold', [5, 150, 105]);
       cursorY += corrHeight + 1;
     }
 
-    // Explicação / Justificativa
+    // E. Explicação Técnica (Abaixo do gabarito, sem rótulo "Fundamentação")
     const expText = q.explanation || q.keyTakeaway || '';
     if (expText) {
-      const expHeight = printUniformText(expText, margin + 2, cursorY, contentWidth - 2, 5, 'italic', [100, 116, 139]);
+      const expHeight = printText(expText, margin + 3, cursorY, contentWidth - 3, 5, 'italic', [100, 116, 139]);
       cursorY += expHeight + 1.5;
     } else {
       cursorY += 1;
     }
 
-    // Separador entre Questões
+    // Separador Discreto entre Questões
     if (idx < totalQuestions - 1) {
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.15);
@@ -191,16 +195,20 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   });
 
   // ==========================================================================
-  // 3. RODAPÉ ACADÊMICO MANTIDO DENTRO DAS MARGENS
+  // 3. RESUMO SIMPLES NO RODAPÉ (TEXTO PLANO SEM QUADROS)
   // ==========================================================================
   cursorY += 2;
   doc.setDrawColor(15, 23, 42);
-  doc.setLineWidth(0.3);
+  doc.setLineWidth(0.4);
   doc.line(margin, cursorY, margin + contentWidth, cursorY);
 
   cursorY += 3.5;
 
-  printUniformText(`DESEMPENHO FINAL: ${correctCount}/${totalQuestions} Acertos (${finalScorePercent}%)`, margin, cursorY, 110, 6.5, 'bold', [15, 23, 42]);
+  // Linha 1 do Rodapé: Desempenho e Porcentagem
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`DESEMPENHO FINAL: ${correctCount}/${totalQuestions} Acertos (${finalScorePercent}%)`, margin, cursorY);
 
   const statusFinalText = isPassed ? 'SITUAÇÃO: ALCANÇADO (≥80%)' : 'SITUAÇÃO: NÃO ALCANÇADO (<80%)';
   doc.setFont('helvetica', 'bold');
@@ -210,9 +218,13 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
 
   cursorY += 3.5;
 
-  printUniformText(`Código de Autenticação: ${attempt.authCode} • Emitido eletronicamente pela Plataforma TécnicaMZ Pro`, margin, cursorY, contentWidth, 5, 'normal', [100, 116, 139]);
+  // Linha 2 do Rodapé: Autenticidade e Nota de Emissão
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Código de Autenticação: ${attempt.authCode} • Emitido eletronicamente pela Plataforma TécnicaMZ Pro`, margin, cursorY);
 
-  // Download do PDF
+  // Nomeação e Download do PDF
   const sanitizedTitle = (attempt.lessonTitle || 'Avaliacao')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '_')
