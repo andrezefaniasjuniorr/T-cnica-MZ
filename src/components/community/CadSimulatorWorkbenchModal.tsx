@@ -594,67 +594,152 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     showToast('Componente duplicado');
   }, [selectedCompId, project.components, pushHistory, showToast]);
 
-  // Adicionar Barramento ou Trilho DIN ao Painel
-  const addBusbar = useCallback(
-    (
-      type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
-      x?: number,
-      y?: number,
-      length = 680,
-      orientation: 'horizontal' | 'vertical' = 'horizontal'
-    ) => {
-      pushHistory();
-      const cam = cameraRef.current;
-      const canvas = canvasRef.current;
-      let targetX = 0;
-      let targetY = 0;
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const cx = rect.width / 2;
-        const cy = rect.height / 2;
-        targetX = Math.round((cx - cam.pan.x) / (cam.zoom * 20)) * 20;
-        targetY = Math.round((cy - cam.pan.y) / (cam.zoom * 20)) * 20;
-      }
-      if (x !== undefined) targetX = x;
-      if (y !== undefined) targetY = y;
+  import { useCallback } from 'react';
 
-      const newBusbar: Busbar = {
-        id: `BB_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        type,
-        x: targetX,
-        y: targetY,
-        length,
-        orientation
-      };
+// ============================================================================
+// 1. INTERFACES ATUALIZADAS COM PONTOS DE CONEXÃO (BORNES/TERMINAIS)
+// ============================================================================
 
-      setProject((prev: any) => ({
-        ...prev,
-        busbars: [...(prev.busbars || []), newBusbar],
-        updated: Date.now()
-      }));
+export interface BusbarTerminal {
+  id: string;          // Ex: "BB_123_TERM_0"
+  busbarId: string;    // ID do barramento pai
+  x: number;           // Posição X absoluta no canvas
+  y: number;           // Posição Y absoluta no canvas
+  type: 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth' | 'din';
+  isOccupied?: boolean;
+  connectedWireId?: string | null;
+}
 
-      setSelectedBusbarId(newBusbar.id);
-      setSelectedCompId(null);
-      setSelectedWireId(null);
-      setShowProps(true);
-      soundFX?.playClick?.();
-      const typeLabel =
-        type === 'din'
-          ? 'Trilho DIN 35mm'
-          : type === 'phase_l1'
-          ? 'Barramento Fase L1'
-          : type === 'phase_l2'
-          ? 'Barramento Fase L2'
-          : type === 'phase_l3'
-          ? 'Barramento Fase L3'
-          : type === 'neutral'
-          ? 'Barramento Neutro'
-          : 'Barramento Terra PE';
-      showToast(`${typeLabel} adicionado ao painel.`);
-      addEvent(`${typeLabel} inserido no diagrama CAD.`);
-    },
-    [pushHistory, addEvent, showToast]
-  );
+export interface Busbar {
+  id: string;
+  type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth';
+  x: number;
+  y: number;
+  length: number;
+  orientation: 'horizontal' | 'vertical';
+  terminals: BusbarTerminal[]; // Bornes que recebem e distribuem condutores
+}
+
+// ============================================================================
+// 2. GERADOR AUTOMÁTICO DE BORNES DE CONEXÃO
+// ============================================================================
+
+/**
+ * Cria os parafusos/bornes ao longo do barramento para engate de fios.
+ */
+const generateBusbarTerminals = (
+  busbarId: string,
+  type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
+  startX: number,
+  startY: number,
+  length: number,
+  orientation: 'horizontal' | 'vertical',
+  spacing = 20 // Espaçamento de 20px entre bornes
+): BusbarTerminal[] => {
+  // Trilhos DIN não possuem conexão elétrica direta de condutores
+  if (type === 'din') return [];
+
+  const count = Math.floor(length / spacing);
+  const terminals: BusbarTerminal[] = [];
+
+  for (let i = 0; i <= count; i++) {
+    const offset = i * spacing;
+    terminals.push({
+      id: `${busbarId}_TERM_${i}`,
+      busbarId,
+      type,
+      x: orientation === 'horizontal' ? startX + offset : startX,
+      y: orientation === 'horizontal' ? startY : startY + offset,
+      isOccupied: false,
+      connectedWireId: null
+    });
+  }
+
+  return terminals;
+};
+
+// ============================================================================
+// 3. FUNÇÃO ADDBUSBAR COMPLETA (SUBSTITUIR NO SEU COMPONENTE)
+// ============================================================================
+
+// Adicionar Barramento ou Trilho DIN ao Painel (Com Bornes de Ligação Elétrica)
+const addBusbar = useCallback(
+  (
+    type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
+    x?: number,
+    y?: number,
+    length = 680,
+    orientation: 'horizontal' | 'vertical' = 'horizontal'
+  ) => {
+    pushHistory();
+    const cam = cameraRef.current;
+    const canvas = canvasRef.current;
+    let targetX = 0;
+    let targetY = 0;
+
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      targetX = Math.round((cx - cam.pan.x) / (cam.zoom * 20)) * 20;
+      targetY = Math.round((cy - cam.pan.y) / (cam.zoom * 20)) * 20;
+    }
+
+    if (x !== undefined) targetX = x;
+    if (y !== undefined) targetY = y;
+
+    const busbarId = `BB_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    // Gera os pontos de entrada/saída para condutores
+    const terminals = generateBusbarTerminals(
+      busbarId,
+      type,
+      targetX,
+      targetY,
+      length,
+      orientation
+    );
+
+    const newBusbar: Busbar = {
+      id: busbarId,
+      type,
+      x: targetX,
+      y: targetY,
+      length,
+      orientation,
+      terminals
+    };
+
+    setProject((prev: any) => ({
+      ...prev,
+      busbars: [...(prev.busbars || []), newBusbar],
+      updated: Date.now()
+    }));
+
+    setSelectedBusbarId(newBusbar.id);
+    setSelectedCompId(null);
+    setSelectedWireId(null);
+    setShowProps(true);
+    soundFX?.playClick?.();
+
+    const typeLabel =
+      type === 'din'
+        ? 'Trilho DIN 35mm'
+        : type === 'phase_l1'
+        ? 'Barramento Fase L1'
+        : type === 'phase_l2'
+        ? 'Barramento Fase L2'
+        : type === 'phase_l3'
+        ? 'Barramento Fase L3'
+        : type === 'neutral'
+        ? 'Barramento Neutro'
+        : 'Barramento Terra PE';
+
+    showToast(`${typeLabel} adicionado com ${terminals.length} bornes de conexão.`);
+    addEvent(`${typeLabel} inserido com nós de ligação elétricos.`);
+  },
+  [pushHistory, addEvent, showToast]
+);
 
   // Excluir Seleção (Componente, Fio ou Barramento)
   const deleteSelected = useCallback(() => {
