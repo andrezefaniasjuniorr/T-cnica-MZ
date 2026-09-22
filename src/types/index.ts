@@ -621,6 +621,16 @@ export interface CadCircuitComponent {
   params?: Record<string, any>;
 }
 
+export interface BusbarTerminal {
+  id: string; // Ex: "BB_123_TERM_0"
+  busbarId: string;
+  x: number;
+  y: number;
+  type: 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth' | 'din';
+  isOccupied?: boolean;
+  connectedWireId?: string | null;
+}
+
 export interface Busbar {
   id: string;
   type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth';
@@ -628,6 +638,23 @@ export interface Busbar {
   y: number;
   length: number;
   orientation: 'horizontal' | 'vertical';
+  terminals?: BusbarTerminal[];
+}
+
+export type PanelEnclosureSize = 'compact' | 'medium' | 'large' | 'industrial' | 'custom';
+export type PanelBackplateStyle = 'galvanized' | 'orange_industrial' | 'anthracite';
+
+export interface PanelEnclosureConfig {
+  enabled: boolean;
+  size: PanelEnclosureSize;
+  width: number;
+  height: number;
+  x: number; // center X
+  y: number; // center Y
+  backplate: PanelBackplateStyle;
+  hasDucts: boolean; // canaletas perfuradas
+  hasWarningLabels: boolean; // placas perigo 400V
+  nameplateText?: string;
 }
 
 export interface CadCircuitProject {
@@ -648,6 +675,7 @@ export interface CadCircuitProject {
     components: any[];
     wires: any[];
     busbars?: Busbar[];
+    panelConfig?: PanelEnclosureConfig;
     updated?: number;
   };
 }

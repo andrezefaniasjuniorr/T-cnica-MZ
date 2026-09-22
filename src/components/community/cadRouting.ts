@@ -1,8 +1,11 @@
 // ============================================================================
 // TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO ORTOGONAL (MANHATTAN) & IEC/DIN TOPOLOGY
+// Normas: IEC 60446 (Cores de Condutores), IEC 60364-5-52 (Fiação de Quadros)
+// Suporte a Curvaturas Suaves (Fillet Arcs), Destaque 3D Cilíndrico e Ilhós
 // ============================================================================
 
 import { getComponentDef } from './cadEngine';
+import { Busbar, getBusbarTerminalWorldPos } from './cadBusbars';
 
 export interface TerminalPosition {
   x: number;
@@ -10,6 +13,17 @@ export interface TerminalPosition {
   dir: 'top' | 'bottom' | 'left' | 'right';
   normId: string;
 }
+
+export const WIRE_NORM_COLORS: Record<string, { base: string; highlight: string; name: string; isStriped?: boolean }> = {
+  L1: { base: '#991b1b', highlight: '#f87171', name: 'L1 • Castanho/Vermelho' },
+  L2: { base: '#0f172a', highlight: '#475569', name: 'L2 • Preto' },
+  L3: { base: '#57534e', highlight: '#a8a29e', name: 'L3 • Cinza' },
+  N: { base: '#0284c7', highlight: '#38bdf8', name: 'N • Neutro Azul' },
+  PE: { base: '#15803d', highlight: '#eab308', name: 'PE • Terra Verde/Amarelo', isStriped: true },
+  DC_POS: { base: '#dc2626', highlight: '#fca5a5', name: 'DC+ • Vermelho' },
+  DC_NEG: { base: '#1e3a8a', highlight: '#60a5fa', name: 'DC- • Azul Escuro' },
+  CTRL: { base: '#d97706', highlight: '#fde047', name: 'Comando • Âmbar' }
+};
 
 /**
  * Topologia e Anatomia Normativa dos Componentes Conforme IEC/DIN:
@@ -51,7 +65,6 @@ export function getNormativeTerminalOffset(
 
   // 3. Contactores de Potência (IEC 60947-4-1)
   if (d.kind === 'contactor') {
-    // Entradas no Topo: Bobina A1, Fases 1, 3, 5 e Contatos Auxiliares 13 (NA), 21 (NF)
     if (termId === 'A1') return { x: -w * 0.38, y: -h / 2, dir: 'top' };
     if (termId === '1') return { x: -w * 0.18, y: -h / 2, dir: 'top' };
     if (termId === '3') return { x: 0, y: -h / 2, dir: 'top' };
@@ -59,7 +72,6 @@ export function getNormativeTerminalOffset(
     if (termId === '13') return { x: w * 0.33, y: -h / 2, dir: 'top' };
     if (termId === '21') return { x: w * 0.42, y: -h / 2, dir: 'top' };
 
-    // Saídas na Base: Bobina A2, Fases 2, 4, 6 e Contatos Auxiliares 14 (NA), 22 (NF)
     if (termId === 'A2') return { x: -w * 0.38, y: h / 2, dir: 'bottom' };
     if (termId === '2') return { x: -w * 0.18, y: h / 2, dir: 'bottom' };
     if (termId === '4') return { x: 0, y: h / 2, dir: 'bottom' };
@@ -102,29 +114,36 @@ export function getNormativeTerminalOffset(
     return { x: 0, y: h / 2, dir: 'bottom' };
   }
 
-  // 7. Dispositivos Diferenciais Residuais (RCD, RCBO)
-  if (d.kind === 'rcd' || d.kind === 'rcbo') {
-    if (termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
-    if (termId === '3' || termId === 'N_IN') return { x: w * 0.25, y: -h / 2, dir: 'top' };
-    if (termId === '2') return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
-    if (termId === '4' || termId === 'N_OUT') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
+  // 7. Disjuntor Diferencial Residual (RCD / DR Tetrapolar e Bipolar)
+  if (d.kind === 'rcd' || d.kind === 'rcd4') {
+    if (termId === '1') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
+    if (termId === '3') return { x: -w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === '5') return { x: w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.35, y: -h / 2, dir: 'top' };
+
+    if (termId === '2') return { x: -w * 0.35, y: h / 2, dir: 'bottom' };
+    if (termId === '4') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === '6') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'N_OUT') return { x: w * 0.35, y: h / 2, dir: 'bottom' };
   }
 
-  // 8. Botoeiras (PBNO, PBNC, ESTOP) e Chaves (SW)
-  if (d.kind === 'push' || d.kind === 'switch') {
-    if (termId === '1' || termId === '3' || func === 'IN' || func === 'COM') {
-      return { x: 0, y: -h / 2, dir: 'top' };
+  // 8. Botões de Comando e Parada de Emergência (BTN_NO, BTN_NC, E_STOP)
+  if (d.kind === 'pushbutton' || d.kind === 'estop' || d.cat === 'command') {
+    if (termId === '1' || termId === '13' || termId === '11') {
+      return { x: -w * 0.28, y: -h / 2, dir: 'top' };
     }
-    return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === '2' || termId === '14' || termId === '12') {
+      return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+    }
   }
 
-  // 9. Relé Auxiliar e Temporizadores (RELAY, TIMER, FLASH)
-  if (d.kind === 'relay' || d.kind === 'timer' || d.kind === 'flasher') {
+  // 9. Relé Temporizador (TIMER, RELAY)
+  if (d.kind === 'timer' || d.kind === 'relay') {
     if (termId === 'A1') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
+    if (termId === '15' || termId === 'COM') return { x: 0, y: -h / 2, dir: 'top' };
     if (termId === 'A2') return { x: -w * 0.35, y: h / 2, dir: 'bottom' };
-    if (termId === '11' || termId === '15' || func === 'COM') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === '12' || termId === '16' || func === 'NC') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
-    if (termId === '14' || termId === '18' || func === 'NO') return { x: -w * 0.05, y: h / 2, dir: 'bottom' };
+    if (termId === '16' || termId === 'NC') return { x: -w * 0.15, y: h / 2, dir: 'bottom' };
+    if (termId === '18' || termId === 'NO') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
   }
 
   // 10. Fontes de Alimentação (SRC_AC3, SRC_AC1, SRC_DC24, BAT)
@@ -142,9 +161,9 @@ export function getNormativeTerminalOffset(
     }
   }
 
-  // 11. Cargas / Lâmpadas / Sinalizadores (LAMP, PILOT_GREEN, PILOT_RED, BUZZ, HEATER)
-  if (d.kind === 'lamp' || d.kind === 'load' || d.cat === 'loads' || d.code.startsWith('PILOT')) {
-    const idx = d.terminals.findIndex(x => x[0] === termId);
+  // 11. Cargas / Lâmpadas / Sinalizadores
+  if (d.kind === 'lamp' || d.kind === 'load' || d.cat === 'loads' || d.code?.startsWith('PILOT')) {
+    const idx = d.terminals?.findIndex(x => x[0] === termId) ?? 0;
     if (idx === 0 || termId === '+' || termId === '1' || termId === 'X1' || termId === 'L') {
       return { x: 0, y: -h / 2, dir: 'top' };
     }
@@ -152,9 +171,9 @@ export function getNormativeTerminalOffset(
   }
 
   // 12. Regra Geral de Fallback Normativo:
-  const idx = d.terminals.findIndex(x => x[0] === termId);
+  const idx = d.terminals ? d.terminals.findIndex(x => x[0] === termId) : 0;
   const isInput = func === 'IN' || func === 'COM' || idx % 2 === 0;
-  const colRatio = Math.max(1, Math.ceil(d.terminals.length / 2));
+  const colRatio = Math.max(1, Math.ceil((d.terminals?.length || 2) / 2));
   const colIndex = Math.floor(idx / 2);
   const xOffset = colRatio > 1 ? ((colIndex / (colRatio - 1)) - 0.5) * (w * 0.7) : 0;
 
@@ -166,7 +185,7 @@ export function getNormativeTerminalOffset(
 }
 
 /**
- * Retorna as coordenadas mundiais de um terminal com rotação
+ * Retorna as coordenadas mundiais de um terminal de componente com rotação
  */
 export function getTerminalWorldPos(comp: any, termId: string): TerminalPosition {
   if (!comp) return { x: 0, y: 0, dir: 'bottom', normId: termId };
@@ -175,7 +194,6 @@ export function getTerminalWorldPos(comp: any, termId: string): TerminalPosition
   const rx = offset.x * Math.cos(rad) - offset.y * Math.sin(rad);
   const ry = offset.x * Math.sin(rad) + offset.y * Math.cos(rad);
 
-  // Calcula a direção resultante após a rotação
   let dir = offset.dir;
   const rotDeg = ((comp.rot || 0) % 360 + 360) % 360;
   if (rotDeg === 90) {
@@ -204,90 +222,124 @@ export function getTerminalWorldPos(comp: any, termId: string): TerminalPosition
 }
 
 /**
+ * Função Unificada de Resolução de Coordenadas de Terminais:
+ * Suporta tanto componentes padrão como bornes de barramentos (L1, L2, L3, N, PE)!
+ */
+export function getNodeWorldPos(
+  nodeId: string,
+  termId: string,
+  components: any[],
+  busbars: Busbar[] = []
+): TerminalPosition {
+  // 1. Procura primeiro nos componentes
+  const comp = components?.find(c => c.id === nodeId);
+  if (comp) {
+    return getTerminalWorldPos(comp, termId);
+  }
+
+  // 2. Procura nos barramentos
+  const bb = busbars?.find(b => b.id === nodeId);
+  if (bb) {
+    const bbPos = getBusbarTerminalWorldPos(bb, termId);
+    if (bbPos) return bbPos;
+  }
+
+  // Fallback seguro
+  return { x: 0, y: 0, dir: 'bottom', normId: termId };
+}
+
+/**
  * Algoritmo de Roteamento Ortogonal Manhattan (90° Manhattan Wiring):
- * Garante que os condutores dobrem exclusivamente em ângulos retos de 90°
- * respeitando os stubs normativos de saída de cada terminal e aplicando
- * espaçamentos ordenados entre fios paralelos.
+ * Respeita stubs de saída e permite waypoints intermediários.
  */
 export function calculateManhattanPath(
   pA: { x: number; y: number; dir?: 'top' | 'bottom' | 'left' | 'right' },
   pB: { x: number; y: number; dir?: 'top' | 'bottom' | 'left' | 'right' },
-  wireIndex: number = 0
+  wireIndex: number = 0,
+  waypoints: { x: number; y: number }[] = []
 ): { x: number; y: number }[] {
-  const stub = 20;
+  // Se houver waypoints definidos pelo usuário (ex: passando pelas canaletas laterais)
+  if (waypoints && waypoints.length > 0) {
+    const fullPoints: { x: number; y: number }[] = [pA];
+    let prev = pA;
+
+    waypoints.forEach(wp => {
+      // Degrau ortogonal até o waypoint
+      fullPoints.push({ x: wp.x, y: prev.y });
+      fullPoints.push({ x: wp.x, y: wp.y });
+      prev = wp;
+    });
+
+    fullPoints.push({ x: pB.x, y: prev.y });
+    fullPoints.push(pB);
+
+    return fullPoints;
+  }
+
+  const stub = 18;
   const dirA = pA.dir || 'bottom';
   const dirB = pB.dir || 'top';
 
-  // 1. Ponto de saída do terminal A com stub ortogonal
   const sA = {
     x: pA.x + (dirA === 'right' ? stub : dirA === 'left' ? -stub : 0),
     y: pA.y + (dirA === 'bottom' ? stub : dirA === 'top' ? -stub : 0)
   };
 
-  // 2. Ponto de aproximação do terminal B com stub ortogonal
   const sB = {
     x: pB.x + (dirB === 'right' ? stub : dirB === 'left' ? -stub : 0),
     y: pB.y + (dirB === 'bottom' ? stub : dirB === 'top' ? -stub : 0)
   };
 
   const points: { x: number; y: number }[] = [pA, sA];
-  const offset = ((wireIndex % 5) - 2) * 8; // Offset anti-sobreposição entre fios paralelos
+  const offset = ((wireIndex % 5) - 2) * 6;
 
   if (dirA === 'bottom' && dirB === 'top') {
     if (sA.y <= sB.y) {
-      // Direção descendente natural: desce até metade e vira a 90°
       const yMid = sA.y + (sB.y - sA.y) * 0.5 + offset;
       points.push({ x: sA.x, y: yMid });
       points.push({ x: sB.x, y: yMid });
     } else {
-      // A está abaixo de B: desvio lateral desimpedido
-      const xDetour = Math.max(sA.x, sB.x) + 40 + Math.abs(offset);
-      points.push({ x: sA.x, y: sA.y + 15 });
-      points.push({ x: xDetour, y: sA.y + 15 });
-      points.push({ x: xDetour, y: sB.y - 15 });
-      points.push({ x: sB.x, y: sB.y - 15 });
+      const xDetour = Math.max(sA.x, sB.x) + 36 + Math.abs(offset);
+      points.push({ x: sA.x, y: sA.y + 14 });
+      points.push({ x: xDetour, y: sA.y + 14 });
+      points.push({ x: xDetour, y: sB.y - 14 });
+      points.push({ x: sB.x, y: sB.y - 14 });
     }
   } else if (dirA === 'top' && dirB === 'bottom') {
     if (sA.y >= sB.y) {
-      // Direção ascendente natural
       const yMid = sA.y + (sB.y - sA.y) * 0.5 + offset;
       points.push({ x: sA.x, y: yMid });
       points.push({ x: sB.x, y: yMid });
     } else {
-      // A está acima de B
-      const xDetour = Math.min(sA.x, sB.x) - 40 - Math.abs(offset);
-      points.push({ x: sA.x, y: sA.y - 15 });
-      points.push({ x: xDetour, y: sA.y - 15 });
-      points.push({ x: xDetour, y: sB.y + 15 });
-      points.push({ x: sB.x, y: sB.y + 15 });
+      const xDetour = Math.min(sA.x, sB.x) - 36 - Math.abs(offset);
+      points.push({ x: sA.x, y: sA.y - 14 });
+      points.push({ x: xDetour, y: sA.y - 14 });
+      points.push({ x: xDetour, y: sB.y + 14 });
+      points.push({ x: sB.x, y: sB.y + 14 });
     }
   } else if (dirA === 'bottom' && dirB === 'bottom') {
-    // Ambos saem para baixo
-    const yMax = Math.max(sA.y, sB.y) + 25 + Math.abs(offset);
+    const yMax = Math.max(sA.y, sB.y) + 24 + Math.abs(offset);
     points.push({ x: sA.x, y: yMax });
     points.push({ x: sB.x, y: yMax });
   } else if (dirA === 'top' && dirB === 'top') {
-    // Ambos saem para cima
-    const yMin = Math.min(sA.y, sB.y) - 25 - Math.abs(offset);
+    const yMin = Math.min(sA.y, sB.y) - 24 - Math.abs(offset);
     points.push({ x: sA.x, y: yMin });
     points.push({ x: sB.x, y: yMin });
   } else if (dirA === 'right' || dirB === 'right' || dirA === 'left' || dirB === 'left') {
-    // Conexão lateral (ex: terminal PE ou aterramento)
     if (dirA === 'right') {
-      points.push({ x: sA.x + 10, y: sA.y });
-      points.push({ x: sA.x + 10, y: sB.y });
+      points.push({ x: sA.x + 12, y: sA.y });
+      points.push({ x: sA.x + 12, y: sB.y });
     } else {
       points.push({ x: sA.x, y: sB.y });
     }
   } else {
-    // Caso padrão ortogonal em degrau
     points.push({ x: sA.x, y: sB.y });
   }
 
   points.push(sB);
   points.push(pB);
 
-  // Filtra vértices colineares redundantes mantendo ângulos puros de 90°
+  // Limpeza de pontos redundantes colineares
   const clean: { x: number; y: number }[] = [];
   for (let i = 0; i < points.length; i++) {
     const pt = points[i];
@@ -301,6 +353,148 @@ export function calculateManhattanPath(
   return clean;
 }
 
+/**
+ * Traçado Suave com Cantos Arredondados (Fillet Corners)
+ */
+function traceFilletPath(
+  ctx: CanvasRenderingContext2D,
+  pts: { x: number; y: number }[],
+  radius = 10
+) {
+  if (pts.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p1 = pts[i - 1];
+    const p2 = pts[i];
+    const p3 = pts[i + 1];
+
+    const d1 = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const d2 = Math.hypot(p3.x - p2.x, p3.y - p2.y);
+    const curRadius = Math.min(radius, d1 / 2, d2 / 2);
+
+    ctx.arcTo(p2.x, p2.y, p3.x, p3.y, curRadius);
+  }
+
+  ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+}
+
+/**
+ * RENDERIZAÇÃO ESTÉTICA PROFISSIONAL DE CABOS NO CANVAS 2D:
+ * - Curvatura suave nas dobras (fillet corners de 10px)
+ * - Iluminação 3D cilíndrica (sombra de fundo, cor primária do PVC e linha de reflexo)
+ * - Terminais Ilhós Tubulares Crimpados (anilhas / ferrules cromados com colar plástico)
+ * - Fluxo de elétrons pulsante para condutores energizados
+ */
+export function drawProfessionalWire(
+  ctx: CanvasRenderingContext2D,
+  screenPoints: { x: number; y: number }[],
+  wireType = 'L1',
+  cam: { zoom: number },
+  isLive = false,
+  isSelected = false,
+  animTick = 0
+): void {
+  if (!screenPoints || screenPoints.length < 2) return;
+
+  const norm = WIRE_NORM_COLORS[wireType] || WIRE_NORM_COLORS['L1'];
+  const wireW = Math.max(2.2, 3.5 * cam.zoom);
+  const filletRadius = Math.max(6, 12 * cam.zoom);
+
+  ctx.save();
+
+  // 1. Se selecionado: Halo de seleção pulsante
+  if (isSelected) {
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+    ctx.lineWidth = wireW + 10 * cam.zoom;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    traceFilletPath(ctx, screenPoints, filletRadius);
+    ctx.stroke();
+  }
+
+  // 2. Sombra de profundidade projetada na placa de montagem
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.lineWidth = wireW + 1.5 * cam.zoom;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.save();
+  ctx.translate(1.5 * cam.zoom, 2.5 * cam.zoom);
+  traceFilletPath(ctx, screenPoints, filletRadius);
+  ctx.stroke();
+  ctx.restore();
+
+  // 3. Corpo Primário da Isolação de PVC/XLPE
+  ctx.strokeStyle = norm.base;
+  ctx.lineWidth = wireW;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  traceFilletPath(ctx, screenPoints, filletRadius);
+  ctx.stroke();
+
+  // 4. Se for Terra (PE): Listras Amarelas de Segurança IEC
+  if (norm.isStriped) {
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = wireW * 0.85;
+    ctx.setLineDash([8 * cam.zoom, 8 * cam.zoom]);
+    traceFilletPath(ctx, screenPoints, filletRadius);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 5. Linha de Reflexo Especular Superior 3D (Cilindro do Cabo)
+  ctx.strokeStyle = norm.highlight;
+  ctx.lineWidth = Math.max(0.7, 1 * cam.zoom);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = 0.55;
+  traceFilletPath(ctx, screenPoints, filletRadius);
+  ctx.stroke();
+  ctx.globalAlpha = 1.0;
+
+  // 6. Animação de Fluxo de Cargas se Energizado (Elétrons em Movimento)
+  if (isLive) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(1, 1.8 * cam.zoom);
+    ctx.setLineDash([5 * cam.zoom, 9 * cam.zoom]);
+    ctx.lineDashOffset = -animTick * 1.5;
+    traceFilletPath(ctx, screenPoints, filletRadius);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 7. Terminais Ilhós Tubulares (Ferrules) nos 2 Extremos da Conexão
+  const drawFerrule = (pt: { x: number; y: number }, nextPt: { x: number; y: number }) => {
+    const angle = Math.atan2(nextPt.y - pt.y, nextPt.x - pt.x);
+    ctx.save();
+    ctx.translate(pt.x, pt.y);
+    ctx.rotate(angle);
+
+    // Ponteira Metálica Estanhada (Cobre Eletrolítico Cromado)
+    ctx.fillStyle = '#cbd5e1';
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = Math.max(0.6, 0.8 * cam.zoom);
+    ctx.fillRect(-2 * cam.zoom, -wireW * 0.7, 7 * cam.zoom, wireW * 1.4);
+    ctx.strokeRect(-2 * cam.zoom, -wireW * 0.7, 7 * cam.zoom, wireW * 1.4);
+
+    // Colar Plástico Isolante Normativo (Cor do Cabo)
+    ctx.fillStyle = norm.base;
+    ctx.strokeStyle = norm.highlight;
+    ctx.beginPath();
+    ctx.roundRect(4 * cam.zoom, -wireW * 0.9, 5 * cam.zoom, wireW * 1.8, 1.5 * cam.zoom);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+  };
+
+  drawFerrule(screenPoints[0], screenPoints[1]);
+  drawFerrule(screenPoints[screenPoints.length - 1], screenPoints[screenPoints.length - 2]);
+
+  ctx.restore();
+}
+
 export interface JunctionDot {
   x: number;
   y: number;
@@ -308,33 +502,25 @@ export interface JunctionDot {
 }
 
 /**
- * Identifica os nós de derivação reais (Junction Dots):
- * - Nós aparecem EXCLUSIVAMENTE em derivações em T (quando 3 ou mais ramos de condutores se conectam)
- * - Em cruzamentos normais (onde 2 fios simplesmente passam um pelo outro) NÃO É DESENHADO NÓ!
+ * Identifica os nós de derivação reais (Junction Dots) em derivações em T
  */
 export function findJunctionDots(
   components: any[],
-  wires: any[]
+  wires: any[],
+  busbars: Busbar[] = []
 ): JunctionDot[] {
-  if (!Array.isArray(components) || !Array.isArray(wires)) return [];
+  if (!Array.isArray(wires)) return [];
 
-  // Mapear pontos terminais de cada fio
   const pointCounts = new Map<string, { count: number; x: number; y: number; netType: string }>();
 
   wires.forEach((wire, wireIdx) => {
-    const compA = components.find(c => c.id === wire.a?.c);
-    const compB = components.find(c => c.id === wire.b?.c);
-    if (!compA || !compB) return;
+    const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, components, busbars);
+    const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, components, busbars);
+    const path = calculateManhattanPath(posA, posB, wireIdx, wire.waypoints);
 
-    const posA = getTerminalWorldPos(compA, wire.a.t);
-    const posB = getTerminalWorldPos(compB, wire.b.t);
-    const path = calculateManhattanPath(posA, posB, wireIdx);
-
-    // Avalia os pontos do caminho (especialmente extremidades e vértices)
     path.forEach((pt, idx) => {
-      // Considera conexões nos terminais e nós intermediários
       if (idx === 0 || idx === path.length - 1) {
-        const key = `${Math.round(pt.x / 4) * 4},${Math.round(pt.y / 4) * 4}`;
+        const key = `${Math.round(pt.x / 6) * 6},${Math.round(pt.y / 6) * 6}`;
         const existing = pointCounts.get(key);
         if (existing) {
           existing.count += 1;
@@ -350,7 +536,6 @@ export function findJunctionDots(
     });
   });
 
-  // Retorna apenas pontos onde há união em T (3 ou mais conexões compartilhadas)
   const dots: JunctionDot[] = [];
   pointCounts.forEach(entry => {
     if (entry.count >= 3) {
@@ -366,20 +551,16 @@ export function findJunctionDots(
 }
 
 /**
- * Auto-Organizar Fios e Conexões (Grid Snap e Alinhamento Ortogonal):
- * Reposiciona componentes ordenadamente na grade CAD (múltiplos de 40px)
- * eliminando sobreposições e garantindo rotas limpas a 90°.
+ * Auto-Organizar Fios e Conexões na grade CAD
  */
 export function autoOrganizeCircuitWiring(project: any): any {
   if (!project || !Array.isArray(project.components)) return project;
 
   const GRID_SNAP = 40;
   const updatedComponents = project.components.map((c: any, idx: number) => {
-    // Alinha à grade
     let nx = Math.round(c.x / GRID_SNAP) * GRID_SNAP;
     let ny = Math.round(c.y / GRID_SNAP) * GRID_SNAP;
 
-    // Se estiver sobreposto a outro componente anterior, afasta
     for (let i = 0; i < idx; i++) {
       const prev = project.components[i];
       if (Math.abs(nx - prev.x) < 80 && Math.abs(ny - prev.y) < 60) {
@@ -400,4 +581,3 @@ export function autoOrganizeCircuitWiring(project: any): any {
     updated: Date.now()
   };
 }
-

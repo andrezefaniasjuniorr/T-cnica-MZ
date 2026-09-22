@@ -23,6 +23,14 @@ import {
 } from './cadEngine';
 import {
   Busbar,
+  BusbarTerminal,
+  PanelEnclosureConfig,
+  PanelEnclosureSize,
+  PanelBackplateStyle,
+  PANEL_PRESETS,
+  generateBusbarTerminals,
+  findNearestBusbarTerminal,
+  drawPanelEnclosure,
   drawBusbars,
   snapComponentToBusbars,
   DEFAULT_MOTOR_BUSBARS,
@@ -31,8 +39,11 @@ import {
 } from './cadBusbars';
 import {
   getTerminalWorldPos,
+  getNodeWorldPos,
   calculateManhattanPath,
-  autoOrganizeCircuitWiring
+  drawProfessionalWire,
+  autoOrganizeCircuitWiring,
+  WIRE_NORM_COLORS
 } from './cadRouting';
 import {
   Zap,
@@ -112,6 +123,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     components: any[];
     wires: any[];
     busbars: Busbar[];
+    panelConfig?: PanelEnclosureConfig;
     updated?: number;
   }>({
     version: 11,
@@ -119,6 +131,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     components: [],
     wires: [],
     busbars: [],
+    panelConfig: PANEL_PRESETS.large,
     updated: Date.now()
   });
 
@@ -128,6 +141,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   const [selectedCompId, setSelectedCompId] = useState<string | null>(null);
   const [selectedWireId, setSelectedWireId] = useState<string | null>(null);
   const [selectedBusbarId, setSelectedBusbarId] = useState<string | null>(null);
+  const [hoveredTerminalId, setHoveredTerminalId] = useState<string | null>(null);
+  const [isPanelConfigOpen, setIsPanelConfigOpen] = useState<boolean>(false);
   const [isRunning, setIsRunning] = useState<boolean>(false);
 
   // Painéis Flutuantes Visíveis / Minimizados
@@ -271,6 +286,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         components: initialCircuit.cadData.components,
         wires: initialCircuit.cadData.wires || [],
         busbars: initialCircuit.cadData.busbars || DEFAULT_MOTOR_BUSBARS,
+        panelConfig: initialCircuit.cadData.panelConfig || PANEL_PRESETS.large,
         updated: Date.now()
       });
       setPublishTitle(initialCircuit.title);
@@ -288,6 +304,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           components: p.components,
           wires: p.wires,
           busbars: DEFAULT_FOURWAY_BUSBARS,
+          panelConfig: PANEL_PRESETS.compact,
           updated: Date.now()
         });
         setPublishTitle('Comutação Four-Way / Three-Way em 3 Pavimentos (IEC 60364)');
@@ -301,6 +318,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           components: p.components,
           wires: p.wires,
           busbars: DEFAULT_QGD_BUSBARS,
+          panelConfig: PANEL_PRESETS.medium,
           updated: Date.now()
         });
         setPublishTitle('Quadro de Distribuição QGD com IDR 30mA e Seletividade');
@@ -314,6 +332,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           components: p.components,
           wires: p.wires,
           busbars: DEFAULT_MOTOR_BUSBARS,
+          panelConfig: PANEL_PRESETS.large,
           updated: Date.now()
         });
         setPublishTitle('Partida Direta de Motor Trifásico com Selo e Relé Térmico (IEC 60947)');
@@ -348,6 +367,17 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       maxY = Math.max(maxY, b.y + (isH ? halfH : halfL));
     });
 
+    if (project.panelConfig?.enabled) {
+      const halfW = project.panelConfig.width / 2;
+      const halfH = project.panelConfig.height / 2;
+      const px = project.panelConfig.x || 0;
+      const py = project.panelConfig.y || 0;
+      minX = Math.min(minX, px - halfW);
+      maxX = Math.max(maxX, px + halfW);
+      minY = Math.min(minY, py - halfH);
+      maxY = Math.max(maxY, py + halfH);
+    }
+
     const padding = 120;
     const w = Math.max(200, maxX - minX + padding * 2);
     const h = Math.max(200, maxY - minY + padding * 2);
@@ -371,6 +401,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         components: [],
         wires: [],
         busbars: [],
+        panelConfig: PANEL_PRESETS.medium,
         updated: Date.now()
       });
       setSelectedCompId(null);
@@ -387,6 +418,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         components: p.components,
         wires: p.wires,
         busbars: DEFAULT_MOTOR_BUSBARS,
+        panelConfig: PANEL_PRESETS.large,
         updated: Date.now()
       });
       showToast('Partida Direta carregada');
@@ -398,6 +430,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         components: p.components,
         wires: p.wires,
         busbars: DEFAULT_FOURWAY_BUSBARS,
+        panelConfig: PANEL_PRESETS.compact,
         updated: Date.now()
       });
       showToast('Comutação Four-Way carregada');
@@ -409,6 +442,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         components: p.components,
         wires: p.wires,
         busbars: DEFAULT_QGD_BUSBARS,
+        panelConfig: PANEL_PRESETS.medium,
         updated: Date.now()
       });
       showToast('Quadro QGD carregado');
@@ -420,6 +454,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         components: p.components,
         wires: p.wires,
         busbars: [],
+        panelConfig: PANEL_PRESETS.industrial,
         updated: Date.now()
       });
       showToast('Sistema Solar Fotovoltaico carregado');
@@ -594,76 +629,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     showToast('Componente duplicado');
   }, [selectedCompId, project.components, pushHistory, showToast]);
 
-  import { useCallback } from 'react';
-
-// ============================================================================
-// 1. INTERFACES ATUALIZADAS COM PONTOS DE CONEXÃO (BORNES/TERMINAIS)
-// ============================================================================
-
-export interface BusbarTerminal {
-  id: string;          // Ex: "BB_123_TERM_0"
-  busbarId: string;    // ID do barramento pai
-  x: number;           // Posição X absoluta no canvas
-  y: number;           // Posição Y absoluta no canvas
-  type: 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth' | 'din';
-  isOccupied?: boolean;
-  connectedWireId?: string | null;
-}
-
-export interface Busbar {
-  id: string;
-  type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth';
-  x: number;
-  y: number;
-  length: number;
-  orientation: 'horizontal' | 'vertical';
-  terminals: BusbarTerminal[]; // Bornes que recebem e distribuem condutores
-}
-
-// ============================================================================
-// 2. GERADOR AUTOMÁTICO DE BORNES DE CONEXÃO
-// ============================================================================
-
-/**
- * Cria os parafusos/bornes ao longo do barramento para engate de fios.
- */
-const generateBusbarTerminals = (
-  busbarId: string,
-  type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
-  startX: number,
-  startY: number,
-  length: number,
-  orientation: 'horizontal' | 'vertical',
-  spacing = 20 // Espaçamento de 20px entre bornes
-): BusbarTerminal[] => {
-  // Trilhos DIN não possuem conexão elétrica direta de condutores
-  if (type === 'din') return [];
-
-  const count = Math.floor(length / spacing);
-  const terminals: BusbarTerminal[] = [];
-
-  for (let i = 0; i <= count; i++) {
-    const offset = i * spacing;
-    terminals.push({
-      id: `${busbarId}_TERM_${i}`,
-      busbarId,
-      type,
-      x: orientation === 'horizontal' ? startX + offset : startX,
-      y: orientation === 'horizontal' ? startY : startY + offset,
-      isOccupied: false,
-      connectedWireId: null
-    });
-  }
-
-  return terminals;
-};
-
-// ============================================================================
-// 3. FUNÇÃO ADDBUSBAR COMPLETA (SUBSTITUIR NO SEU COMPONENTE)
-// ============================================================================
-
-// Adicionar Barramento ou Trilho DIN ao Painel (Com Bornes de Ligação Elétrica)
-const addBusbar = useCallback(
+  // Adicionar Barramento ou Trilho DIN ao Painel (Com Bornes de Ligação Elétrica)
+  const addBusbar = useCallback(
   (
     type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
     x?: number,
@@ -1103,78 +1070,60 @@ const addBusbar = useCallback(
         y: p.y * cam.zoom + cam.pan.y
       });
 
-      // 2.5 Desenhar Barramentos Elétricos e Trilhos DIN (Norma IEC 60715)
-      drawBusbars(ctx, cam, project.busbars || [], selectedBusbarId);
+      // 2. Quadro Geral / Armário Elétrico Industrial (Moldura, Chapa de Fundo, Canaletas e Avisos IEC)
+      if (project.panelConfig?.enabled) {
+        drawPanelEnclosure(ctx, cam, project.panelConfig);
+      }
 
-      // 3. Fiação Ortogonal (Manhattan Wiring - Ângulos retos a 90°)
+      // Determina barramentos energizados na simulação
+      const activeLiveBusbars = new Set<string>();
+      if (isRunning) {
+        activeLiveBusbars.add('phase_l1');
+        activeLiveBusbars.add('phase_l2');
+        activeLiveBusbars.add('phase_l3');
+        activeLiveBusbars.add('neutral');
+        activeLiveBusbars.add('earth');
+      }
+
+      // 2.5 Desenhar Barramentos Elétricos e Trilhos DIN (Norma IEC 60715 / IEC 60446)
+      drawBusbars(
+        ctx,
+        cam,
+        project.busbars || [],
+        selectedBusbarId,
+        hoveredTerminalId,
+        activeLiveBusbars
+      );
+
+      // 3. Fiação Profissional Ortogonal (Manhattan, Fillets, Anilhas Crimpadas e 3D)
       project.wires.forEach((wire, wireIdx) => {
-        const compA = project.components.find(c => c.id === wire.a.c);
-        const compB = project.components.find(c => c.id === wire.b.c);
-        if (!compA || !compB) return;
-
-        const posA = terminalPos(compA, wire.a.t);
-        const posB = terminalPos(compB, wire.b.t);
-        const pathPoints = calculateManhattanPath(posA, posB, wireIdx);
+        const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, project.components, project.busbars || []);
+        const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, project.components, project.busbars || []);
+        const pathPoints = calculateManhattanPath(posA, posB, wireIdx, wire.waypoints);
         const screenPoints = pathPoints.map(p => toScreen(p));
 
-        if (screenPoints.length === 0) return;
+        if (screenPoints.length < 2) return;
 
-        ctx.save();
         const isSelected = wire.id === selectedWireId;
-        const color = WIRE_COLORS[wire.type] || '#f59e0b';
-
-        ctx.strokeStyle = isSelected ? '#38bdf8' : color;
-        ctx.lineWidth = isSelected ? 4 : wire.live ? 3 : 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        // Linha ortogonal Manhattan a 90 graus
-        ctx.beginPath();
-        ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
-        for (let pi = 1; pi < screenPoints.length; pi++) {
-          ctx.lineTo(screenPoints[pi].x, screenPoints[pi].y);
-        }
-        ctx.stroke();
-
-        // Animação de fluxo de elétrons se condutor estiver energizado
-        if (isRunning && wire.live) {
-          ctx.save();
-          ctx.strokeStyle = '#fef08a';
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([5, 8]);
-          ctx.lineDashOffset = -(simRef.current.time * 60);
-          ctx.beginPath();
-          ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
-          for (let pi = 1; pi < screenPoints.length; pi++) {
-            ctx.lineTo(screenPoints[pi].x, screenPoints[pi].y);
-          }
-          ctx.stroke();
-          ctx.restore();
-        }
-        ctx.restore();
+        drawProfessionalWire(
+          ctx,
+          screenPoints,
+          wire.type || 'L1',
+          cam,
+          isRunning && Boolean(wire.live),
+          isSelected,
+          simRef.current.time * 60
+        );
       });
 
-      // Fio em Criação (Preview Ortogonal Manhattan)
+      // Fio em Criação (Preview Ortogonal Manhattan com Iluminação 3D)
       const currentDrag = simRef.current.drag;
       if (simRef.current.wireStart && currentDrag?.mouse) {
-        const startComp = project.components.find(c => c.id === simRef.current.wireStart?.c);
-        if (startComp) {
-          const sPos = terminalPos(startComp, simRef.current.wireStart.t);
-          const mPos = { x: currentDrag.mouse.x, y: currentDrag.mouse.y, dir: 'top' as const };
-          const pPath = calculateManhattanPath(sPos, mPos).map(p => toScreen(p));
-          ctx.save();
-          ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([5, 5]);
-          if (pPath.length > 0) {
-            ctx.beginPath();
-            ctx.moveTo(pPath[0].x, pPath[0].y);
-            for (let pi = 1; pi < pPath.length; pi++) {
-              ctx.lineTo(pPath[pi].x, pPath[pi].y);
-            }
-            ctx.stroke();
-          }
-          ctx.restore();
+        const sPos = getNodeWorldPos(simRef.current.wireStart.c, simRef.current.wireStart.t, project.components, project.busbars || []);
+        const mPos = { x: currentDrag.mouse.x, y: currentDrag.mouse.y, dir: 'top' as const };
+        const pPath = calculateManhattanPath(sPos, mPos, 999).map(p => toScreen(p));
+        if (pPath.length >= 2) {
+          drawProfessionalWire(ctx, pPath, selectedWireType, cam, false, true, 0);
         }
       }
 
@@ -1806,7 +1755,58 @@ const addBusbar = useCallback(
       mouse: { x: worldX, y: worldY }
     };
 
-    // 1. Toque em terminal para condutor
+    // 0. Toque em terminal / borne de barramento elétrico para condutor
+    const nearestBusbarTerm = findNearestBusbarTerminal(
+      project.busbars || [],
+      { x: worldX, y: worldY },
+      18 / cam.zoom
+    );
+
+    if (nearestBusbarTerm && (activeTool === 'wire' || e.shiftKey)) {
+      if (!simRef.current.wireStart) {
+        simRef.current.wireStart = {
+          c: nearestBusbarTerm.busbar.id,
+          t: nearestBusbarTerm.terminal.id
+        };
+        showToast(`Condutor iniciado no ${nearestBusbarTerm.busbar.type.toUpperCase()} [${nearestBusbarTerm.terminal.id}]. Toque no destino.`);
+      } else {
+        const startC = simRef.current.wireStart.c;
+        const startT = simRef.current.wireStart.t;
+        if (startC !== nearestBusbarTerm.busbar.id || startT !== nearestBusbarTerm.terminal.id) {
+          pushHistory();
+          const newWire = {
+            id: `W_${Math.random().toString(36).substring(2, 7)}`,
+            a: { c: startC, t: startT },
+            b: { c: nearestBusbarTerm.busbar.id, t: nearestBusbarTerm.terminal.id },
+            type: selectedWireType,
+            live: isRunning
+          };
+          setProject((prev: any) => ({
+            ...prev,
+            wires: [...prev.wires, newWire],
+            busbars: (prev.busbars || []).map((bb: any) =>
+              bb.id === nearestBusbarTerm.busbar.id
+                ? {
+                    ...bb,
+                    terminals: (bb.terminals || []).map((term: any) =>
+                      term.id === nearestBusbarTerm.terminal.id
+                        ? { ...term, isOccupied: true, connectedWireId: newWire.id }
+                        : term
+                    )
+                  }
+                : bb
+            ),
+            updated: Date.now()
+          }));
+          soundFX.playClick();
+          showToast('Condutor conectado ao barramento');
+        }
+        simRef.current.wireStart = null;
+      }
+      return;
+    }
+
+    // 1. Toque em terminal de componente para condutor
     for (const c of project.components) {
       const d = getComponentDef(c.code);
       for (const t of d.terminals) {
@@ -1821,7 +1821,7 @@ const addBusbar = useCallback(
               // Conclui fio
               const startC = simRef.current.wireStart.c;
               const startT = simRef.current.wireStart.t;
-              if (startC !== c.id) {
+              if (startC !== c.id || startT !== t[0]) {
                 pushHistory();
                 const newWire = {
                   id: `W_${Math.random().toString(36).substring(2, 7)}`,
@@ -1971,6 +1971,9 @@ const addBusbar = useCallback(
     const worldX = (px - cam.pan.x) / cam.zoom;
     const worldY = (py - cam.pan.y) / cam.zoom;
 
+    const hoverTerm = findNearestBusbarTerminal(project.busbars || [], { x: worldX, y: worldY }, 18 / cam.zoom);
+    setHoveredTerminalId(hoverTerm ? hoverTerm.terminal.id : null);
+
     drag.mouse = { x: worldX, y: worldY };
 
     if (drag.mode === 'comp' && drag.compId) {
@@ -1990,8 +1993,7 @@ const addBusbar = useCallback(
           targetX,
           targetY,
           project.busbars || [],
-          snapTolerance,
-          project.components
+          snapTolerance
         );
         targetX = snapped.x;
         targetY = snapped.y;
@@ -2017,7 +2019,14 @@ const addBusbar = useCallback(
       setProject((prev: any) => ({
         ...prev,
         busbars: (prev.busbars || []).map((b: any) =>
-          b.id === busbarId ? { ...b, x: targetX, y: targetY } : b
+          b.id === busbarId
+            ? {
+                ...b,
+                x: targetX,
+                y: targetY,
+                terminals: generateBusbarTerminals(b.id, b.type, targetX, targetY, b.length, b.orientation)
+              }
+            : b
         )
       }));
     } else if (drag.mode === 'pan') {
@@ -2256,6 +2265,21 @@ const addBusbar = useCallback(
             title="Carregar Sistema Solar Fotovoltaico On-Grid com String Box e Inversor (IEC 62548)"
           >
             <span>☀️ Solar FV</span>
+          </button>
+
+          {/* Botão de Configuração do Quadro Geral / Armário Elétrico */}
+          <button
+            type="button"
+            onClick={() => setIsPanelConfigOpen(prev => !prev)}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+              isPanelConfigOpen
+                ? 'bg-amber-600/30 text-amber-300 border-amber-500/60 ring-1 ring-amber-400/40'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800 hover:border-slate-700'
+            }`}
+            title="Dimensionar e Configurar Quadro Geral / Armário Modular (IEC 61439 / IP65)"
+          >
+            <Sliders className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Quadro Geral</span>
           </button>
         </div>
 
@@ -2666,7 +2690,13 @@ const addBusbar = useCallback(
                       setProject((prev: any) => ({
                         ...prev,
                         busbars: (prev.busbars || []).map((b: any) =>
-                          b.id === selectedBusbarId ? { ...b, orientation: 'horizontal' } : b
+                          b.id === selectedBusbarId
+                            ? {
+                                ...b,
+                                orientation: 'horizontal',
+                                terminals: generateBusbarTerminals(b.id, b.type, b.x, b.y, b.length, 'horizontal')
+                              }
+                            : b
                         ),
                         updated: Date.now()
                       }));
@@ -2685,7 +2715,13 @@ const addBusbar = useCallback(
                       setProject((prev: any) => ({
                         ...prev,
                         busbars: (prev.busbars || []).map((b: any) =>
-                          b.id === selectedBusbarId ? { ...b, orientation: 'vertical' } : b
+                          b.id === selectedBusbarId
+                            ? {
+                                ...b,
+                                orientation: 'vertical',
+                                terminals: generateBusbarTerminals(b.id, b.type, b.x, b.y, b.length, 'vertical')
+                              }
+                            : b
                         ),
                         updated: Date.now()
                       }));
@@ -2719,7 +2755,13 @@ const addBusbar = useCallback(
                     setProject((prev: any) => ({
                       ...prev,
                       busbars: (prev.busbars || []).map((b: any) =>
-                        b.id === selectedBusbarId ? { ...b, length: nextLen } : b
+                        b.id === selectedBusbarId
+                          ? {
+                              ...b,
+                              length: nextLen,
+                              terminals: generateBusbarTerminals(b.id, b.type, b.x, b.y, nextLen, b.orientation)
+                            }
+                          : b
                       ),
                       updated: Date.now()
                     }));
@@ -2743,6 +2785,198 @@ const addBusbar = useCallback(
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Remover do Diagrama</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PAINEL FLUTUANTE: CONFIGURAÇÕES DO QUADRO GERAL / ARMÁRIO MODULAR */}
+        {isPanelConfigOpen && (
+          <div className="absolute right-3 top-3 w-88 max-w-[calc(100vw-24px)] max-h-[calc(100%-80px)] bg-[#0A1224]/95 border border-amber-500/50 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-3 border-b border-amber-900/50 flex items-center justify-between bg-amber-950/30">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-black text-amber-300">Quadro Geral & Armário Modular</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPanelConfigOpen(false)}
+                className="p-1 rounded text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 overflow-y-auto space-y-4 text-xs">
+              {/* Presets Rápidos de Tamanho */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+                  Tamanho & Capacidade Modular (IEC 61439)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'compact', name: 'Compacto', spec: '24 Módulos (740×520)' },
+                    { id: 'medium', name: 'Médio', spec: '48 Módulos (940×700)' },
+                    { id: 'large', name: 'Grande', spec: '72 Módulos (1140×860)' },
+                    { id: 'industrial', name: 'Industrial', spec: 'NEMA / IP65 (1280×980)' }
+                  ].map(preset => {
+                    const isCur = project.panelConfig?.size === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          const base = (PANEL_PRESETS as any)[preset.id] || PANEL_PRESETS.large;
+                          setProject((prev: any) => ({
+                            ...prev,
+                            panelConfig: {
+                              ...base,
+                              backplate: prev.panelConfig?.backplate || base.backplate,
+                              nameplateText: prev.panelConfig?.nameplateText || base.nameplateText
+                            },
+                            updated: Date.now()
+                          }));
+                          showToast(`Painel alterado para padrão ${preset.name}`);
+                          setTimeout(handleFit, 60);
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col ${
+                          isCur
+                            ? 'bg-amber-600/30 text-amber-200 border-amber-400/80 ring-1 ring-amber-400/30'
+                            : 'bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <span className="font-black text-xs">{preset.name}</span>
+                        <span className="text-[10px] text-slate-400 mt-0.5">{preset.spec}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Placa de Montagem Interna (Chapa de Fundo) */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+                  Acabamento da Chapa de Fundo (Placa de Montagem)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'orange_industrial', name: 'Laranja Epóxi', color: 'bg-amber-600' },
+                    { id: 'galvanized', name: 'Galvanizado', color: 'bg-slate-600' },
+                    { id: 'white', name: 'Branco Epóxi', color: 'bg-slate-200 text-slate-900' },
+                    { id: 'brushed_steel', name: 'Aço Escovado', color: 'bg-slate-500' }
+                  ].map(mat => {
+                    const isCur = project.panelConfig?.backplate === mat.id;
+                    return (
+                      <button
+                        key={mat.id}
+                        type="button"
+                        onClick={() => {
+                          setProject((prev: any) => ({
+                            ...prev,
+                            panelConfig: {
+                              ...(prev.panelConfig || PANEL_PRESETS.large),
+                              backplate: mat.id
+                            },
+                            updated: Date.now()
+                          }));
+                        }}
+                        className={`p-2 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
+                          isCur
+                            ? 'bg-blue-600/20 text-white border-blue-400 ring-1 ring-blue-400/30'
+                            : 'bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded-full ${mat.color} border border-white/20`} />
+                        <span>{mat.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Toggles de Acessórios & Canaletas */}
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2.5">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-slate-300 font-bold">Canaletas Perfuradas com Fendas</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(project.panelConfig?.hasDucts)}
+                    onChange={e => {
+                      const val = e.target.checked;
+                      setProject((prev: any) => ({
+                        ...prev,
+                        panelConfig: {
+                          ...(prev.panelConfig || PANEL_PRESETS.large),
+                          hasDucts: val
+                        },
+                        updated: Date.now()
+                      }));
+                    }}
+                    className="w-4 h-4 accent-amber-500 rounded"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-slate-300 font-bold">Moldura Metálica & Vedação IP65</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(project.panelConfig?.enabled)}
+                    onChange={e => {
+                      const val = e.target.checked;
+                      setProject((prev: any) => ({
+                        ...prev,
+                        panelConfig: {
+                          ...(prev.panelConfig || PANEL_PRESETS.large),
+                          enabled: val
+                        },
+                        updated: Date.now()
+                      }));
+                    }}
+                    className="w-4 h-4 accent-amber-500 rounded"
+                  />
+                </label>
+              </div>
+
+              {/* Plaqueta de Identificação Técnica */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">
+                  Etiqueta / Plaqueta Técnica de Identificação
+                </label>
+                <input
+                  type="text"
+                  value={project.panelConfig?.nameplateText || ''}
+                  onChange={e => {
+                    const txt = e.target.value;
+                    setProject((prev: any) => ({
+                      ...prev,
+                      panelConfig: {
+                        ...(prev.panelConfig || PANEL_PRESETS.large),
+                        nameplateText: txt
+                      },
+                      updated: Date.now()
+                    }));
+                  }}
+                  placeholder="Ex: QGBT-01 • ALIMENTAÇÃO PRINCIPAL 400V"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              {/* Botão de Enquadramento */}
+              <div className="pt-2 border-t border-slate-800 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleFit}
+                  className="flex-1 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white text-xs font-bold border border-blue-500/40 transition cursor-pointer"
+                >
+                  Centralizar Quadro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPanelConfigOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer"
+                >
+                  Concluir
                 </button>
               </div>
             </div>
