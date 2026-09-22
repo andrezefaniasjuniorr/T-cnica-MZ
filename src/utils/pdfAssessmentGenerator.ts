@@ -3,7 +3,8 @@ import { AssessmentAttempt } from '../types/assessment';
 
 /**
  * Gerador de Folha Oficial de Avaliação em PDF (Layout Vertical Acadêmico - A4).
- * Formatação rigorosa de margens, tipografia otimizada e estritamente contido em 1 PÁGINA A4.
+ * Exibe as respostas escolhidas e o Guia Oficial por extenso (100% integrais).
+ * Rigorosamente mantido em 1 PÁGINA A4 com margens seguras.
  */
 export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   const doc = new jsPDF({
@@ -22,7 +23,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   const mcQuestions = attempt.mcQuestions || [];
   const totalQuestions = mcQuestions.length || 5;
 
-  // Recálculo e verificação do total de acertos
+  // Recálculo do total de acertos
   let correctCount = 0;
   mcQuestions.forEach(q => {
     const studentChoice = attempt.mcAnswers[q.id];
@@ -34,7 +35,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
 
   const finalScorePercent = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : attempt.finalScorePercent;
 
-  // Função Auxiliar: Impressão Segura de Texto com Quebra Automática sem Estourar Margem
+  // Função Auxiliar: Impressão Segura de Texto Multilinhas sem Estourar Margem
   const printSafeText = (
     text: string,
     x: number,
@@ -43,7 +44,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     fontSize: number,
     fontStyle: 'normal' | 'bold' | 'italic' = 'normal',
     color: [number, number, number] = [15, 23, 42],
-    maxLines: number = 1
+    maxLines: number = 2
   ): number => {
     doc.setFont('helvetica', fontStyle);
     doc.setFontSize(fontSize);
@@ -57,7 +58,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   // ==========================================================================
   // 1. CABEÇALHO ACADÊMICO COMPACTO (Altura: 28mm)
   // ==========================================================================
-  doc.setFillColor(15, 23, 42); // Navy Escuro Acadêmico #0F172A
+  doc.setFillColor(15, 23, 42); // Navy Escuro Acadêmico
   doc.roundedRect(margin, cursorY, contentWidth, 28, 1.5, 1.5, 'F');
 
   // Identificação Institucional
@@ -135,9 +136,9 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   cursorY += 8;
 
   // ==========================================================================
-  // 3. ESTRUTURA VERTICAL DAS QUESTÕES (CARDS ULTRA-COMPACTOS E ALINHADOS)
+  // 3. ESTRUTURA VERTICAL DAS QUESTÕES (RESPOSTAS E GUIA INTEIRAIS)
   // ==========================================================================
-  const cardHeight = 35;
+  const cardHeight = 36;
   const cardGap = 2;
 
   mcQuestions.forEach((q, idx) => {
@@ -153,55 +154,55 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     doc.setLineWidth(0.2);
     doc.roundedRect(margin, cursorY, contentWidth, cardHeight, 1, 1, 'FD');
 
-    // Indicator Lateral de Acerto / Erro
+    // Indicador Lateral de Acerto / Erro
     doc.setFillColor(isAnswerCorrect ? 16 : 225, isAnswerCorrect ? 185 : 29, isAnswerCorrect ? 129 : 72);
     doc.roundedRect(margin, cursorY, 2.5, cardHeight, 0.8, 0.8, 'F');
 
-    // Cabeçalho da Questão + Status
-    printSafeText(`Questão ${idx + 1} de ${totalQuestions}`, margin + 5, cursorY + 4.5, 80, 7.5, 'bold', [30, 41, 59]);
+    // Cabeçalho da Questão + Badge Status
+    printSafeText(`Questão ${idx + 1} de ${totalQuestions}`, margin + 5, cursorY + 4.2, 80, 7.2, 'bold', [30, 41, 59]);
 
     const statusW = 22;
-    const statusH = 4.2;
+    const statusH = 4;
     const statusX = margin + contentWidth - statusW - 3;
-    const statusY = cursorY + 1.8;
+    const statusY = cursorY + 1.6;
 
     doc.setFillColor(isAnswerCorrect ? 16 : 225, isAnswerCorrect ? 185 : 29, isAnswerCorrect ? 129 : 72);
     doc.roundedRect(statusX, statusY, statusW, statusH, 0.8, 0.8, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(5.8);
     doc.setTextColor(255, 255, 255);
-    doc.text(isAnswerCorrect ? 'CORRETO ✓' : 'INCORRETO ✗', statusX + statusW / 2, statusY + 2.9, { align: 'center' });
+    doc.text(isAnswerCorrect ? 'CORRETO ✓' : 'INCORRETO ✗', statusX + statusW / 2, statusY + 2.8, { align: 'center' });
 
-    // Enunciado (Limitado a 2 linhas com corte seguro de margem)
-    printSafeText(q.question, margin + 5, cursorY + 9, contentWidth - 32, 7.2, 'normal', [15, 23, 42], 2);
+    // Enunciado
+    printSafeText(q.question, margin + 5, cursorY + 8.5, contentWidth - 32, 6.8, 'normal', [15, 23, 42], 2);
 
-    // Bloco de Respostas (Sua Resposta vs Gabarito Oficial)
-    const respY = cursorY + 19.5;
-    const halfWidth = (contentWidth - 10) / 2;
+    // Bloco de Respostas: "Sua Resposta:" vs "Guia:" (Textos Completos)
+    const respY = cursorY + 18;
+    const halfWidth = (contentWidth - 12) / 2;
 
-    // Resposta do Aluno
+    // Resposta do Aluno (Completa)
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.2);
     doc.setTextColor(71, 85, 105);
     doc.text('Sua Resposta:', margin + 5, respY);
 
-    const studentText = studentLetter ? `[${studentLetter}] ${studentOpt?.text || ''}` : '(Sem resposta)';
+    const studentText = studentLetter ? `[${studentLetter}] ${studentOpt?.text || ''}` : '(Não respondida)';
     const studentColor: [number, number, number] = isAnswerCorrect ? [16, 185, 129] : [225, 29, 72];
-    printSafeText(studentText, margin + 22, respY, halfWidth - 20, 6.5, 'bold', studentColor, 1);
+    printSafeText(studentText, margin + 5, respY + 3.5, halfWidth, 6, 'bold', studentColor, 2);
 
-    // Gabarito Oficial
-    const gabX = margin + 5 + halfWidth;
+    // Guia Oficial (Resposta Correta Completa)
+    const guiaX = margin + 6 + halfWidth;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.2);
     doc.setTextColor(5, 150, 105);
-    doc.text('Gabarito:', gabX, respY);
+    doc.text('Guia Oficial:', guiaX, respY);
 
     const correctText = `[${correctLetter}] ${correctOpt?.text || ''}`;
-    printSafeText(correctText, gabX + 15, respY, halfWidth - 18, 6.5, 'normal', [4, 120, 87], 1);
+    printSafeText(correctText, guiaX, respY + 3.5, halfWidth, 6, 'normal', [4, 120, 87], 2);
 
-    // Explicação / Fundamentação Técnica (Rodapé do Card)
+    // Explicação / Fundamentação Técnica no Rodapé do Card
     const expText = q.explanation || q.keyTakeaway || 'Conformidade com os padrões normativos da IEC.';
-    printSafeText(`Fundamentação: ${expText}`, margin + 5, cursorY + 29.5, contentWidth - 10, 5.8, 'italic', [100, 116, 139], 1);
+    printSafeText(`Fundamentação: ${expText}`, margin + 5, cursorY + 31.5, contentWidth - 10, 5.5, 'italic', [100, 116, 139], 1);
 
     cursorY += cardHeight + cardGap;
   });
@@ -230,7 +231,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   doc.setTextColor(52, 211, 153);
   doc.text(`Autenticação: ${attempt.authCode}`, margin + 4, cursorY + 15);
 
-  // Quadrado com a Nota (%)
+  // Quadrado de Pontuação
   const scoreBoxW = 34;
   const scoreBoxH = 16;
   const scoreBoxX = margin + contentWidth - scoreBoxW - 4;
