@@ -46,6 +46,7 @@ import { soundFX } from '../../utils/audio';
 import { useModalHistory } from '../../utils/modalHistory';
 import { FontScaleControl, useAcademyFontScale } from '../academy/FontScaleControl';
 import { CircuitDiagramViewer } from '../academy/CircuitDiagramViewer';
+import { InteractiveVisualLab } from '../academy/InteractiveVisualLab';
 import { CircuitBlockFlowViewer } from '../academy/CircuitBlockFlowViewer';
 import { SaraDailyHacksFeed } from '../academy/SaraDailyHacksFeed';
 import { AssessmentExamView } from '../academy/AssessmentExamView';
@@ -93,6 +94,9 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
 
   // Aba ativa: inicia na aula do dia
   const [activeTab, setActiveTab] = useState<ActiveTab>('lesson');
+
+  // Modo de visualização da lição: Laboratório Interativo (física e animações) ou Esquema Técnico (diagramas IEC)
+  const [lessonVisualTab, setLessonVisualTab] = useState<'simulation' | 'schematic'>('simulation');
 
   // Aula atualmente selecionada para visualização
   const [selectedLesson, setSelectedLesson] = useState<AcademyLesson>(
@@ -690,14 +694,66 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
                 </p>
               </div>
 
-              {/* DIAGRAMA TÉCNICO INTERATIVO VETORIZADO NATIVO (SEM CORTES) */}
-              <div className="rounded-2xl border border-[#1E293B]">
-                <CircuitDiagramViewer
-                  lessonCode={selectedLesson.code}
-                  lessonTitle={selectedLesson.title}
-                  norma={selectedLesson.norma}
-                  baseFontSize={fontSize}
-                />
+              {/* SISTEMA VISUAL INTERATIVO & ESQUEMAS IEC DUAIS */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-slate-900 border border-[#1E293B]">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundFX.playClick();
+                        setLessonVisualTab('simulation');
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                        lessonVisualTab === 'simulation'
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Simulador Interativo (Animações & Física)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundFX.playClick();
+                        setLessonVisualTab('schematic');
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                        lessonVisualTab === 'schematic'
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Diagrama Esquemático IEC / Normativo</span>
+                    </button>
+                  </div>
+
+                  <span className="text-[11px] font-mono text-slate-500 hidden sm:inline pr-2">
+                    {lessonVisualTab === 'simulation' ? 'Canvas 60 FPS • Físico' : 'Vetorizado SVG • IEC'}
+                  </span>
+                </div>
+
+                {lessonVisualTab === 'simulation' ? (
+                  <div className="rounded-2xl border border-[#1E293B] overflow-hidden">
+                    <InteractiveVisualLab
+                      lessonCode={selectedLesson.code}
+                      lessonTitle={selectedLesson.title}
+                      norma={selectedLesson.norma}
+                      baseFontSize={fontSize}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-[#1E293B] overflow-hidden">
+                    <CircuitDiagramViewer
+                      lessonCode={selectedLesson.code}
+                      lessonTitle={selectedLesson.title}
+                      norma={selectedLesson.norma}
+                      baseFontSize={fontSize}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* 1. CONCEITO TÉCNICO OBJETIVO */}

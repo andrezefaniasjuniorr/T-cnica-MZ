@@ -113,20 +113,12 @@ export class VoiceOrchestrator {
 
   private constructor() {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('sara_voice_continuous');
-      this.isListeningDesired = stored === 'true';
-
-      if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) || !('speechSynthesis' in window)) {
-        this.isSupported = false;
-      } else {
-        this.initVoiceSynthesis();
-        if (this.isListeningDesired) {
-          // Defer inicialização para não bloquear render inicial
-          setTimeout(() => {
-            this.startListening();
-          }, 600);
-        }
-      }
+      try {
+        localStorage.removeItem('sara_voice_continuous');
+      } catch (e: any) {}
+      this.isListeningDesired = false;
+      this.isRecognizing = false;
+      this.isSupported = 'speechSynthesis' in window;
     }
   }
 
@@ -289,153 +281,34 @@ export class VoiceOrchestrator {
   }
 
   // ==========================================================================
-  // 2. MOTOR DE RECONHECIMENTO CONTÍNUO (WEB SPEECH API)
+  // 2. MOTOR DE RECONHECIMENTO (DESATIVADO NA PLATAFORMA)
   // ==========================================================================
   public startListening(): void {
-    if (typeof window === 'undefined') return;
-
-    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionClass) {
-      this.isSupported = false;
-      this.state = 'ERROR';
-      this.notify();
-      return;
-    }
-
-    this.isListeningDesired = true;
-    try {
-      localStorage.setItem('sara_voice_continuous', 'true');
-    } catch {}
-
-    if (this.recognition) {
-      try {
-        this.recognition.abort();
-      } catch {}
-    }
-
-    try {
-      const recognition = new SpeechRecognitionClass();
-      recognition.continuous = true;
-      recognition.interimResults = false;
-      recognition.lang = 'pt-PT'; // Ou 'pt-BR'
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        this.isRecognizing = true;
-        this.hasPermission = true;
-        this.state = 'LISTENING';
-        this.notify();
-      };
-
-      recognition.onresult = (event: any) => {
-        // Bloqueio Sincronizado: Se a IA estiver falando ou processando comando anterior, ignora
-        if (this.isSpeaking || this.isProcessing) {
-          return;
-        }
-
-        const resultsLen = event.results.length;
-        if (resultsLen === 0) return;
-
-        const lastResult = event.results[resultsLen - 1];
-        if (!lastResult || !lastResult[0]) return;
-
-        // No evento onresult, capture o áudio e converta para caixa baixa (transcript.toLowerCase())
-        const rawTranscript = String(lastResult[0].transcript || '').trim();
-        if (!rawTranscript) return;
-
-        // Log Obrigatório para Rastreamento Visual
-        console.log('[Sara Voice Capturado]:', rawTranscript);
-
-        this.transcript = rawTranscript;
-        this.notify();
-
-        // Processamento Sincronizado do Pipeline
-        this.handleCapturedTranscript(rawTranscript);
-      };
-
-      recognition.onerror = (event: any) => {
-        const errType = event?.error || 'unknown';
-
-        if (errType === 'not-allowed') {
-          this.hasPermission = false;
-          this.isListeningDesired = false;
-          this.isRecognizing = false;
-          this.state = 'ERROR';
-          this.notify();
-          return;
-        }
-
-        // Erros normais de silêncio e rede não devem abortar o sistema
-        if (errType === 'no-speech' || errType === 'network' || errType === 'aborted') {
-          // Normal, reconexão silenciosa cuidará disso
-        } else {
-          console.debug('[VoiceOrchestrator] Reconhecimento evento:', errType);
-        }
-      };
-
-      recognition.onend = () => {
-        this.isRecognizing = false;
-        this.notify();
-
-        // Auto-Restart em caso de desconexão: force o reinício imediato para manter a escuta ativamente aguardando o gatilho "Sara"
-        if (this.isListeningDesired) {
-          try {
-            recognition.start();
-          } catch (err: any) {
-            if (this.restartTimer) clearTimeout(this.restartTimer);
-            this.restartTimer = setTimeout(() => {
-              if (this.isListeningDesired && !this.isSpeaking) {
-                try {
-                  this.recognition?.start();
-                } catch (startErr: any) {}
-              }
-            }, 80);
-          }
-        }
-      };
-
-      this.recognition = recognition;
-      recognition.start();
-      this.state = 'LISTENING';
-      this.notify();
-      soundFX?.playClick?.();
-    } catch (err: any) {
-      console.error('[VoiceOrchestrator] Erro ao instanciar SpeechRecognition:', err);
-      this.isListeningDesired = false;
-      this.state = 'ERROR';
-      this.notify();
-    }
+    this.isListeningDesired = false;
+    this.isRecognizing = false;
+    this.state = 'IDLE';
+    this.notify();
   }
 
   public stopListening(): void {
     this.isListeningDesired = false;
-    try {
-      localStorage.setItem('sara_voice_continuous', 'false');
-    } catch {}
-
+    this.isRecognizing = false;
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
     }
-
     if (this.recognition) {
       try {
         this.recognition.stop();
-      } catch {}
+      } catch (e: any) {}
+      this.recognition = null;
     }
-
-    this.isRecognizing = false;
     this.state = 'IDLE';
     this.notify();
-    soundFX?.playClick?.();
   }
 
   public toggleListening(): void {
-    if (this.isListeningDesired) {
-      this.stopListening();
-    } else {
-      this.startListening();
-    }
+    this.stopListening();
   }
 
   // ==========================================================================

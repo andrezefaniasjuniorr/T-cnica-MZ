@@ -5,6 +5,7 @@ export interface AssessmentOption {
   text: string;
   isCorrect: boolean;
   feedback: string;
+  displayLetter?: 'A' | 'B' | 'C' | 'D';
 }
 
 export interface ShuffledAssessmentOption extends AssessmentOption {
@@ -18,7 +19,7 @@ export interface AssessmentMCQuestion {
   scenario?: string;
   diagramId?: string; // e.g. 'distribution_board_qgd', 'direct_motor_starter', 'three_way_lighting', 'solar_pv_system', 'earthing_systems', 'hydraulic_circuit', 'pneumatic_circuit'
   diagramTitle?: string;
-  options: AssessmentOption[];
+  options: (AssessmentOption & { displayLetter?: 'A' | 'B' | 'C' | 'D' })[];
   explanation: string;
   norma: string;
   keyTakeaway?: string;
@@ -58,7 +59,8 @@ export interface DescriptiveEvaluationResult {
 
 export interface AssessmentAttempt {
   attemptId: string;
-  attemptNumber: number;
+  attemptNumber: number; // 1 = Avaliação Inicial, 2 = 1ª Reavaliação, 3 = 2ª Reavaliação (Final)
+  maxAttempts?: number; // Padrão: 3 tentativas (1 inicial + 2 reavaliações)
   lessonId: string;
   lessonCode: string;
   lessonTitle: string;
@@ -69,15 +71,17 @@ export interface AssessmentAttempt {
   date: string;
   authCode: string; // e.g. TMZ-ACAD-2026-X8K2
   mcQuestions: (Omit<AssessmentMCQuestion, 'options'> & { options: ShuffledAssessmentOption[] })[];
-  descQuestions: AssessmentDescriptiveQuestion[];
-  mcAnswers: Record<string, string>; // questionId -> chosen displayLetter
-  descAnswers: Record<string, string>; // questionId -> typed response text
-  descEvaluations: Record<string, DescriptiveEvaluationResult>;
+  descQuestions?: AssessmentDescriptiveQuestion[];
+  mcAnswers: Record<string, string>; // questionId -> chosen displayLetter ('A' | 'B' | 'C' | 'D')
+  descAnswers?: Record<string, string>;
+  descEvaluations?: Record<string, DescriptiveEvaluationResult>;
   mcEarnedPoints: number;
   mcTotalPoints: number;
-  descEarnedPoints: number;
-  descTotalPoints: number;
-  finalScorePercent: number; // 0 to 100
+  correctAnswersCount?: number;
+  totalQuestionsCount?: number;
+  descEarnedPoints?: number;
+  descTotalPoints?: number;
+  finalScorePercent: number; // 0 to 100 (Critério: >= 80% = ALCANÇADO)
   status: 'ALCANCA' | 'NAO_ALCANCA';
   isPassed: boolean; // finalScorePercent >= 80
 }

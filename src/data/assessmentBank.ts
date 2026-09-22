@@ -1,16 +1,13 @@
-import {
-  AcademyLesson
-} from '../types/academy';
+import { AcademyLesson } from '../types/academy';
 import {
   AssessmentMCQuestion,
-  AssessmentDescriptiveQuestion,
   AssessmentAttempt,
   ShuffledAssessmentOption
 } from '../types/assessment';
 
 /**
  * Embaralhamento rigoroso Fisher-Yates para garantir distribuição uniforme do gabarito.
- * É estritamente proibido que a resposta correta fique sempre na mesma alternativa (ex: sempre B).
+ * É estritamente proibido que a resposta correta fique sempre na mesma alternativa.
  */
 export function shuffleOptionsWithLabels(
   options: { id: string; text: string; isCorrect: boolean; feedback: string }[]
@@ -18,461 +15,818 @@ export function shuffleOptionsWithLabels(
   const letters: ('A' | 'B' | 'C' | 'D')[] = ['A', 'B', 'C', 'D'];
   const shuffled = [...options];
 
-  // Fisher-Yates shuffle
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    const temp = shuffled[i];
+    shuffled[i] = shuffled[j];
+    shuffled[j] = temp;
   }
 
-  // Atribuição de novas letras sequenciais A, B, C, D após o embaralhamento
   return shuffled.map((opt, idx) => ({
     ...opt,
     displayLetter: letters[idx] || 'D'
   }));
 }
 
-// Banco Especializado de Questões por Elemento de Competência (EC)
-// Contém Múltipla Escolha (Set 1 e Set 2 para Reavaliação) e Questões Descritivas Técnicas
-interface ECQuestionBank {
-  mcSet1: AssessmentMCQuestion[];
-  mcSet2: AssessmentMCQuestion[]; // Banco de Reavaliação (Perguntas Inéditas)
-  descSet1: AssessmentDescriptiveQuestion[];
-  descSet2: AssessmentDescriptiveQuestion[]; // Banco de Reavaliação
+/**
+ * Algoritmo Anti-Repetição baseado no localStorage:
+ * Garante que questões já vistas em tentativas anteriores na mesma aula/dispositivo
+ * NÃO se repitam até que o banco de questões seja totalmente esgotado.
+ */
+export function getSeenQuestionIds(lessonId: string): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const key = `tmz_seen_qids_${lessonId}`;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err: any) {
+    console.warn('Erro ao ler seen questions:', err);
+    return [];
+  }
 }
 
-export const ASSESSMENT_BANK: Record<string, ECQuestionBank> = {
-  // ==========================================================================
-  // EC 1.1: Grandezas Fundamentais e Lei de Ohm Aplicada (IEC 60038 / IEC 60364-1)
-  // ==========================================================================
-  elec_m1_ec1_grandezas_ohm: {
-    mcSet1: [
-      {
-        id: 'elec_ec1_mc1',
-        type: 'multiple_choice',
-        question: 'Um aquecedor industrial de água opera sob tensão nominal de 230 V monofásico 50 Hz consumindo 10 A de corrente nominal em regime contínuo. Ao medir a resistência da resistência desligada em bancada, qual valor ôhmico teórico deve ser obtido segundo a 1ª Lei de Ohm?',
-        scenario: 'Manutenção preventiva em termoacumulador/boiler industrial de 2,3 kW em instalação fabril.',
-        norma: 'IEC 60038 / IEC 60364-1',
-        points: 20,
-        explanation: 'Pela 1ª Lei de Ohm: R = V / I = 230 V / 10 A = 23 Ω.',
-        keyTakeaway: 'R = V / I. Resistência abaixo de 23 Ω indicaria espiras em curto; resistência infinita indicaria filamento rompido.',
-        options: [
-          { id: 'opt_1', text: '23 Ω exatos calculados por R = V / I.', isCorrect: true, feedback: 'Excelente! R = 230 V / 10 A = 23 Ω.' },
-          { id: 'opt_2', text: '2,3 Ω decorrentes da impedância do cobre.', isCorrect: false, feedback: 'Incorreto. 2,3 Ω drenaria 100 A, causando queima instantânea do condutor.' },
-          { id: 'opt_3', text: '2300 Ω correspondentes à potência ativa em watts.', isCorrect: false, feedback: 'Incorreto. 2300 é a potência em Watts, não a resistência em Ohms.' },
-          { id: 'opt_4', text: 'Zero Ohms por se tratar de carga puramente resistiva.', isCorrect: false, feedback: 'Incorreto. 0 Ω é a definição física de um curto-circuito pleno.' }
-        ]
-      },
-      {
-        id: 'elec_ec1_mc2',
-        type: 'multiple_choice',
-        question: 'Em uma linha alimentadora de 100 metros de comprimento em condutores de cobre (resistividade ρ = 0,0225 Ω·mm²/m a 70°C), qual é a consequência técnica imediata do aumento excessivo da temperatura ambiente (ex: 42°C em área fabril quente) sobre a resistência elétrica dos cabos?',
-        scenario: 'Dimensionamento de alimentador externo sob exposição solar severa em instalação industrial.',
-        norma: 'IEC 60364-5-52',
-        points: 20,
-        explanation: 'O cobre tem coeficiente de temperatura positivo (α = +0,00393/°C). O aumento da temperatura eleva a resistividade ρ, aumentando a resistência ôhmica total do cabo e agravando a queda de tensão.',
-        keyTakeaway: 'Temperatura elevada = maior resistência ôhmica = maior queda de tensão e menor capacidade de corrente (Iz).',
-        options: [
-          { id: 'opt_1', text: 'A resistência ôhmica diminui, facilitando a condução de elétrons livres.', isCorrect: false, feedback: 'Incorreto. Em condutores metálicos como o cobre, o aquecimento aumenta a vibração da rede cristalina e eleva a resistência.' },
-          { id: 'opt_2', text: 'A resistência ôhmica se eleva, provocando maior queda de tensão (ΔU) e perdas Joule no alimentador.', isCorrect: true, feedback: 'Correto! Coeficiente térmico positivo do cobre eleva R e agrava a queda de tensão.' },
-          { id: 'opt_3', text: 'A resistência permanece constante, pois depende apenas da seção transversal em milímetros quadrados.', isCorrect: false, feedback: 'Incorreto. A resistência depende de R = ρ·(L/S), e a resistividade ρ varia fortemente com a temperatura.' },
-          { id: 'opt_4', text: 'A tensão da rede pública dobra automaticamente para compensar a dissipação.', isCorrect: false, feedback: 'Incorreto. A tensão da concessionária é independente do aquecimento pontual da fiação interna.' }
-        ]
-      },
-      {
-        id: 'elec_ec1_mc3',
-        type: 'multiple_choice',
-        question: 'Segundo as normas de segurança IEC 61010, qual procedimento de medição com multímetro digital em bancada causará queima catastrófica do fusível interno ou do aparelho?',
-        scenario: 'Aferição de grandezas elétricas no quadro geral por eletricista em treinamento.',
-        norma: 'IEC 61010-1',
-        points: 20,
-        explanation: 'Tentar medir resistência (escala de Ohms) ou continuidade com o circuito energizado coloca a fonte de tensão diretamente sobre a ponte de medição interna de baixa impedância do multímetro.',
-        keyTakeaway: 'Regra de ouro: Medição de Resistência (Ω) e Continuidade SEMPRE com circuito desenergizado.',
-        options: [
-          { id: 'opt_1', text: 'Medir tensão alternada (VAC) colocando as pontas de prova em paralelo com a fase e o neutro.', isCorrect: false, feedback: 'Incorreto. A medição de tensão é feita exatamente em paralelo.' },
-          { id: 'opt_2', text: 'Medir corrente alternada com alicate amperímetro envolvendo apenas um único condutor de fase.', isCorrect: false, feedback: 'Incorreto. Essa é a forma correta de usar alicate amperímetro.' },
-          { id: 'opt_3', text: 'Inserir as pontas de prova na escala de Resistência (Ω) em um circuito energizado a 230 V.', isCorrect: true, feedback: 'Correto! Medir ohms em circuito energizado queima o fusível interno e destrói o conversor A/D.' },
-          { id: 'opt_4', text: 'Verificar a presença de fase encostando a ponta de prova em detector de tensão por indução sem contato.', isCorrect: false, feedback: 'Incorreto. O detector de campo elétrico sem contato é seguro e normatizado.' }
-        ]
-      }
-    ],
-    mcSet2: [
-      {
-        id: 'elec_ec1_mc4_var',
-        type: 'multiple_choice',
-        question: 'Uma carga monofásica puramente resistiva de 4600 W está conectada à rede de 230 V 50 Hz. Se a tensão fornecida pela rede cair 10% (ficando em 207 V devido à sobrecarga de linha), qual será a nova potência dissipada pela carga?',
-        scenario: 'Reavaliação de Competência: Variação de tensão e potência Joule (P = V² / R).',
-        norma: 'IEC 60038',
-        points: 20,
-        explanation: 'A resistência é R = 230² / 4600 = 11,5 Ω. Com V = 207 V, a potência é P = 207² / 11,5 = 3726 W (uma redução de 19%, pois a potência varia com o quadrado da tensão).',
-        keyTakeaway: 'Em cargas resistivas, P varia com V². Uma queda de 10% na tensão reduz a potência em cerca de 19%.',
-        options: [
-          { id: 'opt_v1', text: '4140 W, reduzindo exatamente 10% de forma estritamente linear.', isCorrect: false, feedback: 'Incorreto. A potência depende do quadrado da tensão (P = V²/R).' },
-          { id: 'opt_v2', text: '3726 W, pois a potência diminui com o quadrado da tensão aplicada (207² / 11,5 Ω).', isCorrect: true, feedback: 'Exato! P = V²/R resulta em 3726 W (queda de 19% na potência gerada).' },
-          { id: 'opt_v3', text: '5100 W, porque a corrente sobe para compensar a queda de tensão em carga resistiva.', isCorrect: false, feedback: 'Incorreto. Em cargas resistivas, menor tensão implica menor corrente (I = V/R).' },
-          { id: 'opt_v4', text: '2300 W, caindo pela metade devido ao desbalanceamento.', isCorrect: false, feedback: 'Incorreto. O cálculo exato decorre da relação quadrática.' }
-        ]
-      },
-      {
-        id: 'elec_ec1_mc5_var',
-        type: 'multiple_choice',
-        question: 'Segundo o triângulo de potências da IEC 60027, quando alimentamos uma carga indutiva (motor elétrico de indução), qual relação trigonométrica define a Potência Aparente (S, em kVA)?',
-        scenario: 'Reavaliação: Cargas reativas e correção do fator de potência industrial.',
-        norma: 'IEC 60027',
-        points: 20,
-        explanation: 'A potência aparente S é a hipotenusa do triângulo de potências: S = √(P² + Q²), onde P é a potência ativa em kW e Q é a potência reativa em kvar.',
-        keyTakeaway: 'S = √(P² + Q²). O fator de potência é cos(φ) = P / S.',
-        options: [
-          { id: 'opt_v1', text: 'S = P + Q por soma aritmética simples.', isCorrect: false, feedback: 'Incorreto. P e Q estão em quadratura de fase (90° de defasagem), exigindo soma vetorial.' },
-          { id: 'opt_v2', text: 'S = √(P² + Q²), correspondente à soma vetorial fasorial da potência ativa e reativa.', isCorrect: true, feedback: 'Correto! A potência aparente em kVA é a hipotenusa fasorial.' },
-          { id: 'opt_v3', text: 'S = P / Q apenas quando o fator de potência for unitário.', isCorrect: false, feedback: 'Incorreto. P/Q é a cotangente do ângulo de defasagem.' },
-          { id: 'opt_v4', text: 'S = V × I × cos(φ) para regime senoidal permanente.', isCorrect: false, feedback: 'Incorreto. V × I × cos(φ) é a fórmula da potência ativa P, não da potência aparente S.' }
-        ]
-      },
-      {
-        id: 'elec_ec1_mc6_var',
-        type: 'multiple_choice',
-        question: 'Em uma instalação trifásica equilibrada a quatro fios (3F+N) com 400 V entre fases e 230 V entre qualquer fase e o condutor neutro, qual deve ser a corrente teórica circulando pelo condutor neutro em condições ideais de equilíbrio de cargas?',
-        scenario: 'Reavaliação: Balanceamento de fases no barramento principal.',
-        norma: 'IEC 60364-1',
-        points: 20,
-        explanation: 'Pela 1ª Lei de Kirchhoff (Lei dos Nós), a soma fasorial das correntes em um sistema trifásico equilibrado com defasagem angular de 120° é nula: I_N = I_L1 + I_L2 + I_L3 = 0 A.',
-        keyTakeaway: 'Carga perfeitamente equilibrada = Corrente nula no neutro (I_N = 0 A).',
-        options: [
-          { id: 'opt_v1', text: 'Três vezes a corrente da fase de maior carga.', isCorrect: false, feedback: 'Incorreto. As correntes se cancelam fasorialmente devido ao ângulo de 120°.' },
-          { id: 'opt_v2', text: 'Aproximadamente zero amperes (I_N ≈ 0 A) devido ao cancelamento vetorial a 120°.', isCorrect: true, feedback: 'Exato! A soma fasorial das 3 fases equilibradas é nula no neutro.' },
-          { id: 'opt_v3', text: 'A média aritmética simples das três correntes de fase.', isCorrect: false, feedback: 'Incorreto. A eletrotécnica AC opera com fasores angulares, não médias simples.' },
-          { id: 'opt_v4', text: 'Igual à corrente de curto-circuito simétrica da subestação.', isCorrect: false, feedback: 'Incorreto. Essa corrente só ocorre em falha franca para a terra.' }
-        ]
-      }
-    ],
-    descSet1: [
-      {
-        id: 'elec_ec1_desc1',
-        type: 'descriptive',
-        title: 'Diagnóstico de Queda de Tensão Crítica em Bomba Submersível de 1,5 kW',
-        question: 'Explique passo a passo o procedimento técnico de diagnóstico de queda de tensão em campo. Indique quais medições você deve executar, com qual instrumento, a fórmula da queda de tensão (ΔU), e justifique a solução normativa de aumento de seção de condutor segundo a IEC 60364.',
-        contextScenario: 'Um operador de instalação fabril relata que sua eletrobomba submersível monofásica de 230V 1,5 kW (9,5 A nominais), localizada a 110 metros do quadro elétrico principal, desliga após alguns minutos de funcionamento nos horários de pico.',
-        norma: 'IEC 60364-5-52 / IEC 60038',
-        expectedKeywords: ['queda de tensão', 'multímetro', 'tensão nos bornes', 'seção do cabo', 'resistência', 'efeito joule', 'relé térmico'],
-        points: 40,
-        guidelineAnswer: 'Procedimento correto: 1) Medir a tensão no quadro geral (230 V) e nos bornes do motor durante a partida e em operação contínua com multímetro True-RMS. 2) Se a tensão na bomba cair para menos de 218 V (queda > 5% limite da IEC), o motor drena sobrecorrente para manter a potência mecânica, superaquecendo as bobinas e disparando o protetor térmico. 3) Calcular a resistência do condutor R = 2·ρ·(L/S). 4) Substituir o condutor subdimensionado (ex: 1,5 mm²) por seção adequada (mínimo 4 mm² ou 6 mm²), reduzindo a resistência de loop para restabelecer a tensão dentro da faixa nominal regulamentar (230 V ± 10%).',
-        rubricCriteria: [
-          { criterion: 'Identificação da causa raiz: Queda de tensão excessiva na linha de 110m provocando sobrecorrente e desarme térmico.', weightPercent: 35 },
-          { criterion: 'Procedimento metrológico de medição nos bornes com carga e circuito energizado via multímetro.', weightPercent: 25 },
-          { criterion: 'Aplicação da fórmula e justificativa do aumento de seção do condutor (S em mm²) conforme IEC 60364.', weightPercent: 40 }
-        ]
-      }
-    ],
-    descSet2: [
-      {
-        id: 'elec_ec1_desc2_var',
-        type: 'descriptive',
-        title: 'Reavaliação: Superaquecimento de Linha por Efeito Joule e Sobrecarga Térmica',
-        question: 'Descreva a fundamentação física do Efeito Joule (P = R·I²) em cabos elétricos. Quais são os riscos normativos de instalar um cabo com bitola inferior à capacidade de corrente calculada? Detalhe 3 verificações operacionais indispensáveis antes de liberar a instalação.',
-        contextScenario: 'Durante vistoria técnica em um entreposto frigorífico industrial, o técnico detecta canaletas plásticas deformadas pelo calor excessivo de cabos de 2,5 mm² alimentando motores de compressores que drenam 22 A continuamente.',
-        norma: 'IEC 60364-4-43 / IEC 60364-5-52',
-        expectedKeywords: ['efeito joule', 'degradação do isolamento', 'capacidade de condução', 'disjuntor', 'temperatura', 'seção transversal'],
-        points: 40,
-        guidelineAnswer: 'Pelo Efeito Joule, a potência dissipada em forma de calor na fiação é P = R × I². Cabos de 2,5 mm² em PVC possuem corrente admissível máxima de cerca de 18-21 A em método de referência. Sob 22 A contínuos, a temperatura ultrapassa o limite térmico de 70°C do PVC, degradando irreversivelmente a isolação dielétrica com risco iminente de curto-circuito e incêndio. Verificações: 1) Substituição imediata dos cabos por condutores de 4 mm² ou 6 mm²; 2) Coordenação correta do disjuntor termomagnético (Ib ≤ In ≤ Iz); 3) Medição termográfica de temperatura das conexões e teste de isolamento com megômetro a 500V.',
-        rubricCriteria: [
-          { criterion: 'Explicação física do Efeito Joule (P = R·I²) e relação entre corrente e calor.', weightPercent: 30 },
-          { criterion: 'Diagnóstico do risco de perda de isolamento PVC (> 70°C) e curto-circuito.', weightPercent: 35 },
-          { criterion: 'Proposta de adequação da seção do cabo e coordenação com a proteção conforme IEC 60364-4-43.', weightPercent: 35 }
-        ]
-      }
-    ]
-  },
-
-  // ==========================================================================
-  // EC 3.1: Proteção Contra Sobretensões Transitórias (DPS) IEC 61643-11 / IEC 60364-5-53
-  // ==========================================================================
-  elec_m3_ec1_dps_sobretensoes: {
-    mcSet1: [
-      {
-        id: 'elec_ec3_mc1',
-        type: 'multiple_choice',
-        question: 'Em regiões com elevado índice isoceráunico e alta incidência de tempestades elétricas, qual é a configuração recomendada de Descarregadores de Sobretensão (DPS) na entrada de um edifício alimentado por linha aérea segundo a IEC 60364-5-53?',
-        scenario: 'Projeto de proteção contra sobretensões para edifício corporativo.',
-        norma: 'IEC 61643-11 / IEC 60364-5-53',
-        points: 20,
-        explanation: 'Linhas aéreas expostas exigem DPS Classe I (capaz de drenar correntes parciais de raio em onda 10/350 μs) no quadro principal, associado a DPS Classe II (onda 8/20 μs) nos quadros de distribuição.',
-        keyTakeaway: 'Entrada aérea exposta = DPS Classe I (10/350 μs) no QGD principal.',
-        options: [
-          { id: 'opt_1', text: 'Instalar apenas DPS Classe III nos filtros de linha das tomadas.', isCorrect: false, feedback: 'Incorreto. DPS Classe III só suporta pequenas sobretensões residuais em eletrônicos.' },
-          { id: 'opt_2', text: 'DPS combinado Classe I+II (onda 10/350 μs e 8/20 μs) no Quadro Geral de Distribuição (QGD).', isCorrect: true, feedback: 'Perfeito! Classe I+II suporta o impacto direto de raios e sobretensões de comutação.' },
-          { id: 'opt_3', text: 'Disjuntor termomagnético curva C de 32 A dispensa o uso de DPS.', isCorrect: false, feedback: 'Incorreto. Disjuntores comuns não protegem contra picos de microssegundos de sobretensão.' },
-          { id: 'opt_4', text: 'Eliminar a conexão de aterramento do DPS para evitar que o raio entre no prédio.', isCorrect: false, feedback: 'Incorreto e perigoso. O DPS precisa do aterramento para escoar a corrente de surto à terra.' }
-        ]
-      },
-      {
-        id: 'elec_ec3_mc2',
-        type: 'multiple_choice',
-        question: 'Segundo a IEC 60364-5-53, qual é o comprimento máximo recomendado para a soma das conexões do condutor do DPS (fase até o DPS + DPS até o barramento de terra PE)?',
-        scenario: 'Instalação de DPS em trilho DIN no interior do quadro elétrico.',
-        norma: 'IEC 60364-5-53',
-        points: 20,
-        explanation: 'A indutância do condutor (L ≈ 1 μH/m) gera uma queda de tensão indutiva L·(di/dt) gigantesca durante o surto rápido. O comprimento total das conexões deve ser ≤ 0,5 m (50 cm).',
-        keyTakeaway: 'Regra dos 50 cm: Conexão do DPS ao barramento de terra não deve exceder 0,5 metro.',
-        options: [
-          { id: 'opt_1', text: 'Máximo de 50 cm (0,5 metro) para minimizar a impedância indutiva (L·di/dt).', isCorrect: true, feedback: 'Correto! A regra dos 50 cm evita sobretensões adicionais causadas pela indutância dos fios longos.' },
-          { id: 'opt_2', text: 'Mínimo de 3 metros para amortecer o choque elétrico.', isCorrect: false, feedback: 'Incorreto. Fios compridos aumentam a indutância e invalidam a proteção do DPS.' },
-          { id: 'opt_3', text: 'Qualquer comprimento, desde que o cabo seja verde-amarelo.', isCorrect: false, feedback: 'Incorreto. O comprimento físico é determinante na proteção contra surtos.' },
-          { id: 'opt_4', text: 'Exatamente 1,2 metros segundo o código predial local.', isCorrect: false, feedback: 'Incorreto. A norma internacional fixa o limite estrito em 0,5 m.' }
-        ]
-      },
-      {
-        id: 'elec_ec3_mc3',
-        type: 'multiple_choice',
-        question: 'Quando a janelinha de sinalização de um cartucho de DPS modular à base de Varistor de Óxido Metálico (MOV) muda de cor de verde para vermelho, qual é a ação obrigatória do eletricista?',
-        scenario: 'Inspeção visual periódica pós-tempestade em quadro elétrico hospitalar.',
-        norma: 'IEC 61643-11',
-        points: 20,
-        explanation: 'A cor vermelha indica que o desligador térmico interno desconectou o varistor degradado após escoar sobretensões sucessivas. O cartucho perdeu a capacidade de proteção e deve ser substituído imediatamente.',
-        keyTakeaway: 'Sinalizador vermelho no DPS = Cartucho queimado/degradado. Substituição imediata.',
-        options: [
-          { id: 'opt_1', text: 'Apertar o botão de reset mecânico localizado na lateral.', isCorrect: false, feedback: 'Incorreto. DPS à base de varistor não tem reset; o elemento sacrificatório foi destruído.' },
-          { id: 'opt_2', text: 'Substituir imediatamente o cartucho plugável avariado por um novo com a mesma especificação.', isCorrect: true, feedback: 'Correto! Vermelho indica varistor desconectado por proteção térmica.' },
-          { id: 'opt_3', text: 'Ligar uma lâmpada em paralelo para descarregar o capacitor interno.', isCorrect: false, feedback: 'Incorreto e sem fundamento técnico.' },
-          { id: 'opt_4', text: 'Aguardar 24 horas para o resfriamento espontâneo do semicondutor.', isCorrect: false, feedback: 'Incorreto. A desconexão térmica interna é irreversível.' }
-        ]
-      }
-    ],
-    mcSet2: [
-      {
-        id: 'elec_ec3_mc4_var',
-        type: 'multiple_choice',
-        question: 'Em um sistema de aterramento do tipo TT (onde as massas da instalação são ligadas a um elétrodo de terra independente do neutro do transformador), qual configuração de DPS (conexão 1+1 ou 3+1) deve ser utilizada segundo a IEC 60364-5-53?',
-        scenario: 'Reavaliação: Esquemas de aterramento e conexão CT2 de DPS.',
-        norma: 'IEC 60364-5-53',
-        points: 20,
-        explanation: 'No esquema TT, usa-se a configuração 3+1 (ou 1+1 em monofásico): DPSs de varistor entre as fases e o neutro, e um centelhador a gás (GDT) de alta robustez entre o neutro e a terra (PE).',
-        keyTakeaway: 'Esquema TT = Conexão tipo 3+1 (Fases -> Neutro via varistor, Neutro -> Terra via centelhador GDT).',
-        options: [
-          { id: 'opt_v1', text: 'Ligar os varistores diretamente de cada fase para o eletrodo de terra sem passar pelo neutro.', isCorrect: false, feedback: 'Incorreto. Em TT, isso causaria correntes de fuga permanentes perigosas para as massas.' },
-          { id: 'opt_v2', text: 'Configuração 3+1 (varistores entre Fase-Neutro e centelhador a gás GDT entre Neutro-Terra).', isCorrect: true, feedback: 'Exato! A configuração CT2 (3+1) garante segurança máxima no sistema TT.' },
-          { id: 'opt_v3', text: 'No esquema TT é terminantemente proibido instalar qualquer classe de DPS.', isCorrect: false, feedback: 'Incorreto. O DPS é fundamental em qualquer esquema de aterramento.' },
-          { id: 'opt_v4', text: 'Usar apenas fusíveis de areia de sílica tipo gG de ação rápida.', isCorrect: false, feedback: 'Incorreto. Fusíveis não substituem descarregadores de sobretensão.' }
-        ]
-      },
-      {
-        id: 'elec_ec3_mc5_var',
-        type: 'multiple_choice',
-        question: 'Qual é a função do dispositivo de proteção contra sobrecorrentes de backup (fusível ou disjuntor) instalado a montante de um DPS?',
-        scenario: 'Reavaliação: Coordenação de proteção de backup para descarregadores de surto.',
-        norma: 'IEC 61643-11',
-        points: 20,
-        explanation: 'Em caso de fim de vida útil com falha em curto-circuito pleno do varistor, a proteção de backup desconecta o DPS da rede de energia para evitar arco elétrico e incêndio no quadro.',
-        keyTakeaway: 'Proteção de backup desliga o DPS defeituoso em curto, evitando incêndio.',
-        options: [
-          { id: 'opt_v1', text: 'Desconectar com segurança o DPS caso ele entre em curto-circuito no fim de vida útil.', isCorrect: true, feedback: 'Correto! Evita que um varistor em curto cause curto-circuito permanente no barramento do quadro.' },
-          { id: 'opt_v2', text: 'Aumentar a velocidade do raio para que ele chegue mais rápido ao solo.', isCorrect: false, feedback: 'Incorreto.' },
-          { id: 'opt_v3', text: 'Impedir que a corrente de surto do raio atinja o eletrodo de aterramento.', isCorrect: false, feedback: 'Incorreto. A corrente de surto DEVE escoar para o aterramento.' },
-          { id: 'opt_v4', text: 'Transformar a energia da sobretensão em energia reativa indutiva.', isCorrect: false, feedback: 'Incorreto.' }
-        ]
-      },
-      {
-        id: 'elec_ec3_mc6_var',
-        type: 'multiple_choice',
-        question: 'O parâmetro Up (Nível de Proteção de Tensão) indicado na placa frontal de um DPS deve ser comparado com qual característica dos equipamentos a proteger?',
-        scenario: 'Reavaliação: Coordenação de isolamento conforme IEC 60664-1.',
-        norma: 'IEC 60664-1 / IEC 60364-4-44',
-        points: 20,
-        explanation: 'O nível de proteção Up do DPS deve ser inferior à tensão suportável de impulso (Uw) dos equipamentos sensíveis (ex: para equipamentos eletrônicos Categoria I/II, Uw = 1,5 kV; logo, Up do DPS deve ser ≤ 1,5 kV).',
-        keyTakeaway: 'Up do DPS deve ser menor que o Uw (tensão suportável de impulso) dos equipamentos.',
-        options: [
-          { id: 'opt_v1', text: 'Com a tensão nominal de operação da rede elétrica (230 V).', isCorrect: false, feedback: 'Incorreto. A tensão nominal é a tensão de rede, não a tensão de impulso.' },
-          { id: 'opt_v2', text: 'Com a tensão suportável de impulso (Uw) dos equipamentos eletrônicos sensíveis.', isCorrect: true, feedback: 'Exato! Up < Uw garante que a tensão residual não destrua os circuitos eletrônicos.' },
-          { id: 'opt_v3', text: 'Com a corrente de curto-circuito do disjuntor de entrada.', isCorrect: false, feedback: 'Incorreto. Up é uma grandeza de tensão (Volts/kV).' },
-          { id: 'opt_v4', text: 'Com o tempo de atuação do diferencial residual de 30 mA.', isCorrect: false, feedback: 'Incorreto.' }
-        ]
-      }
-    ],
-    descSet1: [
-      {
-        id: 'elec_ec3_desc1',
-        type: 'descriptive',
-        title: 'Plano de Proteção Contra Raios e Surtos em Estação de Telecomunicações',
-        question: 'Você foi contratado para projetar a proteção contra sobretensões transitórias em uma estação de telecomunicações isolada que sofreu queima repetida de placas de inversores e retificadores durante tempestades. Descreva detalhadamente a topologia de DPS recomendada (Classes I, II e III), o esquema de equipotencialização no BEP e a regra física de roteamento dos cabos de terra.',
-        contextScenario: 'Instalação técnica isolada no topo de elevação rochosa com linha aérea de média/baixa tensão exposta e histórico de 3 queimas catastróficas na última estação chuvosa.',
-        norma: 'IEC 62305 / IEC 61643-11',
-        expectedKeywords: ['dps classe i', 'dps classe ii', 'barramento de equipotencialização', 'bep', 'regra dos 50 cm', 'varistor', 'centelhador', 'aterramento'],
-        points: 40,
-        guidelineAnswer: 'Solução integrada de engenharia: 1) No quadro principal de entrada (QGD): Instalação de DPS Classe I (onda 10/350 μs, Iimp ≥ 25 kA por polo) à base de centelhador a gás ou varistor reforçado para drenar a corrente direta do raio. 2) Nos quadros de distribuição internos: DPS Classe II (onda 8/20 μs, In ≥ 20 kA, Up ≤ 1,5 kV) para limitar a sobretensão residual. 3) Próximo aos retificadores sensíveis: DPS Classe III. 4) Equipotencialização: Interligar todas as massas metálicas, carcaças da torre e condutores de proteção a um único Barramento de Equipotencialização Principal (BEP). 5) Respeitar rigorosamente a regra dos 50 cm (cabos de conexão curtos e retilíneos, sem curvas fechadas ou espiras indutivas).',
-        rubricCriteria: [
-          { criterion: 'Especificação coordenada das classes de DPS (Classe I no QGD e Classe II nos quadros internos).', weightPercent: 35 },
-          { criterion: 'Detalhes de equipotencialização no BEP e malha de aterramento única sem laços de terra.', weightPercent: 35 },
-          { criterion: 'Regra física de conexão ultracurta (regra dos 50 cm) para mitigar indutância parasita.', weightPercent: 30 }
-        ]
-      }
-    ],
-    descSet2: [
-      {
-        id: 'elec_ec3_desc2_var',
-        type: 'descriptive',
-        title: 'Reavaliação: Auditoria de Instalação de DPS e Não Conformidades de Campo',
-        question: 'Durante uma auditoria técnica em uma fábrica industrial, você encontra DPS instalados com cabos de conexão de 1,4 metros de comprimento formando voltas dentro da canaleta plástica. Justifique por que essa instalação NÃO cumpre a IEC 60364-5-53 e explique a consequência matemática da indutância (V = L·di/dt) sobre a proteção das máquinas.',
-        contextScenario: 'Auditoria elétrica pós-incêndio em quadro de comando de teares industriais que sofreram falha catastrófica apesar de terem DPS instalados.',
-        norma: 'IEC 60364-5-53',
-        expectedKeywords: ['indutância', 'comprimento dos cabos', 'regra dos 50 cm', 'queda de tensão indutiva', 'nível de proteção up', 'iec 60364-5-53'],
-        points: 40,
-        guidelineAnswer: 'A instalação está em grave não conformidade com a IEC 60364-5-53. Condutores elétricos possuem indutância própria de aproximadamente 1 μH por metro. Em um surto atmosférico com taxa de variação de corrente di/dt de 10 kA / 8 μs = 1,25 × 10⁹ A/s, um cabo de 1,4 m (excesso de 0,9 m) gera uma queda de tensão indutiva adicional V = L·(di/dt) = (1,4 × 10⁻⁶ H) × (1,25 × 10⁹ A/s) ≈ 1750 Volts! Essa sobretensão indutiva soma-se diretamente ao nível de proteção Up do DPS (ex: 1500 V + 1750 V = 3250 V), destruindo o isolamento dos equipamentos industriais mesmo com o DPS atuando perfeitamente. Ação corretiva: Reduzir imediatamente os cabos para menos de 50 cm e eliminar voltas indutivas.',
-        rubricCriteria: [
-          { criterion: 'Demonstração física da equação V = L·di/dt e da indutância de condutores longos.', weightPercent: 40 },
-          { criterion: 'Citação formal da não conformidade perante a regra dos 50 cm da IEC 60364-5-53.', weightPercent: 30 },
-          { criterion: 'Procedimento prático de correção e re-roteamento direto dos condutores de fase e terra.', weightPercent: 30 }
-        ]
-      }
-    ]
-  },
-
-  // ==========================================================================
-  // MECÂNICA 1: SISTEMA DE TOLERÂNCIAS E AJUSTES ISO (ISO 286-1 / ISO 286-2)
-  // ==========================================================================
-  mec_m1_l1_tolerancias_ajustes_iso: {
-    mcSet1: [
-      {
-        id: 'mec_ec1_mc1',
-        type: 'multiple_choice',
-        question: 'No sistema internacional de ajustes e tolerâncias ISO 286, o que define a designação de acoplamento Ø50 H7/g6?',
-        scenario: 'Ajuste mecânico de rolamento em eixo de ventilador de exaustão industrial.',
-        norma: 'ISO 286-1 / ISO 286-2',
-        points: 20,
-        explanation: 'Furo H7 tem afastamento inferior nulo (zona de tolerância H no furo base). O eixo com letra minúscula "g" situa-se abaixo da linha zero, resultando em folga suave que permite rotação ou deslizamento com filme de óleo.',
-        keyTakeaway: 'H7/g6 = Ajuste com folga deslizante de precisão.',
-        options: [
-          { id: 'opt_1', text: 'Ajuste prensado com interferência severa que exige prensa hidráulica de 50 toneladas.', isCorrect: false, feedback: 'Incorreto. Ajuste com interferência usa letras minúsculas avançadas como p, r, s.' },
-          { id: 'opt_2', text: 'Ajuste com folga móvel suave que permite deslizamento ou rotação com lubrificação.', isCorrect: true, feedback: 'Correto! Furo H7 com eixo g6 garante folga positiva para movimento mecânico.' },
-          { id: 'opt_3', text: 'Ajuste incerto com probabilidade idêntica de aperto e folga aleatória.', isCorrect: false, feedback: 'Incorreto. Ajustes incertos utilizam letras como j, k, m.' },
-          { id: 'opt_4', text: 'Furo rosqueado para parafusos métricos de passo fino.', isCorrect: false, feedback: 'Incorreto. H7/g6 refere-se a eixos lisos retificados e buchas cilíndricas.' }
-        ]
-      },
-      {
-        id: 'mec_ec1_mc2',
-        type: 'multiple_choice',
-        question: 'Para montar a pista interna de um rolamento de esferas com interferência (ajuste H7/p6) em um eixo retificado sem danificar os corpos rolantes nem as pistas, qual método térmico é mandatório segundo a ISO 15243?',
-        scenario: 'Montagem de rolamento em oficina de manutenção industrial.',
-        norma: 'ISO 15243 / DIN 5425',
-        points: 20,
-        explanation: 'O aquecedor por indução eletromagnética com desmagnetização automática aquece uniformemente a pista interna até 110°C, expandindo o diâmetro para encaixe suave e sem choque mecânico.',
-        keyTakeaway: 'Montagem de rolamento com interferência: Aquecedor por indução térmica a 110°C (nunca maçarico direto).',
-        options: [
-          { id: 'opt_1', text: 'Golpear diretamente a pista externa com marreta de ferro fundido até encaixar.', isCorrect: false, feedback: 'Incorreto e destrutivo! Transmite choque pelos corpos rolantes, causando falso brinelamento imediato.' },
-          { id: 'opt_2', text: 'Aquecimento por indução eletromagnética com controle térmico até 110°C.', isCorrect: true, feedback: 'Perfeito! Dilata uniformemente a pista interna para montagem livre de tensões de choque.' },
-          { id: 'opt_3', text: 'Aquecimento com maçarico oxiacetilênico diretamente sobre a gaiola de retenção.', isCorrect: false, feedback: 'Incorreto. Queima a têmpera do aço do rolamento e destrói os retentores.' },
-          { id: 'opt_4', text: 'Lixar o eixo com lixa d’água até que o rolamento entre folgado com a mão.', isCorrect: false, feedback: 'Incorreto. Destrói a tolerância de projeto e causa giro do anel no eixo.' }
-        ]
-      },
-      {
-        id: 'mec_ec1_mc3',
-        type: 'multiple_choice',
-        question: 'Qual instrumento de metrologia dimensional é o mais indicado segundo a DIN 878 para aferir com precisão micrométrica o empenamento ou batimento radial (runout) de um eixo girando sobre prismas em V?',
-        scenario: 'Controle de qualidade de eixo usinado em torno CNC.',
-        norma: 'DIN 878 / ISO 3611',
-        points: 20,
-        explanation: 'O relógio comparador centesimal ou milesimal montado em base magnética mede deslocamentos lineares com resolução de 0,01 mm ou 0,001 mm à medida que o eixo é rotacionado manualmente sobre prismas em V.',
-        keyTakeaway: 'Batimento radial de eixo = Relógio comparador sobre base magnética e blocos prismáticos.',
-        options: [
-          { id: 'opt_1', text: 'Paquímetro universal com nônio de 0,05 mm.', isCorrect: false, feedback: 'Incorreto. O paquímetro não permite medir variações contínuas de batimento em rotação.' },
-          { id: 'opt_2', text: 'Relógio comparador centesimal apoiado em base magnética e apalpador no diâmetro do eixo.', isCorrect: true, feedback: 'Exato! O relógio comparador detecta desvios de concentricidade e circularidade de 0,01 mm.' },
-          { id: 'opt_3', text: 'Trena metálica milimetrada de precisão classe II.', isCorrect: false, feedback: 'Incorreto. Inadequada para tolerâncias mecânicas micrométricas.' },
-          { id: 'opt_4', text: 'Calibrador de folga tipo lâmina (feelers gauge).', isCorrect: false, feedback: 'Incorreto. Calibrador de lâmina é usado para medir folgas entre superfícies planas.' }
-        ]
-      }
-    ],
-    mcSet2: [
-      {
-        id: 'mec_ec1_mc4_var',
-        type: 'multiple_choice',
-        question: 'Em um parafuso de fixação de cabeçote mecânico com marcação de classe de resistência 10.9 gravada no topo sextavado (ISO 898-1), o que significam os números "10" e "9"?',
-        scenario: 'Reavaliação: Especificação e aperto de parafusos de alta resistência.',
-        norma: 'ISO 898-1',
-        points: 20,
-        explanation: 'O "10" multiplicado por 100 indica a resistência mínima à tração Rm = 1000 N/mm² (MPa). O ".9" indica que o limite de escoamento Re é 90% do Rm, ou seja, Re = 900 N/mm².',
-        keyTakeaway: 'Classe 10.9: Rm = 1000 MPa, Escoamento Re = 900 MPa.',
-        options: [
-          { id: 'opt_v1', text: 'Comprimento de 10 cm e rosca de 9 milímetros de diâmetro.', isCorrect: false, feedback: 'Incorreto. Trata-se de propriedades metalúrgicas mecânicas, não dimensões.' },
-          { id: 'opt_v2', text: 'Resistência à tração de 1000 MPa e limite de escoamento de 900 MPa.', isCorrect: true, feedback: 'Correto! 10 × 100 = 1000 N/mm² e 1000 × 0,9 = 900 N/mm².' },
-          { id: 'opt_v3', text: 'Torque de aperto máximo de 10,9 N·m em chave dinamométrica.', isCorrect: false, feedback: 'Incorreto. O torque depende do diâmetro nominal e do atrito da rosca.' },
-          { id: 'opt_v4', text: 'Aço inoxidável austenítico com 10% de cromo e 9% de níquel.', isCorrect: false, feedback: 'Incorreto. Aço inoxidável usa a classificação A2/A4.' }
-        ]
-      },
-      {
-        id: 'mec_ec1_mc5_var',
-        type: 'multiple_choice',
-        question: 'Segundo a ISO 15243, qual é a principal causa física do fenômeno de falso brinelamento (fretting corrosion) em rolamentos industriais?',
-        scenario: 'Reavaliação: Análise de falhas em mancais e rolamentos.',
-        norma: 'ISO 15243',
-        points: 20,
-        explanation: 'O falso brinelamento ocorre quando máquinas reservas desligadas sofrem microvibrações induzidas por máquinas vizinhas em operação. Os corpos rolantes oscilam microscopicamente sem girar, rompendo o filme de óleo e oxidando pontualmente as pistas de rolamento.',
-        keyTakeaway: 'Falso brinelamento = Microvibrações em rolamento parado rompendo o filme lubrificante.',
-        options: [
-          { id: 'opt_v1', text: 'Microvibrações externas em equipamentos parados provocando contato metal-metal sem renovação do filme lubrificante.', isCorrect: true, feedback: 'Perfeito! Vibrações induzidas em rolamento estático geram marcas idênticas a cavidades oxidadas.' },
-          { id: 'opt_v2', text: 'Excesso de rotação ultrapassando 50.000 RPM sob carga pura de empuxo.', isCorrect: false, feedback: 'Incorreto. Isso geraria superaquecimento e engripamento.' },
-          { id: 'opt_v3', text: 'Injeção de graxa sintética com sabão de lítio de alta pureza.', isCorrect: false, feedback: 'Incorreto. Graxa de lítio é o padrão industrial.' },
-          { id: 'opt_v4', text: 'Aperto insuficiente da porca trava KM da bucha cônica.', isCorrect: false, feedback: 'Incorreto.' }
-        ]
-      },
-      {
-        id: 'mec_ec1_mc6_var',
-        type: 'multiple_choice',
-        question: 'Durante o aperto de parafusos críticos com torquímetro de estalo calibrado, qual é o impacto de lubrificar com óleo uma rosca que foi calculada pelo fabricante para aperto a seco?',
-        scenario: 'Reavaliação: Controle de torque e atrito em uniões parafusadas.',
-        norma: 'VDI 2230',
-        points: 20,
-        explanation: 'A lubrificação reduz o coeficiente de atrito na rosca e sob a cabeça do parafuso. Mantendo o mesmo torque no torquímetro, a força de protensão gerada (tensão axial de tração) sobe perigosamente em até 40-50%, podendo esticar e romper o parafuso na zona de escoamento.',
-        keyTakeaway: 'Lubrificar rosca calculada a seco = Superpré-carga perigosa e risco de cisalhamento/ruptura.',
-        options: [
-          { id: 'opt_v1', text: 'A força de aperto diminui pela metade porque o óleo faz a chave dinamométrica escorregar.', isCorrect: false, feedback: 'Incorreto. O torque medido é o mesmo, mas o atrito menor converte mais torque em força axial.' },
-          { id: 'opt_v2', text: 'A tensão de tração axial (pré-carga) no parafuso aumenta perigosamente, com alto risco de escoamento ou ruptura.', isCorrect: true, feedback: 'Correto! Menor atrito com mesmo torque = tração muito maior no corpo do parafuso.' },
-          { id: 'opt_v3', text: 'O coeficiente de segurança mecânico aumenta proporcionalmente à viscosidade do lubrificante.', isCorrect: false, feedback: 'Incorreto.' },
-          { id: 'opt_v4', text: 'Não há qualquer alteração mecânica, pois o torquímetro mede diretamente a força de tração em Newtons.', isCorrect: false, feedback: 'Incorreto. O torquímetro mede torque (N·m), que depende criticamente do atrito.' }
-        ]
-      }
-    ],
-    descSet1: [
-      {
-        id: 'mec_ec1_desc1',
-        type: 'descriptive',
-        title: 'Diagnóstico de Falha Prematura e Procedimento de Montagem de Rolamento C3',
-        question: 'Um redutor industrial de velocidade em uma planta mineradora apresentou quebra prematura do rolamento de rolos cônicos do eixo de saída após apenas 70 horas de operação. A pista apresentava marcas profundas de lascamento (spalling) e coloração azulada decorrente de atrito térmico severo. Descreva o procedimento de diagnóstico de folga interna radial (ex: necessidade de folga C3 em altas temperaturas), o método correto de montagem com controle de pré-carga e a instrumentação necessária.',
-        contextScenario: 'Redutor operando em ambiente de mineração com temperatura operacional de carcaça atingindo 85°C e poeira abrasiva de carvão.',
-        norma: 'ISO 15243 / ISO 286',
-        expectedKeywords: ['folga radial c3', 'dilatação térmica', 'aquecimento por indução', 'relógio comparador', 'pré-carga', 'lubrificação', 'spalling'],
-        points: 40,
-        guidelineAnswer: 'Diagnóstico e Procedimento: 1) Causa Raiz: Montagem de rolamento com folga radial normal (CN) em equipamento operando a 85°C. A dilatação térmica do eixo superou a folga interna, travando os rolos e gerando calor excessivo por atrito metálico (azulamento). 2) Correção Normativa: Selecionar rolamento com folga radial ampliada C3 (25-45 μm adicionais de folga interna) para compensar a expansão térmica. 3) Montagem: Aquecimento da pista interna por indução a 110°C (sem chamas). 4) Ajuste de pré-carga com calços calibrados e aferição do deslocamento axial com relógio comparador centesimal montado em base magnética. 5) Lubrificação com graxa sintética com aditivação extrema pressão (EP) e vedação contra poeira de carvão com labirintos.',
-        rubricCriteria: [
-          { criterion: 'Identificação da causa raiz térmica e justificativa para seleção de folga radial C3.', weightPercent: 35 },
-          { criterion: 'Metodologia de montagem sem impacto mecânico via aquecedor indutivo eletromagnético.', weightPercent: 35 },
-          { criterion: 'Aferição de pré-carga e folga com relógio comparador e calços conforme normas de tolerâncias.', weightPercent: 30 }
-        ]
-      }
-    ],
-    descSet2: [
-      {
-        id: 'mec_ec1_desc2_var',
-        type: 'descriptive',
-        title: 'Reavaliação: Alinhamento de Precisão e Correção de Pé Manco (Soft Foot)',
-        question: 'Durante a instalação de uma bomba centrífuga acoplada a um motor elétrico de 55 kW em uma unidade fabril de envase, o técnico nota vibrações elevadas ao apertar o pé de fixação dianteiro direito do motor. Explique o que é o fenômeno de "Pé Manco" (Soft Foot), como diagnosticá-lo com relógio comparador e qual é a técnica correta de nivelamento com calços calibrados segundo a ISO 10816.',
-        contextScenario: 'Comissionamento de conjunto motobomba industrial pós-manutenção mecânica.',
-        norma: 'ISO 10816 / ISO 20816',
-        expectedKeywords: ['pé manco', 'soft foot', 'relógio comparador', 'calços calibrados', 'alinhamento a laser', 'tensão na carcaça'],
-        points: 40,
-        guidelineAnswer: 'O Pé Manco (Soft Foot) ocorre quando um ou mais pés da máquina não assentam coplanarmente sobre a base usinada, como uma cadeira de quatro pernas onde uma é mais curta. Ao apertar o parafuso de fixação, a carcaça do motor é torcida elasticamente, ovalizando os mancais, reduzindo a folga dos rolamentos e desbalanceando o entreferro eletromagnético. Diagnóstico: 1) Instalar relógio comparador centesimal na vertical sobre o pé a ser testado, com apalpador na sapata; 2) Soltar o parafuso de fixação: se o relógio registrar deslocamento superior a 0,05 mm, há pé manco naquele ponto; 3) Medir a folga real com cálibre de lâminas em todos os 4 cantos do pé; 4) Inserir calços calibrados de aço inox pré-cortados (máximo 3 calços por pé); 5) Reapertar com torquímetro e reconfirmar o alinhamento de precisão dos eixos.',
-        rubricCriteria: [
-          { criterion: 'Definição mecânica precisa de Pé Manco e suas consequências de torção e vibração na carcaça.', weightPercent: 35 },
-          { criterion: 'Procedimento metrológico de teste com relógio comparador e cálibre de folgas.', weightPercent: 35 },
-          { criterion: 'Solução técnica com calços pré-cortados de inox e limite aceitável de folga (< 0,05 mm).', weightPercent: 30 }
-        ]
-      }
-    ]
+export function saveSeenQuestionIds(lessonId: string, newIds: string[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const key = `tmz_seen_qids_${lessonId}`;
+    const current = getSeenQuestionIds(lessonId);
+    const combined = Array.from(new Set([...current, ...newIds]));
+    localStorage.setItem(key, JSON.stringify(combined));
+  } catch (err: any) {
+    console.error('Erro ao salvar seen questions:', err);
   }
-};
+}
+
+export function resetSeenQuestionsForLesson(lessonId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(`tmz_seen_qids_${lessonId}`);
+  } catch (err: any) {
+    console.error('Erro ao resetar seen questions:', err);
+  }
+}
+
+// ============================================================================
+// REPOSITÓRIO ESTRATÉGICO DE QUESTÕES POR TEMA / MÓDULO (ZERO TEMPLATES)
+// Questões autênticas, práticas, de cálculo, defeito, diagnóstico e normas IEC
+// ============================================================================
+
+interface RawQuestion {
+  id: string;
+  question: string;
+  scenario?: string;
+  norma: string;
+  points: number;
+  explanation: string;
+  keyTakeaway: string;
+  options: { id: string; text: string; isCorrect: boolean; feedback: string }[];
+}
+
+/**
+ * Questões Temáticas Especializadas para Física Elétrica, Leis e Grandezas (Módulo 1)
+ */
+function getModule1Questions(lessonId: string, norma: string): RawQuestion[] {
+  return [
+    {
+      id: `${lessonId}_m1_ohm_calc`,
+      question: 'Um aquecedor industrial de água de 4600 W opera sob tensão de 230 V monofásico. Qual o valor da corrente nominal de operação e a resistência ôhmica do elemento de aquecimento?',
+      scenario: 'Comissionamento em bancada de resistência pura segundo a IEC 60038.',
+      norma: 'IEC 60038 / IEC 60364-1',
+      points: 20,
+      explanation: 'Pela Lei de Joule e Ohm: I = P / V = 4600 / 230 = 20 A. A resistência é R = V / I = 230 / 20 = 11,5 Ω (ou R = V² / P = 230² / 4600 = 11,5 Ω).',
+      keyTakeaway: 'R = V / I e P = V × I. Para 4600 W em 230 V, a corrente é 20 A e a resistência é 11,5 Ω.',
+      options: [
+        { id: 'opt1', text: 'I = 20 A e R = 11,5 Ω.', isCorrect: true, feedback: 'Correto! 4600 W / 230 V = 20 A; 230 V / 20 A = 11,5 Ω.' },
+        { id: 'opt2', text: 'I = 10 A e R = 23 Ω.', isCorrect: false, feedback: 'Incorreto. 10 A geraria apenas 2300 W de potência.' },
+        { id: 'opt3', text: 'I = 46 A e R = 5 Ω.', isCorrect: false, feedback: 'Incorreto. Dividiu a potência por 100 em vez de 230 V.' },
+        { id: 'opt4', text: 'I = 20 A e R = 230 Ω.', isCorrect: false, feedback: 'Incorreto. A resistência foi superestimada em 20 vezes.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m1_temp_coppercable`,
+      question: 'Em uma linha que alimenta um motor na região central de Moçambique, a temperatura ambiente eleva-se de 20 °C para 45 °C no verão. Qual o impacto físico direto na resistência ôhmica dos condutores de cobre?',
+      scenario: 'Operação de cabos elétricos sob temperaturas elevadas na província de Tete ou Gaza.',
+      norma: 'IEC 60364-5-52',
+      points: 20,
+      explanation: 'O cobre tem coeficiente de temperatura positivo (α ≈ +0,00393 / °C). Com o aumento de temperatura, a agitação térmica atômica cresce, aumentando as colisões de elétrons e elevando a resistência ôhmica do cabo, o que agrava a queda de tensão.',
+      keyTakeaway: 'Temperatura elevada = maior resistência ôhmica = maior queda de tensão e perdas por Joule.',
+      options: [
+        { id: 'opt1', text: 'A resistência ôhmica aumenta, elevando a queda de tensão e exigindo fator de correção de temperatura.', isCorrect: true, feedback: 'Correto! O cobre tem coeficiente positivo (mais calor = maior resistência).' },
+        { id: 'opt2', text: 'A resistência ôhmica diminui, permitindo conduzir mais corrente sem aquecer.', isCorrect: false, feedback: 'Incorreto. Isso violaria as leis dos condutores metálicos (comportamento de termistor NTC).' },
+        { id: 'opt3', text: 'A resistência permanece inalterada, pois varia estritamente com o comprimento do cabo.', isCorrect: false, feedback: 'Incorreto. A resistência depende do comprimento, seção e temperatura.' },
+        { id: 'opt4', text: 'A reatância indutiva anula o aumento da resistência ôhmica em 50 Hz.', isCorrect: false, feedback: 'Incorreto. A reatância independe da temperatura do cobre.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m1_kirchhoff_loop`,
+      question: 'Segundo a Lei das Malhas de Kirchhoff (2ª Lei), ao percorrer um circuito fechado contendo uma fonte de 230 V e três cargas em série com quedas de tensão de 50 V e 110 V nas duas primeiras, qual a tensão na terceira carga?',
+      scenario: 'Verificação de queda de tensão em circuitos série.',
+      norma: 'IEC 60027',
+      points: 20,
+      explanation: 'Pela 2ª Lei de Kirchhoff, a soma algébrica das diferenças de potencial em uma malha fechada é nula: 230 V - 50 V - 110 V - V3 = 0, logo V3 = 70 V.',
+      keyTakeaway: 'A soma das quedas de tensão em série é igual à tensão total da fonte.',
+      options: [
+        { id: 'opt1', text: 'V3 = 70 V.', isCorrect: true, feedback: 'Correto! 230 V - 50 V - 110 V = 70 V.' },
+        { id: 'opt2', text: 'V3 = 160 V.', isCorrect: false, feedback: 'Incorreto. 160 V é a soma das duas primeiras quedas, não o saldo restante.' },
+        { id: 'opt3', text: 'V3 = 230 V.', isCorrect: false, feedback: 'Incorreto. A terceira carga não recebe a tensão total da fonte.' },
+        { id: 'opt4', text: 'V3 = 0 V por simetria de fase.', isCorrect: false, feedback: 'Incorreto. O circuito fechado com corrente não tem queda nula em carga resistiva.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m1_power_triangle`,
+      question: 'Uma fábrica consome 80 kW de potência ativa com uma potência aparente total de 100 kVA. Qual é o fator de potência (cos φ) da instalação e qual o volume de potência reativa (Q)?',
+      scenario: 'Análise de tarifação de energia reativa segundo o padrão da EDM.',
+      norma: 'IEC 60831 / IEC 60038',
+      points: 20,
+      explanation: 'FP = P / S = 80 / 100 = 0,80. Pelo Teorema de Pitágoras no Triângulo de Potências: Q = √(S² - P²) = √(100² - 80²) = √(10000 - 6400) = √3600 = 60 kVAr.',
+      keyTakeaway: 'FP = 0,80 e Q = 60 kVAr. Estando abaixo de 0,92, a instalação sofre multas por excesso de reativos.',
+      options: [
+        { id: 'opt1', text: 'Fator de Potência = 0,80 e Potência Reativa Q = 60 kVAr.', isCorrect: true, feedback: 'Excelente! FP = 80/100 = 0,80 e Q = √(100² - 80²) = 60 kVAr.' },
+        { id: 'opt2', text: 'Fator de Potência = 1,25 e Potência Reativa Q = 20 kVAr.', isCorrect: false, feedback: 'Incorreto. O FP nunca pode ser maior que 1,00.' },
+        { id: 'opt3', text: 'Fator de Potência = 0,80 e Potência Reativa Q = 20 kVAr.', isCorrect: false, feedback: 'Incorreto. Subtraiu algebricamente (100 - 80) em vez de usar Pitágoras vetorial.' },
+        { id: 'opt4', text: 'Fator de Potência = 0,64 e Potência Reativa Q = 80 kVAr.', isCorrect: false, feedback: 'Incorreto. 0,64 seria (0,80)², o que não representa o cosseno fi.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m1_faraday_lenz`,
+      question: 'Ao aproximar o polo norte de um ímã permanente de uma bobina condutora fechada, qual fenômeno eletromagnético ocorre segundo a Lei de Faraday-Lenz?',
+      scenario: 'Princípio de funcionamento de geradores, alternadores e transformadores.',
+      norma: 'IEC 60027',
+      points: 20,
+      explanation: 'A variação temporal do fluxo magnético induz uma força eletromotriz (Faraday). Pela Lei de Lenz, a corrente induzida circula em um sentido que cria um polo norte na face voltada ao ímã, opondo-se à aproximação deste.',
+      keyTakeaway: 'A corrente induzida sempre cria um campo magnético que se opõe à variação do fluxo indutor.',
+      options: [
+        { id: 'opt1', text: 'Induz-se uma corrente que gera um campo magnético em oposição à aproximação do ímã.', isCorrect: true, feedback: 'Perfeito! O sinal negativo da Lei de Faraday (e = -dΦ/dt) reflete a oposição de Lenz.' },
+        { id: 'opt2', text: 'A bobina atrai o ímã com força dobrada acelerando-o espontaneamente.', isCorrect: false, feedback: 'Incorreto. Violaria o Princípio da Conservação de Energia.' },
+        { id: 'opt3', text: 'Nenhuma corrente é induzida, pois o ímã não possui condutores elétricos internos.', isCorrect: false, feedback: 'Incorreto. A indução decorre exclusivamente da variação do fluxo magnético no espaço.' },
+        { id: 'opt4', text: 'A tensão induzida é puramente contínua constante independente da velocidade de aproximação.', isCorrect: false, feedback: 'Incorreto. A amplitude é diretamente proporcional à velocidade da variação (dΦ/dt).' }
+      ]
+    }
+  ];
+}
+
+/**
+ * Questões Temáticas Especializadas para Instalações Prediais & IEC 60364 (Módulo 2)
+ */
+function getModule2Questions(lessonId: string, norma: string): RawQuestion[] {
+  return [
+    {
+      id: `${lessonId}_m2_thru_three_way`,
+      question: 'Em um circuito de iluminação com dois comutadores de escada (interruptores paralelos / three-way), quantos condutores de ligação (retornos paralelos) devem ser instalados entre ambos os mecanismos?',
+      scenario: 'Comando de lâmpada em dois pontos distintos de um corredor ou escadaria.',
+      norma: 'IEC 60364-5-52',
+      points: 20,
+      explanation: 'No esquema padrão europeu de comutação de escada, a fase chega ao polo comum do 1º comutador, dois condutores de retorno paralelo ligam os bornes laterais de ambos, e o polo comum do 2º comutador leva o retorno da lâmpada.',
+      keyTakeaway: 'Dois condutores de retorno conectam os bornes laterais dos dois comutadores paralelos.',
+      options: [
+        { id: 'opt1', text: 'Exatamente 2 condutores de retorno dedicados entre os comutadores.', isCorrect: true, feedback: 'Correto! São os dois condutores viajantes que alternam o caminho da fase.' },
+        { id: 'opt2', text: 'Apenas 1 condutor que transporta a fase e o neutro juntos.', isCorrect: false, feedback: 'Incorreto e perigoso. Fase e neutro no mesmo borne causariam curto-circuito pleno.' },
+        { id: 'opt3', text: '4 condutores cruzados com o condutor de proteção PE.', isCorrect: false, feedback: 'Incorreto. 4 condutores são usados nos intermediários (four-way), não entre escadas normais.' },
+        { id: 'opt4', text: 'Nenhum condutor metálico, pois a norma exige acionamento por rádio frequência.', isCorrect: false, feedback: 'Incorreto. A comutação cabeada tradicional é padronizada na IEC 60364.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m2_four_way_intermed`,
+      question: 'Para acionar um ponto de luz a partir de 4 locais distintos em uma instalação predial, qual combinação de mecanismos deve ser rigorosamente empregada?',
+      scenario: 'Comando de iluminação em salas de reuniões amplas ou corredores com múltiplos acessos.',
+      norma: 'IEC 60364-1',
+      points: 20,
+      explanation: 'Para N pontos de comando: utilizam-se sempre 2 comutadores de escada (nas extremidades) e (N - 2) comutadores inversores de grupo / intermediários (four-way) no meio. Para 4 pontos: 2 de escada e 2 intermediários.',
+      keyTakeaway: 'N pontos = 2 comutadores de escada nas pontas + (N - 2) comutadores intermediários.',
+      options: [
+        { id: 'opt1', text: '2 comutadores de escada (three-way) nas pontas e 2 comutadores intermediários (four-way) no meio.', isCorrect: true, feedback: 'Exato! A regra universal é: 2 paralelas nas extremidades e o restante intermediários.' },
+        { id: 'opt2', text: '4 comutadores simples unipolares ligados todos em série direta.', isCorrect: false, feedback: 'Incorreto. Em série, bastaria um interruptor desligado para apagar e bloquear todos os demais.' },
+        { id: 'opt3', text: '4 comutadores intermediários (four-way) sem comutadores de escada.', isCorrect: false, feedback: 'Incorreto. O intermediário precisa receber os 2 retornos de um comutador de escada na entrada.' },
+        { id: 'opt4', text: '1 interruptor bipolar geral associado a 3 botões de campainha sem relé.', isCorrect: false, feedback: 'Incorreto. Botão de pressão sem telerruptor/relé de impulso não retém a lâmpada acesa.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m2_socket_circuit_sizing`,
+      question: 'Segundo as prescrições da IEC 60364-5-52 para circuitos de tomadas de uso geral (TUG 2P+T 16 A 230 V) em residências, qual a seção mínima de condutor de cobre e o calibre do disjuntor de proteção recomendado?',
+      scenario: 'Dimensionamento de circuitos terminais residenciais e comerciais.',
+      norma: 'IEC 60364-5-52',
+      points: 20,
+      explanation: 'Para tomadas de uso geral (16 A), a seção mínima regulamentar de condutor de cobre é 2,5 mm², protegida por disjuntor termomagnético de In = 16 A (ou 20 A dependendo do método de instalação e capacidade Iz).',
+      keyTakeaway: 'Tomadas 16 A requerem condutores de no mínimo 2,5 mm² e proteção por MCB de 16 A curva C.',
+      options: [
+        { id: 'opt1', text: 'Condutor de cobre de 2,5 mm² protegido por disjuntor MCB de 16 A.', isCorrect: true, feedback: 'Perfeito! 2,5 mm² suporta com segurança a corrente nominal das tomadas de 16 A.' },
+        { id: 'opt2', text: 'Condutor de 1,0 mm² protegido por disjuntor de 32 A.', isCorrect: false, feedback: 'Incorreto e criminoso. O cabo de 1,0 mm² derreteria sob fogo muito antes de o disjuntor de 32 A atuar.' },
+        { id: 'opt3', text: 'Condutor de 0,75 mm² sem disjuntor, direto ao barramento geral.', isCorrect: false, feedback: 'Incorreto. 0,75 mm² é proibido em circuitos de tomadas prediais fixas.' },
+        { id: 'opt4', text: 'Condutor de 10 mm² associado a fusível gG de 63 A.', isCorrect: false, feedback: 'Incorreto. Superdimensionamento antieconômico e incompatível com os bornes da tomada.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m2_voltage_drop_rule`,
+      question: 'Qual é o limite máximo regulamentar de queda de tensão admissível (ΔU) estipulado pela IEC 60364 entre a origem da instalação (quadro geral) e o ponto de utilização mais distante em circuitos terminais de iluminação?',
+      scenario: 'Verificação em projeto e comissionamento de comprimentos longos de cabos.',
+      norma: 'IEC 60364-5-52',
+      points: 20,
+      explanation: 'A norma IEC 60364-5-52 recomenda queda de tensão máxima de 3% para circuitos de iluminação e 5% para outros usos (força motriz e tomadas) a partir da rede pública de baixa tensão.',
+      keyTakeaway: 'Queda de tensão máxima: 3% para iluminação e 5% para outros usos.',
+      options: [
+        { id: 'opt1', text: 'Máximo de 3% para circuitos de iluminação e 5% para outros usos.', isCorrect: true, feedback: 'Correto! 3% em 230 V corresponde a uma queda máxima de 6,9 V nos bornes da luminária.' },
+        { id: 'opt2', text: 'Máximo de 15% para qualquer tipo de circuito terminal.', isCorrect: false, feedback: 'Incorreto. 15% causaria cintilação severa, perda de rendimento e queima de eletrônicos.' },
+        { id: 'opt3', text: '0%, não sendo tolerada nenhuma variação de potencial no cobre.', isCorrect: false, feedback: 'Incorreto. Todo condutor real possui resistência interna intrínseca.' },
+        { id: 'opt4', text: '50 V independentemente da tensão nominal da rede.', isCorrect: false, feedback: 'Incorreto. A queda é sempre percentual proporcional à tensão de alimentação.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m2_color_coding_iec`,
+      question: 'Em conformidade rigorosa com o padrão europeu harmonizado de identificação por cores de cabos elétricos (IEC 60446 / EN 60446), quais cores devem ser utilizadas para os condutores Neutro, Terra de Proteção (PE) e Fase?',
+      scenario: 'Fiação e montagem de quadros elétricos de distribuição.',
+      norma: 'IEC 60446 / EN 60446',
+      points: 20,
+      explanation: 'Pela IEC 60446: Neutro = Azul Claro; Proteção (PE) = Verde-Amarelo (bicolor); Fases = Castanho (L1), Preto (L2), Cinzento (L3). O azul é estritamente reservado ao neutro.',
+      keyTakeaway: 'Neutro = Azul Claro | Terra PE = Verde-Amarelo | Fases = Castanho, Preto, Cinzento.',
+      options: [
+        { id: 'opt1', text: 'Neutro: Azul claro | Terra (PE): Verde-amarelo | Fases: Castanho, Preto ou Cinzento.', isCorrect: true, feedback: 'Excelente! Padrão normativo europeu adotado e fiscalizado pela EDM.' },
+        { id: 'opt2', text: 'Neutro: Preto | Terra (PE): Vermelho | Fases: Azul claro.', isCorrect: false, feedback: 'Incorreto. Azul claro nunca pode ser fase na norma IEC; isso causaria acidentes fatais.' },
+        { id: 'opt3', text: 'Neutro: Verde-amarelo | Terra (PE): Castanho | Fases: Branco.', isCorrect: false, feedback: 'Incorreto. Verde-amarelo é exclusivo para o condutor de proteção PE.' },
+        { id: 'opt4', text: 'Todas as cores são livres desde que identificadas com fita crepe amadora.', isCorrect: false, feedback: 'Incorreto. A padronização de cores no isolamento de fábrica é obrigatória por norma.' }
+      ]
+    }
+  ];
+}
+
+/**
+ * Questões Temáticas Especializadas para Proteções, Disjuntores e Aterramentos (Módulo 3)
+ */
+function getModule3Questions(lessonId: string, norma: string): RawQuestion[] {
+  return [
+    {
+      id: `${lessonId}_m3_mcb_curves`,
+      question: 'Ao proteger o circuito de alimentação de um motor de indução trifásico que apresenta corrente de pico de partida de 6 a 8 vezes a corrente nominal (In), qual curva de disparo termomagnético de disjuntor MCB deve ser especificada?',
+      scenario: 'Seleção de disjuntores modulares para cargas com corrente de inrush.',
+      norma: 'IEC 60898-1 / IEC 60947-2',
+      points: 20,
+      explanation: 'A Curva D dispara magneticamente entre 10 e 20 vezes In (indicada para grandes motores e transformadores). A Curva C dispara entre 5 e 10 vezes In (adequada para motores comuns e cargas indutivas moderadas). A Curva B (3 a 5 In) desarmaria indevidamente na partida.',
+      keyTakeaway: 'Curva B (3-5 In: resistivo) | Curva C (5-10 In: motores comuns) | Curva D (10-20 In: partidas pesadas).',
+      options: [
+        { id: 'opt1', text: 'Curva C ou Curva D, que suportam os picos de corrente da partida sem desarme indevido.', isCorrect: true, feedback: 'Correto! A curva C tolera de 5 a 10 In e a curva D de 10 a 20 In no instante da partida.' },
+        { id: 'opt2', text: 'Curva B, que atua instantaneamente com apenas 3 a 5 vezes a corrente nominal.', isCorrect: false, feedback: 'Incorreto. A curva B desarmaria em falso toda vez que o motor recebesse comando de partida.' },
+        { id: 'opt3', text: 'Curva Z ultrarrápida exclusiva para circuitos eletrônicos.', isCorrect: false, feedback: 'Incorreto. A curva Z é para proteção de semicondutores delicados, não motores.' },
+        { id: 'opt4', text: 'Qualquer disjuntor sem disparador magnético, apenas com lâmina bimetálica.', isCorrect: false, feedback: 'Incorreto. A ausência de proteção magnética impediria a extinção de curtos-circuitos.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m3_rcd_sensitivity`,
+      question: 'Por qual razão técnica e biomédica a norma IEC 60364-4-41 estipula a sensibilidade de IΔn = 30 mA como o limite máximo de corrente residual para interruptores diferenciais (IDR/DR) destinados à proteção adicional de vidas humanas contra choques elétricos?',
+      scenario: 'Proteção contra contatos diretos e indiretos em áreas molhadas e tomadas gerais.',
+      norma: 'IEC 60364-4-41 / IEC 61008',
+      points: 20,
+      explanation: 'Acima de 30 a 50 mA através do tórax humano, o limiar de fibrilação ventricular do coração é atingido, com parada cardiorrespiratória irreversível. Dispositivos com 300 mA protegem apenas contra incêndio, não contra choque letal.',
+      keyTakeaway: '30 mA é o limiar de segurança fisiológica contra fibrilação ventricular cardíaca.',
+      options: [
+        { id: 'opt1', text: '30 mA é o limiar que impede a ocorrência de fibrilação ventricular cardíaca em seres humanos.', isCorrect: true, feedback: 'Perfeito! É a proteção da integridade da vida humana contra paradas cardíacas.' },
+        { id: 'opt2', text: '30 mA é a corrente que faz o disjuntor consumir menos energia elétrica do cliente.', isCorrect: false, feedback: 'Incorreto. O DR não consome corrente de trabalho, opera por balanço toroidal magnético.' },
+        { id: 'opt3', text: 'Valores menores que 30 mA danificariam os enrolamentos do transformador da EDM.', isCorrect: false, feedback: 'Incorreto. O transformador opera com centenas de amperes e não é afetado pelo DR.' },
+        { id: 'opt4', text: 'Porque disjuntores de 300 mA disparam mais rápido que os de 30 mA.', isCorrect: false, feedback: 'Incorreto. 300 mA exige uma fuga 10 vezes maior para desarmar, sendo letal ao ser humano.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m3_earthing_tt_tn`,
+      question: 'Em um esquema de aterramento TT típico de residências alimentadas pela rede pública aérea em Moçambique, qual o requisito mandatório para assegurar a proteção contra contatos indiretos em caso de fuga de fase para a massa metálica?',
+      scenario: 'Conformidade de segurança com a concessionária de energia EDM.',
+      norma: 'IEC 60364-4-41',
+      points: 20,
+      explanation: 'No esquema TT, a massa da instalação é aterrada em eletrodo independente do neutro do transformador. A impedância do circuito de falta é alta, gerando correntes de curto pequenas que não sensibilizam disjuntores termomagnéticos. Portanto, o uso de dispositivo diferencial residual (RCD / DR) é estritamente obrigatório (Ra × IΔn ≤ 50 V).',
+      keyTakeaway: 'No sistema TT, o uso de dispositivo diferencial residual (DR/RCD) é estritamente obrigatório.',
+      options: [
+        { id: 'opt1', text: 'Obrigatório o uso de dispositivo diferencial residual (DR/IDR), pois o disjuntor termomagnético comum não desarmará.', isCorrect: true, feedback: 'Correto! A alta resistência da terra no esquema TT impede que a corrente de falta atinja o limiar magnético do disjuntor.' },
+        { id: 'opt2', text: 'Ligar diretamente a carcaça ao cabo neutro na tomada sem condutor terra PE.', isCorrect: false, feedback: 'Proibido e letal! Isso transformaria indevidamente o circuito em um TN-C clandestino.' },
+        { id: 'opt3', text: 'Eliminar qualquer haste de terra e isolar a carcaça com borracha.', isCorrect: false, feedback: 'Incorreto. As massas metálicas devem estar todas equipotencializadas e aterradas.' },
+        { id: 'opt4', text: 'Usar apenas fusíveis de areia de 100 A em todas as fases.', isCorrect: false, feedback: 'Incorreto. O fusível jamais abriria com a corrente de fuga modesta da terra.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m3_spd_surge_protec`,
+      question: 'Em uma região com alta densidade de descargas atmosféricas (raios), qual a função primordial de um Dispositivo de Proteção contra Surtos (DPS) Classe II instalado no quadro de distribuição predial?',
+      scenario: 'Proteção de eletrodomésticos, inversores e placas eletrônicas contra sobretensões transitórias.',
+      norma: 'IEC 61643-11 / IEC 60364-5-534',
+      points: 20,
+      explanation: 'O DPS com varistor de óxido metálico (MOV) apresenta impedância quase infinita na tensão de rede (230 V), mas comuta instantaneamente em nanossegundos para baixíssima impedância quando surge uma sobretensão transitória (kV), drenando a onda de corrente para a terra e ceifando a tensão residual a níveis seguros.',
+      keyTakeaway: 'O DPS desvia picos transitórios de alta tensão para o sistema de aterramento em nanossegundos.',
+      options: [
+        { id: 'opt1', text: 'Escoar surtos transitórios de sobretensão atmosférica para a terra, ceifando a tensão residual suportada pelos aparelhos.', isCorrect: true, feedback: 'Perfeito! O varistor entra em condução rápida e protege os equipamentos sensíveis.' },
+        { id: 'opt2', text: 'Desarmar como disjuntor quando o consumo de corrente dos motores passar de 20 A.', isCorrect: false, feedback: 'Incorreto. DPS protege contra sobretensões transitórias (Volts), não sobrecorrentes (Amperes).' },
+        { id: 'opt3', text: 'Elevar a tensão de 230 V para 400 V durante as quedas de energia da concessionária.', isCorrect: false, feedback: 'Incorreto. DPS não é regulador de tensão nem no-break.' },
+        { id: 'opt4', text: 'Filtrar exclusivamente a frequência de 50 Hz transformando-a em corrente contínua.', isCorrect: false, feedback: 'Incorreto. Essa é a função de um retificador de eletrônica de potência.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m3_coordination_selectivity`,
+      question: 'O que significa obter Seletividade Total (Coordenação) entre o disjuntor geral de um quadro elétrico e os disjuntores dos circuitos terminais derivados?',
+      scenario: 'Projeto de continuidade de serviço em edifícios comerciais e hospitais.',
+      norma: 'IEC 60947-2',
+      points: 20,
+      explanation: 'Seletividade total garante que, ocorrendo uma sobrecarga ou curto-circuito em um circuito terminal derivado (ex: tomadas da sala 2), apenas o disjuntor daquele circuito atue, mantendo o disjuntor geral fechado e todos os outros circuitos do prédio energizados sem blecaute total.',
+      keyTakeaway: 'Seletividade: Apenas o dispositivo imediatamente montante da falha deve desarmar.',
+      options: [
+        { id: 'opt1', text: 'Apenas o disjuntor do circuito defeituoso desarma, mantendo o disjuntor geral e os demais circuitos energizados.', isCorrect: true, feedback: 'Correto! Preserva a continuidade do fornecimento e facilita a localização da falha.' },
+        { id: 'opt2', text: 'Todos os disjuntores da instalação desarmam juntos simultaneamente em qualquer mínima falha.', isCorrect: false, feedback: 'Incorreto. Isso é falta total de seletividade e causa transtornos severos.' },
+        { id: 'opt3', text: 'O disjuntor geral desarma primeiro para proteger os disjuntores menores derivados.', isCorrect: false, feedback: 'Incorreto. Isso cortaria a energia de toda a instalação desnecessariamente.' },
+        { id: 'opt4', text: 'A instalação opera sem condutor neutro para que a corrente circule em circuito fechado.', isCorrect: false, feedback: 'Incorreto. Nada tem a ver com o conceito de coordenação de proteções.' }
+      ]
+    }
+  ];
+}
+
+/**
+ * Questões Temáticas Especializadas para Comandos Industriais e Acionamentos (Módulo 5)
+ */
+function getModule5Questions(lessonId: string, norma: string): RawQuestion[] {
+  return [
+    {
+      id: `${lessonId}_m5_contactor_terminals`,
+      question: 'Em um contator de potência tripolar industrial com bobina de comando (IEC 60947-4-1), quais são as designações normativas padronizadas dos terminais da bobina eletromagnética e do contato auxiliar normalmente aberto?',
+      scenario: 'Leitura de esquemas de comando e ligação prática de contatores.',
+      norma: 'IEC 60947-4-1',
+      points: 20,
+      explanation: 'Pela IEC: Terminais da bobina eletromagnética = A1 e A2; Contatos de força principais = 1-3-5 (L1-L2-L3) e 2-4-6 (T1-T2-T3); Contato auxiliar Normalmente Aberto (NA/NO) = 13-14; Contato auxiliar Normalmente Fechado (NF/NC) = 21-22.',
+      keyTakeaway: 'Bobina: A1-A2 | Contato NA de retenção: 13-14 | Contato NF de intertravamento: 21-22.',
+      options: [
+        { id: 'opt1', text: 'Bobina: A1 e A2 | Contato auxiliar NA (selo): terminais 13 e 14.', isCorrect: true, feedback: 'Excelente! A1/A2 são a bobina e 13/14 é o contato de selo padronizado.' },
+        { id: 'opt2', text: 'Bobina: 1 e 2 | Contato auxiliar NA: terminais L1 e L2.', isCorrect: false, feedback: 'Incorreto. 1-2 e L1-L2 são terminais do circuito de potência trifásico.' },
+        { id: 'opt3', text: 'Bobina: 95 e 96 | Contato auxiliar NA: terminais A1 e A2.', isCorrect: false, feedback: 'Incorreto. 95 e 96 são os contatos NF do relé térmico de sobrecarga.' },
+        { id: 'opt4', text: 'Bobina: PE e Terra | Contato auxiliar NA: terminais 97 e 98.', isCorrect: false, feedback: 'Incorreto. 97 e 98 são contatos de alarme de trip do relé térmico.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m5_interlocking_reversal`,
+      question: 'Em um circuito de partida direta com reversão de rotação de motor trifásico acionado por dois contatores (K1 horário e K2 anti-horário), qual medida de segurança por hardware é estritamente obrigatória para impedir curto-circuito entre fases?',
+      scenario: 'Acionamento de esteiras, guinchos e portões industriais com inversão de marcha.',
+      norma: 'IEC 60947-4-1',
+      points: 20,
+      explanation: 'Para inverter o sentido de giro de um motor trifásico, invertem-se duas fases entre si (ex: L1 e L3). Se K1 e K2 atracarem simultaneamente, ocorre um violento curto-circuito fase-fase bifásico. O intertravamento elétrico (passando o comando da bobina de K1 pelo contato NF 21-22 de K2 e vice-versa) associado a intertravamento mecânico é mandatório.',
+      keyTakeaway: 'Intertravamento elétrico cruzado com contatos NF (21-22) impede acionamento simultâneo de K1 e K2.',
+      options: [
+        { id: 'opt1', text: 'Intertravamento elétrico cruzado utilizando os contatos NF (21-22) de cada contator na linha da bobina do outro.', isCorrect: true, feedback: 'Correto! Garante que um contator só possa ligar se o outro estiver comprovadamente desatracado.' },
+        { id: 'opt2', text: 'Ligar as duas bobinas de K1 e K2 em paralelo direto no mesmo botão pulsador.', isCorrect: false, feedback: 'Catastrófico! As duas chaves fechariam juntas causando explosão imediata entre fases.' },
+        { id: 'opt3', text: 'Aumentar a bitola dos cabos de alimentação para suportar o curto permanente.', isCorrect: false, feedback: 'Incorreto e absurdo. Curto-circuito deve ser prevenido, não tolerado.' },
+        { id: 'opt4', text: 'Inverter o condutor neutro com o condutor terra para mudar a rotação.', isCorrect: false, feedback: 'Incorreto. Motores trifásicos não utilizam condutor neutro para rotação.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m5_thermal_relay_trip`,
+      question: 'O relé térmico bimetálico de sobrecarga (terminais auxiliares 95-96 e 97-98) atua para proteger o motor contra sobrecorrentes moderadas e prolongadas. Como seus contatos auxiliares devem ser conectados no circuito?',
+      scenario: 'Proteção mecânica e elétrica contra travamento de rotor e sobrecarga contínua.',
+      norma: 'IEC 60947-4-1',
+      points: 20,
+      explanation: 'O contato NF (95-96) deve ser ligado em série com a linha de comando das bobinas dos contatores, abrindo o circuito e desarmando a máquina se o motor sobreaquecer. O contato NA (97-98) fecha para acionar a lâmpada/sirene de alarme de falha.',
+      keyTakeaway: 'Contato 95-96 (NF) desliga o comando; Contato 97-98 (NA) sinaliza a falha térmica.',
+      options: [
+        { id: 'opt1', text: 'Contato NF 95-96 em série com o comando para desenergizar a bobina; contato NA 97-98 para ligar sinalização de alarme.', isCorrect: true, feedback: 'Exato! Desliga a alimentação motora e avisa o operador da sobrecarga térmica.' },
+        { id: 'opt2', text: 'Contato 95-96 ligado em paralelo com as fases de força de 400 V.', isCorrect: false, feedback: 'Incorreto. Contatos auxiliares são de baixa corrente de comando, explodiriam sob 400 V de força.' },
+        { id: 'opt3', text: 'Contato 97-98 em curto-circuito permanente com a carcaça metálica.', isCorrect: false, feedback: 'Incorreto. Criaria uma fuga perigosa e não protegeria o enrolamento.' },
+        { id: 'opt4', text: 'O relé térmico não possui contatos auxiliares, atua por quebra física dos condutores de cobre.', isCorrect: false, feedback: 'Incorreto. Ele aciona um mecanismo de engate que comuta contatos elétricos de comando.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m5_star_delta_start`,
+      question: 'Qual é o objetivo primordial da partida Estrela-Triângulo (Y-Δ) em motores de indução trifásicos e qual o impacto nas correntes e no torque durante a partida?',
+      scenario: 'Redução do impacto de partida na rede de distribuição e geradores.',
+      norma: 'IEC 60947-4-1',
+      points: 20,
+      explanation: 'Na ligação Estrela (Y), cada bobina recebe a tensão de fase (V_linha / √3 = 230 V em vez de 400 V). A corrente de partida (Ip) e o conjugado/torque de partida (Cp) caem para 1/3 (33%) dos seus valores de partida direta, reduzindo a queda de tensão na rede.',
+      keyTakeaway: 'Partida Estrela-Triângulo: reduz a corrente de partida e o torque para 1/3 (33%) do valor direto.',
+      options: [
+        { id: 'opt1', text: 'Reduz a corrente de partida e o torque do motor para 1/3 (cerca de 33%) do valor em partida direta.', isCorrect: true, feedback: 'Correto! Alivia a rede elétrica mantendo a corrente de inrush sob controle.' },
+        { id: 'opt2', text: 'Dobra a velocidade de rotação nominal do motor para economizar eletricidade.', isCorrect: false, feedback: 'Incorreto. A velocidade síncrona depende estritamente da frequência da rede e do número de polos.' },
+        { id: 'opt3', text: 'Eleva a corrente para 300% para vencer a inércia da carga mais rapidamente.', isCorrect: false, feedback: 'Incorreto. O objetivo é reduzir a corrente, nunca aumentá-la.' },
+        { id: 'opt4', text: 'Converte a alimentação trifásica da concessionária em monofásica aterrada.', isCorrect: false, feedback: 'Incorreto. O sistema opera continuamente em alimentação trifásica.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m5_vfd_frequency_inverter`,
+      question: 'Em um Inversor de Frequência (VFD) que comanda um motor de 50 Hz com 4 polos (velocidade síncrona de 1500 RPM a 50 Hz), qual será a velocidade síncrona do campo magnético girante se o VFD operar na frequência de 25 Hz?',
+      scenario: 'Controle contínuo de rotação e vazão em bombas e ventiladores industriais.',
+      norma: 'IEC 61800',
+      points: 20,
+      explanation: 'A fórmula da velocidade síncrona é Ns = (120 × f) / P. Para f = 25 Hz e P = 4 polos: Ns = (120 × 25) / 4 = 3000 / 4 = 750 RPM (exatamente a metade da velocidade nominal de 1500 RPM).',
+      keyTakeaway: 'Ns = (120 × f) / P. A rotação varia diretamente proporcional à frequência f entregue pelo VFD.',
+      options: [
+        { id: 'opt1', text: '750 RPM.', isCorrect: true, feedback: 'Perfeito! Ns = (120 × 25) / 4 = 750 RPM (metade da velocidade nominal).' },
+        { id: 'opt2', text: '1500 RPM inalterados, pois a velocidade do rotor é fixa de fábrica.', isCorrect: false, feedback: 'Incorreto. O VFD altera dinamicamente a rotação através da frequência.' },
+        { id: 'opt3', text: '3000 RPM por aceleração de campo magnético.', isCorrect: false, feedback: 'Incorreto. 3000 RPM exigiria frequência de 100 Hz.' },
+        { id: 'opt4', text: '0 RPM, pois o motor não gira abaixo da frequência nominal de 50 Hz.', isCorrect: false, feedback: 'Incorreto. VFDs controlam o motor suavemente de 0 Hz até a velocidade máxima com torque constante.' }
+      ]
+    }
+  ];
+}
+
+/**
+ * Questões Temáticas Especializadas para Eletrônica Aplicada e Retificação (Módulo 4)
+ */
+function getModule4Questions(lessonId: string, norma: string): RawQuestion[] {
+  return [
+    {
+      id: `${lessonId}_m4_graetz_bridge_diodes`,
+      question: 'Em uma ponte retificadora de onda completa monofásica em Ponte de Graetz (4 diodos de silício) conectada a um secundário de transformador de 24 V RMS 50 Hz, qual a queda de tensão contínua típica provocada pela condução dos diodos em cada semiciclo?',
+      scenario: 'Dimensionamento de fontes lineares e circuitos retificadores de alimentação.',
+      norma: 'IEC 60146',
+      points: 20,
+      explanation: 'Em cada semiciclo (positivo ou negativo), a corrente atravessa sempre 2 diodos em série na ponte de Graetz. Sendo diodos de silício comuns (queda direta Vf ≈ 0,7 V cada), a queda total é de 2 × 0,7 V = 1,4 V sobre o valor de pico.',
+      keyTakeaway: 'Na ponte de Graetz, conduzem 2 diodos por semiciclo, provocando queda de tensão de aproximadamente 1,4 V.',
+      options: [
+        { id: 'opt1', text: 'Aproximadamente 1,4 V (dois diodos de silício conduzindo em série por semiciclo).', isCorrect: true, feedback: 'Correto! Cada diodo de silício consome cerca de 0,7 V na condução direta.' },
+        { id: 'opt2', text: 'Zero Volts, pois diodos ideais não apresentam resistência interna.', isCorrect: false, feedback: 'Incorreto. Diodos semicondutores reais de silício possuem barreira de potencial de 0,7 V.' },
+        { id: 'opt3', text: '24 V contínuos, anulando completamente a tensão de saída.', isCorrect: false, feedback: 'Incorreto. Os diodos não anulam a tensão, apenas retificam o sentido da corrente.' },
+        { id: 'opt4', text: '4,8 V devido à dissipação capacitiva dos cátodos.', isCorrect: false, feedback: 'Incorreto. A barreira de potencial é de 0,7 V por junção PN.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m4_filter_ripple_calc`,
+      question: 'Qual é o papel do capacitor eletrolítico de alta capacitância conectado em paralelo com a saída de uma ponte retificadora e o que representa o "Ripple" (ondulação residual)?',
+      scenario: 'Filtragem capacitiva em fontes de alimentação para automação.',
+      norma: 'IEC 60146',
+      points: 20,
+      explanation: 'O capacitor armazena carga no pico da senóide e a devolve suavemente à carga quando a tensão da rede cai, filtrando a corrente pulsante e transformando-a em tensão contínua quase pura. A pequena variação pico a pico restante é o Ripple.',
+      keyTakeaway: 'O capacitor de filtro suaviza a tensão pulsante reduzindo a ondulação de Ripple.',
+      options: [
+        { id: 'opt1', text: 'Armazenar carga no pico e descarregar nos vales, suavizando a tensão contínua e reduzindo o Ripple.', isCorrect: true, feedback: 'Excelente! Quanto maior a capacitância C para uma mesma carga, menor será o Ripple.' },
+        { id: 'opt2', text: 'Inverter a polaridade da tensão de saída a cada ciclo de 50 Hz.', isCorrect: false, feedback: 'Incorreto. A função é manter a polaridade contínua e estável.' },
+        { id: 'opt3', text: 'Dissipar a potência em forma de calor para evitar curto-circuito.', isCorrect: false, feedback: 'Incorreto. O capacitor armazena e entrega energia reativa, não deve superaquecer.' },
+        { id: 'opt4', text: 'Substituir os diodos permitindo passar corrente alternada diretamente.', isCorrect: false, feedback: 'Incorreto. O capacitor de filtro opera no lado de corrente contínua retificada.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m4_freewheeling_diode`,
+      question: 'Por que é indispensável instalar um diodo em antiparalelo (diodo de roda livre / flyback) nos bornes da bobina de corrente contínua (CC) de um relé acionado por um transistor BJT ou MOSFET?',
+      scenario: 'Proteção de saídas a transistor em CLPs e placas eletrônicas de controle.',
+      norma: 'IEC 60947-5-1',
+      points: 20,
+      explanation: 'A bobina do relé é um indutor. Ao cortar bruscamente a corrente com o transistor, a lei de indução (V = -L·di/dt) gera um pico de sobretensão reversa de centenas de volts que destruiria a junção semicondutora do transistor. O diodo flyback oferece um caminho seguro para descarregar essa energia indutiva.',
+      keyTakeaway: 'O diodo flyback dissipa o pico indutivo de sobretensão (-L di/dt), salvando o transistor de queima imediata.',
+      options: [
+        { id: 'opt1', text: 'Drenar o pico de alta tensão indutiva induzido no corte da bobina, evitando a queima do transistor.', isCorrect: true, feedback: 'Perfeito! Evita a destruição do transistor por avalanche de sobretensão reversa.' },
+        { id: 'opt2', text: 'Acelerar o aquecimento da bobina para fechar os contatos mais rapidamente.', isCorrect: false, feedback: 'Incorreto. Aquecimento em bobinas é indesejável e queima o verniz isolante.' },
+        { id: 'opt3', text: 'Permitir que o relé seja alimentado com tensão alternada de 230 V sem queimar.', isCorrect: false, feedback: 'Incorreto. Bobinas CC com flyback em rede CA gerariam curto-circuito no semiciclo oposto.' },
+        { id: 'opt4', text: 'Inverter o polo positivo do relé transformando o contato NA em NF.', isCorrect: false, feedback: 'Incorreto. Os contatos mecânicos do relé são independentes da polaridade elétrica da bobina.' }
+      ]
+    }
+  ];
+}
+
+/**
+ * Questões Temáticas Especializadas para Média Tensão, Redes e Postos de Transformação PT (Módulos 6 e 8)
+ */
+function getModule6And8Questions(lessonId: string, norma: string): RawQuestion[] {
+  return [
+    {
+      id: `${lessonId}_m8_five_golden_rules`,
+      question: 'Qual é a sequência cronológica mandatória e inviolável das 5 Regras de Ouro de Segurança (EN 50110 / NR-10) antes de iniciar qualquer intervenção física em celas ou barramentos de Média Tensão (22 kV)?',
+      scenario: 'Procedimento operacional de manutenção em cabines primárias e postos de transformação.',
+      norma: 'EN 50110-1 / IEC 61936-1',
+      points: 20,
+      explanation: 'As 5 Regras de Ouro: 1) Seccionar completamente a alimentação; 2) Bloquear contra religamento acidental (LOTO); 3) Constatar a ausência de tensão com detector comprovadamente testado; 4) Aterrar e colocar em curto-circuito todas as fases; 5) Sinalizar e delimitar a zona de trabalho.',
+      keyTakeaway: '1. Seccionar | 2. Bloquear (LOTO) | 3. Verificar Ausência | 4. Aterrar e Curto-circuitar | 5. Sinalizar.',
+      options: [
+        { id: 'opt1', text: '1. Seccionar, 2. Bloquear (LOTO), 3. Constatar ausência de tensão, 4. Aterrar e colocar em curto-circuito, 5. Sinalizar.', isCorrect: true, feedback: 'Perfeito! A sequência salva vidas diariamente no setor elétrico de potência.' },
+        { id: 'opt2', text: '1. Aterrar, 2. Seccionar, 3. Religar para testar se há faísca, 4. Bloquear, 5. Trabalhar.', isCorrect: false, feedback: 'Catastrófico! Aterrar barramento energizado gera explosão por arco elétrico de média tensão.' },
+        { id: 'opt3', text: '1. Colocar luvas de couro, 2. Abrir a porta da cela, 3. Medir com multímetro de baixa tensão.', isCorrect: false, feedback: 'Gravíssimo! Multímetros comuns não suportam média tensão e explodem na mão do operador.' },
+        { id: 'opt4', text: 'Apenas desligar o disjuntor de baixa tensão no quadro geral do edifício.', isCorrect: false, feedback: 'Incorreto. A média tensão da concessionária continuaria 100% viva e letal no primário.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m8_transformer_dyn11`,
+      question: 'Em transformadores de distribuição de postos de transformação de média tensão para baixa tensão (22 kV para 400/230 V), o grupo de ligação predominante no padrão da EDM é Dyn11. O que representa esta nomenclatura?',
+      scenario: 'Especificação técnica de transformadores de potência segundo a IEC 60076.',
+      norma: 'IEC 60076-1',
+      points: 20,
+      explanation: 'Dyn11 significa: D = Enrolamento primário em Triângulo (Delta); y = Enrolamento secundário em Estrela; n = Neutro acessível para o secundário de baixa tensão; 11 = Ângulo de defasagem de 330° (11 × 30° = 330° ou -30°) entre as tensões do primário e do secundário.',
+      keyTakeaway: 'Dyn11: Primário Triângulo, Secundário Estrela com Neutro acessível e defasagem de 330°.',
+      options: [
+        { id: 'opt1', text: 'Primário em Triângulo, Secundário em Estrela com Neutro acessível e defasagem angular de 330°.', isCorrect: true, feedback: 'Excelente! Dyn11 permite alimentar cargas monofásicas de 230 V e trifásicas de 400 V com neutro aterrado.' },
+        { id: 'opt2', text: 'Dupla isolação seca para transformadores imersos em água salgada.', isCorrect: false, feedback: 'Incorreto. Dyn11 refere-se aos enrolamentos e defasagem eletromagnética.' },
+        { id: 'opt3', text: 'Transformador elevador para usinas de 11 kV com primário em estrela.', isCorrect: false, feedback: 'Incorreto. É um transformador redutor de distribuição de média para baixa tensão.' },
+        { id: 'opt4', text: 'Ligação monofásica a 2 fios com 11 derivações de regulação sob carga.', isCorrect: false, feedback: 'Incorreto. O transformador Dyn11 é trifásico com neutro.' }
+      ]
+    }
+  ];
+}
+
+/**
+ * Questões Temáticas Especializadas para Energia Solar Fotovoltaica (Módulo 11)
+ */
+function getModule11Questions(lessonId: string, norma: string): RawQuestion[] {
+  return [
+    {
+      id: `${lessonId}_m11_voc_cold_temp`,
+      question: 'Ao calcular o número máximo de módulos fotovoltaicos em série (string) para conectar a um inversor, qual grandeza de tensão deve ser calculada para a temperatura mínima histórica do local da usina solar?',
+      scenario: 'Dimensionamento de sistemas fotovoltaicos on-grid e off-grid.',
+      norma: 'IEC 62548 / IEC 60364-7-712',
+      points: 20,
+      explanation: 'O coeficiente de temperatura da tensão de circuito aberto (Voc) dos módulos solares é negativo (aproximadamente -0,28% a -0,35% / °C). Em manhãs frias de inverno com céu limpo, a tensão Voc sobe substancialmente. Se ultrapassar a tensão máxima de entrada do inversor (Vmax_inversor), danifica os componentes eletrônicos.',
+      keyTakeaway: 'Mais frio = maior tensão Voc. Sempre dimensione o número máximo de painéis considerando o inverno mais rigoroso.',
+      options: [
+        { id: 'opt1', text: 'Tensão de Circuito Aberto máxima (Voc_max) calculada para a temperatura mínima recorde do local.', isCorrect: true, feedback: 'Perfeito! Evita a queima catastrófica do inversor por sobretensão ao amanhecer em dias frios.' },
+        { id: 'opt2', text: 'Corrente de Curto-Circuito (Isc) calculada para 70 °C.', isCorrect: false, feedback: 'Incorreto. A corrente diminui ligeiramente com o frio e depende primordialmente do Sol.' },
+        { id: 'opt3', text: 'Apenas a tensão média nominal informada na etiqueta do fabricante a 25 °C.', isCorrect: false, feedback: 'Incorreto. Ignorar o coeficiente de temperatura queima inversores no inverno.' },
+        { id: 'opt4', text: 'Potência reativa capacitiva gerada pelo silício monocristalino.', isCorrect: false, feedback: 'Incorreto. Módulos fotovoltaicos produzem corrente contínua pura (DC), não reativos.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m11_stringbox_dc_switch`,
+      question: 'Por que é proibido pela norma IEC 60364-7-712 utilizar disjuntores de corrente alternada (CA) comuns na String Box de corrente contínua (CC) de um arranjo solar fotovoltaico?',
+      scenario: 'Segurança contra arcos elétricos e incêndios em sistemas fotovoltaicos.',
+      norma: 'IEC 60364-7-712',
+      points: 20,
+      explanation: 'A corrente alternada cruza o zero 100 vezes por segundo (em 50 Hz), o que facilita a extinção natural do arco elétrico na abertura dos contatos. A corrente contínua (CC) não passa pelo zero: ao abrir os contatos de um disjuntor CA sob alta tensão CC, forma-se um arco elétrico contínuo de plasma de alta temperatura que derrete o equipamento e incendeia o quadro.',
+      keyTakeaway: 'Corrente contínua não tem passagem por zero; componentes CC possuem câmaras especiais de extinção de arco magnético.',
+      options: [
+        { id: 'opt1', text: 'A corrente contínua não possui passagem por zero, mantendo o arco elétrico que derrete e incendeia chaves comuns de CA.', isCorrect: true, feedback: 'Excelente! Disjuntores e seccionadores solares possuem ímãs e câmaras de extinção rápida de arco CC.' },
+        { id: 'opt2', text: 'Porque disjuntores CA reduzem o rendimento de geração dos painéis em 50%.', isCorrect: false, feedback: 'Incorreto. O problema é de segurança contra incêndio e explosão por arco contínuo.' },
+        { id: 'opt3', text: 'Porque a corrente alternada atrai raios atmosféricos para a estrutura de alumínio.', isCorrect: false, feedback: 'Incorreto. A atração de raios nada tem a ver com a tecnologia do disjuntor.' },
+        { id: 'opt4', text: 'Disjuntores CA funcionam normalmente em CC desde que o cabo terra seja verde.', isCorrect: false, feedback: 'Incorreto e de altíssimo risco de incêndio! A norma proíbe expressamente dispositivos CA em strings CC.' }
+      ]
+    }
+  ];
+}
+
+/**
+ * Questões Temáticas Especializadas para Instrumentação e Manutenção (Módulo 7)
+ */
+function getModule7Questions(lessonId: string, norma: string): RawQuestion[] {
+  return [
+    {
+      id: `${lessonId}_m7_insulation_megger`,
+      question: 'Ao realizar ensaio de resistência de isolamento (Megômetro / Megger) em um circuito de baixa tensão (230/400 V) segundo a IEC 60364-6, qual tensão de ensaio contínua (DC) deve ser injetada e qual o valor mínimo regulamentar de resistência admissível?',
+      scenario: 'Comissionamento e inspeção de isolamento de cabos após puxamento em eletrodutos.',
+      norma: 'IEC 60364-6',
+      points: 20,
+      explanation: 'Para circuitos com tensão nominal de até 500 V (como as redes de 230/400 V da EDM), a norma IEC 60364-6 estipula tensão de ensaio de 500 V DC e resistência de isolamento mínima de 1,0 MΩ (1000 kΩ) entre condutores vivos e condutores vivos e a terra.',
+      keyTakeaway: 'Ensaio de isolamento em 230/400 V: Tensão de teste = 500 V DC | Resistência mínima = 1,0 MΩ.',
+      options: [
+        { id: 'opt1', text: 'Tensão de ensaio de 500 V DC e resistência mínima aceitável de 1,0 MΩ (1 Megaohm).', isCorrect: true, feedback: 'Correto! 500 V contínuos e mínimo de 1 MΩ conforme a tabela da IEC 60364-6.' },
+        { id: 'opt2', text: 'Tensão de 12 V alternados e resistência mínima de 10 Ω.', isCorrect: false, feedback: 'Incorreto. 12 V não polariza o dielétrico para testar a rigidez do isolamento de PVC/XLPE.' },
+        { id: 'opt3', text: 'Tensão de 10.000 V contínuos e resistência de no mínimo 0,1 Ω.', isCorrect: false, feedback: 'Incorreto. 10 kV perfuraria o isolamento de cabos de baixa tensão destruindo a fiação.' },
+        { id: 'opt4', text: 'O ensaio deve ser feito com o circuito energizado em 230 V medindo corrente de curto.', isCorrect: false, feedback: 'Incorreto e letal. Medir isolamento com rede ligada queima o megômetro e causa arco elétrico.' }
+      ]
+    },
+    {
+      id: `${lessonId}_m7_true_rms_clamp`,
+      question: 'Por que é indispensável utilizar um alicate amperímetro com tecnologia True-RMS (Valor Eficaz Verdadeiro) para medir correntes em instalações com inversores, computadores e no-breaks?',
+      scenario: 'Diagnóstico de sobrecarga em condutores neutros por correntes harmônicas.',
+      norma: 'IEC 61010 / IEC 61557',
+      points: 20,
+      explanation: 'Cargas não lineares (fontes chaveadas, retificadores, inversores) distorcem a onda de corrente, que deixa de ser uma senóide pura e torna-se rica em harmônicos (3º, 5º, 7º). Instrumentos comuns de resposta média erram a leitura em até 40% a menos, mascarando sobrecargas térmicas perigosas.',
+      keyTakeaway: 'Alicates comuns medem apenas senóides puras; cargas eletrônicas distorcidas exigem True-RMS.',
+      options: [
+        { id: 'opt1', text: 'Cargas eletrônicas geram formas de onda não senoidais distorcidas; medidores comuns erram em até 40% a menos da corrente real.', isCorrect: true, feedback: 'Exato! O True-RMS calcula a raiz quadrada média real da forma de onda independente da distorção.' },
+        { id: 'opt2', text: 'Para evitar que o instrumento consuma a energia do circuito que está sendo medido.', isCorrect: false, feedback: 'Incorreto. Alicates amperímetros usam indução magnética ou efeito Hall e não drenam carga.' },
+        { id: 'opt3', text: 'Porque instrumentos comuns funcionam exclusivamente com pilhas recarregáveis solares.', isCorrect: false, feedback: 'Incorreto. A tecnologia True-RMS refere-se ao algoritmo de cálculo matemático do sinal elétrico.' },
+        { id: 'opt4', text: 'True-RMS é exigido apenas se o condutor for de alumínio em vez de cobre.', isCorrect: false, feedback: 'Incorreto. A forma da onda independe do material metálico condutor.' }
+      ]
+    }
+  ];
+}
+
+/**
+ * Constrói uma questão técnica personalizada a partir do Field Case real da Lição
+ */
+function buildFieldCaseQuestion(lesson: AcademyLesson): RawQuestion | null {
+  const fc = lesson.theory?.fieldCase;
+  if (!fc || !fc.cenario || !fc.diagnostico || !fc.solucaoNormativa) return null;
+
+  return {
+    id: `${lesson.id}_field_case`,
+    question: `[Estudo de Caso Real - ${fc.localizacao || 'Moçambique'}] Diante do seguinte cenário de campo: "${fc.cenario.substring(0, 140)}...", qual foi o diagnóstico técnico conclusivo e a solução normativa aplicada?`,
+    scenario: `${fc.cenario}`,
+    norma: lesson.norma || 'IEC 60364',
+    points: 20,
+    explanation: `Diagnóstico: ${fc.diagnostico} Solução Normativa aplicada: ${fc.solucaoNormativa}`,
+    keyTakeaway: `Solução de campo: ${fc.solucaoNormativa}`,
+    options: [
+      {
+        id: 'opt_fc_1',
+        text: `${fc.diagnostico.substring(0, 110)}... Solução: ${fc.solucaoNormativa.substring(0, 90)}...`,
+        isCorrect: true,
+        feedback: `Correto! Este é o diagnóstico e a solução normativa auditada no caso real.`
+      },
+      {
+        id: 'opt_fc_2',
+        text: 'Apenas substituição imediata dos fusíveis por outros de maior capacidade sem recalcular a queda de tensão.',
+        isCorrect: false,
+        feedback: 'Incorreto. Aumentar fusível sem corrigir a bitola do cabo causa superaquecimento e incêndio.'
+      },
+      {
+        id: 'opt_fc_3',
+        text: 'Desconexão do condutor de terra PE para neutralizar os desarmes do relé de proteção.',
+        isCorrect: false,
+        feedback: 'Incorreto e criminoso. Desconectar o terra coloca em risco a vida dos operadores.'
+      },
+      {
+        id: 'opt_fc_4',
+        text: 'Instalação de transformador elevador improvisado no final da linha sem alterar a fiação.',
+        isCorrect: false,
+        feedback: 'Incorreto. Solução incorreta que agravaria ainda mais as perdas por efeito Joule na fiação fina.'
+      }
+    ]
+  };
+}
+
+/**
+ * Constrói uma questão técnica personalizada a partir de Fórmulas e Cálculos da Lição
+ */
+function buildFormulaQuestion(lesson: AcademyLesson): RawQuestion | null {
+  const formulas = lesson.theory?.formulas;
+  if (!formulas || formulas.length === 0) return null;
+
+  const f = formulas[0];
+  return {
+    id: `${lesson.id}_formula_core`,
+    question: `No dimensionamento técnico e conformidade com a norma ${lesson.norma}, como se aplica e interpreta a fórmula "${f.label}": [ ${f.formula} ]?`,
+    scenario: `Cálculo de projeto para ${lesson.title}.`,
+    norma: lesson.norma || 'IEC 60364',
+    points: 20,
+    explanation: `A expressão "${f.formula}" representa: ${f.explicacao}. É a base matemática mandatória para cálculos de projeto da ${lesson.norma}.`,
+    keyTakeaway: `${f.label}: ${f.formula} (${f.explicacao})`,
+    options: [
+      {
+        id: 'opt_fm_1',
+        text: `${f.explicacao} regido rigorosamente pela fórmula ${f.formula}.`,
+        isCorrect: true,
+        feedback: `Perfeito! ${f.explicacao}.`
+      },
+      {
+        id: 'opt_fm_2',
+        text: `Esta fórmula aplica-se exclusivamente a baterias químicas em circuito aberto, não a condutores.`,
+        isCorrect: false,
+        feedback: `Incorreto. A expressão é fundamental para ${lesson.title}.`
+      },
+      {
+        id: 'opt_fm_3',
+        text: `Representa o cancelamento total de potências reativas sem necessidade de condutor de fase.`,
+        isCorrect: false,
+        feedback: `Incorreto. Não condiz com o fundamento de ${f.label}.`
+      },
+      {
+        id: 'opt_fm_4',
+        text: `Indica que a resistência ôhmica cai para zero quando a corrente atinge seu pico máximo.`,
+        isCorrect: false,
+        feedback: `Incorreto. A resistência é uma propriedade física e não cai a zero em condutores normais.`
+      }
+    ]
+  };
+}
+
+/**
+ * Constrói questões técnicas a partir dos Pontos Operacionais da Lição
+ */
+function buildOperationalPointsQuestions(lesson: AcademyLesson): RawQuestion[] {
+  const pts = lesson.theory?.pontosOperacionais;
+  if (!pts || pts.length === 0) return [];
+
+  const results: RawQuestion[] = [];
+
+  pts.forEach((ptText, pIdx) => {
+    if (pIdx > 2) return; // Máximo 3 questões de pontos operacionais por aula
+    results.push({
+      id: `${lesson.id}_oper_pt_${pIdx + 1}`,
+      question: `Em relação às boas práticas e procedimentos de segurança na execução de "${lesson.title}", qual diretriz operacional deve ser estritamente cumprida pelo técnico credenciado?`,
+      scenario: `Procedimentos de montagem, teste e segurança segundo ${lesson.norma}.`,
+      norma: lesson.norma || 'IEC 60364',
+      points: 20,
+      explanation: `Diretriz operacional normativa: ${ptText}`,
+      keyTakeaway: `Regra de operação: ${ptText.substring(0, 100)}...`,
+      options: [
+        {
+          id: `opt_op_true_${pIdx}`,
+          text: ptText,
+          isCorrect: true,
+          feedback: 'Correto! Esta é a prescrição técnica de segurança recomendada pela norma.'
+        },
+        {
+          id: `opt_op_false1_${pIdx}`,
+          text: 'Realizar ajustes mecânicos de torque e conexões elétricas com a rede 100% energizada sem uso de EPI.',
+          isCorrect: false,
+          feedback: 'Incorreto e gravíssimo. O trabalho desenergizado é a primeira regra de segurança.'
+        },
+        {
+          id: `opt_op_false2_${pIdx}`,
+          text: 'Ignorar a elevação de temperatura ambiente na capacidade de condução de corrente dos cabos.',
+          isCorrect: false,
+          feedback: 'Incorreto. A temperatura ambiente altera a capacidade térmica dos condutores (fator de correção).'
+        },
+        {
+          id: `opt_op_false3_${pIdx}`,
+          text: 'Substituir condutores de cobre dimensionados por arames de ferro zincado em caso de emergência.',
+          isCorrect: false,
+          feedback: 'Incorreto. O ferro possui alta resistividade e causaria superaquecimento e incêndio imediato.'
+        }
+      ]
+    });
+  });
+
+  return results;
+}
+
+/**
+ * Gerador de Banco de 15 a 25 Questões Técnicas Especializadas para qualquer lição (ZERO TEMPLATES)
+ */
+export function generateQuestionPoolForLesson(lesson: AcademyLesson): AssessmentMCQuestion[] {
+  const code = (lesson.code || '').toLowerCase();
+  const title = (lesson.title || '').toLowerCase();
+  const norma = lesson.norma || 'IEC 60364';
+
+  const pool: AssessmentMCQuestion[] = [];
+
+  // 1. QUESTÃO NÚCLEO ORIGINAL DA AULA (Se disponível no quiz da lição)
+  if (lesson.quiz && lesson.quiz.question && lesson.quiz.options && lesson.quiz.options.length >= 4) {
+    pool.push({
+      id: `${lesson.id}_core_quiz`,
+      type: 'multiple_choice',
+      question: lesson.quiz.question,
+      scenario: `Fundamentação teórica de ${lesson.title}.`,
+      norma: lesson.norma,
+      points: 20,
+      explanation: lesson.quiz.explanation || 'Conceito e cálculo normativo da lição.',
+      keyTakeaway: lesson.quiz.keyTakeaway || 'Regra de ouro técnica da aula.',
+      options: lesson.quiz.options.map((o: any) => ({
+        id: o.id || String(Math.random()),
+        text: o.text,
+        isCorrect: o.isCorrect,
+        feedback: o.feedback || (o.isCorrect ? 'Alternativa correta!' : 'Alternativa incorreta.')
+      }))
+    });
+  }
+
+  // 2. QUESTÕES DO FIELD CASE REAL (Se existir)
+  const fcQ = buildFieldCaseQuestion(lesson);
+  if (fcQ) pool.push(fcQ as AssessmentMCQuestion);
+
+  // 3. QUESTÕES DE FÓRMULA E CÁLCULO REAL (Se existir)
+  const fmQ = buildFormulaQuestion(lesson);
+  if (fmQ) pool.push(fmQ as AssessmentMCQuestion);
+
+  // 4. QUESTÕES DOS PONTOS OPERACIONAIS (Até 3 questões)
+  const opQs = buildOperationalPointsQuestions(lesson);
+  opQs.forEach(q => pool.push(q as AssessmentMCQuestion));
+
+  // 5. QUESTÕES ESPECIALIZADAS POR MÓDULO E CONTEÚDO (M1 a M11)
+  let specialized: RawQuestion[] = [];
+
+  if (code.includes('m1_') || title.includes('física') || title.includes('ohm') || title.includes('potência') || title.includes('kirchhoff')) {
+    specialized = getModule1Questions(lesson.id, norma);
+  } else if (code.includes('m2_') || title.includes('instalaç') || title.includes('esquemas') || title.includes('tomada') || title.includes('ilumina')) {
+    specialized = getModule2Questions(lesson.id, norma);
+  } else if (code.includes('m3_') || title.includes('proteç') || title.includes('disjuntor') || title.includes('residual') || title.includes('aterramento') || title.includes('dps')) {
+    specialized = getModule3Questions(lesson.id, norma);
+  } else if (code.includes('m4_') || title.includes('eletrônic') || title.includes('diodo') || title.includes('retifica') || title.includes('transistor')) {
+    specialized = getModule4Questions(lesson.id, norma);
+  } else if (code.includes('m5_') || title.includes('comando') || title.includes('motor') || title.includes('contator') || title.includes('inversor')) {
+    specialized = getModule5Questions(lesson.id, norma);
+  } else if (code.includes('m6_') || code.includes('m8_') || title.includes('média tensão') || title.includes('transformador') || title.includes('rede')) {
+    specialized = getModule6And8Questions(lesson.id, norma);
+  } else if (code.includes('m7_') || title.includes('manutenç') || title.includes('multímetro') || title.includes('megômetro') || title.includes('diagnóstic')) {
+    specialized = getModule7Questions(lesson.id, norma);
+  } else if (code.includes('m11_') || title.includes('solar') || title.includes('fotovoltaic') || title.includes('mppt')) {
+    specialized = getModule11Questions(lesson.id, norma);
+  } else {
+    // Para outros módulos, mescla questões normativas de segurança e medição
+    specialized = [
+      ...getModule3Questions(lesson.id, norma),
+      ...getModule7Questions(lesson.id, norma)
+    ];
+  }
+
+  // Adiciona as questões especializadas evitando IDs duplicadas
+  specialized.forEach(sq => {
+    if (!pool.some(p => p.id === sq.id)) {
+      pool.push(sq as AssessmentMCQuestion);
+    }
+  });
+
+  // Garante que o pool tenha sempre pelo menos 15 questões distintas e ricas
+  if (pool.length < 15) {
+    const backupSources = [
+      ...getModule1Questions(lesson.id, norma),
+      ...getModule2Questions(lesson.id, norma),
+      ...getModule3Questions(lesson.id, norma),
+      ...getModule5Questions(lesson.id, norma),
+      ...getModule7Questions(lesson.id, norma)
+    ];
+    for (const bq of backupSources) {
+      if (pool.length >= 18) break;
+      if (!pool.some(p => p.id === bq.id)) {
+        pool.push(bq as AssessmentMCQuestion);
+      }
+    }
+  }
+
+  return pool;
+}
 
 /**
  * Função geradora dinâmica de avaliações:
- * 1. Seleciona 3 questões de múltipla escolha e 1 a 2 questões descritivas.
- * 2. Realiza embaralhamento rigoroso das alternativas de múltipla escolha a cada tentativa (distribuindo uniformemente a resposta correta entre A, B, C e D).
- * 3. Se for reavaliação (attemptNumber > 1), utiliza o Set 2 com questões completamente diferentes para o mesmo EC!
+ * 1. Seleciona rigorosamente 5 questões autênticas de Múltipla Escolha.
+ * 2. Aplica algoritmo ANTI-REPETIÇÃO com localStorage:
+ *    - Filtra as questões já vistas anteriormente na mesma aula pelo aluno no dispositivo.
+ *    - Se as não vistas forem insuficientes (< 5), reseta a lista de vistas e reinicia o ciclo limpo.
+ *    - Salva as IDs sorteadas para proibir repetição nas próximas tentativas.
+ * 3. Embaralha as alternativas A, B, C e D usando Fisher-Yates (garantindo que o gabarito nunca fique fixo na mesma letra).
+ * 4. Removidas 100% de quaisquer questões descritivas/abertas.
+ * 5. Critério normativo: >= 80% = ALCANÇADO | < 80% = NÃO ALCANÇADO.
  */
 export function generateAssessmentForLesson(
   lesson: AcademyLesson,
@@ -480,204 +834,39 @@ export function generateAssessmentForLesson(
   technicianName: string = 'Técnico Autorizado',
   technicianId: string = 'guest'
 ): AssessmentAttempt {
-  const bank = ASSESSMENT_BANK[lesson.id];
-  const isReassessment = attemptNumber > 1;
+  // 1. Obter o banco extenso completo da lição (15 a 25 questões ricas e sem templates)
+  const fullPool = generateQuestionPoolForLesson(lesson);
 
-  // Se o banco específico tiver questões cadastradas, utiliza os conjuntos dedicados
-  let mcRawPool: AssessmentMCQuestion[] = [];
-  let descRawPool: AssessmentDescriptiveQuestion[] = [];
+  // 2. Algoritmo Anti-Repetição baseado no localStorage
+  const seenIds = getSeenQuestionIds(lesson.id);
+  let candidates = fullPool.filter((q: AssessmentMCQuestion) => !seenIds.includes(q.id));
 
-  if (bank) {
-    mcRawPool = isReassessment && bank.mcSet2.length > 0 ? bank.mcSet2 : bank.mcSet1;
-    descRawPool = isReassessment && bank.descSet2.length > 0 ? bank.descSet2 : bank.descSet1;
+  // Se o banco foi esgotado (menos de 5 questões inéditas restantes), reinicia o ciclo
+  if (candidates.length < 5) {
+    resetSeenQuestionsForLesson(lesson.id);
+    candidates = [...fullPool];
   }
 
-  // Fallback didático avançado (Diretriz: Cenários Diferenciados de Campo, Percepção Direta e Foco em Raciocínio Prático):
-  if (mcRawPool.length < 3) {
-    const isMec = lesson.moduleId?.includes('mec') || lesson.id?.startsWith('mec_');
-    const localidade1 = attemptNumber % 2 === 1 ? 'Instalação Fabril Contínua' : 'Oficina Central de Manutenção';
-    const localidade2 = attemptNumber % 2 === 1 ? 'Subestação Auxiliar Industrial' : 'Estação de Bombeamento';
-    const localidade3 = attemptNumber % 2 === 1 ? 'Planta de Processamento' : 'Centro de Distribuição';
-
-    const fallbackMC: AssessmentMCQuestion[] = [
-      {
-        id: `${lesson.id}_gen_mc1_${attemptNumber}`,
-        type: 'multiple_choice',
-        question: isMec
-          ? `Em uma intervenção técnica em ${localidade1}, um técnico precisa comissionar componentes de ${lesson.title} operando sob vibração e carga contínua. Considerando as exigências da norma ${lesson.norma}, qual critério mandatório deve ser adotado no dimensionamento e fixação para assegurar a confiabilidade mecânica?`
-          : `Em uma instalação técnica em ${localidade1}, o alimentador de ${lesson.title} opera sob temperatura ambiente de 35 °C. Segundo as regras de coordenação e dimensionamento da norma ${lesson.norma}, qual relação matemática entre a corrente de projeto (Ib), a corrente nominal da proteção (In) e a capacidade de condução dos condutores (Iz) deve ser rigorosamente respeitada?`,
-        scenario: `Dimensionamento e comissionamento técnico de ${lesson.title} em ${localidade1} (${lesson.norma}).`,
-        norma: lesson.norma,
-        points: 20,
-        explanation: isMec
-          ? `Segundo a ${lesson.norma}, o torque de aperto controlado por torquímetro calibrado e o alinhamento geométrico são mandatórios para evitar fadiga por vibração.`
-          : `A regra fundamental de proteção da IEC 60364 é: Ib ≤ In ≤ Iz (com I2 ≤ 1,45 × Iz), garantindo que o condutor nunca sofra sobreaquecimento antes da atuação do disjuntor.`,
-        keyTakeaway: isMec
-          ? 'Respeite as tabelas de torque e folga da norma com instrumento calibrado.'
-          : 'Regra de ouro: Ib ≤ In ≤ Iz. O cabo deve suportar mais corrente que a proteção nominal.',
-        options: [
-          {
-            id: 'opt_c1',
-            text: isMec
-              ? `Aplicar torque de aperto conforme a classe do fixador com torquímetro calibrado e verificar alinhamento e folgas conforme ${lesson.norma}.`
-              : `Atender rigorosamente à condição Ib ≤ In ≤ Iz, aplicando previamente os fatores de correção de temperatura e agrupamento para determinar Iz.`,
-            isCorrect: true,
-            feedback: 'Exato! Essa é a regra técnica primária para garantir integridade física e evitar colapso operacional.'
-          },
-          {
-            id: 'opt_w1',
-            text: isMec
-              ? 'Apertar as conexões até o limite mecânico com chave de impacto manual sem controle de torque.'
-              : 'Dimensionar a proteção In com valor menor que a corrente de projeto Ib para economizar energia.',
-            isCorrect: false,
-            feedback: 'Incorreto. Isso gera disparos intempestivos imediatos assim que o circuito atingir a carga nominal.'
-          },
-          {
-            id: 'opt_w2',
-            text: isMec
-              ? 'Omitir a verificação de folgas operacionais desde que o óleo lubrificante esteja no nível máximo.'
-              : 'Aumentar a bitola do disjuntor sem verificar se os cabos existentes suportam a nova corrente térmica.',
-            isCorrect: false,
-            feedback: 'Incorreto e perigoso. Elevar a proteção sem redimensionar cabos anula a proteção contra incêndio.'
-          },
-          {
-            id: 'opt_w3',
-            text: isMec
-              ? 'Instalar peças com folga livre sem verificar tolerâncias ISO de ajuste.'
-              : 'Desconsiderar o fator de correção de temperatura porque o aquecimento dos cabos dissipa naturalmente à noite.',
-            isCorrect: false,
-            feedback: 'Incorreto. Em ambientes quentes e instalações com ventilação restrita, a omissão do fator térmico provoca degradação acelerada do isolamento.'
-          }
-        ]
-      },
-      {
-        id: `${lesson.id}_gen_mc2_${attemptNumber}`,
-        type: 'multiple_choice',
-        question: isMec
-          ? `Durante a manutenção preventiva de ${lesson.title} em ${localidade2}, qual instrumento de medição metrológica deve ser utilizado para inspecionar o desgaste radial e excentricidade, e qual critério normativo deve guiar o técnico?`
-          : `Durante os ensaios de verificação inicial (comissionamento) de ${lesson.title} em ${localidade2} antes da energização, qual ensaio com instrumento dedicado é mandatório pela norma ${lesson.norma} para assegurar que não há risco de fuga de corrente ou curto-circuito?`,
-        scenario: `Ensaios de campo e verificação metrológica em ${localidade2} em conformidade com ${lesson.norma}.`,
-        norma: lesson.norma,
-        points: 20,
-        explanation: isMec
-          ? 'Para medição de desgaste e folgas radiais/axiais, o relógio comparador milesimal ou micrômetro calibrado é o instrumento padrão normatizado.'
-          : `Pela norma ${lesson.norma} (IEC 60364-6), a medição da Resistência de Isolamento com megômetro a 500 Vcc deve apresentar valor mínimo de 1,0 MΩ entre condutores vivos e terra.`,
-        keyTakeaway: isMec
-          ? 'Instrumentos metrológicos calibrados garantem que folgas mecânicas estejam na tolerância de projeto.'
-          : 'Resistência de Isolamento: Ensaio a 500 Vcc com circuito desenergizado, aceitação ≥ 1,0 MΩ.',
-        options: [
-          {
-            id: 'opt_c2',
-            text: isMec
-              ? `Relógio comparador com base magnética e micrômetro externo, comparando as folgas com a tolerância prescrita na ${lesson.norma}.`
-              : `Ensaio de Resistência de Isolamento com megômetro a 500 Vcc com o circuito desenergizado, exigindo valor mínimo de 1,0 MΩ entre fases, neutro e PE.`,
-            isCorrect: true,
-            feedback: 'Correto! Procedimento normativo mandatório executado antes de liberar a máquina ou linha para serviço.'
-          },
-          {
-            id: 'opt_w4',
-            text: isMec
-              ? 'Verificação visual aproximada à luz do dia sem uso de instrumentos com escala métrica.'
-              : 'Teste rápido encostando uma lâmpada piloto de 230 V entre a carcaça e o condutor neutro energizado.',
-            isCorrect: false,
-            feedback: 'Incorreto e anti-técnico. Lâmpadas piloto não medem resistência de isolamento e colocam o operador em risco direto.'
-          },
-          {
-            id: 'opt_w5',
-            text: isMec
-              ? 'Medição com régua comum de plástico de 30 cm sobre a carcaça externa.'
-              : 'Medição apenas da corrente com alicate amperímetro após energizar o circuito defeituoso.',
-            isCorrect: false,
-            feedback: 'Incorreto. Energizar um circuito sem testar o isolamento prévio pode gerar arco elétrico ou explosão em caso de curto.'
-          },
-          {
-            id: 'opt_w6',
-            text: isMec
-              ? 'Aquecimento manual com maçarico para testar a dilatação sem aferição de temperatura.'
-              : 'Verificação com caneta de teste de neon simples encostada no isolamento dos cabos desligados.',
-            isCorrect: false,
-            feedback: 'Incorreto. Canetas de teste neon são apenas detectores qualitativos de presença de fase, não medem isolação.'
-          }
-        ]
-      },
-      {
-        id: `${lesson.id}_gen_mc3_${attemptNumber}`,
-        type: 'multiple_choice',
-        question: `Em uma ocorrência real de campo em ${localidade3}, um sistema associado a ${lesson.title} apresentou aquecimento anormal e desarmes recorrentes em horário de pico. Ao analisar o caso segundo a ${lesson.norma}, qual fator operacional de campo causou essa anomalia e qual a solução correta?`,
-        scenario: `Diagnóstico de falha real e intervenção corretiva em ${localidade3}.`,
-        norma: lesson.norma,
-        points: 20,
-        explanation: `O subdimensionamento por não considerar a temperatura ambiente elevada e conexões com torque insuficiente criam pontos quentes (efeito Joule: P = R × I²), provocando desarmes prematuros do disjuntor térmico. A solução é reapertar com torquímetro e corrigir a capacidade de condução.`,
-        keyTakeaway: 'Mau contato e calor ambiente multiplicam as perdas térmicas. Sempre use torque correto e desclassificação térmica.',
-        options: [
-          {
-            id: 'opt_c3',
-            text: 'Conexões frouxas gerando resistência de contato e omissão do fator de temperatura ambiente; solução: reaperto com torquímetro e readequação de condutores.',
-            isCorrect: true,
-            feedback: 'Excelente análise prática! Resistência de contato somada à alta temperatura é a causa número 1 de falhas em campo.'
-          },
-          {
-            id: 'opt_w7',
-            text: 'Tensão excessiva fornecida pela rede pública que queimou as resistências internas.',
-            isCorrect: false,
-            feedback: 'Incorreto. A queima por mau contato e sobreaquecimento pontual decorre de perdas locais nas conexões e cabos.'
-          },
-          {
-            id: 'opt_w8',
-            text: 'Substituição da proteção térmica por um jumper de cobre maciço para impedir novos desarmes.',
-            isCorrect: false,
-            feedback: 'Crime técnico gravíssimo. Eliminar proteções destrói a instalação e gera risco fatal de incêndio.'
-          },
-          {
-            id: 'opt_w9',
-            text: 'Inversão dos cabos de aterramento (PE) com a fase para aumentar o fluxo de elétrons.',
-            isCorrect: false,
-            feedback: 'Incorreto e letal. Ligar fase na carcaça eletrifica as partes metálicas e causa choque elétrico mortal.'
-          }
-        ]
-      }
-    ];
-
-    mcRawPool = [...fallbackMC, ...mcRawPool].slice(0, 3);
+  // Embaralhar candidatos com Fisher-Yates
+  const shuffledCandidates = [...candidates];
+  for (let i = shuffledCandidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = shuffledCandidates[i];
+    shuffledCandidates[i] = shuffledCandidates[j];
+    shuffledCandidates[j] = temp;
   }
 
-  if (descRawPool.length === 0) {
-    const isMec = lesson.moduleId?.includes('mec') || lesson.id?.startsWith('mec_');
-    const localidadeCenario = attemptNumber % 2 === 1 ? 'Unidade de Produção Industrial' : 'Complexo Eletromecânico';
+  // Selecionar exatamente 5 questões de múltipla escolha
+  const selectedQuestions = shuffledCandidates.slice(0, 5);
 
-    descRawPool = [
-      {
-        id: `${lesson.id}_gen_desc1_${attemptNumber}`,
-        type: 'descriptive',
-        title: `Estudo de Caso Prático: ${lesson.title}`,
-        question: isMec
-          ? `Você foi designado para executar o comissionamento e testes de aceitação técnica de "${lesson.title}" em uma instalação fabril em ${localidadeCenario}, em conformidade com a norma ${lesson.norma}.
-Apresente seu plano de intervenção estruturado em 3 pontos obrigatórios:
-1. Instrumentação & Medições: Quais ferramentas e instrumentos calibrados você usará (ex: torquímetro, relógio comparador, manômetro)?
-2. Critérios e Tolerâncias: Quais grandezas e limites estabelecidos pela norma ${lesson.norma} determinarão se o equipamento está aprovado?
-3. Procedimento de Segurança: Quais medidas de bloqueio e despressurização/desenergização (LOTO) devem ser tomadas antes da intervenção?`
-          : `Você foi acionado para uma intervenção técnica e certificação normativa de "${lesson.title}" em uma unidade industrial/comercial em ${localidadeCenario}, segundo a norma ${lesson.norma}.
-Apresente o seu parecer técnico e roteiro de ensaios estruturado em 3 pontos obrigatórios:
-1. Instrumentos e Ensaios Prévios: Quais instrumentos calibrados (ex: Megômetro, Multímetro True-RMS, Alicate de fuga) você utilizará e quais ensaios executará com o circuito desenergizado?
-2. Critérios de Aceitação Normativa: Quais valores mínimos de isolamento, continuidade ou queda de tensão estabelecidos pela ${lesson.norma} indicarão conformidade?
-3. Ações Corretivas e Segurança: Descreva as precauções de segurança obrigatórias (LOTO, EPIs, teste de ausência de tensão) e as boas práticas de fixação e aperto para evitar sobreaquecimento futuro.`,
-        contextScenario: `Cenário real de campo: Intervenção técnica e certificação de conformidade para ${lesson.title} em ${localidadeCenario} (${lesson.norma}).`,
-        norma: lesson.norma,
-        points: 40,
-        expectedKeywords: ['procedimento', 'medição', 'norma', 'segurança', 'ensaio', 'proteção', 'conformidade', 'loto', 'isolamento', 'torque'],
-        guidelineAnswer: `O procedimento técnico segundo a ${lesson.norma} requer: 1) Desenergização segura com bloqueio e etiquetagem (LOTO) e teste de ausência de tensão; 2) Inspeção visual minuciosa do estado físico de cabos, terminais, torque de aperto e conexões de terra; 3) Medições com instrumentos calibrados (multímetro True-RMS, megômetro para ensaio de resistência de isolamento ≥ 1,0 MΩ a 500 Vcc ou torquímetro calibrado para fixações mecânicas); 4) Comparação dos valores aferidos com os limites da norma ${lesson.norma}; 5) Emissão de relatório técnico conclusivo assinado.`,
-        rubricCriteria: [
-          { criterion: 'Detalhamento do procedimento operacional sequencial de medição ou montagem com instrumentação correta.', weightPercent: 35 },
-          { criterion: `Especificação dos critérios normativos e limites de aceitação da norma ${lesson.norma}.`, weightPercent: 35 },
-          { criterion: 'Aderência às normas de segurança de campo (LOTO, EPIs, torque e prevenção de sobreaquecimento).', weightPercent: 30 }
-        ]
-      }
-    ];
-  }
+  // Salvar as IDs das questões selecionadas no localStorage para não repetir na reavaliação
+  const selectedIds = selectedQuestions.map((q: AssessmentMCQuestion) => q.id);
+  saveSeenQuestionIds(lesson.id, selectedIds);
 
-  // Embaralhar as alternativas das questões de múltipla escolha rigorosamente
-  const shuffledMC = mcRawPool.map(q => ({
+  // Embaralhar as alternativas A, B, C, D de cada questão individualmente
+  const formattedMC = selectedQuestions.map((q: AssessmentMCQuestion) => ({
     ...q,
+    points: 20, // 5 questões × 20 pontos = 100 pontos totais
     options: shuffleOptionsWithLabels(q.options)
   }));
 
@@ -689,6 +878,7 @@ Apresente o seu parecer técnico e roteiro de ensaios estruturado em 3 pontos ob
   return {
     attemptId: `${lesson.id}_att_${Date.now()}`,
     attemptNumber,
+    maxAttempts: 3, // 1ª Avaliação + 2 Reavaliações permitidas
     lessonId: lesson.id,
     lessonCode: lesson.code || 'EC',
     lessonTitle: lesson.title,
@@ -696,17 +886,20 @@ Apresente o seu parecer técnico e roteiro de ensaios estruturado em 3 pontos ob
     norma: lesson.norma,
     technicianName,
     technicianId,
-    date: new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    date: new Date().toLocaleDateString('pt-PT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }),
     authCode,
-    mcQuestions: shuffledMC,
-    descQuestions: descRawPool.slice(0, 1),
+    mcQuestions: formattedMC,
     mcAnswers: {},
-    descAnswers: {},
-    descEvaluations: {},
     mcEarnedPoints: 0,
-    mcTotalPoints: shuffledMC.reduce((sum, q) => sum + q.points, 0),
-    descEarnedPoints: 0,
-    descTotalPoints: descRawPool.slice(0, 1).reduce((sum, q) => sum + q.points, 0),
+    mcTotalPoints: 100,
+    correctAnswersCount: 0,
+    totalQuestionsCount: formattedMC.length,
     finalScorePercent: 0,
     status: 'NAO_ALCANCA',
     isPassed: false

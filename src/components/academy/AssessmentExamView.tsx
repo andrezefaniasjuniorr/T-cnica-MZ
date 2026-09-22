@@ -5,40 +5,31 @@ import {
   XCircle,
   AlertCircle,
   BookOpen,
-  ArrowRight,
   RotateCcw,
   Download,
   MessageSquare,
-  Zap,
-  Layers,
   Award,
-  Clock,
-  ShieldCheck,
   Send,
   Loader2,
-  FileText,
-  LayoutList,
-  Columns,
-  HelpCircle,
-  Wrench,
-  Shield,
-  Check
+  Check,
+  ChevronRight,
+  ChevronLeft,
+  FileCheck2,
+  HelpCircle
 } from 'lucide-react';
 import { AcademyLesson } from '../../types/academy';
 import {
   AssessmentAttempt,
   AssessmentMCQuestion,
-  AssessmentDescriptiveQuestion
+  ShuffledAssessmentOption
 } from '../../types/assessment';
 import {
   generateAssessmentForLesson
 } from '../../data/assessmentBank';
 import {
-  evaluateDescriptiveAnswer
-} from '../../services/saraAssessmentEvaluator';
-import {
   generateAssessmentPDF
 } from '../../utils/pdfAssessmentGenerator';
+import { soundFX } from '../../utils/audio';
 
 export interface AssessmentExamViewProps {
   lesson: AcademyLesson;
@@ -50,14 +41,6 @@ export interface AssessmentExamViewProps {
   onGoToLesson: () => void;
 }
 
-type DescSubField = 'sub1' | 'sub2' | 'sub3';
-
-interface DescSubAnswers {
-  sub1: string; // 1. Instrumentos e Ensaios (15 pts)
-  sub2: string; // 2. Critérios Normativos (15 pts)
-  sub3: string; // 3. Ações Corretivas e Segurança (10 pts)
-}
-
 export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
   lesson,
   baseFontSize = 15,
@@ -67,20 +50,35 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
   onAskSara,
   onGoToLesson
 }) => {
-  // Estado da tentativa de avaliação
-  const [attemptNumber, setAttemptNumber] = useState<number>(1);
+  // Carrega tentativas anteriores do localStorage para gerenciar reavaliações
+  const getStoredAttemptCount = (): number => {
+    if (typeof window === 'undefined') return 1;
+    try {
+      const historyKey = `tmz_assessment_history_${lesson.id}`;
+      const raw = localStorage.getItem(historyKey);
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list) && list.length > 0) {
+          return Math.min(3, list.length + 1);
+        }
+      }
+    } catch (e: any) {
+      console.warn('Erro ao ler histórico de tentativas:', e);
+    }
+    return 1;
+  };
+
+  // Estado da tentativa de avaliação (1 = Inicial, 2 = 1ª Reavaliação, 3 = 2ª Reavaliação Final)
+  const [attemptNumber, setAttemptNumber] = useState<number>(() => getStoredAttemptCount());
   const [currentExam, setCurrentExam] = useState<AssessmentAttempt>(() =>
-    generateAssessmentForLesson(lesson, 1, userName, userId)
+    generateAssessmentForLesson(lesson, attemptNumber, userName, userId)
   );
 
-  // Respostas do aluno
-  const [mcAnswers, setMcAnswers] = useState<Record<string, string>>({});
-  const [descAnswers, setDescAnswers] = useState<Record<string, string>>({});
+  // Navegação entre questões durante o preenchimento
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
 
-  // Subquestões da questão de desenvolvimento (Instrumentos, Critérios Normativos, Ações Corretivas)
-  const [activeSubTab, setActiveSubTab] = useState<Record<string, DescSubField>>({});
-  const [subAnswersMap, setSubAnswersMap] = useState<Record<string, DescSubAnswers>>({});
-  const [subViewMode, setSubViewMode] = useState<'tabs' | 'stacked'>('tabs');
+  // Respostas do aluno: questionId -> displayLetter ('A' | 'B' | 'C' | 'D')
+  const [mcAnswers, setMcAnswers] = useState<Record<string, string>>({});
 
   // Estados de submissão e avaliação
   const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
@@ -89,128 +87,68 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
 
   // Recarrega o exame caso a lição mude
   useEffect(() => {
-    setAttemptNumber(1);
+    const nextAtt = getStoredAttemptCount();
+    setAttemptNumber(nextAtt);
+    setActiveQuestionIdx(0);
     setMcAnswers({});
-    setDescAnswers({});
-    setSubAnswersMap({});
-    setActiveSubTab({});
     setHasEvaluated(false);
     setIsEvaluating(false);
-    setCurrentExam(generateAssessmentForLesson(lesson, 1, userName, userId));
+    setCurrentExam(generateAssessmentForLesson(lesson, nextAtt, userName, userId));
   }, [lesson.id, userName, userId]);
 
-  // Parser para carregar subquestões se houver texto pré-existente
-  const parseSubSections = (text: string): DescSubAnswers => {
-    if (!text) return { sub1: '', sub2: '', sub3: '' };
-    if (text.includes('1. INSTRUMENTOS') || text.includes('1. Instrumentos')) {
-      const p1 = text.split(/1\.\s*INSTRUMENTOS[^:]*:/i)[1] || '';
-      const p2Split = p1.split(/2\.\s*CRITÉRIOS[^:]*:/i);
-      const sub1 = (p2Split[0] || '').trim();
-      if (p2Split[1]) {
-        const p3Split = p2Split[1].split(/3\.\s*AÇÕES[^:]*:/i);
-        const sub2 = (p3Split[0] || '').trim();
-        const sub3 = (p3Split[1] || '').trim();
-        return { sub1, sub2, sub3 };
-      }
-    }
-    return { sub1: text, sub2: '', sub3: '' };
-  };
+  const questions: AssessmentMCQuestion[] = currentExam.mcQuestions || [];
+  const activeQuestion: AssessmentMCQuestion = questions[activeQuestionIdx] || questions[0];
+  const totalQuestions = questions.length;
 
-  const getSubAnswers = (qId: string): DescSubAnswers => {
-    if (subAnswersMap[qId]) return subAnswersMap[qId];
-    const existing = descAnswers[qId] || '';
-    return parseSubSections(existing);
-  };
+  const answeredCount = Object.keys(mcAnswers).length;
+  const isAllAnswered = answeredCount >= totalQuestions;
 
-  // Manipulador de digitação por subquestão com consolidação estruturada
-  const handleTypeSubAnswer = (qId: string, field: DescSubField, value: string) => {
+  // Manipulador de escolha de alternativa
+  const handleSelectOption = (questionId: string, displayLetter: string) => {
     if (hasEvaluated) return;
-    const current = getSubAnswers(qId);
-    const updated = { ...current, [field]: value };
-    setSubAnswersMap(prev => ({ ...prev, [qId]: updated }));
 
-    const consolidated = [
-      `1. INSTRUMENTOS E ENSAIOS:`,
-      updated.sub1.trim(),
-      ``,
-      `2. CRITÉRIOS NORMATIVOS:`,
-      updated.sub2.trim(),
-      ``,
-      `3. AÇÕES CORRETIVAS E SEGURANÇA:`,
-      updated.sub3.trim()
-    ].join('\n').trim();
-
-    setDescAnswers(prev => ({ ...prev, [qId]: consolidated }));
+    soundFX.playClick();
+    setMcAnswers((prev: Record<string, string>) => ({
+      ...prev,
+      [questionId]: displayLetter
+    }));
   };
 
-  // Manipulador de seleção de alternativa em questão de múltipla escolha
-  const handleSelectMCOption = (questionId: string, displayLetter: string) => {
-    if (hasEvaluated) return;
-    setMcAnswers(prev => ({ ...prev, [questionId]: displayLetter }));
-  };
-
-  // Manipulador de digitação na questão descritiva
-  const handleTypeDescAnswer = (questionId: string, text: string) => {
-    if (hasEvaluated) return;
-    setDescAnswers(prev => ({ ...prev, [questionId]: text }));
-  };
-
-  // Submissão do exame para avaliação integrada
-  const handleSubmitExam = async () => {
-    if (isEvaluating || hasEvaluated) return;
-
-    // Validações amigáveis
-    const unAnsweredMC = currentExam.mcQuestions.filter(q => !mcAnswers[q.id]);
-    if (unAnsweredMC.length > 0) {
-      alert(`Por favor, responda a todas as questões de múltipla escolha antes de submeter (${unAnsweredMC.length} pendente(s)).`);
+  // Submeter Avaliação e Calcular Desempenho
+  const handleSubmitExam = () => {
+    if (!isAllAnswered) {
+      alert(`Por favor, responda a todas as ${totalQuestions} questões antes de submeter a avaliação.`);
       return;
     }
 
-    const unAnsweredDesc = currentExam.descQuestions.filter(q => !descAnswers[q.id] || descAnswers[q.id].trim().length < 10);
-    if (unAnsweredDesc.length > 0) {
-      if (!confirm('A questão de desenvolvimento técnico está em branco ou muito curta. Deseja submeter mesmo assim? (Respostas sem fundamentação receberão 0% na questão descritiva)')) {
-        return;
-      }
-    }
-
     setIsEvaluating(true);
+    soundFX.playClick();
 
-    try {
-      // 1. Correção das questões de múltipla escolha
-      let mcEarned = 0;
-      currentExam.mcQuestions.forEach(q => {
-        const chosenLetter = mcAnswers[q.id];
-        const chosenOpt = q.options.find(o => o.displayLetter === chosenLetter);
-        if (chosenOpt && chosenOpt.isCorrect) {
-          mcEarned += q.points;
+    setTimeout(() => {
+      let earnedPoints = 0;
+      let correctCount = 0;
+
+      questions.forEach((q: AssessmentMCQuestion) => {
+        const studentChoice = mcAnswers[q.id];
+        const correctOpt = q.options.find((o: ShuffledAssessmentOption) => o.isCorrect);
+        if (studentChoice && correctOpt && studentChoice === correctOpt.displayLetter) {
+          earnedPoints += q.points;
+          correctCount++;
         }
       });
 
-      // 2. Correção das questões descritivas via Eng. Sara IA
-      const descEvaluations: Record<string, any> = {};
-      let descEarned = 0;
-
-      for (const dq of currentExam.descQuestions) {
-        const answer = descAnswers[dq.id] || '';
-        const evalResult = await evaluateDescriptiveAnswer(dq, answer);
-        descEvaluations[dq.id] = evalResult;
-        descEarned += evalResult.earnedPoints;
-      }
-
-      // 3. Média Ponderada e Veredicto
-      const totalPossible = currentExam.mcTotalPoints + currentExam.descTotalPoints;
-      const totalEarned = mcEarned + descEarned;
-      const finalPercent = totalPossible > 0 ? Math.round((totalEarned / totalPossible) * 100) : 0;
+      const totalPoints = questions.reduce((sum: number, q: AssessmentMCQuestion) => sum + q.points, 0);
+      const finalPercent = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
       const isPassed = finalPercent >= 80;
       const status = isPassed ? 'ALCANCA' : 'NAO_ALCANCA';
 
       const evaluatedAttempt: AssessmentAttempt = {
         ...currentExam,
         mcAnswers,
-        descAnswers,
-        descEvaluations,
-        mcEarnedPoints: mcEarned,
-        descEarnedPoints: descEarned,
+        mcEarnedPoints: earnedPoints,
+        mcTotalPoints: totalPoints,
+        correctAnswersCount: correctCount,
+        totalQuestionsCount: totalQuestions,
         finalScorePercent: finalPercent,
         status,
         isPassed
@@ -218,52 +156,75 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
 
       setCurrentExam(evaluatedAttempt);
       setHasEvaluated(true);
-
-      // Notifica conclusão com XP (+100 se aprovado >=80%, +25 se esforço <80%)
-      const awardedXp = isPassed ? 100 : 25;
-      onCompleteSuccess(awardedXp);
-    } catch (error) {
-      console.error('Erro durante a correção do exame:', error);
-      alert('Houve um erro ao processar a avaliação. Por favor, tente novamente.');
-    } finally {
       setIsEvaluating(false);
-    }
+
+      // Salva no localStorage histórico completo com respostas
+      try {
+        const historyKey = `tmz_assessment_history_${lesson.id}`;
+        const rawHistory = localStorage.getItem(historyKey);
+        const historyList = rawHistory ? JSON.parse(rawHistory) : [];
+        historyList.push({
+          attemptNumber,
+          date: evaluatedAttempt.date,
+          scorePercent: finalPercent,
+          correctAnswersCount: correctCount,
+          totalQuestionsCount: totalQuestions,
+          isPassed,
+          mcAnswers,
+          authCode: evaluatedAttempt.authCode
+        });
+        localStorage.setItem(historyKey, JSON.stringify(historyList));
+      } catch (err: any) {
+        console.warn('Erro ao salvar histórico de avaliação no localStorage:', err);
+      }
+
+      if (isPassed) {
+        soundFX.playCorrect();
+        onCompleteSuccess(100); // 100 XP por aprovação
+      } else {
+        soundFX.playIncorrect();
+        onCompleteSuccess(25); // 25 XP pelo esforço
+      }
+
+      // Rola para o topo do resultado
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 400);
   };
 
-  // Gerar Nova Reavaliação com Questões Inéditas para o mesmo EC
+  // Iniciar Reavaliação (até 2 reavaliações, total de 3 tentativas)
   const handleStartReassessment = () => {
+    if (attemptNumber >= 3) {
+      alert('Você atingiu o limite de 3 tentativas para esta avaliação. Recomendamos revisar a teoria e os esquemas práticos antes de tentar novamente.');
+      return;
+    }
+
     const nextAttemptNum = attemptNumber + 1;
     setAttemptNumber(nextAttemptNum);
+    setActiveQuestionIdx(0);
     setMcAnswers({});
-    setDescAnswers({});
     setHasEvaluated(false);
     setIsEvaluating(false);
 
-    // Gera um novo exame com o pool de Reavaliação (Set 2 / Perguntas Inéditas)
+    // O gerador com anti-repetição seleciona automaticamente 5 novas questões 100% inéditas
     const newAttempt = generateAssessmentForLesson(lesson, nextAttemptNum, userName, userId);
     setCurrentExam(newAttempt);
 
-    // Rola suavemente para o topo do exame
+    soundFX.playClick();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Download do Relatório Oficial em PDF
+  // Download da Folha Única A4 em PDF
   const handleDownloadPDF = () => {
     setIsDownloadingPdf(true);
     try {
+      soundFX.playClick();
       generateAssessmentPDF(currentExam);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Falha ao gerar PDF de avaliação:', err);
       alert('Não foi possível gerar o PDF. Verifique se o navegador permite downloads.');
     } finally {
-      setTimeout(() => setIsDownloadingPdf(false), 800);
+      setTimeout(() => setIsDownloadingPdf(false), 600);
     }
-  };
-
-  // Preparar pergunta para a Sara IA
-  const handleAskSaraAboutExam = () => {
-    const summary = `Olá Eng. Sara! Estou no exame de ${currentExam.lessonCode} (${currentExam.lessonTitle}). Minha nota foi ${currentExam.finalScorePercent}% (${currentExam.status === 'ALCANCA' ? 'Alcança' : 'Não Alcança'}). Poderia me orientar sobre as questões e os conceitos da norma ${currentExam.norma}?`;
-    onAskSara(summary);
   };
 
   return (
@@ -279,8 +240,8 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
       <div className="p-4 sm:p-5 rounded-2xl bg-[#0F172A] border border-blue-900/50 shadow-lg space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-blue-500/20 text-[#3B82F6] border border-blue-500/30 text-xs font-black uppercase tracking-wider">
-              {currentExam.lessonCode} • AVALIAÇÃO DE COMPETÊNCIA
+            <span className="px-2.5 py-1 rounded-lg bg-blue-500/20 text-[#38bdf8] border border-blue-500/30 text-xs font-black uppercase tracking-wider">
+              {currentExam.lessonCode} • AVALIAÇÃO OFICIAL
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700">
               {currentExam.norma}
@@ -288,12 +249,14 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
-              attemptNumber > 1
-                ? 'bg-amber-500/20 text-[#F59E0B] border-amber-500/40'
-                : 'bg-emerald-500/20 text-[#10B981] border-emerald-500/40'
-            }`}>
-              Tentativa #{attemptNumber} {attemptNumber > 1 ? '(Reavaliação Inédita)' : '(Inicial)'}
+            <span
+              className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
+                attemptNumber > 1
+                  ? 'bg-amber-500/20 text-[#F59E0B] border-amber-500/40'
+                  : 'bg-emerald-500/20 text-[#10B981] border-emerald-500/40'
+              }`}
+            >
+              Tentativa {attemptNumber} de 3 {attemptNumber === 1 ? '(Inicial)' : attemptNumber === 2 ? '(1ª Reavaliação)' : '(2ª Reavaliação Final)'}
             </span>
 
             <div className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 text-xs font-mono">
@@ -303,662 +266,488 @@ export const AssessmentExamView: React.FC<AssessmentExamViewProps> = ({
         </div>
 
         <div>
-          <h2 className="text-base sm:text-lg font-black text-white leading-snug">
+          <h2 className="text-lg sm:text-xl font-black text-white">
             {currentExam.lessonTitle}
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-            Exame prático de avaliação e diagnóstico de campo. A aprovação exige nota final <strong className="text-emerald-400 font-black">≥ 80% (Alcança - A)</strong>. Suas alternativas são embaralhadas dinamicamente a cada tentativa.
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Avaliação individual de 5 questões estratégicas. Critério de Aprovação: <strong className="text-emerald-400">≥ 80% (Alcançado)</strong>. Banco anti-repetição por dispositivo.
           </p>
         </div>
 
-        {/* Barra de Progresso / Instruções Rápidas */}
-        <div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-medium text-slate-300 border-t border-slate-800">
-          <div className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4 text-blue-400" />
-            <span>{currentExam.mcQuestions.length} Questões Objetivas ({currentExam.mcTotalPoints} pts)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span>{currentExam.descQuestions.length} Questão de Desenvolvimento IA ({currentExam.descTotalPoints} pts)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Critério de Aprovação: 80%</span>
-          </div>
+        {/* PROGRESSO DAS QUESTÕES RESPONDIDAS */}
+        <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-800 text-xs text-slate-400">
+          <span>Respondidas: <strong className="text-white">{answeredCount}</strong> de {totalQuestions}</span>
+          <span>Critério: <strong className="text-emerald-400">≥ 4 de 5 corretas (80%)</strong></span>
         </div>
       </div>
 
       {/* =================================================================== */}
-      {/* SEÇÃO 1: QUESTÕES DE MÚLTIPLA ESCOLHA (COM GABARITO EMBARALHADO)   */}
-      {/* =================================================================== */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-2 text-xs sm:text-sm font-black text-white uppercase tracking-wider">
-            <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-black shrink-0">1</span>
-            <span>Múltipla Escolha: Cenários e Análise Prática</span>
-          </div>
-          <span className="text-xs font-semibold text-slate-400">
-            {Object.keys(mcAnswers).length} de {currentExam.mcQuestions.length} respondidas
-          </span>
-        </div>
-
-        {currentExam.mcQuestions.map((q, qIndex) => {
-          const chosenLetter = mcAnswers[q.id];
-          const chosenOpt = q.options.find(o => o.displayLetter === chosenLetter);
-          const isCorrect = chosenOpt?.isCorrect === true;
-
-          return (
-            <div
-              key={q.id}
-              className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-sm"
-            >
-              {/* Cabeçalho da Questão */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-xs font-black uppercase">
-                    Questão 1.{qIndex + 1} • {q.points} Pontos
-                  </span>
-                  {q.scenario && (
-                    <p className="text-xs text-slate-400 italic pt-1">
-                      Contexto: {q.scenario}
-                    </p>
-                  )}
-                </div>
-
-                {hasEvaluated && (
-                  <span className={`px-2.5 py-1 rounded-lg text-xs font-black flex items-center gap-1 shrink-0 ${
-                    isCorrect
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                  }`}>
-                    {isCorrect ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                    <span>{isCorrect ? `+${q.points} pts` : '0 pts'}</span>
-                  </span>
-                )}
-              </div>
-
-              {/* Enunciado */}
-              <p className="text-xs sm:text-sm font-black text-white leading-relaxed">
-                {q.question}
-              </p>
-
-              {/* Lista de Alternativas (Embaralhadas dinamicamente: A, B, C, D) */}
-              <div className="grid grid-cols-1 gap-2.5 pt-1">
-                {q.options.map(option => {
-                  const isSelected = chosenLetter === option.displayLetter;
-                  let style = 'bg-[#111827] hover:bg-slate-800 text-slate-200 border-[#1E293B]';
-
-                  if (hasEvaluated) {
-                    if (option.isCorrect) {
-                      style = 'bg-emerald-950/80 border-[#10B981] text-emerald-100 ring-2 ring-emerald-500/40';
-                    } else if (isSelected && !option.isCorrect) {
-                      style = 'bg-rose-950/80 border-rose-500 text-rose-100 ring-2 ring-rose-500/40';
-                    } else {
-                      style = 'bg-slate-950/50 border-slate-900 text-slate-500 opacity-50';
-                    }
-                  } else if (isSelected) {
-                    style = 'bg-blue-950/80 border-[#3B82F6] text-blue-100 ring-2 ring-blue-500/40';
-                  }
-
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => handleSelectMCOption(q.id, option.displayLetter)}
-                      disabled={hasEvaluated}
-                      className={`w-full text-left p-3 rounded-xl border transition flex items-start gap-3 cursor-pointer text-xs sm:text-sm leading-relaxed ${style}`}
-                    >
-                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs shrink-0 mt-0.5 ${
-                        hasEvaluated && option.isCorrect
-                          ? 'bg-[#10B981] text-slate-950'
-                          : hasEvaluated && isSelected && !option.isCorrect
-                          ? 'bg-rose-500 text-white'
-                          : isSelected
-                          ? 'bg-[#3B82F6] text-white'
-                          : 'bg-slate-800 text-slate-300'
-                      }`}>
-                        {option.displayLetter}
-                      </span>
-
-                      <div className="flex-1">
-                        <span className="font-medium">{option.text}</span>
-                        {hasEvaluated && (isSelected || option.isCorrect) && (
-                          <p className={`mt-1.5 text-xs font-semibold leading-normal ${
-                            option.isCorrect ? 'text-emerald-300' : 'text-rose-300'
-                          }`}>
-                            {option.feedback}
-                          </p>
-                        )}
-                      </div>
-
-                      {hasEvaluated && option.isCorrect && (
-                        <CheckCircle2 className="w-5 h-5 text-[#10B981] shrink-0 mt-0.5" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Explicação / Resolução da Questão pós-avaliação */}
-              {hasEvaluated && (
-                <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 space-y-1 animate-in fade-in">
-                  <div className="flex items-center gap-1.5 font-bold text-blue-400">
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>Fundamentação Técnica ({q.norma})</span>
-                  </div>
-                  <p className="leading-relaxed">{q.explanation}</p>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* =================================================================== */}
-      {/* SEÇÃO 2: QUESTÃO DESCRITIVA / DESENVOLVIMENTO TÉCNICO (AVALIAÇÃO IA) */}
-      {/* =================================================================== */}
-      <div className="space-y-4 pt-2">
-        <div className="flex items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-2 text-xs sm:text-sm font-black text-white uppercase tracking-wider">
-            <span className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center text-xs font-black shrink-0">2</span>
-            <span>Questão de Desenvolvimento Técnico • Correção por IA</span>
-          </div>
-          <span className="text-xs font-semibold text-purple-400">
-            Avaliadora: Eng. Sara IA
-          </span>
-        </div>
-
-        {currentExam.descQuestions.map((dq, dIndex) => {
-          const studentText = descAnswers[dq.id] || '';
-          const evalResult = currentExam.descEvaluations[dq.id];
-          const wordCount = studentText.trim().split(/\s+/).filter(Boolean).length;
-
-          return (
-            <div
-              key={dq.id}
-              className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-purple-900/40 space-y-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-xs font-black uppercase">
-                    Caso Prático 2.{dIndex + 1} • {dq.points} Pontos
-                  </span>
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-200">
-                    {dq.title || 'Diagnóstico de Procedimento Técnico'}
-                  </h3>
-                </div>
-
-                {hasEvaluated && evalResult && (
-                  <div className={`px-3 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 ${
-                    evalResult.scorePercent >= 80
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                      : evalResult.scorePercent >= 50
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                      : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                  }`}>
-                    <span>{evalResult.scorePercent}%</span>
-                    <span>({evalResult.earnedPoints}/{dq.points} pts)</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Cenário Prático Contextualizado */}
-              <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-900/30 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Cenário Prático de Engenharia:</span>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  {dq.contextScenario}
-                </p>
-              </div>
-
-              {/* Enunciado do Desenvolvimento Geral */}
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-purple-400">
-                  <BookOpen className="w-3.5 h-3.5 shrink-0" />
-                  <span>DESAFIO DE ENGENHARIA DE CAMPO:</span>
-                </div>
-                <p className="text-xs sm:text-sm font-bold text-white leading-relaxed">
-                  {dq.question}
-                </p>
-                <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-amber-300/90 pt-1">
-                  <HelpCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                  <span>Dica da Tutora Sara: Responda ordenadamente às 3 subquestões abaixo citando instrumentos, grandezas e ações segundo a norma {dq.norma}.</span>
-                </div>
-              </div>
-
-              {/* ======================================================= */}
-              {/* REESTRUTURAÇÃO EM 3 SUBQUESTÕES INDEPENDENTES (40 PTS)  */}
-              {/* ======================================================= */}
-              {(() => {
-                const subAns = getSubAnswers(dq.id);
-                const currentTab = activeSubTab[dq.id] || 'sub1';
-
-                const subQuestionsMeta: Array<{
-                  id: DescSubField;
-                  title: string;
-                  points: number;
-                  icon: any;
-                  subtitle: string;
-                  guide: string;
-                  placeholder: string;
-                  value: string;
-                }> = [
-                  {
-                    id: 'sub1',
-                    title: '1. Instrumentos e Ensaios',
-                    points: 15,
-                    icon: Wrench,
-                    subtitle: 'Equipamentos calibrados e testes com circuito desenergizado',
-                    guide: 'Quais instrumentos de ensaio (ex: Megômetro 500Vcc, Multímetro True-RMS, Torquímetro, etc.) você utilizará e que testes executará?',
-                    placeholder: 'Ex: Com o circuito desenergizado, utilizarei o Megômetro a 500Vcc para medir a resistência de isolamento entre condutores ativos e terra, e multímetro True-RMS para verificação de continuidade ôhmica...',
-                    value: subAns.sub1
-                  },
-                  {
-                    id: 'sub2',
-                    title: '2. Critérios Normativos',
-                    points: 15,
-                    icon: Shield,
-                    subtitle: 'Limites matemáticos, grandezas e tolerâncias regulamentares',
-                    guide: `Quais limites mínimos de isolamento, queda de tensão e tolerâncias da norma ${dq.norma} determinarão a conformidade técnica?`,
-                    placeholder: 'Ex: Conforme a norma aplicável, a resistência de isolamento mínima deve ser ≥ 1,0 MΩ. A queda de tensão máxima tolerada é de 3% para iluminação e 5% para força...',
-                    value: subAns.sub2
-                  },
-                  {
-                    id: 'sub3',
-                    title: '3. Ações Corretivas',
-                    points: 10,
-                    icon: ShieldCheck,
-                    subtitle: '5 Regras de Ouro (LOTO), EPIs e torque controlado',
-                    guide: 'Quais medidas de segurança (LOTO, bloqueio mecânico, teste de ausência de tensão) e ações de correção de aperto serão adotadas?',
-                    placeholder: 'Ex: Aplicação das 5 Regras de Ouro: seccionamento visível, bloqueio mecânico LOTO com cadeado e etiqueta, constatação de ausência de tensão com detector bipolar, luvas isolantes 1000V e aperto com torquímetro calibrado para evitar sobreaquecimento...',
-                    value: subAns.sub3
-                  }
-                ];
-
-                return (
-                  <div className="space-y-3 pt-1">
-                    {/* Barra de Seleção de Subquestões & Alternância de Visualização */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {subQuestionsMeta.map(sq => {
-                          const isFilled = sq.value.trim().length >= 15;
-                          const isActive = currentTab === sq.id;
-                          const IconComp = sq.icon;
-
-                          return (
-                            <button
-                              key={sq.id}
-                              type="button"
-                              onClick={() => setActiveSubTab(prev => ({ ...prev, [dq.id]: sq.id }))}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border ${
-                                isActive
-                                  ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
-                                  : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
-                              }`}
-                            >
-                              <IconComp className="w-3.5 h-3.5 shrink-0" />
-                              <span>{sq.title}</span>
-                              <span className="px-1 py-0.2 rounded bg-black/40 text-[10px] text-purple-200">
-                                {sq.points} pts
-                              </span>
-                              {isFilled && (
-                                <Check className="w-3 h-3 text-emerald-400 shrink-0" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Alternador de Modo: Abas vs Lista Completa */}
-                      <button
-                        type="button"
-                        onClick={() => setSubViewMode(m => (m === 'tabs' ? 'stacked' : 'tabs'))}
-                        className="self-end sm:self-auto px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-400 bg-slate-950 border border-slate-800 hover:text-white transition flex items-center gap-1.5"
-                      >
-                        {subViewMode === 'tabs' ? (
-                          <>
-                            <LayoutList className="w-3 h-3" />
-                            <span>Ver 3 Subquestões Juntas</span>
-                          </>
-                        ) : (
-                          <>
-                            <Columns className="w-3 h-3" />
-                            <span>Modo Abas Individuais</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* MODO 1: ABAS INDIVIDUAIS (FOCADO & RESPONSIVO) */}
-                    {subViewMode === 'tabs' && (
-                      <div className="space-y-3">
-                        {subQuestionsMeta
-                          .filter(sq => sq.id === currentTab)
-                          .map(sq => {
-                            const subWords = sq.value.trim() ? sq.value.trim().split(/\s+/).length : 0;
-                            return (
-                              <div
-                                key={sq.id}
-                                className="p-4 rounded-xl bg-slate-950/70 border border-purple-900/30 space-y-3"
-                              >
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800/80 pb-2">
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs font-black">
-                                        Subquestão {sq.title.split('.')[0]} • {sq.points} Pontos
-                                      </span>
-                                      <span className="text-xs font-bold text-white">
-                                        {sq.title.split('. ')[1]}
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] text-slate-400 mt-1">{sq.subtitle}</p>
-                                  </div>
-                                  <span className="text-[11px] text-slate-500">
-                                    Palavras: <strong className="text-purple-300">{subWords}</strong> (min. 10)
-                                  </span>
-                                </div>
-
-                                <p className="text-xs sm:text-sm text-slate-200 font-medium leading-relaxed">
-                                  {sq.guide}
-                                </p>
-
-                                <textarea
-                                  value={sq.value}
-                                  onChange={e => handleTypeSubAnswer(dq.id, sq.id, e.target.value)}
-                                  disabled={hasEvaluated}
-                                  rows={4}
-                                  placeholder={sq.placeholder}
-                                  className="w-full p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-xs sm:text-sm leading-relaxed resize-y transition"
-                                />
-
-                                {/* Navegação Rápida entre Subquestões */}
-                                <div className="flex items-center justify-between pt-1">
-                                  <button
-                                    type="button"
-                                    disabled={sq.id === 'sub1'}
-                                    onClick={() => {
-                                      const prevId = sq.id === 'sub3' ? 'sub2' : 'sub1';
-                                      setActiveSubTab(prev => ({ ...prev, [dq.id]: prevId }));
-                                    }}
-                                    className="px-3 py-1 rounded text-xs text-slate-400 bg-slate-900 border border-slate-800 disabled:opacity-40 disabled:cursor-not-allowed hover:text-white"
-                                  >
-                                    ← Subquestão Anterior
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    disabled={sq.id === 'sub3'}
-                                    onClick={() => {
-                                      const nextId = sq.id === 'sub1' ? 'sub2' : 'sub3';
-                                      setActiveSubTab(prev => ({ ...prev, [dq.id]: nextId }));
-                                    }}
-                                    className="px-3 py-1 rounded text-xs font-bold text-purple-300 bg-purple-950/60 border border-purple-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-900/60"
-                                  >
-                                    Próxima Subquestão →
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    )}
-
-                    {/* MODO 2: TODAS AS 3 SUBQUESTÕES JUNTAS (SETORIZADO E LIMPO) */}
-                    {subViewMode === 'stacked' && (
-                      <div className="space-y-4">
-                        {subQuestionsMeta.map(sq => {
-                          const subWords = sq.value.trim() ? sq.value.trim().split(/\s+/).length : 0;
-                          return (
-                            <div
-                              key={sq.id}
-                              className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2.5"
-                            >
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs font-black">
-                                    {sq.title}
-                                  </span>
-                                  <span className="text-xs font-bold text-slate-300">
-                                    ({sq.points} pts)
-                                  </span>
-                                </div>
-                                <span className="text-[11px] text-slate-500">
-                                  Palavras: <strong className="text-purple-300">{subWords}</strong>
-                                </span>
-                              </div>
-
-                              <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                                {sq.guide}
-                              </p>
-
-                              <textarea
-                                value={sq.value}
-                                onChange={e => handleTypeSubAnswer(dq.id, sq.id, e.target.value)}
-                                disabled={hasEvaluated}
-                                rows={3}
-                                placeholder={sq.placeholder}
-                                className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-xs sm:text-sm leading-relaxed resize-y transition"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Resumo Consolidado e Contador Global de Palavras */}
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1">
-                      <span>Total de palavras no desenvolvimento: <strong className="text-slate-300">{wordCount}</strong></span>
-                      <span>Total ponderado: <strong>40 Pontos</strong> (Soma: 15 + 15 + 10)</span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Feedback e Parecer Semântico da Eng. Sara IA (Após Avaliação) */}
-              {hasEvaluated && evalResult && (
-                <div className="p-4 rounded-xl bg-slate-950 border border-purple-800/40 space-y-3 animate-in fade-in">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs font-black text-purple-400">
-                      <Sparkles className="w-4 h-4" />
-                      <span>PARECER DE ENGENHARIA DA SARA IA:</span>
-                    </div>
-
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                      evalResult.scorePercent >= 80
-                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                        : evalResult.scorePercent >= 50
-                        ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                        : 'bg-rose-950 text-rose-300 border border-rose-800'
-                    }`}>
-                      {evalResult.verdict === 'ALCANÇA' ? 'Competência Alcançada' : evalResult.verdict === 'PARCIALMENTE_ALCANÇA' ? 'Parcialmente Correto' : 'Não Alcança'}
-                    </span>
-                  </div>
-
-                  <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-                    {evalResult.technicalFeedback}
-                  </p>
-
-                  {/* Chips de Termos Identificados vs Faltantes */}
-                  <div className="space-y-1.5 pt-1">
-                    {evalResult.matchedKeywords.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] font-bold text-emerald-400">Termos Corretos:</span>
-                        {evalResult.matchedKeywords.map((kw, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium"
-                          >
-                            ✓ {kw}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {evalResult.missingPoints.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] font-bold text-amber-400">Omissões a Praticar:</span>
-                        {evalResult.missingPoints.map((kw, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-medium"
-                          >
-                            ⚠ {kw}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Resposta Guia Exemplar da Sara IA */}
-                  <div className="p-3 rounded-lg bg-blue-950/30 border border-blue-900/40 text-xs text-blue-200 space-y-1">
-                    <span className="font-bold text-blue-400">📖 Procedimento Modelo da Tutora:</span>
-                    <p className="text-slate-300 leading-relaxed">{dq.guidelineAnswer}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* =================================================================== */}
-      {/* PAINEL DE RESULTADO FINAL & SELO ACADÊMICO EM DESTAQUE             */}
+      {/* RESULTADO DA AVALIAÇÃO (BANNER DE STATUS APÓS SUBMISSÃO)          */}
       {/* =================================================================== */}
       {hasEvaluated && (
-        <div className={`p-5 sm:p-6 rounded-2xl border shadow-xl space-y-4 animate-in fade-in duration-300 ${
-          currentExam.isPassed
-            ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-900/20'
-            : 'bg-rose-950/40 border-rose-500/50 shadow-rose-900/20'
-        }`}>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="space-y-1 text-center sm:text-left">
-              <span className="text-xs font-black text-slate-400 uppercase tracking-wider">
-                Média Final Ponderada (Objetivas + IA)
-              </span>
-              <div className="flex items-baseline justify-center sm:justify-start gap-3">
-                <span className={`text-3xl sm:text-4xl font-black ${
-                  currentExam.isPassed ? 'text-emerald-400' : 'text-rose-400'
-                }`}>
-                  {currentExam.finalScorePercent}%
+        <div
+          className={`p-5 rounded-2xl border shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-200 ${
+            currentExam.isPassed
+              ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+              : 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div
+                className={`p-3 rounded-2xl ${
+                  currentExam.isPassed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                }`}
+              >
+                {currentExam.isPassed ? <Award className="w-8 h-8" /> : <AlertCircle className="w-8 h-8" />}
+              </div>
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider opacity-80">
+                  Parecer Técnico Normativo
                 </span>
-                <span className="text-xs sm:text-sm font-bold text-slate-300">
-                  ({currentExam.mcEarnedPoints + currentExam.descEarnedPoints} de {currentExam.mcTotalPoints + currentExam.descTotalPoints} pts)
-                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  {currentExam.isPassed ? 'COMPETÊNCIA ALCANÇADA' : 'NÃO ALCANÇADO'}
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {currentExam.isPassed
+                    ? `Parabéns! Você obteve ${currentExam.finalScorePercent}% de aproveitamento (${currentExam.correctAnswersCount} de ${totalQuestions} questões corretas).`
+                    : `Você obteve ${currentExam.finalScorePercent}% (${currentExam.correctAnswersCount} de ${totalQuestions} corretas). O critério mínimo para aprovação é 80%.`}
+                </p>
               </div>
             </div>
 
-            {/* SELO VISUAL EM DESTAQUE */}
-            <div className={`px-5 py-3 rounded-2xl border flex flex-col items-center justify-center text-center shadow-md ${
-              currentExam.isPassed
-                ? 'bg-emerald-600 text-white border-emerald-400 ring-4 ring-emerald-500/30'
-                : 'bg-rose-600 text-white border-rose-400 ring-4 ring-rose-500/30'
-            }`}>
-              <div className="flex items-center gap-1.5 text-base sm:text-lg font-black tracking-wide">
-                {currentExam.isPassed ? <Award className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                <span>{currentExam.isPassed ? 'ALCANÇA (A)' : 'NÃO ALCANÇA (NA)'}</span>
+            <div className="text-right">
+              <div className="text-3xl sm:text-4xl font-black text-white font-mono">
+                {currentExam.finalScorePercent}%
               </div>
-              <span className="text-[11px] font-semibold opacity-90">
-                {currentExam.isPassed ? 'Aprovado na Competência (≥ 80%)' : 'Exige Reavaliação (< 80%)'}
+              <span className="text-xs text-slate-400">
+                {currentExam.mcEarnedPoints} / {currentExam.mcTotalPoints} pts
               </span>
             </div>
           </div>
 
-          <p className="text-xs sm:text-sm text-slate-200 leading-relaxed text-center sm:text-left">
-            {currentExam.isPassed
-              ? `Parabéns, ${userName}! Você atingiu a proficiência mandatória na competência ${currentExam.lessonCode} segundo a norma ${currentExam.norma}. Sua folha oficial de avaliação foi autenticada com sucesso.`
-              : `Atenção, ${userName}. Para garantir a segurança e a conformidade nas instalações técnicas normatizadas, a aprovação exige nota mínima de 80%. Não desanime! Uma nova reavaliação com perguntas totalmente inéditas está pronta para você.`}
-          </p>
-
-          {/* BOTÕES DE AÇÃO: BAIXAR PDF, REAVALIAÇÃO OU CONCLUIR */}
-          <div className="pt-2 flex flex-wrap items-center gap-3">
-            {/* Botão Baixar Folha de Avaliação em PDF */}
+          {/* BOTÕES DE AÇÃO NO RESULTADO */}
+          <div className="flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-800/80">
+            {/* Botão Baixar PDF Folha Única */}
             <button
               type="button"
               onClick={handleDownloadPDF}
               disabled={isDownloadingPdf}
-              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 border border-slate-700 cursor-pointer shadow-sm"
-              title="Gera e baixa a folha acadêmica oficial em formato PDF com cabeçalho e selo de competência"
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-900/40 transition cursor-pointer"
             >
               {isDownloadingPdf ? (
-                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <FileText className="w-4 h-4 text-blue-400" />
+                <Download className="w-4 h-4" />
               )}
-              <span>{isDownloadingPdf ? 'Gerando PDF...' : 'Baixar Folha de Avaliação em PDF'}</span>
+              <span>Baixar Folha Oficial (PDF A4 Único)</span>
             </button>
 
-            {/* Se Não Alcançou (<80%): Botão Gerar Nova Reavaliação */}
-            {!currentExam.isPassed && (
+            {/* Reavaliação se não atingiu 80% e ainda tem tentativas */}
+            {!currentExam.isPassed && attemptNumber < 3 && (
               <button
                 type="button"
                 onClick={handleStartReassessment}
-                className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-900/40 transition cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>Iniciar Nova Reavaliação (Questões Inéditas)</span>
+                <span>Fazer Reavaliação ({attemptNumber === 1 ? '1ª Reavaliação' : '2ª Reavaliação Final'})</span>
               </button>
             )}
 
-            {/* Se Alcançou (>=80%): Botão Concluir e Próxima Aula */}
-            {currentExam.isPassed && (
-              <button
-                type="button"
-                onClick={onGoToLesson}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
-              >
-                <span>Concluir & Avançar (+100 XP)</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Tirar Dúvida com Sara IA */}
+            {/* Revisar Conteúdo da Aula */}
             <button
               type="button"
-              onClick={handleAskSaraAboutExam}
-              className="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center justify-center gap-2 border border-slate-700 cursor-pointer"
+              onClick={onGoToLesson}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-2 border border-slate-700 transition cursor-pointer"
             >
-              <MessageSquare className="w-4 h-4 text-purple-400" />
-              <span>Tirar Dúvida com a Eng. Sara</span>
+              <BookOpen className="w-4 h-4" />
+              <span>Revisar Teoria & Esquemas</span>
             </button>
           </div>
         </div>
       )}
 
       {/* =================================================================== */}
-      {/* BOTÃO DE SUBMISSÃO INICIAL (QUANDO AINDA NÃO SUBMETEU)               */}
+      {/* SEÇÃO 2: FEEDBACK TÉCNICO E GABARITO COMENTADO (APÓS AVALIAÇÃO)    */}
+      {/* Exibe todas as 5 questões verticalmente com justificativas claras   */}
       {/* =================================================================== */}
-      {!hasEvaluated && (
-        <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800">
-          <button
-            type="button"
-            onClick={onGoToLesson}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer border border-slate-700"
-          >
-            Revisar Teoria da Aula
-          </button>
+      {hasEvaluated ? (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#0b1322] border border-blue-900/40">
+            <div className="flex items-center gap-2.5">
+              <FileCheck2 className="w-5 h-5 text-sky-400" />
+              <h3 className="text-base sm:text-lg font-black text-white">
+                Feedback Técnico e Gabarito Comentado
+              </h3>
+            </div>
+            <span className="text-xs text-slate-400">
+              {currentExam.correctAnswersCount} corretas de {totalQuestions}
+            </span>
+          </div>
 
+          <div className="space-y-5">
+            {questions.map((q: AssessmentMCQuestion, qIdx: number) => {
+              const studentChoice = mcAnswers[q.id];
+              const correctOpt = q.options.find((o: ShuffledAssessmentOption) => o.isCorrect);
+              const isCorrect = studentChoice === correctOpt?.displayLetter;
+              const studentOpt = q.options.find((o: ShuffledAssessmentOption) => o.displayLetter === studentChoice);
+
+              return (
+                <div
+                  key={q.id}
+                  className={`p-5 rounded-2xl border transition space-y-4 ${
+                    isCorrect
+                      ? 'bg-slate-900/90 border-emerald-500/40'
+                      : 'bg-slate-900/90 border-rose-500/40'
+                  }`}
+                >
+                  {/* Cabeçalho da Questão Comentada */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center ${
+                          isCorrect ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                        }`}
+                      >
+                        #{qIdx + 1}
+                      </span>
+                      <span className="text-xs font-bold text-slate-300">
+                        Questão {qIdx + 1} de {totalQuestions}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-cyan-300 px-2 py-0.5 rounded bg-slate-950 border border-slate-800">
+                        {q.points} pts
+                      </span>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase flex items-center gap-1 ${
+                          isCorrect
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                        }`}
+                      >
+                        {isCorrect ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Correto
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-3.5 h-3.5" /> Incorreto
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Enunciado */}
+                  <div className="space-y-1">
+                    <h4 className="text-sm sm:text-base font-bold text-white leading-relaxed">
+                      {q.question}
+                    </h4>
+                    {q.scenario && (
+                      <p className="text-xs text-slate-400 italic bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                        📌 Cenário: {q.scenario}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Comparativo de Respostas */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
+                    <div>
+                      <span className="text-slate-400 block mb-1">Sua Escolha:</span>
+                      {studentChoice ? (
+                        <div
+                          className={`font-bold flex items-start gap-1.5 ${
+                            isCorrect ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">
+                            [{studentChoice}]
+                          </span>
+                          <span className="flex-1">{studentOpt?.text}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 italic">(Não respondida)</span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-emerald-400 block mb-1">Gabarito Oficial:</span>
+                      <div className="font-bold text-emerald-300 flex items-start gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-700 font-mono text-emerald-300">
+                          [{correctOpt?.displayLetter}]
+                        </span>
+                        <span className="flex-1">{correctOpt?.text}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Explicação Didática Geral */}
+                  <div className="p-3.5 rounded-xl bg-blue-950/30 border border-blue-900/40 text-xs space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-sky-300">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>Explicação Básica e Didática:</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      {q.explanation}
+                    </p>
+                    {q.keyTakeaway && (
+                      <p className="text-amber-300/90 font-medium pt-1.5 border-t border-blue-900/40">
+                        💡 Regra de Ouro ({q.norma}): {q.keyTakeaway}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Justificativa Detalhada de Cada Alínea / Alternativa */}
+                  <div className="space-y-2 pt-1">
+                    <span className="text-xs font-bold text-slate-400 block">
+                      Detalhamento das Alíneas (Por que está certa ou errada):
+                    </span>
+                    <div className="space-y-1.5">
+                      {q.options.map((opt: ShuffledAssessmentOption) => {
+                        const isThisCorrect = opt.isCorrect;
+                        const isStudentChoiceThis = studentChoice === opt.displayLetter;
+
+                        return (
+                          <div
+                            key={opt.id}
+                            className={`p-2.5 rounded-xl text-xs border transition ${
+                              isThisCorrect
+                                ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                                : isStudentChoiceThis
+                                ? 'bg-rose-950/30 border-rose-500/40 text-rose-200'
+                                : 'bg-slate-950/40 border-slate-800 text-slate-400'
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <span
+                                className={`px-1.5 py-0.5 rounded font-mono font-bold text-xs shrink-0 ${
+                                  isThisCorrect
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                }`}
+                              >
+                                {opt.displayLetter}
+                              </span>
+                              <div className="flex-1 space-y-1">
+                                <p className="font-medium text-slate-200">{opt.text}</p>
+                                <p
+                                  className={`text-xs ${
+                                    isThisCorrect
+                                      ? 'text-emerald-400 font-semibold'
+                                      : 'text-slate-400 italic'
+                                  }`}
+                                >
+                                  {isThisCorrect ? '✅ Por que está correta: ' : '❌ Por que é incorreta: '}
+                                  {opt.feedback}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* =================================================================== */
+        /* SEÇÃO DE PREENCHIMENTO DO EXAME (QUESTÃO ATIVA COM STEPPER)        */
+        /* =================================================================== */
+        <>
+          {/* STEPPER DE NAVEGAÇÃO */}
+          <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-900/80 border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              {questions.map((q: AssessmentMCQuestion, idx: number) => {
+                const isAnswered = !!mcAnswers[q.id];
+                const isCurrent = idx === activeQuestionIdx;
+
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => {
+                      soundFX.playClick();
+                      setActiveQuestionIdx(idx);
+                    }}
+                    className={`w-9 h-9 rounded-xl font-bold text-xs flex items-center justify-center transition cursor-pointer border ${
+                      isCurrent
+                        ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-900/40 scale-105'
+                        : isAnswered
+                        ? 'bg-blue-950/80 text-blue-300 border-blue-700'
+                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                    }`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Setas Anterior / Próxima */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={activeQuestionIdx === 0}
+                onClick={() => {
+                  soundFX.playClick();
+                  setActiveQuestionIdx((prev: number) => Math.max(0, prev - 1));
+                }}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 transition cursor-pointer disabled:cursor-not-allowed"
+                title="Questão Anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                disabled={activeQuestionIdx === totalQuestions - 1}
+                onClick={() => {
+                  soundFX.playClick();
+                  setActiveQuestionIdx((prev: number) => Math.min(totalQuestions - 1, prev + 1));
+                }}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 transition cursor-pointer disabled:cursor-not-allowed"
+                title="Próxima Questão"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* CARTÃO DA QUESTÃO ATIVA */}
+          {activeQuestion && (
+            <div className="p-5 sm:p-6 rounded-2xl bg-[#0b1322] border border-slate-800 shadow-xl space-y-4">
+              <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg bg-blue-600/30 text-blue-300 border border-blue-500/40 font-black text-xs flex items-center justify-center">
+                    #{activeQuestionIdx + 1}
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">
+                    Questão {activeQuestionIdx + 1} de {totalQuestions}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-cyan-300 px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                    {activeQuestion.points} pts
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">
+                    {activeQuestion.norma || currentExam.norma}
+                  </span>
+                </div>
+              </div>
+
+              {/* Enunciado da Questão */}
+              <div className="space-y-2">
+                <h3 className="text-base sm:text-lg font-bold text-white leading-relaxed">
+                  {activeQuestion.question}
+                </h3>
+                {activeQuestion.scenario && (
+                  <p className="text-xs text-slate-400 italic bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                    📌 Cenário Prático: {activeQuestion.scenario}
+                  </p>
+                )}
+              </div>
+
+              {/* ALTERNATIVAS A, B, C, D */}
+              <div className="space-y-2.5 pt-2">
+                {activeQuestion.options.map((opt: ShuffledAssessmentOption) => {
+                  const isSelected = mcAnswers[activeQuestion.id] === opt.displayLetter;
+
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleSelectOption(activeQuestion.id, opt.displayLetter)}
+                      className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3.5 cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-950/60 border-blue-500 text-blue-100 shadow-md shadow-blue-950/50'
+                          : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`w-7 h-7 shrink-0 rounded-lg font-black text-xs flex items-center justify-center border transition ${
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-400'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {opt.displayLetter}
+                      </span>
+                      <div className="flex-1 text-xs sm:text-sm pt-0.5 leading-relaxed">
+                        {opt.text}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* =================================================================== */}
+      {/* BARRA DE BOTÕES DE FINALIZAÇÃO E ENVIO                             */}
+      {/* =================================================================== */}
+      <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleSubmitExam}
-            disabled={isEvaluating}
-            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs sm:text-sm font-black transition flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+            onClick={() => onAskSara(`Gostaria de ajuda sobre a lição ${lesson.title} (${lesson.norma}) e suas regras normativas.`)}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs flex items-center gap-2 border border-slate-700 transition cursor-pointer"
           >
-            {isEvaluating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Eng. Sara IA está avaliando seu exame...</span>
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                <span>Submeter Avaliação para a Eng. Sara IA</span>
-              </>
-            )}
+            <MessageSquare className="w-4 h-4 text-blue-400" />
+            <span>Tirar Dúvida com Eng. Sara</span>
           </button>
         </div>
-      )}
+
+        <div className="flex items-center gap-2">
+          {!hasEvaluated ? (
+            <button
+              type="button"
+              onClick={handleSubmitExam}
+              disabled={!isAllAnswered || isEvaluating}
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-950 transition cursor-pointer disabled:cursor-not-allowed"
+            >
+              {isEvaluating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              <span>
+                {isAllAnswered
+                  ? 'Submeter Avaliação Oficial (Finalizar)'
+                  : `Responda todas (${answeredCount}/${totalQuestions})`}
+              </span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Baixar PDF (1 Página A4)</span>
+              </button>
+              {currentExam.isPassed && (
+                <button
+                  type="button"
+                  onClick={onGoToLesson}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Avançar para Próxima Aula</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

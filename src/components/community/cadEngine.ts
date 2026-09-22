@@ -21,7 +21,7 @@ export interface Busbar {
 export interface ComponentDef {
   code: string;
   name: string;
-  cat: 'sources' | 'protection' | 'command' | 'motors' | 'automation' | 'electronics' | 'measurement' | 'loads' | 'legacy';
+  cat: 'sources' | 'protection' | 'command' | 'motors' | 'automation' | 'electronics' | 'measurement' | 'loads' | 'legacy' | 'solar';
   icon: string;
   terminals: [string, string, string][];
   kind: string;
@@ -33,6 +33,7 @@ export interface ComponentDef {
 
 export const CATEGORIES: Record<string, string> = {
   all: 'Todos',
+  solar: 'Energia Solar Fotovoltaica',
   busbars: 'Trilhos & Barramentos (DIN)',
   protection: 'Proteção',
   command: 'Comandos & Relés',
@@ -57,6 +58,60 @@ export const WIRE_COLORS: Record<string, string> = {
 };
 
 export const COMPONENT_CATALOG: ComponentDef[] = [
+  // SISTEMAS SOLARES FOTOVOLTAICOS (CC / CA)
+  {
+    code: 'PV_PANEL',
+    name: 'Painel Fotovoltaico Monocristalino (450W / Voc 48V)',
+    cat: 'solar',
+    icon: '☀️',
+    terminals: [['+', 'PWR', '24+'], ['-', 'PWR', '24-'], ['PE', 'PE', 'PE']],
+    kind: 'pv_panel',
+    params: { power: 450, voc: 48, isc: 11.2, vmpp: 41.5, impp: 10.8 }
+  },
+  {
+    code: 'PV_STRINGBOX',
+    name: 'String Box CC Fotovoltaica (DPS CC + Seccionadora 1000V)',
+    cat: 'solar',
+    icon: '📦',
+    terminals: [
+      ['IN+', 'IN', '24+'], ['IN-', 'IN', '24-'],
+      ['OUT+', 'OUT', '24+'], ['OUT-', 'OUT', '24-'],
+      ['PE', 'PE', 'PE']
+    ],
+    kind: 'stringbox',
+    params: { vMax: 1000, spdClass: 'Type II CC' }
+  },
+  {
+    code: 'PV_INVERTER',
+    name: 'Inversor Solar On-Grid MPPT 3.0kW (230V CA)',
+    cat: 'solar',
+    icon: '⚡',
+    terminals: [
+      ['PV+', 'IN', '24+'], ['PV-', 'IN', '24-'],
+      ['L', 'OUT', 'L1'], ['N', 'OUT', 'N'], ['PE', 'PE', 'PE']
+    ],
+    kind: 'pv_inverter',
+    params: { mpptMin: 60, mpptMax: 500, pNom: 3000, eff: 0.975 }
+  },
+  {
+    code: 'PV_SPD_DC',
+    name: 'DPS Fotovoltaico CC (Dispositivo Contra Surtos 600Vdc)',
+    cat: 'solar',
+    icon: '⚡',
+    terminals: [['+', 'IN', '24+'], ['-', 'IN', '24-'], ['PE', 'PE', 'PE']],
+    kind: 'spd_dc',
+    params: { uc: 600, in: 20 }
+  },
+  {
+    code: 'PHOTO_CELL',
+    name: 'Sensor Crepuscular / Fotocélula (10A 230V)',
+    cat: 'automation',
+    icon: '🌓',
+    terminals: [['L', 'PWR', 'L1'], ['N', 'PWR', 'N'], ['LOAD', 'OUT', 'L1']],
+    kind: 'sensor',
+    params: { luxThreshold: 15, delay: 2 }
+  },
+
   // FONTES E ALIMENTAÇÃO
   {
     code: 'SRC_AC1',
@@ -1158,3 +1213,115 @@ export function generateQgdProtectionCircuit(): { components: any[]; wires: any[
 
   return { components, wires };
 }
+
+export function generateSolarPVIsoCircuit(): { components: any[]; wires: any[] } {
+  const components = [
+    {
+      id: 'PV_STR1',
+      code: 'PV_PANEL',
+      x: -360,
+      y: -40,
+      rot: 0,
+      w: 120,
+      h: 80,
+      params: { power: 2700, voc: 288, isc: 11.2, vmpp: 249 },
+      state: { energized: true, running: true },
+      label: 'String FV (6x 450W • 2.7kWp)'
+    },
+    {
+      id: 'SB1',
+      code: 'PV_STRINGBOX',
+      x: -190,
+      y: -40,
+      rot: 0,
+      w: 115,
+      h: 80,
+      params: { vMax: 1000, closed: true },
+      state: { closed: true, tripped: false },
+      label: 'String Box CC + Seccionadora'
+    },
+    {
+      id: 'SPD_DC1',
+      code: 'PV_SPD_DC',
+      x: -190,
+      y: 90,
+      rot: 0,
+      w: 95,
+      h: 70,
+      params: { uc: 600, in: 20 },
+      state: { closed: true, tripped: false },
+      label: 'DPS CC 600Vdc'
+    },
+    {
+      id: 'INV1',
+      code: 'PV_INVERTER',
+      x: -20,
+      y: -40,
+      rot: 0,
+      w: 125,
+      h: 85,
+      params: { pNom: 3000, mpptMin: 60, mpptMax: 500 },
+      state: { energized: true, running: true, gridConnected: true },
+      label: 'Inversor Grid-Tie 3kW MPPT'
+    },
+    {
+      id: 'Q_AC1',
+      code: 'MCB2',
+      x: 140,
+      y: -40,
+      rot: 0,
+      w: 100,
+      h: 75,
+      params: { current: 16, curve: 'C', closed: true },
+      state: { closed: true, tripped: false },
+      label: 'Disjuntor CA Inversor 16A'
+    },
+    {
+      id: 'RCD_PV',
+      code: 'RCD',
+      x: 270,
+      y: -40,
+      rot: 0,
+      w: 105,
+      h: 75,
+      params: { current: 25, leakage: 30, closed: true },
+      state: { closed: true, tripped: false },
+      label: 'IDR 30mA (Tipo B/CA)'
+    },
+    {
+      id: 'LOAD_AC1',
+      code: 'OUTLET',
+      x: 400,
+      y: -40,
+      rot: 0,
+      w: 90,
+      h: 70,
+      params: {},
+      state: { energized: true },
+      label: 'Cargas AC / Quadro QDL'
+    }
+  ];
+
+  const wires = [
+    // CC da String para a String Box
+    { id: 'W_PV1', a: { c: 'PV_STR1', t: '+' }, b: { c: 'SB1', t: 'IN+' }, type: '24+', live: true },
+    { id: 'W_PV2', a: { c: 'PV_STR1', t: '-' }, b: { c: 'SB1', t: 'IN-' }, type: '24-', live: true },
+    // Aterramento da carcaça dos painéis
+    { id: 'W_PE1', a: { c: 'PV_STR1', t: 'PE' }, b: { c: 'SB1', t: 'PE' }, type: 'PE', live: false },
+    // String Box para Inversor Solar
+    { id: 'W_PV3', a: { c: 'SB1', t: 'OUT+' }, b: { c: 'INV1', t: 'PV+' }, type: '24+', live: true },
+    { id: 'W_PV4', a: { c: 'SB1', t: 'OUT-' }, b: { c: 'INV1', t: 'PV-' }, type: '24-', live: true },
+    // Saída CA do Inversor para Disjuntor CA
+    { id: 'W_AC1', a: { c: 'INV1', t: 'L' }, b: { c: 'Q_AC1', t: '1' }, type: 'L1', live: true },
+    { id: 'W_AC2', a: { c: 'INV1', t: 'N' }, b: { c: 'RCD_PV', t: '3' }, type: 'N', live: false },
+    { id: 'W_AC3', a: { c: 'Q_AC1', t: '2' }, b: { c: 'RCD_PV', t: '1' }, type: 'L1', live: true },
+    // Pós IDR para Quadro de Cargas
+    { id: 'W_AC4', a: { c: 'RCD_PV', t: '2' }, b: { c: 'LOAD_AC1', t: 'L' }, type: 'L1', live: true },
+    { id: 'W_AC5', a: { c: 'RCD_PV', t: '4' }, b: { c: 'LOAD_AC1', t: 'N' }, type: 'N', live: false },
+    // Terra Geral
+    { id: 'W_PE2', a: { c: 'INV1', t: 'PE' }, b: { c: 'LOAD_AC1', t: 'PE' }, type: 'PE', live: false }
+  ];
+
+  return { components, wires };
+}
+

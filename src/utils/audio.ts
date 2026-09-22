@@ -338,6 +338,27 @@ class SoundFXManager {
     } catch {}
   }
 
+  /**
+   * Som de acerto em avaliação/quiz acadêmico
+   */
+  public playCorrect() {
+    this.playSuccess();
+  }
+
+  /**
+   * Som de erro/alerta em avaliação/quiz acadêmico
+   */
+  public playIncorrect() {
+    this.playAlert();
+  }
+
+  /**
+   * Som de faísca / arco elétrico instantâneo
+   */
+  public playSparkSound() {
+    this.playShortCircuitSpark();
+  }
+
   // ==========================================================================
   // EFEITOS SONOROS DE CAD ELÉTRICO INDUSTRIAL (WEB AUDIO API SINTETIZADA)
   // ==========================================================================

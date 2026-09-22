@@ -2,8 +2,10 @@ import jsPDF from 'jspdf';
 import { AssessmentAttempt } from '../types/assessment';
 
 /**
- * Gera e realiza download da Folha Oficial de Avaliação Acadêmica em PDF
- * Formatada com cabeçalho acadêmico, detalhamento de questões e selo de parecer.
+ * Gerador de Folha Oficial de Avaliação em PDF (Layout Vertical Compacto - A4).
+ * Estrutura 100% vertical em cards para eliminar tabelas horizontais espremidas,
+ * textos sobrepostos e palavras esticadas.
+ * Rigorosamente contido em exatamente 1 PÁGINA A4 (210mm x 297mm).
  */
 export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   const doc = new jsPDF({
@@ -12,343 +14,292 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     format: 'a4'
   });
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
   const margin = 14;
-  const contentWidth = pageWidth - margin * 2;
-  let cursorY = margin;
+  const contentWidth = pageWidth - margin * 2; // 182mm
+  let cursorY = 11;
 
-  // Função auxiliar para quebra de página automática
-  const checkPageBreak = (neededHeight: number) => {
-    if (cursorY + neededHeight > pageHeight - 15) {
-      doc.addPage();
-      cursorY = margin;
-      renderHeaderMini();
+  const isPassed = attempt.finalScorePercent >= 80;
+  const mcQuestions = attempt.mcQuestions || [];
+  const totalQuestions = mcQuestions.length || 5;
+
+  // Contagem precisa de acertos
+  let correctCount = 0;
+  mcQuestions.forEach(q => {
+    const studentChoice = attempt.mcAnswers[q.id];
+    const correctOpt = q.options.find(o => o.isCorrect);
+    if (studentChoice && correctOpt && studentChoice === correctOpt.displayLetter) {
+      correctCount++;
     }
-  };
+  });
 
-  const renderHeaderMini = () => {
-    doc.setFillColor(15, 23, 42); // slate-900
-    doc.rect(margin, cursorY, contentWidth, 8, 'F');
+  const finalScorePercent = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : attempt.finalScorePercent;
+
+  // ==========================================================================
+  // 1. CABEÇALHO COMPACTO VERTICAL (Height: 32mm)
+  // ==========================================================================
+  doc.setFillColor(10, 25, 47); // Dark Navy #0A192F
+  doc.roundedRect(margin, cursorY, contentWidth, 32, 2, 2, 'F');
+
+  // Marca TécnicaMZ Pro
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12.5);
+  doc.setTextColor(56, 189, 248); // Sky Blue #38BDF8
+  doc.text('TÉCNICAMZ PRO', margin + 5, cursorY + 6.5);
+
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text('FOLHA OFICIAL DE AVALIAÇÃO DE COMPETÊNCIAS TÉCNICAS', margin + 5, cursorY + 11.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(148, 163, 184); // Slate 400
+  doc.text('Padrão Normativo Europeu IEC / EN • Tutoria Oficial: Eng. Sara IA', margin + 5, cursorY + 15.5);
+
+  // Badge em Destaque no Canto Superior Direito (ALCANÇADO / NÃO ALCANÇADO)
+  const badgeW = 44;
+  const badgeH = 11;
+  const badgeX = margin + contentWidth - badgeW - 4;
+  const badgeY = cursorY + 4;
+
+  if (isPassed) {
+    doc.setFillColor(16, 185, 129); // Emerald 500
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text('ALCANÇADO', badgeX + badgeW / 2, badgeY + 4.5, { align: 'center' });
+    doc.setFontSize(6);
+    doc.text('Critério Aprovado (≥ 80%)', badgeX + badgeW / 2, badgeY + 8.5, { align: 'center' });
+  } else {
+    doc.setFillColor(225, 29, 72); // Rose 600
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.5, 1.5, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
-    doc.text('TÉCNICAMZ PRO • ACADEMIA TÉCNICA • FOLHA OFICIAL DE AVALIAÇÃO', margin + 3, cursorY + 5.5);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Cód. Autenticação: ${attempt.authCode}`, pageWidth - margin - 3, cursorY + 5.5, { align: 'right' });
-    cursorY += 12;
-  };
-
-  // ==========================================================================
-  // 1. CABEÇALHO ACADÊMICO OFICIAL
-  // ==========================================================================
-  // Barra Superior com Cor Institucional TécnicaMZ (Azul Escuro / Safira)
-  doc.setFillColor(10, 25, 47);
-  doc.roundedRect(margin, cursorY, contentWidth, 32, 2, 2, 'F');
-
-  // Logo / Título Principal
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(59, 130, 246); // Blue-500
-  doc.text('TÉCNICAMZ PRO', margin + 6, cursorY + 8);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text('FOLHA OFICIAL DE AVALIAÇÃO TÉCNICA E COMPETÊNCIAS', margin + 6, cursorY + 14);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184); // Slate-400
-  doc.text('Formação Profissional Normatizada • Normas Europeias (IEC / EN) e Padrões EDM Moçambique', margin + 6, cursorY + 19);
-
-  // Selo do Código de Autenticação no Cabeçalho
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(pageWidth - margin - 60, cursorY + 5, 54, 18, 1.5, 1.5, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(203, 213, 225);
-  doc.text('AUTENTICAÇÃO ACADÊMICA', pageWidth - margin - 33, cursorY + 10, { align: 'center' });
-  doc.setFont('courier', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(56, 189, 248); // Sky-400
-  doc.text(attempt.authCode, pageWidth - margin - 33, cursorY + 16, { align: 'center' });
-
-  // Linha divisória de status
-  doc.setDrawColor(59, 130, 246);
-  doc.setLineWidth(0.6);
-  doc.line(margin + 6, cursorY + 23, pageWidth - margin - 6, cursorY + 23);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(226, 232, 240);
-  doc.text(`TUTORA OFICIAL: Eng. Sara IA (Diretoria de Normas Técnicas)`, margin + 6, cursorY + 28);
-  doc.text(`EMISSÃO: ${attempt.date}`, pageWidth - margin - 6, cursorY + 28, { align: 'right' });
-
-  cursorY += 36;
-
-  // ==========================================================================
-  // 2. DADOS DO CANDIDATO & UNIDADE DE COMPETÊNCIA
-  // ==========================================================================
-  doc.setFillColor(248, 250, 252); // Off-white / cinza claro
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(margin, cursorY, contentWidth, 22, 1.5, 1.5, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(15, 23, 42);
-  doc.text('CANDIDATO / TÉCNICO:', margin + 4, cursorY + 6);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(51, 65, 85);
-  doc.text(attempt.technicianName || 'Técnico Matriculado', margin + 42, cursorY + 6);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('ELEMENTO DE COMPETÊNCIA:', margin + 4, cursorY + 12);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${attempt.lessonCode} - ${attempt.lessonTitle}`, margin + 50, cursorY + 12);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('MÓDULO & NORMA BASE:', margin + 4, cursorY + 18);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${attempt.moduleTitle} • ${attempt.norma}`, margin + 45, cursorY + 18);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('TENTATIVA:', pageWidth - margin - 35, cursorY + 6);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Nº ${attempt.attemptNumber} ${attempt.attemptNumber > 1 ? '(Reavaliação)' : '(Inicial)'}`, pageWidth - margin - 4, cursorY + 6, { align: 'right' });
-
-  cursorY += 26;
-
-  // ==========================================================================
-  // 3. QUADRO GERAL DE RESULTADO & SELO EM DESTAQUE
-  // ==========================================================================
-  const isPassed = attempt.isPassed;
-  const badgeColor = isPassed ? [16, 185, 129] : [239, 68, 68]; // verde esmeralda ou vermelho carmim
-  const badgeBg = isPassed ? [236, 253, 245] : [254, 242, 242];
-
-  doc.setFillColor(badgeBg[0], badgeBg[1], badgeBg[2]);
-  doc.setDrawColor(badgeColor[0], badgeColor[1], badgeColor[2]);
-  doc.setLineWidth(0.8);
-  doc.roundedRect(margin, cursorY, contentWidth, 24, 2, 2, 'FD');
-
-  // Média e Pontuação
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text('RESULTADO DA AVALIAÇÃO INTEGRADA:', margin + 6, cursorY + 8);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.text(
-    `Múltipla Escolha: ${attempt.mcEarnedPoints}/${attempt.mcTotalPoints} pts  •  Desenvolvimento IA: ${attempt.descEarnedPoints}/${attempt.descTotalPoints} pts`,
-    margin + 6,
-    cursorY + 15
-  );
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(badgeColor[0], badgeColor[1], badgeColor[2]);
-  doc.text(`NOTA FINAL: ${attempt.finalScorePercent}%`, margin + 6, cursorY + 21);
-
-  // Selo Visual em Destaque no Canto Direito
-  doc.setFillColor(badgeColor[0], badgeColor[1], badgeColor[2]);
-  doc.roundedRect(pageWidth - margin - 58, cursorY + 4, 52, 16, 2, 2, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  if (isPassed) {
-    doc.text('ALCANÇA (A)', pageWidth - margin - 32, cursorY + 11, { align: 'center' });
-    doc.setFontSize(7);
-    doc.text('APROVADO NA COMPETÊNCIA', pageWidth - margin - 32, cursorY + 16, { align: 'center' });
-  } else {
-    doc.text('NÃO ALCANÇA (NA)', pageWidth - margin - 32, cursorY + 11, { align: 'center' });
-    doc.setFontSize(7);
-    doc.text('REAVALIAÇÃO OBRIGATÓRIA', pageWidth - margin - 32, cursorY + 16, { align: 'center' });
+    doc.text('NÃO ALCANÇADO', badgeX + badgeW / 2, badgeY + 4.5, { align: 'center' });
+    doc.setFontSize(6);
+    doc.text('Reavaliação Necessária (< 80%)', badgeX + badgeW / 2, badgeY + 8.5, { align: 'center' });
   }
 
-  cursorY += 28;
+  // Linha sutil de divisão no cabeçalho
+  doc.setDrawColor(30, 41, 59);
+  doc.setLineWidth(0.3);
+  doc.line(margin + 5, cursorY + 19, margin + contentWidth - 5, cursorY + 19);
+
+  // Metadados do Aluno e Exame
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(203, 213, 225); // Slate 300
+  const studentNameStr = attempt.technicianName || 'Técnico Autorizado';
+  doc.text(`Aluno: ${studentNameStr}`, margin + 5, cursorY + 24);
+
+  const cleanModule = attempt.moduleTitle.length > 55 ? attempt.moduleTitle.substring(0, 52) + '...' : attempt.moduleTitle;
+  doc.text(`Módulo: ${cleanModule}`, margin + 5, cursorY + 28.5);
+
+  const attemptLabel =
+    attempt.attemptNumber === 1
+      ? '1ª Avaliação Oficial'
+      : attempt.attemptNumber === 2
+      ? '1ª Reavaliação'
+      : '2ª Reavaliação (Final)';
+  doc.text(`Tentativa: ${attemptLabel}`, margin + contentWidth - 62, cursorY + 24);
+  doc.text(`Data: ${attempt.date}`, margin + contentWidth - 62, cursorY + 28.5);
+
+  cursorY += 34.5;
 
   // ==========================================================================
-  // 4. DETALHAMENTO: QUESTÕES DE MÚLTIPLA ESCOLHA
+  // 2. FAIXA DE IDENTIFICAÇÃO DA LIÇÃO & NORMA (Height: 7mm)
   // ==========================================================================
-  checkPageBreak(25);
+  doc.setFillColor(241, 245, 249); // Slate 100
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(margin, cursorY, contentWidth, 7, 1, 1, 'FD');
+
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(30, 58, 138); // Dark blue
-  doc.text('1. QUESTÕES DE MÚLTIPLA ESCOLHA (CENÁRIOS TÉCNICOS)', margin, cursorY);
-  cursorY += 5;
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  const cleanLesson = attempt.lessonTitle.length > 70 ? attempt.lessonTitle.substring(0, 68) + '...' : attempt.lessonTitle;
+  doc.text(`Aula: ${cleanLesson}`, margin + 3.5, cursorY + 4.8);
 
-  attempt.mcQuestions.forEach((q, idx) => {
-    const chosenLetter = attempt.mcAnswers[q.id];
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(2, 132, 199);
+  doc.text(`Ref: ${attempt.norma || 'IEC 60364'} • ID: ${attempt.authCode}`, margin + contentWidth - 3.5, cursorY + 4.8, { align: 'right' });
+
+  cursorY += 9;
+
+  // ==========================================================================
+  // 3. LISTA VERTICAL DE QUESTÕES (CARD LAYOUT VERTICAL) (Height: ~170mm)
+  // 5 Cards Verticais: Sem colunas espremidas, sem palavras quebradas
+  // ==========================================================================
+  const cardHeight = 33.5;
+  const cardGap = 2.2;
+
+  mcQuestions.forEach((q, idx) => {
+    const studentLetter = attempt.mcAnswers[q.id];
     const correctOpt = q.options.find(o => o.isCorrect);
-    const chosenOpt = q.options.find(o => o.displayLetter === chosenLetter);
-    const isCorrect = chosenOpt?.isCorrect === true;
+    const correctLetter = correctOpt?.displayLetter || 'A';
+    const isAnswerCorrect = studentLetter === correctLetter;
 
-    // Altura da caixa calculada ANTES de verificar quebra de página
-    const qTextLines = doc.splitTextToSize(`Questão 1.${idx + 1}: ${q.question}`, contentWidth - 10);
-    const boxHeight = 22 + qTextLines.length * 3.8;
+    const studentOpt = q.options.find(o => o.displayLetter === studentLetter);
 
-    // Evita corte no meio da questão (break-inside: avoid)
-    checkPageBreak(boxHeight + 5);
-
-    doc.setFillColor(250, 250, 250);
-    doc.setDrawColor(226, 232, 240);
+    // Card background
+    doc.setFillColor(248, 250, 252); // Slate 50
+    doc.setDrawColor(226, 232, 240); // Slate 200
     doc.setLineWidth(0.3);
-    doc.roundedRect(margin, cursorY, contentWidth, boxHeight, 1.5, 1.5, 'FD');
+    doc.roundedRect(margin, cursorY, contentWidth, cardHeight, 1.5, 1.5, 'FD');
 
+    // Faixa colorida na lateral esquerda (3mm) indicando Acerto ou Erro
+    doc.setFillColor(isAnswerCorrect ? 16 : 239, isAnswerCorrect ? 185 : 68, isAnswerCorrect ? 129 : 68);
+    doc.roundedRect(margin, cursorY, 3, cardHeight, 1, 1, 'F');
+
+    // Linha Superior do Card: [Q#] e Badge de Status
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.setTextColor(15, 23, 42);
-    doc.text(qTextLines, margin + 4, cursorY + 5.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Questão ${idx + 1} de ${totalQuestions}`, margin + 5.5, cursorY + 4.8);
 
-    let optY = cursorY + 6.5 + qTextLines.length * 3.8;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    // Badge Status [CORRETO ✓] ou [INCORRETO ✗]
+    const statusW = 24;
+    const statusH = 4.8;
+    const statusX = margin + contentWidth - statusW - 3;
+    const statusY = cursorY + 2.2;
 
-    // Resposta assinalada vs Gabarito
-    doc.setTextColor(isCorrect ? 16 : 220, isCorrect ? 149 : 38, isCorrect ? 93 : 38);
-    doc.setFont('helvetica', 'bold');
-    const ansSummary = chosenOpt?.text ? (chosenOpt.text.length > 72 ? chosenOpt.text.substring(0, 72) + '...' : chosenOpt.text) : 'Não respondida';
-    doc.text(
-      `Resposta Assinalada: [ ${chosenLetter || 'N/A'} ] - ${ansSummary}`,
-      margin + 4,
-      optY
-    );
-
-    optY += 4.5;
-    doc.setTextColor(100, 116, 139);
-    doc.setFont('helvetica', 'normal');
-    const gabSummary = correctOpt?.text ? (correctOpt.text.length > 75 ? correctOpt.text.substring(0, 75) + '...' : correctOpt.text) : '';
-    doc.text(`Gabarito Correto: [ ${correctOpt?.displayLetter} ] - ${gabSummary}`, margin + 4, optY);
-
-    // Status da Questão no canto direito
-    doc.setFont('helvetica', 'bold');
-    if (isCorrect) {
-      doc.setTextColor(16, 185, 129);
-      doc.text(`CORRETO (+${q.points} pts)`, pageWidth - margin - 4, cursorY + 5.5, { align: 'right' });
+    if (isAnswerCorrect) {
+      doc.setFillColor(16, 185, 129); // Emerald
+      doc.roundedRect(statusX, statusY, statusW, statusH, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text('CORRETO ✓', statusX + statusW / 2, statusY + 3.4, { align: 'center' });
     } else {
-      doc.setTextColor(239, 68, 68);
-      doc.text(`INCORRETO (0 pts)`, pageWidth - margin - 4, cursorY + 5.5, { align: 'right' });
+      doc.setFillColor(225, 29, 72); // Rose
+      doc.roundedRect(statusX, statusY, statusW, statusH, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text('INCORRETO ✗', statusX + statusW / 2, statusY + 3.4, { align: 'center' });
     }
 
-    cursorY += boxHeight + 4;
-  });
-
-  cursorY += 4;
-
-  // ==========================================================================
-  // 5. DETALHAMENTO: QUESTÃO DE DESENVOLVIMENTO / DESCRITIVA COM CORREÇÃO POR IA
-  // ==========================================================================
-  checkPageBreak(30);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(30, 58, 138);
-  doc.text('2. QUESTÃO DE DESENVOLVIMENTO (AVALIAÇÃO SEMÂNTICA POR IA)', margin, cursorY);
-  cursorY += 5;
-
-  attempt.descQuestions.forEach((dq, idx) => {
-    const studentAnswer = attempt.descAnswers[dq.id] || '(Nenhuma resposta redigida)';
-    const evalResult = attempt.descEvaluations[dq.id];
-
-    const promptLines = doc.splitTextToSize(`Caso Técnico 2.${idx + 1}: ${dq.question}`, contentWidth - 10);
-    const answerLines = doc.splitTextToSize(`Resposta do Candidato:\n"${studentAnswer}"`, contentWidth - 10);
-    const feedbackLines = doc.splitTextToSize(
-      `Parecer Técnico da Tutora Eng. Sara IA: ${evalResult?.technicalFeedback || 'Avaliação pendente'}`,
-      contentWidth - 12
-    );
-
-    const feedbackBoxHeight = feedbackLines.length * 3.4 + 6;
-    const totalHeight = 24 + promptLines.length * 3.8 + answerLines.length * 3.4 + feedbackBoxHeight;
-
-    // Garante que o bloco não quebre ao meio e não vaze para o rodapé
-    checkPageBreak(totalHeight + 6);
-
-    doc.setFillColor(250, 250, 250);
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(margin, cursorY, contentWidth, totalHeight, 1.5, 1.5, 'FD');
-
-    // Título / Enunciado
+    // Enunciado da Questão em 1 a 2 linhas (fonte 8.5pt limpa, com largura de 145mm)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.setTextColor(15, 23, 42);
-    doc.text(promptLines, margin + 4, cursorY + 5.5);
+    doc.setTextColor(15, 23, 42); // Slate 900
+    const qLines = doc.splitTextToSize(q.question, contentWidth - 36);
+    const qLinesTrimmed = qLines.slice(0, 2);
+    doc.text(qLinesTrimmed, margin + 5.5, cursorY + 9.5);
 
-    // Pontuação atribuída pela IA
-    const scoreColor = (evalResult?.scorePercent || 0) >= 80 ? [16, 185, 129] : (evalResult?.scorePercent || 0) >= 50 ? [217, 119, 6] : [239, 68, 68];
-    doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-    doc.setFontSize(7.5);
-    doc.text(
-      `PONTUAÇÃO IA: ${evalResult?.scorePercent ?? 0}% (${evalResult?.earnedPoints ?? 0}/${dq.points} pts) • [ ${evalResult?.verdict || 'AVALIADO'} ]`,
-      pageWidth - margin - 4,
-      cursorY + 5.5,
-      { align: 'right' }
-    );
+    // Linha intermediária: Resposta do Aluno vs Gabarito Oficial (Espaço Amplo Horizontal)
+    const ansY = cursorY + 19;
 
-    let innerY = cursorY + 7.5 + promptLines.length * 3.8;
-
-    // Resposta digitada pelo aluno
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7.5);
-    doc.setTextColor(51, 65, 85);
-    doc.text(answerLines, margin + 4, innerY);
-
-    innerY += answerLines.length * 3.4 + 4;
-
-    // Feedback da Eng. Sara IA (Caixa destacada)
-    doc.setFillColor(238, 242, 255); // Indigo claro
-    doc.roundedRect(margin + 3, innerY - 2, contentWidth - 6, feedbackBoxHeight, 1, 1, 'F');
+    // "Sua Resposta:"
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(67, 56, 202);
-    doc.text(feedbackLines, margin + 5, innerY + 3);
+    doc.setFontSize(7.2);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Sua Resposta:', margin + 5.5, ansY);
 
-    cursorY += totalHeight + 6;
+    doc.setFont('helvetica', 'bold');
+    if (!studentLetter) {
+      doc.setTextColor(148, 163, 184);
+      doc.text('(Não respondida)', margin + 25, ansY);
+    } else {
+      doc.setTextColor(isAnswerCorrect ? 16 : 225, isAnswerCorrect ? 185 : 29, isAnswerCorrect ? 129 : 72);
+      const studentTxt = studentOpt ? studentOpt.text : '';
+      const cleanStudentTxt = studentTxt.length > 48 ? studentTxt.substring(0, 46) + '...' : studentTxt;
+      doc.text(`[${studentLetter}] ${cleanStudentTxt}`, margin + 25, ansY);
+    }
+
+    // "Gabarito Oficial:"
+    const gabX = margin + 102;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.2);
+    doc.setTextColor(5, 150, 105); // Emerald 600
+    doc.text('Gabarito:', gabX, ansY);
+
+    const correctTxt = correctOpt ? correctOpt.text : '';
+    const cleanCorrectTxt = correctTxt.length > 46 ? correctTxt.substring(0, 44) + '...' : correctTxt;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(4, 120, 87);
+    doc.text(`[${correctLetter}] ${cleanCorrectTxt}`, gabX + 13, ansY);
+
+    // Linha Inferior: Fundamentação Técnica e Normativa
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(6.2);
+    doc.setTextColor(100, 116, 139); // Slate 500
+    const explanationText = q.explanation || q.keyTakeaway || '';
+    const cleanExp = explanationText.length > 130 ? explanationText.substring(0, 127) + '...' : explanationText;
+    doc.text(`Norma: ${q.norma || attempt.norma || 'IEC'} • Justificativa: ${cleanExp}`, margin + 5.5, cursorY + 28);
+
+    cursorY += cardHeight + cardGap;
   });
 
-  // ==========================================================================
-  // 6. PARECER TÉCNICO FINAL & ASSINATURA DIGITAL
-  // ==========================================================================
-  checkPageBreak(35);
-  doc.setFillColor(241, 245, 249);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, cursorY, contentWidth, 24, 1.5, 1.5, 'FD');
+  cursorY += 1;
 
+  // ==========================================================================
+  // 4. BLOCO DE RESUMO E VALIDAÇÃO NO RODAPÉ (Height: 28mm)
+  // Total de Acertos, Nota Final (%) e Código de Verificação
+  // ==========================================================================
+  doc.setFillColor(15, 23, 42); // Slate 900
+  doc.roundedRect(margin, cursorY, contentWidth, 28, 2, 2, 'F');
+
+  // Coluna Esquerda: Estatísticas e Autenticidade
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(15, 23, 42);
-  doc.text('PARECER FINAL DA BANCA EXAMINADORA:', margin + 4, cursorY + 6);
+  doc.setFontSize(8.5);
+  doc.setTextColor(56, 189, 248); // Sky Blue
+  doc.text('RESUMO DE DESEMPENHO E APROVEITAMENTO', margin + 5, cursorY + 6.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(71, 85, 105);
-  const parecerText = isPassed
-    ? `O candidato demonstrou competência técnica e conformidade aos preceitos da norma ${attempt.norma}, atingindo média final de ${attempt.finalScorePercent}% (≥ 80%). Certificação de competência deferida com concessão de mérito acadêmico.`
-    : `O candidato obteve pontuação de ${attempt.finalScorePercent}% (< 80%), não atingindo o patamar mínimo de aprovação na competência. Conforme o regimento pedagógico, foi gerada uma reavaliação com novas questões inéditas.`;
-  doc.text(doc.splitTextToSize(parecerText, contentWidth - 8), margin + 4, cursorY + 11);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(30, 58, 138);
-  doc.text('Eng. Sara IA • Diretoria Acadêmica TécnicaMZ Pro', margin + 4, cursorY + 21);
-  doc.text(`Documento gerado em ${attempt.date} • Assinatura Criptográfica Válida`, pageWidth - margin - 4, cursorY + 21, { align: 'right' });
-
-  // ==========================================================================
-  // 7. RODAPÉ INSTITUCIONAL
-  // ==========================================================================
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(148, 163, 184);
+  doc.setTextColor(241, 245, 249);
   doc.text(
-    'TécnicaMZ Pro • EdTech de Engenharia e Eletrotécnica em Moçambique • Registrado sob padrões IEC 60364 / ISO 286 / EDM',
-    pageWidth / 2,
-    pageHeight - 6,
-    { align: 'center' }
+    `Total de Acertos: ${correctCount} de ${totalQuestions} questões (${finalScorePercent}%) • Critério: Mínimo 80% (Padrão IEC / EDM)`,
+    margin + 5,
+    cursorY + 12
   );
 
-  // Download do arquivo
-  const filename = `Avaliacao_TecnicaMZ_${attempt.lessonCode.replace(/\s+/g, '_')}_${attempt.authCode}.pdf`;
-  doc.save(filename);
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(52, 211, 153); // Emerald 400
+  doc.text(`Código de Autenticação Oficial: ${attempt.authCode}`, margin + 5, cursorY + 17);
+
+  // Coluna Direita: Box de Pontuação em Destaque
+  const scoreBoxW = 40;
+  const scoreBoxH = 18;
+  const scoreBoxX = margin + contentWidth - scoreBoxW - 4;
+  const scoreBoxY = cursorY + 4;
+
+  doc.setFillColor(30, 41, 59); // Slate 800
+  doc.setDrawColor(51, 65, 85);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(scoreBoxX, scoreBoxY, scoreBoxW, scoreBoxH, 1.5, 1.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`${finalScorePercent}%`, scoreBoxX + scoreBoxW / 2, scoreBoxY + 8, { align: 'center' });
+
+  doc.setFontSize(7);
+  doc.setTextColor(isPassed ? 52 : 244, isPassed ? 211 : 63, isPassed ? 153 : 94);
+  doc.text(isPassed ? 'ALCANÇADO' : 'NÃO ALCANÇADO', scoreBoxX + scoreBoxW / 2, scoreBoxY + 13.5, { align: 'center' });
+
+  // Assinatura de Certificação
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(5.8);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    'Documento emitido eletronicamente pela Plataforma TécnicaMZ Pro. Reconhecido para fins de histórico e comprovação de proficiência.',
+    margin + 5,
+    cursorY + 23.5
+  );
+
+  // Nome do arquivo PDF
+  const sanitizedTitle = (attempt.lessonTitle || 'Avaliacao')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_')
+    .substring(0, 30);
+  const fileName = `TecnicaMZ_${sanitizedTitle}_Tentativa${attempt.attemptNumber}.pdf`;
+
+  // Salvar PDF
+  doc.save(fileName);
 }

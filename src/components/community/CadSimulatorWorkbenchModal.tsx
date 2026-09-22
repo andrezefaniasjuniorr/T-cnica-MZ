@@ -18,6 +18,7 @@ import {
   generateDirectMotorStarterCircuit,
   generateFourWayLightingCircuit,
   generateQgdProtectionCircuit,
+  generateSolarPVIsoCircuit,
   ComponentDef
 } from './cadEngine';
 import {
@@ -61,12 +62,16 @@ import {
   Eye,
   Settings2,
   FileText,
-  Mic,
-  MicOff,
   Bot,
-  Sparkles
+  Sparkles,
+  Radio,
+  Volume2,
+  VolumeX,
+  Sun
 } from 'lucide-react';
-import { useSaraVoice } from '../../context/SaraVoiceContext';
+import { CadVoiceDiagnosticPanel } from './CadVoiceDiagnosticPanel';
+import { simulatorDiagnostics, DiagnosticEngineState } from '../../services/simulatorVoiceDiagnostics';
+import { voiceOrchestrator } from '../../services/voiceOrchestrator';
 import { generateCadProjectPDF } from '../../utils/saraPdfGenerator';
 
 interface CadSimulatorWorkbenchModalProps {
@@ -357,7 +362,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   }, [project.components, project.busbars, showToast]);
 
   // Carregar Presets Rápidos
-  const loadPreset = useCallback((type: 'motor' | 'four_way' | 'qgd' | 'new') => {
+  const loadPreset = useCallback((type: 'motor' | 'four_way' | 'qgd' | 'solar' | 'new') => {
     pushHistory();
     if (type === 'new') {
       setProject({
@@ -407,6 +412,17 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         updated: Date.now()
       });
       showToast('Quadro QGD carregado');
+    } else if (type === 'solar') {
+      const p = generateSolarPVIsoCircuit();
+      setProject({
+        version: 11,
+        name: 'Sistema Solar Fotovoltaico On-Grid com String Box (IEC 62548)',
+        components: p.components,
+        wires: p.wires,
+        busbars: [],
+        updated: Date.now()
+      });
+      showToast('Sistema Solar Fotovoltaico carregado');
     }
     setSelectedCompId(null);
     setSelectedWireId(null);
@@ -461,16 +477,20 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     showToast(`${cdef.name} adicionado`);
   }, [pushHistory, addEvent, showToast]);
 
-  // Integração da Sara IA com a Bancada de Simulação CAD
-  const {
-    registerCadBridge,
-    isListening: isSaraListening,
-    wakeWordDetected: isSaraWake,
-    toggleListening: toggleSaraVoice
-  } = useSaraVoice();
+  // Avisos Técnicos por Voz & Diagnóstico IEC (Voz Feminina em Português)
+  const [isDiagnosticPanelOpen, setIsDiagnosticPanelOpen] = useState(false);
+  const [diagnosticState, setDiagnosticState] = useState<DiagnosticEngineState>(
+    simulatorDiagnostics.getState()
+  );
 
   useEffect(() => {
-    const unregister = registerCadBridge({
+    const unsub = simulatorDiagnostics.subscribe(s => setDiagnosticState(s));
+    return () => unsub();
+  }, []);
+
+  // Registro da Ponte CAD com o Voice Orchestrator
+  useEffect(() => {
+    const unregister = voiceOrchestrator.registerCadBridge({
       isOpen: true,
       openSimulator: () => {},
       closeSimulator: onClose,
@@ -535,7 +555,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     return () => {
       unregister();
     };
-  }, [registerCadBridge, project, isRunning, addComponentToCanvas, pushHistory, loadPreset, onClose, showToast]);
+  }, [project, isRunning, addComponentToCanvas, pushHistory, loadPreset, onClose, showToast]);
 
   // Girar Componente Selecionado (90°)
   const rotateSelectedComponent = useCallback(() => {
@@ -1394,20 +1414,35 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           ctx.restore();
         });
 
-        // 6. Efeito de Curto-Circuito / Faíscas (Sparks) se houver falha
-        if (st.fault) {
+        // 6. Efeito de Curto-Circuito, Faíscas (Sparks) e Sobrecarga Térmica
+        if (st.fault || st.tripped || st.thermal || st.sparking) {
           ctx.save();
           const p = toScreen({ x: c.x, y: c.y });
-          const count = 8;
-          for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = (15 + Math.random() * 20) * cam.zoom;
-            ctx.strokeStyle = Math.random() > 0.5 ? '#f59e0b' : '#ef4444';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
-            ctx.lineTo(p.x + Math.cos(angle) * dist, p.y + Math.sin(angle) * dist);
-            ctx.stroke();
+          const cw = (c.w || 90) * cam.zoom;
+          const ch = (c.h || 70) * cam.zoom;
+
+          // Brilho Térmico / Sobrecarga
+          if (st.thermal || st.tripped) {
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#ef4444';
+            ctx.shadowBlur = 12;
+            ctx.strokeRect(p.x - cw / 2 - 4, p.y - ch / 2 - 4, cw + 8, ch + 8);
+          }
+
+          // Faíscas elétricas / Sparks
+          if (st.fault || st.sparking || st.tripped) {
+            const count = 10;
+            for (let i = 0; i < count; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const dist = (15 + Math.random() * 25) * cam.zoom;
+              ctx.strokeStyle = Math.random() > 0.5 ? '#f59e0b' : '#ef4444';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(p.x + Math.cos(angle) * dist, p.y + Math.sin(angle) * dist);
+              ctx.stroke();
+            }
           }
           ctx.restore();
         }
@@ -1479,6 +1514,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               soundFX.updateBuzzerSound(!olrOk, true);
             }
 
+            // Disparo de aviso de diagnóstico por voz se relé térmico atuar
+            if (!olrOk && olr && !simRef.current.trippedSet.has(olr.id)) {
+              simRef.current.trippedSet.add(olr.id);
+              simulatorDiagnostics.trigger('IND_THERMAL_RELAY', olr.id);
+            }
+
             // Leituras elétricas True-RMS
             const currentA = isMotorRunning ? 14.8 * (simRef.current.motorRpm / 2920) : kmOn ? 0.35 : 0;
             setMeterV(mcbOn ? 400 : 0);
@@ -1502,6 +1543,23 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             setMeterHz(50);
             setMeterPF(0.95);
           }
+
+          // Monitoramento Normativo Geral de Proteções Atuadas (RCD, MCB, PV)
+          project.components.forEach(c => {
+            if (c.code === 'RCD' && c.state?.tripped && !simRef.current.trippedSet.has(c.id)) {
+              simRef.current.trippedSet.add(c.id);
+              simulatorDiagnostics.trigger('RES_RCD_LEAKAGE', c.id);
+            } else if ((c.code === 'MCB1' || c.code === 'MCB2' || c.code === 'MCB3') && c.state?.tripped && !simRef.current.trippedSet.has(c.id)) {
+              simRef.current.trippedSet.add(c.id);
+              simulatorDiagnostics.trigger('RES_OUTLET_OVERLOAD', c.id);
+            } else if (c.code === 'PV_INVERTER' && c.state?.tripped && !simRef.current.trippedSet.has(c.id)) {
+              simRef.current.trippedSet.add(c.id);
+              simulatorDiagnostics.trigger('PV_ISLANDING', c.id);
+            } else if (c.code === 'PV_SPD_DC' && c.state?.tripped && !simRef.current.trippedSet.has(c.id)) {
+              simRef.current.trippedSet.add(c.id);
+              simulatorDiagnostics.trigger('PV_SPD_TRIPPED', c.id);
+            }
+          });
 
           // Amostragem para Osciloscópio Digital
           simRef.current.scopeHistory.push({
@@ -2105,33 +2163,61 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           >
             <span>🛡️ QGD DR</span>
           </button>
-        </div>
 
-        {/* Ações de Direita: Sara IA, Relatório PDF, Publicar no Mural, Exportar & Fechar */}
-        <div className="flex items-center gap-1.5">
-          {/* Sara IA Voice Control na Bancada */}
           <button
             type="button"
-            onClick={toggleSaraVoice}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
-              isSaraWake
-                ? 'bg-amber-500 text-slate-950 border-amber-300 ring-2 ring-amber-400/50 animate-pulse'
-                : isSaraListening
-                ? 'bg-slate-900 text-emerald-400 border-emerald-500/50 hover:bg-slate-800'
-                : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-white'
-            }`}
-            title={isSaraListening ? 'Sara IA ouvindo: Diga "Sara, adicione contator..."' : 'Ativar Escuta da Sara IA'}
+            onClick={() => loadPreset('solar')}
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 text-xs font-bold border border-slate-800 hover:border-amber-500/40 transition cursor-pointer hidden md:flex items-center gap-1"
+            title="Carregar Sistema Solar Fotovoltaico On-Grid com String Box e Inversor (IEC 62548)"
           >
-            {isSaraWake ? (
-              <Sparkles className="w-3.5 h-3.5 animate-spin text-slate-950" />
-            ) : isSaraListening ? (
-              <Mic className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span>☀️ Solar FV</span>
+          </button>
+        </div>
+
+        {/* Ações de Direita: Avisos de Voz IEC, Relatório PDF, Publicar no Mural, Exportar & Fechar */}
+        <div className="flex items-center gap-1.5">
+          {/* Avisos Técnicos de Voz & Diagnóstico IEC */}
+          <button
+            type="button"
+            onClick={() => setIsDiagnosticPanelOpen(true)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+              diagnosticState.isSpeaking
+                ? 'bg-purple-600/30 text-purple-300 border-purple-500/50 ring-2 ring-purple-500/40 animate-pulse'
+                : diagnosticState.isMuted
+                ? 'bg-slate-900 text-rose-400/80 border-slate-800 hover:bg-slate-800'
+                : 'bg-slate-900 text-indigo-400 border-indigo-500/30 hover:bg-indigo-950/40 hover:text-indigo-300'
+            }`}
+            title="Avisos Técnicos de Voz & Diagnósticos (IEC 60947 / IEC 60364 / IEC 62548)"
+          >
+            {diagnosticState.isSpeaking ? (
+              <Radio className="w-3.5 h-3.5 text-purple-300 animate-spin" />
+            ) : diagnosticState.isMuted ? (
+              <VolumeX className="w-3.5 h-3.5 text-rose-400" />
             ) : (
-              <MicOff className="w-3.5 h-3.5 text-slate-400" />
+              <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
             )}
             <span className="hidden sm:inline">
-              {isSaraWake ? 'Sara Ouvindo...' : isSaraListening ? 'Sara IA Ativa' : 'Sara Voz'}
+              {diagnosticState.isSpeaking ? 'Aviso em Execução...' : 'Voz & Diagnósticos'}
             </span>
+            {diagnosticState.logs.length > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-indigo-500/30 text-indigo-300 border border-indigo-500/40">
+                {diagnosticState.logs.length}
+              </span>
+            )}
+          </button>
+
+          {/* Botão Rápido Mudo / Desmudo */}
+          <button
+            type="button"
+            onClick={() => simulatorDiagnostics.toggleMute()}
+            className={`p-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
+              diagnosticState.isMuted
+                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+            }`}
+            title={diagnosticState.isMuted ? 'Reativar Áudio da Voz' : 'Silenciar Avisos de Voz'}
+          >
+            {diagnosticState.isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
 
           {/* Gerar Relatório Técnico em PDF */}
@@ -3009,6 +3095,53 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         </div>
       )}
+
+      {/* PAINEL MODAL DE AVISOS TÉCNICOS POR VOZ & DIAGNÓSTICO IEC */}
+      <CadVoiceDiagnosticPanel
+        isOpen={isDiagnosticPanelOpen}
+        onClose={() => setIsDiagnosticPanelOpen(false)}
+        onTriggerVisualEffect={(effect, compCode) => {
+          setProject(prev => ({
+            ...prev,
+            components: prev.components.map(c => {
+              if (
+                (compCode && (c.code === compCode || c.id === compCode)) ||
+                (effect === 'thermal' && (c.code === 'OLR' || c.code === 'MCB1' || c.code === 'MCB2' || c.code === 'MCB3')) ||
+                (effect === 'sparks' && (c.code === 'CONTACTOR' || c.code === 'MCB3' || c.code === 'RCD')) ||
+                (effect === 'led_inverter' && c.code === 'PV_INVERTER') ||
+                (effect === 'tripped_breaker' && (c.code === 'MCB1' || c.code === 'MCB2' || c.code === 'MCB3' || c.code === 'RCD'))
+              ) {
+                return {
+                  ...c,
+                  state: {
+                    ...c.state,
+                    tripped: effect === 'tripped_breaker' ? true : c.state.tripped,
+                    thermal: effect === 'thermal',
+                    fault: effect === 'sparks' || effect === 'led_inverter',
+                    sparking: effect === 'sparks'
+                  }
+                };
+              }
+              return c;
+            })
+          }));
+
+          // Reset do efeito temporário após 3.5 segundos
+          setTimeout(() => {
+            setProject(prev => ({
+              ...prev,
+              components: prev.components.map(c => ({
+                ...c,
+                state: {
+                  ...c.state,
+                  thermal: false,
+                  sparking: false
+                }
+              }))
+            }));
+          }, 3500);
+        }}
+      />
     </div>
   );
 };
