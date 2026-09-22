@@ -45,6 +45,7 @@ import {
   autoOrganizeCircuitWiring,
   WIRE_NORM_COLORS
 } from './cadRouting';
+import { generateMuralSnapshot } from './cadSnapshot';
 import {
   Zap,
   Play,
@@ -277,7 +278,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     showToast('Ação refeita');
   }, [project, showToast]);
 
-  // Carregar Circuito Inicial / Preset
+  // Chave de persistência local contínua (Auto-Save)
+  const AUTOSAVE_STORAGE_KEY = 'tecnicamz_cad_autosave';
+
+  // Carregar Circuito Inicial / Recuperar Auto-Save / Primeiro Acesso
   useEffect(() => {
     if (initialCircuit?.cadData?.components && initialCircuit.cadData.components.length > 0) {
       setProject({
@@ -294,53 +298,56 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       setPublishCategory(initialCircuit.category || 'Comandos Elétricos');
       addEvent(`Circuito "${initialCircuit.title}" carregado com sucesso.`);
     } else {
-      // Carrega preset padrão de acordo com circuitType
-      const ctype = initialCircuit?.circuitType || 'direct_motor';
-      if (ctype === 'four_way') {
-        const p = generateFourWayLightingCircuit();
-        setProject({
-          version: 11,
-          name: 'Comutação Four-Way / Three-Way (IEC 60364)',
-          components: p.components,
-          wires: p.wires,
-          busbars: DEFAULT_FOURWAY_BUSBARS,
-          panelConfig: PANEL_PRESETS.compact,
-          updated: Date.now()
-        });
-        setPublishTitle('Comutação Four-Way / Three-Way em 3 Pavimentos (IEC 60364)');
-        setPublishCategory('Instalações Elétricas');
-        setPublishDescription('Esquema de comutação intermediária com 2 Three-Way e 1 Four-Way para acionamento independente de lâmpadas.');
-      } else if (ctype === 'qgd_protection') {
-        const p = generateQgdProtectionCircuit();
-        setProject({
-          version: 11,
-          name: 'Quadro QGD com Proteção IDR 30mA (IEC 60364)',
-          components: p.components,
-          wires: p.wires,
-          busbars: DEFAULT_QGD_BUSBARS,
-          panelConfig: PANEL_PRESETS.medium,
-          updated: Date.now()
-        });
-        setPublishTitle('Quadro de Distribuição QGD com IDR 30mA e Seletividade');
-        setPublishCategory('Proteção & Aterramento');
-        setPublishDescription('Quadro geral de baixa tensão com disjuntor de 63A, IDR 30mA Tipo A e circuitos terminais protegidos.');
-      } else {
-        const p = generateDirectMotorStarterCircuit();
-        setProject({
-          version: 11,
-          name: 'Partida Direta de Motor Trifásico (IEC 60947-4-1)',
-          components: p.components,
-          wires: p.wires,
-          busbars: DEFAULT_MOTOR_BUSBARS,
-          panelConfig: PANEL_PRESETS.large,
-          updated: Date.now()
-        });
-        setPublishTitle('Partida Direta de Motor Trifásico com Selo e Relé Térmico (IEC 60947)');
-        setPublishCategory('Comandos Elétricos');
-        setPublishDescription('Circuito completo de força e comando para motor trifásico 380V (7.5 kW). Inclui coordenação Tipo 2 com disjuntor-motor Q1, contator KM1, relé de sobrecarga F1 e botoeiras S0/S1.');
+      // 1. Verifica se há projeto salvo anteriormente no LocalStorage
+      const savedRaw = localStorage.getItem(AUTOSAVE_STORAGE_KEY);
+      if (savedRaw) {
+        try {
+          const parsed = JSON.parse(savedRaw);
+          if (parsed && (Array.isArray(parsed.components) || Array.isArray(parsed.wires))) {
+            setProject({
+              version: parsed.version || 11,
+              name: parsed.name || 'Projeto Restabelecido',
+              components: parsed.components || [],
+              wires: parsed.wires || [],
+              busbars: parsed.busbars || [],
+              panelConfig: parsed.panelConfig || PANEL_PRESETS.large,
+              updated: Date.now()
+            });
+            setPublishTitle(parsed.name || 'Projeto de Painel Elétrico');
+            addEvent('Projeto anterior recuperado do salvamento local automático.');
+            return;
+          }
+        } catch (e) {
+          console.warn('Erro ao decodificar projeto do localStorage:', e);
+        }
       }
+
+      // 2. Primeiro acesso / sem dados prévios: tela limpa com Card "Criar Novo Projeto"
+      setProject({
+        version: 11,
+        name: 'Novo Projeto de Painel',
+        components: [],
+        wires: [],
+        busbars: [],
+        panelConfig: PANEL_PRESETS.large,
+        updated: Date.now()
+      });
+      setPublishTitle('Novo Projeto de Painel');
+      setPublishCategory('Comandos Elétricos');
+      setPublishDescription('');
+      addEvent('Bancada iniciada em branco. Selecione um modelo ou monte livremente.');
     }
   }, [initialCircuit, addEvent]);
+
+  // Hook de Auto-Save contínuo a cada modificação do circuito
+  useEffect(() => {
+    if (!project) return;
+    try {
+      localStorage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(project));
+    } catch (err) {
+      console.warn('Falha no auto-save do circuito:', err);
+    }
+  }, [project]);
 
   // Função para centralizar / auto-enquadrar circuito na folha
   const handleFit = useCallback(() => {
@@ -708,6 +715,25 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   [pushHistory, addEvent, showToast]
 );
 
+  // Exclusão Segura e Rápida de Condutores (Fios)
+  const deleteWire = useCallback((wireId: string) => {
+    pushHistory();
+    setProject((prev: any) => ({
+      ...prev,
+      wires: (prev.wires || []).filter((w: any) => w.id !== wireId),
+      busbars: (prev.busbars || []).map((b: any) => ({
+        ...b,
+        terminals: (b.terminals || []).map((t: any) =>
+          t.connectedWireId === wireId ? { ...t, isOccupied: false, connectedWireId: undefined } : t
+        )
+      })),
+      updated: Date.now()
+    }));
+    setSelectedWireId(null);
+    soundFX?.playClick?.();
+    showToast('Condutor removido com sucesso');
+  }, [pushHistory, showToast]);
+
   // Excluir Seleção (Componente, Fio ou Barramento)
   const deleteSelected = useCallback(() => {
     if (selectedCompId) {
@@ -722,15 +748,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       soundFX.playClick();
       showToast('Componente removido');
     } else if (selectedWireId) {
-      pushHistory();
-      setProject(prev => ({
-        ...prev,
-        wires: prev.wires.filter(w => w.id !== selectedWireId),
-        updated: Date.now()
-      }));
-      setSelectedWireId(null);
-      soundFX.playClick();
-      showToast('Condutor removido');
+      deleteWire(selectedWireId);
     } else if (selectedBusbarId) {
       pushHistory();
       setProject((prev: any) => ({
@@ -742,7 +760,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       soundFX?.playClick?.();
       showToast('Barramento/Trilho removido');
     }
-  }, [selectedCompId, selectedWireId, selectedBusbarId, pushHistory, showToast]);
+  }, [selectedCompId, selectedWireId, selectedBusbarId, deleteWire, pushHistory, showToast]);
 
   // Teclas de Atalho CAD (Delete, Backspace, Esc, Ctrl+Z)
   useEffect(() => {
@@ -792,16 +810,31 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             simRef.current.trippedSet.delete(compId);
             addEvent(`${d.name}: Proteção / estado resetado.`, 'info');
           } else if (action === 'pulse') {
+            const isNC = c.code === 'PBNC' || (d.params?.closed === true && Boolean(d.momentary));
+            // NF (normalmente fechado): abre o contato ao pulsar e retorna fechado sozinho
+            // NA (normalmente aberto): fecha o contato ao pulsar e retorna aberto sozinho
             st.pressed = true;
-            st.closed = true;
+            st.closed = isNC ? false : true;
+            soundFX?.playClick?.();
+
             setTimeout(() => {
               setProject(curr => ({
                 ...curr,
                 components: curr.components.map(item =>
-                  item.id === compId ? { ...item, state: { ...item.state, pressed: false, closed: d.momentary ? false : item.state.closed } } : item
-                )
+                  item.id === compId
+                    ? {
+                        ...item,
+                        state: {
+                          ...item.state,
+                          pressed: false,
+                          closed: isNC ? true : false
+                        }
+                      }
+                    : item
+                ),
+                updated: Date.now()
               }));
-            }, 300);
+            }, 400);
           } else {
             const nextOn = action === 'toggle' ? !st.closed : action === 'on';
             st.closed = nextOn;
@@ -865,18 +898,33 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   };
 
   const handleExportImage = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = `${(project.name || 'esquema_eletrico').replace(/\s+/g, '_')}.png`;
-    link.click();
-    showToast('Diagrama exportado em PNG de alta resolução');
+    try {
+      const dataUrl = generateMuralSnapshot(project, {
+        title: project.name || 'Diagrama Técnico TécnicaMZ',
+        width: 1600,
+        height: 900
+      });
+      if (!dataUrl) return;
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${(project.name || 'esquema_eletrico').replace(/\s+/g, '_')}.png`;
+      link.click();
+      showToast('Diagrama exportado com enquadramento 100% (Auto-Fit)');
+    } catch {
+      // Fallback para canvas visível
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${(project.name || 'esquema_eletrico').replace(/\s+/g, '_')}.png`;
+      link.click();
+      showToast('Diagrama exportado em PNG');
+    }
   };
 
   // ==========================================================================
-  // CONFIRMAÇÃO DE PUBLICAÇÃO NO MURAL TÉCNICO
+  // CONFIRMAÇÃO DE PUBLICAÇÃO NO MURAL TÉCNICO COM SNAPSHOT HOLÍSTICO (AUTO-FIT)
   // ==========================================================================
   const handleConfirmPublish = async () => {
     if (!publishTitle.trim() || !publishDescription.trim()) {
@@ -886,6 +934,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     setIsPublishing(true);
     try {
+      // Gera snapshot fotográfico 100% enquadrado sem cortes de fios ou painel
+      const snapshotUrl = generateMuralSnapshot(project, {
+        title: publishTitle.trim(),
+        width: 1200,
+        height: 720
+      });
+
       const circuitDataToPublish: CadCircuitProject = {
         title: publishTitle.trim(),
         category: publishCategory,
@@ -901,6 +956,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           components: project.components,
           wires: project.wires,
           busbars: project.busbars || [],
+          panelConfig: project.panelConfig,
+          snapshot: snapshotUrl,
           updated: Date.now()
         }
       };
@@ -1694,6 +1751,44 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     };
   }, [project, isRunning, selectedCompId, selectedWireId, selectedBusbarId, meterV, meterA, showScope, scopeChannel, scopeVoltsDiv, terminalPos]);
 
+  // Helper: Detecção de colisão precisa com cabos e condutores Manhattan
+  const getHitWireId = (
+    worldX: number,
+    worldY: number,
+    wires: any[],
+    components: any[],
+    busbars: any[],
+    zoom: number
+  ): string | null => {
+    const threshold = 14 / Math.max(0.2, zoom);
+    for (let i = wires.length - 1; i >= 0; i--) {
+      const wire = wires[i];
+      const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, components, busbars);
+      const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, components, busbars);
+      const pts = calculateManhattanPath(posA, posB, i, wire.waypoints);
+      for (let j = 0; j < pts.length - 1; j++) {
+        const p1 = pts[j];
+        const p2 = pts[j + 1];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const lenSq = dx * dx + dy * dy;
+        let dist = 0;
+        if (lenSq === 0) {
+          dist = Math.hypot(worldX - p1.x, worldY - p1.y);
+        } else {
+          const t = Math.max(0, Math.min(1, ((worldX - p1.x) * dx + (worldY - p1.y) * dy) / lenSq));
+          const projX = p1.x + t * dx;
+          const projY = p1.y + t * dy;
+          dist = Math.hypot(worldX - projX, worldY - projY);
+        }
+        if (dist <= threshold) {
+          return wire.id;
+        }
+      }
+    }
+    return null;
+  };
+
   // ==========================================================================
   // EVENTOS DE MOUSE / TOQUE NO CANVAS (PAN, ZOOM, SELEÇÃO, FIOS, MULTITOUCH)
   // ==========================================================================
@@ -1872,12 +1967,19 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         simRef.current.drag.offsetX = worldX - c.x;
         simRef.current.drag.offsetY = worldY - c.y;
 
-        // Inicia o timer de 400ms para abrir a janela de propriedades
-        simRef.current.longPressTimer = setTimeout(() => {
-          setShowProps(true);
-          soundFX?.playClick?.();
-          simRef.current.longPressTimer = null;
-        }, 400);
+        const d = getComponentDef(c.code);
+        const isMomentary = Boolean(d.momentary) || d.kind === 'push' || c.code === 'PBNO' || c.code === 'PBNC';
+        if (isMomentary) {
+          // Dispara pulso automático instantâneo com retorno programado (Item D)
+          triggerComponentCommand(c.id, 'pulse');
+        } else {
+          // Inicia o timer de 400ms para abrir a janela de propriedades
+          simRef.current.longPressTimer = setTimeout(() => {
+            setShowProps(true);
+            soundFX?.playClick?.();
+            simRef.current.longPressTimer = null;
+          }, 400);
+        }
 
         return;
       }
@@ -1904,6 +2006,25 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         soundFX?.playClick?.();
         return;
       }
+    }
+
+    // 3.5 Toque / Seleção de Condutor (Fio) (Item A)
+    const hitWireId = getHitWireId(
+      worldX,
+      worldY,
+      project.wires,
+      project.components,
+      project.busbars || [],
+      cam.zoom
+    );
+    if (hitWireId) {
+      setSelectedWireId(hitWireId);
+      setSelectedCompId(null);
+      setSelectedBusbarId(null);
+      setShowProps(false);
+      soundFX?.playClick?.();
+      simRef.current.drag.mode = 'pan';
+      return;
     }
 
     // 4. Toque em área vazia
@@ -2076,8 +2197,9 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       const c = project.components.find((item: any) => item.id === compId);
       if (c) {
         const d = getComponentDef(c.code);
-        if (d.momentary) {
-          triggerComponentCommand(c.id, 'pulse');
+        const isMomentary = Boolean(d.momentary) || d.kind === 'push' || c.code === 'PBNO' || c.code === 'PBNC';
+        if (isMomentary) {
+          // Pulso automático instantâneo já acionado no toque (PointerDown)
         } else if (d.kind === 'breaker' || d.kind === 'breaker3' || d.kind === 'switch' || d.kind === 'selector') {
           triggerComponentCommand(c.id, 'toggle');
         }
@@ -2429,6 +2551,114 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         {toastMessage && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-xl bg-slate-900/90 border border-blue-500/40 text-blue-200 text-xs font-black shadow-2xl backdrop-blur-md">
             {toastMessage}
+          </div>
+        )}
+
+        {/* BARRA FLUTUANTE DE CONDUTOR SELECIONADO COM EXCLUSÃO RÁPIDA (ITEM A) */}
+        {selectedWireId && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-[#0F172A]/95 border border-sky-500/60 shadow-2xl backdrop-blur-md px-3.5 py-1.5 rounded-2xl animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
+              <span className="text-xs font-black text-sky-200">
+                Condutor Selecionado ({project.wires.find(w => w.id === selectedWireId)?.type || 'L1'})
+              </span>
+            </div>
+            <div className="h-4 w-px bg-slate-700 mx-1" />
+            <button
+              type="button"
+              onClick={() => deleteWire(selectedWireId)}
+              className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+              title="Excluir Condutor (Tecla Delete / Backspace)"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Excluir Fio</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedWireId(null)}
+              className="p-1 rounded-lg text-slate-400 hover:text-white ml-1"
+              title="Desmarcar Seleção"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* CARD INTERATIVO DE PRIMEIRO ACESSO: CRIAR NOVO PROJETO (ITEM C) */}
+        {project.components.length === 0 && (!project.busbars || project.busbars.length === 0) && (
+          <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-20">
+            <div className="pointer-events-auto max-w-md w-full bg-[#0A1224]/95 border border-blue-500/40 rounded-3xl p-6 shadow-2xl backdrop-blur-md text-center space-y-4 animate-in fade-in zoom-in-95">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-2xl mx-auto shadow-lg shadow-blue-900/40">
+                ⚡
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Criar Novo Projeto CAD</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Bancada limpa pronta para montagem. Escolha um modelo industrial pronto ou crie do zero.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-left pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadPreset('motor');
+                    showToast('Modelo de Partida Direta carregado');
+                  }}
+                  className="p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/50 transition cursor-pointer flex flex-col gap-1 text-xs"
+                >
+                  <span className="font-black text-blue-400 flex items-center gap-1">⚡ Partida 3F</span>
+                  <span className="text-[10px] text-slate-400">Motor Trifásico com Selo e Relé Térmico</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadPreset('qgd');
+                    showToast('Modelo Quadro QGD carregado');
+                  }}
+                  className="p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/50 transition cursor-pointer flex flex-col gap-1 text-xs"
+                >
+                  <span className="font-black text-emerald-400 flex items-center gap-1">🛡️ Quadro QGD</span>
+                  <span className="text-[10px] text-slate-400">Proteção com IDR 30mA e Disjuntores</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadPreset('four_way');
+                    showToast('Modelo Four-Way carregado');
+                  }}
+                  className="p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/50 transition cursor-pointer flex flex-col gap-1 text-xs"
+                >
+                  <span className="font-black text-amber-400 flex items-center gap-1">💡 Four-Way</span>
+                  <span className="text-[10px] text-slate-400">Comutação paralela e intermediária</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadPreset('solar');
+                    showToast('Modelo Solar FV carregado');
+                  }}
+                  className="p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/50 transition cursor-pointer flex flex-col gap-1 text-xs"
+                >
+                  <span className="font-black text-sky-400 flex items-center gap-1">☀️ Solar FV</span>
+                  <span className="text-[10px] text-slate-400">String Box CC + Inversor On-Grid</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLibrary(true);
+                  showToast('Biblioteca aberta. Arraste ou clique para adicionar componentes.');
+                }}
+                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition cursor-pointer shadow-lg shadow-blue-900/40"
+              >
+                + Começar do Zero (Abrir Biblioteca)
+              </button>
+            </div>
           </div>
         )}
 
@@ -3259,56 +3489,56 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         )}
       </div>
 
-      {/* 3. DOCK MOBILE DE NAVEGAÇÃO RÁPIDA (SOMENTE TELAS PEQUENAS) */}
-      <footer className="sm:hidden h-14 bg-[#0A1224] border-t border-slate-800 flex items-center justify-around px-2 z-30 shrink-0">
+      {/* 3. DOCK MOBILE DE NAVEGAÇÃO RÁPIDA (RESPONSIVO: RETRATO E PAISAGEM - ITEM B) */}
+      <footer className="flex sm:hidden landscape:flex h-13 landscape:h-9 bg-[#0A1224]/95 border-t border-slate-800 items-center justify-around px-2 z-30 shrink-0 backdrop-blur-md">
         <button
           type="button"
           onClick={() => setShowLibrary(!showLibrary)}
-          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
+          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold ${
             showLibrary ? 'text-blue-400' : 'text-slate-400'
           }`}
         >
-          <Layers className="w-4 h-4" />
+          <Layers className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Biblioteca</span>
         </button>
 
         <button
           type="button"
           onClick={() => setShowProps(!showProps)}
-          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
+          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold ${
             showProps && selectedComponent ? 'text-blue-400' : 'text-slate-400'
           }`}
         >
-          <Sliders className="w-4 h-4" />
+          <Sliders className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Propriedades</span>
         </button>
 
         <button
           type="button"
           onClick={() => setShowScope(!showScope)}
-          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
+          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold ${
             showScope ? 'text-blue-400' : 'text-slate-400'
           }`}
         >
-          <Activity className="w-4 h-4" />
+          <Activity className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Osciloscópio</span>
         </button>
 
         <button
           type="button"
           onClick={handleFit}
-          className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-slate-400"
+          className="flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold text-slate-400 hover:text-white"
         >
-          <Maximize2 className="w-4 h-4" />
+          <Maximize2 className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Enquadrar</span>
         </button>
 
         <button
           type="button"
           onClick={() => setIsPublishDialogOpen(true)}
-          className="flex flex-col items-center gap-0.5 text-[10px] font-black text-amber-300"
+          className="flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-black text-amber-300"
         >
-          <Zap className="w-4 h-4 fill-amber-300" />
+          <Zap className="w-4 h-4 landscape:w-3.5 landscape:h-3.5 fill-amber-300" />
           <span>Publicar</span>
         </button>
       </footer>

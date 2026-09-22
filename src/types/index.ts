@@ -676,6 +676,7 @@ export interface CadCircuitProject {
     wires: any[];
     busbars?: Busbar[];
     panelConfig?: PanelEnclosureConfig;
+    snapshot?: string;
     updated?: number;
   };
 }
