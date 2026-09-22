@@ -88,7 +88,7 @@ export class VoiceOrchestrator {
   private transcript: string = '';
   private lastCommand: string = '';
   private lastResponse: string = '';
-  private femaleVoiceName: string = 'Padrão Feminino';
+  private femaleVoiceName: string = 'Português';
   private lastSizingResult: SizingResult | null = null;
   private activeToolFeedback: string | null = null;
   private hasPermission: boolean | null = null;
@@ -155,42 +155,74 @@ export class VoiceOrchestrator {
     const voices = window.speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return;
 
-    const ptVoices = voices.filter((v: any) => v.lang && (v.lang.startsWith('pt') || v.lang.includes('pt-BR') || v.lang.includes('pt-PT')));
+    // Filtre EXCLUSIVAMENTE por vozes com a propriedade .lang iniciando em 'pt' (ex: 'pt-PT', 'pt-BR')
+    const ptVoices = voices.filter((v: any) => {
+      const lang = (v.lang || '').toLowerCase();
+      const name = (v.name || '').toLowerCase();
 
-    // Busca preferencial por vozes femininas reconhecidas
-    const preferredNames = [
+      // NUNCA selecione a voz 'en-US' ou qualquer voz configurada em inglês
+      if (
+        lang.startsWith('en') ||
+        name.includes('english') ||
+        name.includes('estados unidos') ||
+        name.includes('united states') ||
+        name.includes('us english')
+      ) {
+        return false;
+      }
+
+      return lang.startsWith('pt') || name.includes('português') || name.includes('portugues');
+    });
+
+    if (ptVoices.length === 0) {
+      // Se ainda não houver vozes PT carregadas pelo SO/navegador, NUNCA selecione voz em inglês!
+      this.selectedVoice = null;
+      this.femaleVoiceName = 'Português';
+      this.notify();
+      return;
+    }
+
+    // Busca preferencial por vozes com perfil feminino em português
+    const femaleKeywords = [
       'luciana',
       'joana',
       'helena',
       'google português',
+      'google portugues',
       'francisca',
       'maria',
       'raquel',
       'fernanda',
       'vitória',
+      'vitoria',
       'leticia',
+      'letícia',
       'yara',
       'camila',
       'ines',
-      'female'
+      'inês',
+      'catarina',
+      'female',
+      'mulher',
+      'feminina'
     ];
 
     let chosen = ptVoices.find((v: any) => {
       const n = (v.name || '').toLowerCase();
-      return preferredNames.some(p => n.includes(p));
+      return femaleKeywords.some(f => n.includes(f));
     });
 
-    if (!chosen && ptVoices.length > 0) {
-      chosen = ptVoices.find((v: any) => (v.name || '').toLowerCase().includes('google') || v.lang === 'pt-BR') || ptVoices[0];
-    }
-
-    if (!chosen && voices.length > 0) {
-      chosen = voices[0];
+    // Se nenhuma tiver nome explicitamente feminino, seleciona a primeira voz do catálogo em português
+    if (!chosen) {
+      chosen = ptVoices.find((v: any) => {
+        const lang = (v.lang || '').toLowerCase();
+        return lang.includes('pt-pt') || lang.includes('pt-br');
+      }) || ptVoices[0];
     }
 
     if (chosen) {
       this.selectedVoice = chosen;
-      this.femaleVoiceName = chosen.name;
+      this.femaleVoiceName = 'Português';
       this.notify();
     }
   }
@@ -209,8 +241,11 @@ export class VoiceOrchestrator {
       const utterance = new SpeechSynthesisUtterance(text);
       if (this.selectedVoice) {
         utterance.voice = this.selectedVoice;
+        utterance.lang = this.selectedVoice.lang || 'pt-PT';
+      } else {
+        // NUNCA inglês: forçar idioma português do sintetizador
+        utterance.lang = 'pt-PT';
       }
-      utterance.lang = this.selectedVoice?.lang || 'pt-BR';
       utterance.pitch = 1.12; // Tom feminino natural e caloroso
       utterance.rate = 1.02;
 
@@ -282,7 +317,7 @@ export class VoiceOrchestrator {
       const recognition = new SpeechRecognitionClass();
       recognition.continuous = true;
       recognition.interimResults = false;
-      recognition.lang = 'pt-BR';
+      recognition.lang = 'pt-PT'; // Ou 'pt-BR'
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
@@ -304,6 +339,7 @@ export class VoiceOrchestrator {
         const lastResult = event.results[resultsLen - 1];
         if (!lastResult || !lastResult[0]) return;
 
+        // No evento onresult, capture o áudio e converta para caixa baixa (transcript.toLowerCase())
         const rawTranscript = String(lastResult[0].transcript || '').trim();
         if (!rawTranscript) return;
 
@@ -341,18 +377,20 @@ export class VoiceOrchestrator {
         this.isRecognizing = false;
         this.notify();
 
-        // Auto-Restart e Reconexão Silenciosa
+        // Auto-Restart em caso de desconexão: force o reinício imediato para manter a escuta ativamente aguardando o gatilho "Sara"
         if (this.isListeningDesired) {
-          if (this.restartTimer) clearTimeout(this.restartTimer);
-          this.restartTimer = setTimeout(() => {
-            if (this.isListeningDesired && !this.isSpeaking) {
-              try {
-                this.recognition?.start();
-              } catch (startErr: any) {
-                // Se já estiver rodando ou ocupado, ignora
+          try {
+            recognition.start();
+          } catch (err: any) {
+            if (this.restartTimer) clearTimeout(this.restartTimer);
+            this.restartTimer = setTimeout(() => {
+              if (this.isListeningDesired && !this.isSpeaking) {
+                try {
+                  this.recognition?.start();
+                } catch (startErr: any) {}
               }
-            }
-          }, 300);
+            }, 80);
+          }
         }
       };
 
@@ -404,10 +442,35 @@ export class VoiceOrchestrator {
   // 3. PIPELINE DE EXECUÇÃO SINCRONIZADA E DEDUPLICAÇÃO
   // ==========================================================================
   public async handleCapturedTranscript(raw: string): Promise<void> {
-    const match = raw.match(WAKE_WORD_PATTERN);
+    if (!raw) return;
 
-    // Regra Estrita: Se não contiver a Wake Word ("Engenheira Sara", "Sara", "Sara IA"), descarta em silêncio
-    if (!match) {
+    // Converte para caixa baixa
+    const lower = raw.trim().toLowerCase();
+
+    // Verifique se a frase inicia com "sara", "engenheira sara" ou "sara ia"
+    let isTriggered = false;
+    let command = '';
+
+    if (lower.startsWith('engenheira sara')) {
+      isTriggered = true;
+      command = lower.replace(/^engenheira\s+sara[\s,:!-.]*/, '').trim();
+    } else if (lower.startsWith('sara ia')) {
+      isTriggered = true;
+      command = lower.replace(/^sara\s+ia[\s,:!-.]*/, '').trim();
+    } else if (lower.startsWith('sara')) {
+      isTriggered = true;
+      command = lower.replace(/^sara[\s,:!-.]*/, '').trim();
+    } else {
+      // Suporte também a saudações colloquiais diretas ("olá sara", "oi sara", "ei sara")
+      const match = lower.match(/^(?:ei|ó|olá|oi)\s+(?:engenheira\s+sara|sara\s+ia|sara)\b[\s,:!-.]*(.*)$/);
+      if (match) {
+        isTriggered = true;
+        command = (match[1] || '').trim();
+      }
+    }
+
+    // Regra Estrita: Se não contiver a Wake Word, descarta em silêncio
+    if (!isTriggered) {
       return;
     }
 
@@ -423,9 +486,7 @@ export class VoiceOrchestrator {
 
     soundFX?.playSaraWake?.();
 
-    // Extrai o comando retirando a Wake Word
-    let command = (match[1] || '').replace(/^[,:;!-.\s]+/, '').trim();
-    const commandToLog = command || raw;
+    const commandToLog = command || lower;
 
     // Deduplicação Inteligente (impede que frases repetidas pelo browser em <2.5s executem 2x)
     const now = Date.now();
@@ -445,11 +506,12 @@ export class VoiceOrchestrator {
       // 1. Saudação padrão ou pergunta de conexão
       if (
         !command ||
-        /^(ola|oi|bom dia|boa tarde|boa noite|ola sara|oi sara|tudo bem|como esta|estas ai|voce esta ai)$/i.test(command) ||
+        /^(ola|oi|bom dia|boa tarde|boa noite|tudo bem|como esta|estas ai|voce esta ai|esta ai)$/i.test(command) ||
         command.includes('conectada') ||
         command.includes('conexao') ||
         command.includes('esta conectada') ||
-        command.includes('voce esta conectada')
+        command.includes('voce esta conectada') ||
+        command.includes('plataforma')
       ) {
         const greeting = OFFICIAL_GREETING_RESPONSE;
         this.lastResponse = greeting;

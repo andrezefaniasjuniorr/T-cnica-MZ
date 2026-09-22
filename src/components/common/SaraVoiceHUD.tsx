@@ -102,7 +102,7 @@ export const SaraVoiceHUD: React.FC<SaraVoiceHUDProps> = ({ onOpenSaraChat }) =>
                     </span>
                   </div>
                   <span className="text-[10px] text-slate-400 block truncate max-w-[180px]">
-                    Voz: {femaleVoiceName}
+                    Voz: Português
                   </span>
                 </div>
               </div>
