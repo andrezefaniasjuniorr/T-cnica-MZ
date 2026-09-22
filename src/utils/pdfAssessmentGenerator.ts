@@ -3,8 +3,7 @@ import { AssessmentAttempt } from '../types/assessment';
 
 /**
  * Gerador de Folha Oficial de Avaliação em PDF (Layout Vertical Acadêmico - A4).
- * Correção definitiva de kerning (espaçamento de letras), margens laterais e altura total.
- * Mantido rigorosamente em 1 PÁGINA A4.
+ * Correção matemática rigorosa de largura para impedir vazamento em qualquer resolução.
  */
 export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   const doc = new jsPDF({
@@ -13,10 +12,10 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     format: 'a4'
   });
 
-  // Configurações de Tamanho do Papel (A4: 210mm x 297mm)
+  // Dimensões Rígidas do Papel A4 (210mm x 297mm)
   const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
-  const margin = 12; // Margem de 12mm de cada lado
-  const contentWidth = pageWidth - margin * 2; // 186mm úteis
+  const margin = 12; // 12mm de margem esquerda/direita
+  const contentWidth = pageWidth - margin * 2; // 186mm exatos de largura útil
   let cursorY = 10;
 
   const isPassed = attempt.finalScorePercent >= 80;
@@ -36,9 +35,9 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   const finalScorePercent = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : attempt.finalScorePercent;
 
   /**
-   * Função Auxiliar: Impressão Segura sem deformação de letras e sem estourar margem.
+   * Função de Impressão Rígida com Margem de Segurança Embutida
    */
-  const printSafeText = (
+  const printSafeBlock = (
     text: string,
     x: number,
     y: number,
@@ -51,28 +50,25 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     doc.setFont('helvetica', fontStyle);
     doc.setFontSize(fontSize);
     doc.setTextColor(color[0], color[1], color[2]);
-    
-    // Normaliza espaços extras no texto para evitar letras separadas
+
     const cleanText = (text || '').replace(/\s+/g, ' ').trim();
+    // splitTextToSize com limite estrito de largura em mm
+    const lines = doc.splitTextToSize(cleanText, maxWidth);
+    const linesToPrint = lines.slice(0, maxLines);
     
-    // Quebra o texto estritamente dentro da largura máxima fornecida
-    const rawLines = doc.splitTextToSize(cleanText, maxWidth);
-    const linesToPrint = rawLines.slice(0, maxLines);
-    
-    // Configura altura de linha proporcional (1.15) para evitar sobreposição ou letras esticadas
-    const lineHeight = (fontSize * 0.3527) * 1.15; // conversão pt para mm
+    const lineHeight = (fontSize * 0.3527) * 1.2; // Altura de linha em mm
     
     linesToPrint.forEach((line: string, index: number) => {
       doc.text(line, x, y + (index * lineHeight));
     });
 
-    return linesToPrint.length;
+    return linesToPrint.length * lineHeight;
   };
 
   // ==========================================================================
   // 1. CABEÇALHO ACADÊMICO COMPACTO (Altura: 28mm)
   // ==========================================================================
-  doc.setFillColor(15, 23, 42); // Dark Navy #0F172A
+  doc.setFillColor(15, 23, 42); // Dark Navy
   doc.roundedRect(margin, cursorY, contentWidth, 28, 1.5, 1.5, 'F');
 
   // Marca
@@ -90,7 +86,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   doc.setTextColor(148, 163, 184);
   doc.text('Padrão Normativo Europeu IEC / EN • Tutoria: Eng. Sara IA', margin + 4, cursorY + 13);
 
-  // Badge de Status
+  // Badge Status
   const badgeW = 36;
   const badgeH = 9;
   const badgeX = margin + contentWidth - badgeW - 4;
@@ -123,12 +119,12 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
 
   // Dados do Aluno e Módulo
   const studentName = attempt.technicianName || 'Técnico Autorizado';
-  printSafeText(`Aluno: ${studentName}`, margin + 4, cursorY + 18, 110, 6.5, 'normal', [226, 232, 240], 1);
-  printSafeText(`Módulo: ${attempt.moduleTitle}`, margin + 4, cursorY + 22.5, 110, 6.5, 'normal', [203, 213, 225], 1);
+  printSafeBlock(`Aluno: ${studentName}`, margin + 4, cursorY + 18, 110, 6.5, 'normal', [226, 232, 240], 1);
+  printSafeBlock(`Módulo: ${attempt.moduleTitle}`, margin + 4, cursorY + 22.5, 110, 6.5, 'normal', [203, 213, 225], 1);
 
   const attemptLabel = attempt.attemptNumber === 1 ? '1ª Avaliação Oficial' : `${attempt.attemptNumber - 1}ª Reavaliação`;
-  printSafeText(`Tentativa: ${attemptLabel}`, margin + 120, cursorY + 18, 58, 6.5, 'normal', [226, 232, 240], 1);
-  printSafeText(`Data: ${attempt.date}`, margin + 120, cursorY + 22.5, 58, 6.5, 'normal', [203, 213, 225], 1);
+  printSafeBlock(`Tentativa: ${attemptLabel}`, margin + 120, cursorY + 18, 58, 6.5, 'normal', [226, 232, 240], 1);
+  printSafeBlock(`Data: ${attempt.date}`, margin + 120, cursorY + 22.5, 58, 6.5, 'normal', [203, 213, 225], 1);
 
   cursorY += 30;
 
@@ -140,7 +136,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   doc.setLineWidth(0.2);
   doc.roundedRect(margin, cursorY, contentWidth, 6.5, 1, 1, 'FD');
 
-  printSafeText(`Aula: ${attempt.lessonTitle}`, margin + 3, cursorY + 4, 120, 6.5, 'bold', [15, 23, 42], 1);
+  printSafeBlock(`Aula: ${attempt.lessonTitle}`, margin + 3, cursorY + 4, 115, 6.5, 'bold', [15, 23, 42], 1);
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
@@ -150,7 +146,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   cursorY += 8;
 
   // ==========================================================================
-  // 3. ESTRUTURA VERTICAL DAS QUESTÕES (CARDS COM LARGURA RIGOROSA)
+  // 3. ESTRUTURA VERTICAL DAS QUESTÕES (CARDS ULTRA-SEGUROS)
   // ==========================================================================
   const cardHeight = 36;
   const cardGap = 2;
@@ -168,12 +164,12 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     doc.setLineWidth(0.2);
     doc.roundedRect(margin, cursorY, contentWidth, cardHeight, 1, 1, 'FD');
 
-    // Indicador Lateral Acerto / Erro
+    // Faixa Lateral de Status
     doc.setFillColor(isAnswerCorrect ? 16 : 225, isAnswerCorrect ? 185 : 29, isAnswerCorrect ? 129 : 72);
     doc.roundedRect(margin, cursorY, 2.5, cardHeight, 0.8, 0.8, 'F');
 
-    // Cabeçalho da Questão + Status
-    printSafeText(`Questão ${idx + 1} de ${totalQuestions}`, margin + 5, cursorY + 4, 80, 7, 'bold', [30, 41, 59], 1);
+    // Título da Questão + Badge Status
+    printSafeBlock(`Questão ${idx + 1} de ${totalQuestions}`, margin + 5, cursorY + 4, 80, 7, 'bold', [30, 41, 59], 1);
 
     const statusW = 20;
     const statusH = 4;
@@ -187,36 +183,26 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     doc.setTextColor(255, 255, 255);
     doc.text(isAnswerCorrect ? 'CORRETO ✓' : 'INCORRETO ✗', statusX + statusW / 2, statusY + 2.7, { align: 'center' });
 
-    // Enunciado (Max 2 linhas, limitado à largura útil de 150mm)
-    printSafeText(q.question, margin + 5, cursorY + 8.5, contentWidth - 30, 6.5, 'normal', [15, 23, 42], 2);
+    // Enunciado (Largura máxima 150mm - Proibido vazar)
+    printSafeBlock(q.question, margin + 5, cursorY + 8.2, contentWidth - 28, 6.2, 'normal', [15, 23, 42], 2);
 
-    // Bloco de Respostas
-    const respY = cursorY + 17.5;
-    const colWidth = (contentWidth - 14) / 2; // ~86mm por coluna
+    // Bloco Estruturado de Respostas (Largura útil de 84mm cada coluna)
+    const respY = cursorY + 17;
+    const colWidth = 84;
 
     // Coluna 1: Sua Resposta
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6);
-    doc.setTextColor(71, 85, 105);
-    doc.text('Sua Resposta:', margin + 5, respY);
-
-    const studentText = studentLetter ? `[${studentLetter}] ${studentOpt?.text || ''}` : '(Não respondida)';
+    const studentText = studentLetter ? `Sua Resposta: [${studentLetter}] ${studentOpt?.text || ''}` : 'Sua Resposta: (Não respondida)';
     const studentColor: [number, number, number] = isAnswerCorrect ? [16, 185, 129] : [225, 29, 72];
-    printSafeText(studentText, margin + 5, respY + 3.2, colWidth, 5.8, 'bold', studentColor, 2);
+    printSafeBlock(studentText, margin + 5, respY, colWidth, 5.8, 'bold', studentColor, 2);
 
     // Coluna 2: Guia Oficial
-    const guiaX = margin + 7 + colWidth;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6);
-    doc.setTextColor(5, 150, 105);
-    doc.text('Guia Oficial:', guiaX, respY);
+    const guiaX = margin + 5 + colWidth + 4; // 12 + 5 + 84 + 4 = 105mm
+    const correctText = `Guia Oficial: [${correctLetter}] ${correctOpt?.text || ''}`;
+    printSafeBlock(correctText, guiaX, respY, colWidth, 5.8, 'normal', [4, 120, 87], 2);
 
-    const correctText = `[${correctLetter}] ${correctOpt?.text || ''}`;
-    printSafeText(correctText, guiaX, respY + 3.2, colWidth, 5.8, 'normal', [4, 120, 87], 2);
-
-    // Fundamentação no Rodapé do Card
+    // Fundamentação Técnica (Largura Máxima 174mm com margem interna rigorosa)
     const expText = q.explanation || q.keyTakeaway || 'Conformidade com os padrões normativos da IEC.';
-    printSafeText(`Fundamentação: ${expText}`, margin + 5, cursorY + 31.5, contentWidth - 10, 5.5, 'italic', [100, 116, 139], 1);
+    printSafeBlock(`Fundamentação: ${expText}`, margin + 5, cursorY + 31.5, contentWidth - 12, 5.2, 'italic', [100, 116, 139], 1);
 
     cursorY += cardHeight + cardGap;
   });
@@ -229,8 +215,8 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   doc.setFillColor(15, 23, 42);
   doc.roundedRect(margin, cursorY, contentWidth, 24, 1.5, 1.5, 'F');
 
-  printSafeText('RESUMO DE DESEMPENHO E APROVEITAMENTO', margin + 4, cursorY + 5.5, 120, 7.5, 'bold', [56, 189, 248], 1);
-  printSafeText(
+  printSafeBlock('RESUMO DE DESEMPENHO E APROVEITAMENTO', margin + 4, cursorY + 5.5, 120, 7.5, 'bold', [56, 189, 248], 1);
+  printSafeBlock(
     `Resultado: ${correctCount} de ${totalQuestions} acertos (${finalScorePercent}%) • Exigência IEC: 80%`,
     margin + 4,
     cursorY + 10,
@@ -246,7 +232,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   doc.setTextColor(52, 211, 153);
   doc.text(`Autenticação: ${attempt.authCode}`, margin + 4, cursorY + 14.5);
 
-  // Quadrado com a Pontuação (%)
+  // Box da Nota
   const scoreBoxW = 34;
   const scoreBoxH = 16;
   const scoreBoxX = margin + contentWidth - scoreBoxW - 4;
@@ -266,8 +252,8 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
   doc.setTextColor(isPassed ? 52 : 244, isPassed ? 211 : 63, isPassed ? 153 : 94);
   doc.text(isPassed ? 'ALCANÇADO' : 'NÃO ALCANÇADO', scoreBoxX + scoreBoxW / 2, scoreBoxY + 12, { align: 'center' });
 
-  // Rodapé Informativo
-  printSafeText(
+  // Rodapé
+  printSafeBlock(
     'Documento emitido eletronicamente pela Plataforma TécnicaMZ Pro. Validez acadêmica e técnica nos termos do regulamento.',
     margin + 4,
     cursorY + 19.5,
@@ -278,7 +264,7 @@ export function generateAssessmentPDF(attempt: AssessmentAttempt): void {
     1
   );
 
-  // Download do arquivo PDF
+  // Nomeação do arquivo
   const sanitizedTitle = (attempt.lessonTitle || 'Avaliacao')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '_')
