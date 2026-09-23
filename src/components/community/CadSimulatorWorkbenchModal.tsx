@@ -46,6 +46,7 @@ import {
   WIRE_NORM_COLORS
 } from './cadRouting';
 import { generateMuralSnapshot } from './cadSnapshot';
+import { renderDevice } from './cadDeviceRenderer';
 import {
   Zap,
   Play,
@@ -1169,7 +1170,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           cam,
           isRunning && Boolean(wire.live),
           isSelected,
-          simRef.current.time * 60
+          simRef.current.time * 60,
+          Boolean(wire.overheated)
         );
       });
 
@@ -1184,359 +1186,22 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         }
       }
 
-      // 4. Componentes Elétricos
+      // 4. Componentes Elétricos (Renderizador 3D Modular DIN, Nomenclatura Compacta, Marcas Reais e Falhas)
       project.components.forEach(c => {
-        const d = getComponentDef(c.code);
         const s = toScreen({ x: c.x, y: c.y });
-        const cw = c.w * cam.zoom;
-        const ch = c.h * cam.zoom;
-        const isSel = c.id === selectedCompId;
-        const st = c.state || {};
-        const isEnergized = st.energized || st.running;
-
         ctx.save();
         ctx.translate(s.x, s.y);
-        ctx.rotate((c.rot * Math.PI) / 180);
+        ctx.rotate(((c.rot || 0) * Math.PI) / 180);
 
-        // Corpo do componente
-        const radius = 8 * cam.zoom;
-        const x = -cw / 2;
-        const y = -ch / 2;
-
-        let gradTop = '#0a1628';
-        let gradBottom = '#040914';
-        let strokeColor = '#1e3a5f';
-        let glowColor = 'transparent';
-
-        if (st.tripped) {
-          gradTop = '#3b0712';
-          gradBottom = '#180307';
-          strokeColor = '#ef4444';
-          glowColor = 'rgba(239, 68, 68, 0.45)';
-        } else if (isSel) {
-          gradTop = '#0c2847';
-          gradBottom = '#041324';
-          strokeColor = '#38bdf8';
-          glowColor = 'rgba(56, 189, 248, 0.5)';
-        } else if (isEnergized) {
-          gradTop = '#062c22';
-          gradBottom = '#02120e';
-          strokeColor = '#10b981';
-          glowColor = 'rgba(16, 185, 129, 0.35)';
-        }
-
-        const bodyGrad = ctx.createLinearGradient(0, y, 0, y + ch);
-        bodyGrad.addColorStop(0, gradTop);
-        bodyGrad.addColorStop(1, gradBottom);
-
-        ctx.save();
-
-        if (glowColor !== 'transparent') {
-          ctx.shadowColor = glowColor;
-          ctx.shadowBlur = isSel ? 16 * cam.zoom : 10 * cam.zoom;
-        }
-
-        ctx.fillStyle = bodyGrad;
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = isSel ? 2.5 * cam.zoom : 1.5 * cam.zoom;
-
-        // Borda arredondada
-        ctx.beginPath();
-        ctx.roundRect(x, y, cw, ch, radius);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.shadowColor = 'transparent';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-        ctx.lineWidth = 1 * cam.zoom;
-        ctx.beginPath();
-        ctx.moveTo(x + radius, y + 1.5 * cam.zoom);
-        ctx.lineTo(x + cw - radius, y + 1.5 * cam.zoom);
-        ctx.stroke();
-
-        ctx.restore();
-
-        // Animação Eletromecânica Específica
-        if (d.kind === 'motor3' || d.kind === 'motor1' || d.kind === 'fan') {
-          ctx.save();
-          
-          const isRunning = st.running;
-          const rotorColor = isRunning ? '#064e3b' : '#1e293b';
-          const strokeRotor = isRunning ? '#10b981' : '#475569';
-
-          if (isRunning) {
-            ctx.shadowColor = '#10b981';
-            ctx.shadowBlur = 10 * cam.zoom;
-          }
-
-          // Rotor com rotação contínua
-          ctx.fillStyle = rotorColor;
-          ctx.beginPath();
-          ctx.arc(0, -5 * cam.zoom, 16 * cam.zoom, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = strokeRotor;
-          ctx.lineWidth = 1.8 * cam.zoom;
-          ctx.stroke();
-          ctx.shadowColor = 'transparent';
-
-          // Lâminas girando
-          ctx.save();
-          ctx.translate(0, -5 * cam.zoom);
-          ctx.rotate(isRunning ? (simRef.current.time * (st.rpm || 1500) * 0.05) : 0);
-          ctx.strokeStyle = isRunning ? '#6ee7b7' : '#64748b';
-          ctx.lineWidth = 2 * cam.zoom;
-          ctx.lineCap = 'round';
-
-          for (let i = 0; i < 4; i++) {
-            ctx.rotate(Math.PI / 2);
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, -12 * cam.zoom);
-            ctx.stroke();
-          }
-          ctx.restore();
-
-          // Rótulo RPM
-          ctx.fillStyle = isRunning ? '#34d399' : '#64748b';
-          ctx.font = `bold ${Math.max(8, 9 * cam.zoom)}px monospace`;
-          ctx.textAlign = 'center';
-
-          if (isRunning) {
-            ctx.shadowColor = 'rgba(52, 211, 153, 0.6)';
-            ctx.shadowBlur = 6 * cam.zoom;
-          }
-          
-          ctx.fillText(isRunning ? `${st.rpm || 2920} RPM` : 'PARADO', 0, 24 * cam.zoom);
-          ctx.restore();
-
-        } else if (d.kind === 'lamp') {
-          // Lâmpada Sinalizadora de Painel Premium
-          const lampOn = st.energized && !st.tripped;
-          const lampRadius = 14 * cam.zoom;
-
-          if (lampOn) {
-            ctx.save();
-            // Glow externo multicamada ultra brilhante
-            ctx.shadowColor = '#facc15';
-            ctx.shadowBlur = 28 * cam.zoom;
-            ctx.fillStyle = '#fef08a';
-            ctx.beginPath();
-            ctx.arc(0, -4 * cam.zoom, lampRadius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Núcleo incandescente reluzente
-            const lampGrad = ctx.createRadialGradient(0, -4 * cam.zoom, 2 * cam.zoom, 0, -4 * cam.zoom, lampRadius);
-            lampGrad.addColorStop(0, '#ffffff');
-            lampGrad.addColorStop(0.4, '#fef08a');
-            lampGrad.addColorStop(1, '#eab308');
-            ctx.fillStyle = lampGrad;
-            ctx.beginPath();
-            ctx.arc(0, -4 * cam.zoom, lampRadius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-          } else {
-            // Lâmpada desligada com reflexo em lente cônica de policarbonato
-            const offGrad = ctx.createRadialGradient(-3 * cam.zoom, -7 * cam.zoom, 1 * cam.zoom, 0, -4 * cam.zoom, lampRadius);
-            offGrad.addColorStop(0, '#334155');
-            offGrad.addColorStop(0.7, '#1e293b');
-            offGrad.addColorStop(1, '#0f172a');
-            ctx.fillStyle = offGrad;
-            ctx.beginPath();
-            ctx.arc(0, -4 * cam.zoom, lampRadius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#475569';
-            ctx.lineWidth = 1.8 * cam.zoom;
-            ctx.stroke();
-          }
-
-          // Filamento Interno Estilizado e Reforçado
-          ctx.save();
-          ctx.strokeStyle = lampOn ? '#ffffff' : '#94a3b8';
-          ctx.lineWidth = lampOn ? 2.2 * cam.zoom : 1.5 * cam.zoom;
-          if (lampOn) {
-            ctx.shadowColor = '#fef08a';
-            ctx.shadowBlur = 8 * cam.zoom;
-          }
-          ctx.beginPath();
-          // Filamento em Zig-Zag duplo de Tungstênio
-          ctx.moveTo(-7 * cam.zoom, 2 * cam.zoom);
-          ctx.lineTo(-3 * cam.zoom, -8 * cam.zoom);
-          ctx.lineTo(0, -3 * cam.zoom);
-          ctx.lineTo(3 * cam.zoom, -8 * cam.zoom);
-          ctx.lineTo(7 * cam.zoom, 2 * cam.zoom);
-          ctx.stroke();
-          ctx.restore();
-
-        } else if (d.kind === 'contactor' || d.kind === 'relay') {
-          // Contator Industrial / Relé de Potência
-          const coilOn = st.energized;
-          ctx.save();
-          
-          // Núcleo magnético em gradiente
-          const coreGrad = ctx.createLinearGradient(0, -ch * 0.3, 0, 0);
-          coreGrad.addColorStop(0, coilOn ? '#047857' : '#1e293b');
-          coreGrad.addColorStop(1, coilOn ? '#064e3b' : '#0f172a');
-          
-          ctx.fillStyle = coreGrad;
-          ctx.strokeStyle = coilOn ? '#10b981' : '#334155';
-          ctx.lineWidth = 1.5 * cam.zoom;
-          
-          if (coilOn) {
-            ctx.shadowColor = '#10b981';
-            ctx.shadowBlur = 10 * cam.zoom;
-          }
-          
-          ctx.beginPath();
-          ctx.roundRect(-cw * 0.38, -ch * 0.3, cw * 0.76, ch * 0.32, 4 * cam.zoom);
-          ctx.fill();
-          ctx.stroke();
-
-          // Indicador de Armadura Atracada
-          ctx.fillStyle = coilOn ? '#34d399' : '#64748b';
-          ctx.font = `bold ${Math.max(7, 8 * cam.zoom)}px monospace`;
-          ctx.textAlign = 'center';
-          ctx.fillText(coilOn ? '▲ ATRACADO' : '▼ REPOUSO', 0, -ch * 0.12);
-          ctx.restore();
-
-        } else if (d.kind === 'breaker' || d.kind === 'breaker3' || d.kind === 'overload') {
-          // Alavanca de Disjuntor Curva Din/Caixa Moldada Ultra-Realista
-          const isTrip = st.tripped;
-          const isClosed = st.closed && !isTrip;
-          ctx.save();
-
-          // Trilho/Cavidade do Módulo do Disjuntor
-          ctx.fillStyle = '#0f172a';
-          ctx.strokeStyle = '#334155';
-          ctx.lineWidth = 1 * cam.zoom;
-          ctx.beginPath();
-          ctx.roundRect(-10 * cam.zoom, -22 * cam.zoom, 20 * cam.zoom, 28 * cam.zoom, 3 * cam.zoom);
-          ctx.fill();
-          ctx.stroke();
-
-          // Corpo da Manopla com Gradiente 3D
-          const handleGrad = ctx.createLinearGradient(-8 * cam.zoom, 0, 8 * cam.zoom, 0);
-          if (isTrip) {
-            handleGrad.addColorStop(0, '#f87171');
-            handleGrad.addColorStop(0.5, '#ef4444');
-            handleGrad.addColorStop(1, '#991b1b');
-            ctx.shadowColor = '#ef4444';
-            ctx.shadowBlur = 12 * cam.zoom;
-          } else if (isClosed) {
-            handleGrad.addColorStop(0, '#4ade80');
-            handleGrad.addColorStop(0.5, '#22c55e');
-            handleGrad.addColorStop(1, '#15803d');
-            ctx.shadowColor = '#22c55e';
-            ctx.shadowBlur = 10 * cam.zoom;
-          } else {
-            handleGrad.addColorStop(0, '#94a3b8');
-            handleGrad.addColorStop(0.5, '#64748b');
-            handleGrad.addColorStop(1, '#334155');
-          }
-
-          ctx.fillStyle = handleGrad;
-          const leverY = isClosed ? -20 * cam.zoom : isTrip ? -10 * cam.zoom : -2 * cam.zoom;
-          ctx.beginPath();
-          ctx.roundRect(-8 * cam.zoom, leverY, 16 * cam.zoom, 16 * cam.zoom, 4 * cam.zoom);
-          ctx.fill();
-
-          // Símbolo Impresso na Alavanca (I / O / TRIP)
-          ctx.fillStyle = '#ffffff';
-          ctx.font = `bold ${Math.max(8, 9 * cam.zoom)}px monospace`;
-          ctx.textAlign = 'center';
-          ctx.shadowColor = 'transparent';
-          ctx.fillText(isTrip ? 'TRIP' : isClosed ? 'I' : 'O', 0, leverY + 11 * cam.zoom);
-          ctx.restore();
-
-        } else {
-          // Ícone padrão do catálogo
-          ctx.fillStyle = isEnergized ? '#6ee7b7' : '#93c5fd';
-          ctx.font = `${Math.max(14, 18 * cam.zoom)}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(d.icon, 0, -5 * cam.zoom);
-        }
-
-        // Nome / Tag do Componente (Discreto e Centralizado)
-        ctx.save();
-        ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
-        ctx.font = `600 ${Math.max(6, 7.5 * cam.zoom)}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText((c.label || d.name).toUpperCase(), 0, 0);
-        ctx.restore();
-
-        ctx.restore();
-
-        // 5. Terminais de Ligação (Pinos Conectores Alta Visibilidade)
-        d.terminals.forEach(term => {
-          const tPos = toScreen(terminalPos(c, term[0]));
-          ctx.save();
-          
-          // Sombra/Brilho Industrial nos Bornes
-          ctx.shadowColor = '#000000';
-          ctx.shadowBlur = 6 * cam.zoom;
-
-          // Borne Metálico (Parafuso Latão/Níquel)
-          const termGrad = ctx.createRadialGradient(tPos.x - 1, tPos.y - 1, 0.5, tPos.x, tPos.y, 5 * cam.zoom);
-          termGrad.addColorStop(0, '#38bdf8');
-          termGrad.addColorStop(0.5, '#0284c7');
-          termGrad.addColorStop(1, '#0c4a6e');
-
-          ctx.fillStyle = termGrad;
-          ctx.strokeStyle = '#f8fafc';
-          ctx.lineWidth = 1.8 * cam.zoom;
-          ctx.beginPath();
-          ctx.arc(tPos.x, tPos.y, 5 * cam.zoom, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-
-          // Ponto Central do Borne
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(tPos.x, tPos.y, 1.5 * cam.zoom, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Rótulo da Anotação do Borne (Ex: A1, 13, L1)
-          ctx.shadowColor = 'transparent';
-          ctx.fillStyle = '#38bdf8';
-          ctx.font = `bold ${Math.max(7, 8 * cam.zoom)}px monospace`;
-          ctx.textAlign = 'center';
-          ctx.fillText(term[0], tPos.x, tPos.y - 8 * cam.zoom);
-          ctx.restore();
+        renderDevice(ctx, {
+          component: c,
+          camera: cam,
+          isSelected: c.id === selectedCompId,
+          time: simRef.current.time,
+          simRunning: isRunning
         });
 
-        // 6. Efeito de Curto-Circuito, Faíscas (Sparks) e Sobrecarga Térmica
-        if (st.fault || st.tripped || st.thermal || st.sparking) {
-          ctx.save();
-          const p = toScreen({ x: c.x, y: c.y });
-          const cw = (c.w || 90) * cam.zoom;
-          const ch = (c.h || 70) * cam.zoom;
-
-          // Brilho Térmico / Sobrecarga
-          if (st.thermal || st.tripped) {
-            ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
-            ctx.lineWidth = 3;
-            ctx.shadowColor = '#ef4444';
-            ctx.shadowBlur = 12;
-            ctx.strokeRect(p.x - cw / 2 - 4, p.y - ch / 2 - 4, cw + 8, ch + 8);
-          }
-
-          // Faíscas elétricas / Sparks
-          if (st.fault || st.sparking || st.tripped) {
-            const count = 10;
-            for (let i = 0; i < count; i++) {
-              const angle = Math.random() * Math.PI * 2;
-              const dist = (15 + Math.random() * 25) * cam.zoom;
-              ctx.strokeStyle = Math.random() > 0.5 ? '#f59e0b' : '#ef4444';
-              ctx.lineWidth = 2;
-              ctx.beginPath();
-              ctx.moveTo(p.x, p.y);
-              ctx.lineTo(p.x + Math.cos(angle) * dist, p.y + Math.sin(angle) * dist);
-              ctx.stroke();
-            }
-          }
-          ctx.restore();
-        }
+        ctx.restore();
       });
 
       // 7. Simulação Transitória / Solver com Proteção de Estabilidade (Zero Crash)
@@ -1633,6 +1298,82 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             setMeterW(276);
             setMeterHz(50);
             setMeterPF(0.95);
+          }
+
+          // 8. Simulação de Cargas Realistas & Dimensionamento Térmico de Condutores (NBR 5410 / IEC 60364)
+          const GAUGE_AMPACITY: Record<number, number> = {
+            1.5: 15.5,
+            2.5: 21.0,
+            4.0: 28.0,
+            6.0: 36.0,
+            10.0: 50.0,
+            16.0: 68.0
+          };
+
+          const loadComps = project.components.filter(c =>
+            c.code.startsWith('LOAD_') || ['HEATER', 'MOTOR', 'M1PH', 'M3PH'].includes(c.code)
+          );
+
+          loadComps.forEach(load => {
+            const def = getComponentDef(load.code);
+            const pWatts = Number(load.params?.power || def?.params?.power || 1500);
+            const vVolts = Number(load.params?.voltage || 230);
+            const loadCurrent = pWatts / Math.max(1, vVolts);
+
+            const connectedWires = project.wires.filter(w => w.a.c === load.id || w.b.c === load.id);
+            const isLoadPowered = isRunning && connectedWires.length >= 2;
+
+            if (load.state) {
+              load.state.energized = isLoadPowered;
+              load.state.running = isLoadPowered;
+            }
+
+            if (isLoadPowered) {
+              connectedWires.forEach(w => {
+                w.live = true;
+                const wireGauge = Number(w.gauge || 2.5);
+                const maxAmp = GAUGE_AMPACITY[wireGauge] || 21.0;
+
+                if (loadCurrent > maxAmp * 1.05) {
+                  w.overheated = true;
+                  if (load.state) {
+                    load.state.thermal = true;
+                  }
+                } else {
+                  w.overheated = false;
+                }
+              });
+            } else {
+              connectedWires.forEach(w => {
+                if (w.a.c === load.id || w.b.c === load.id) {
+                  w.overheated = false;
+                }
+              });
+            }
+          });
+
+          // 9. Simulação de Aterramento Físico & Atuação do IDR/RCBO por Corrente de Fuga (IEC 60364-4-41)
+          const earthRod = project.components.find(c => c.code === 'EARTH_ROD' || c.code === 'EARTH_PIT');
+          const rcdDevices = project.components.filter(c => ['RCD', 'RCD4', 'RCBO'].includes(c.code));
+          
+          if (earthRod && rcdDevices.length > 0) {
+            const earthR = Number(earthRod.params?.resistance ?? 10);
+            const groundWires = project.wires.filter(w => w.a.c === earthRod.id || w.b.c === earthRod.id);
+            const hasLeakagePath = groundWires.some(w => w.type !== 'PE');
+
+            if (hasLeakagePath) {
+              const leakageCurrentA = 230 / Math.max(1, earthR);
+              if (leakageCurrentA >= 0.03) {
+                rcdDevices.forEach(rcd => {
+                  if (rcd.state && !rcd.state.tripped) {
+                    rcd.state.tripped = true;
+                    rcd.state.closed = false;
+                    soundFX?.playContactorThump?.(false);
+                    addEvent(`Proteção Diferencial (${rcd.label || 'IDR/RCBO'}) atuou: Fuga à Terra de ${(leakageCurrentA * 1000).toFixed(0)}mA (R_terra: ${earthR}Ω).`, 'trip');
+                  }
+                });
+              }
+            }
           }
 
           // Monitoramento Normativo Geral de Proteções Atuadas (RCD, MCB, PV)
@@ -2555,34 +2296,97 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         )}
 
         {/* BARRA FLUTUANTE DE CONDUTOR SELECIONADO COM EXCLUSÃO RÁPIDA (ITEM A) */}
-        {selectedWireId && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-[#0F172A]/95 border border-sky-500/60 shadow-2xl backdrop-blur-md px-3.5 py-1.5 rounded-2xl animate-in fade-in slide-in-from-top-2">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
-              <span className="text-xs font-black text-sky-200">
-                Condutor Selecionado ({project.wires.find(w => w.id === selectedWireId)?.type || 'L1'})
-              </span>
+        {selectedWireId && (() => {
+          const selWire = project.wires.find(w => w.id === selectedWireId);
+          const isOverheated = Boolean(selWire?.overheated);
+          return (
+            <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-30 flex flex-wrap items-center justify-center gap-2 bg-[#0F172A]/95 border border-sky-500/60 shadow-2xl backdrop-blur-md px-3.5 py-2 rounded-2xl animate-in fade-in slide-in-from-top-2 max-w-[95vw]">
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2.5 h-2.5 rounded-full ${isOverheated ? 'bg-rose-500 animate-ping' : 'bg-sky-400 animate-pulse'}`} />
+                <span className="text-xs font-black text-sky-200">
+                  Condutor: <strong className="text-white font-mono">{selWire?.type || 'L1'}</strong>
+                </span>
+                {isOverheated && (
+                  <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-600 text-[10px] font-bold animate-pulse">
+                    ⚠️ Sobreaquecido
+                  </span>
+                )}
+              </div>
+
+              {/* Seletor de Tipo / Fase */}
+              <div className="flex items-center gap-1 bg-slate-900/80 p-0.5 rounded-lg border border-slate-800">
+                {(['L1', 'L2', 'L3', 'N', 'PE'] as const).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setProject(prev => ({
+                        ...prev,
+                        wires: prev.wires.map(w => w.id === selectedWireId ? { ...w, type: t } : w),
+                        updated: Date.now()
+                      }));
+                      soundFX?.playClick?.();
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                      selWire?.type === t
+                        ? t === 'N' ? 'bg-sky-600 text-white' : t === 'PE' ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {/* Seletor de Bitola (mm²) */}
+              <div className="flex items-center gap-1 bg-slate-900/80 px-2 py-0.5 rounded-lg border border-slate-800 text-xs">
+                <span className="text-[10px] text-slate-400">Bitola:</span>
+                <select
+                  value={Number(selWire?.gauge || 2.5)}
+                  onChange={e => {
+                    const g = Number(e.target.value);
+                    setProject(prev => ({
+                      ...prev,
+                      wires: prev.wires.map(w => w.id === selectedWireId ? { ...w, gauge: g } : w),
+                      updated: Date.now()
+                    }));
+                    showToast(`Bitola alterada para ${g} mm²`);
+                  }}
+                  className="bg-transparent text-amber-300 font-mono text-[11px] font-bold focus:outline-none cursor-pointer"
+                >
+                  <option value={1.5} className="bg-slate-900 text-white">1.5 mm² (15.5A)</option>
+                  <option value={2.5} className="bg-slate-900 text-white">2.5 mm² (21A)</option>
+                  <option value={4.0} className="bg-slate-900 text-white">4.0 mm² (28A)</option>
+                  <option value={6.0} className="bg-slate-900 text-white">6.0 mm² (36A)</option>
+                  <option value={10.0} className="bg-slate-900 text-white">10.0 mm² (50A)</option>
+                  <option value={16.0} className="bg-slate-900 text-white">16.0 mm² (68A)</option>
+                </select>
+              </div>
+
+              <div className="h-4 w-px bg-slate-700 mx-0.5 hidden sm:block" />
+
+              {/* Botão de Exclusão Rápida */}
+              <button
+                type="button"
+                onClick={() => deleteWire(selectedWireId)}
+                className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Excluir Condutor (Tecla Delete / Backspace)"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Excluir Fio (Del)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedWireId(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                title="Desmarcar Seleção"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <div className="h-4 w-px bg-slate-700 mx-1" />
-            <button
-              type="button"
-              onClick={() => deleteWire(selectedWireId)}
-              className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-              title="Excluir Condutor (Tecla Delete / Backspace)"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Excluir Fio</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedWireId(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white ml-1"
-              title="Desmarcar Seleção"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         {/* CARD INTERATIVO DE PRIMEIRO ACESSO: CRIAR NOVO PROJETO (ITEM C) */}
         {project.components.length === 0 && (!project.busbars || project.busbars.length === 0) && (
@@ -3250,6 +3054,35 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 />
               </div>
 
+              {/* Fabricante / Marca Comercial */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                  Fabricante / Marca Comercial
+                </label>
+                <select
+                  value={selectedComponent.brand || 'Schneider Electric'}
+                  onChange={e => {
+                    const nextBrand = e.target.value as any;
+                    setProject(prev => ({
+                      ...prev,
+                      components: prev.components.map(c =>
+                        c.id === selectedCompId ? { ...c, brand: nextBrand } : c
+                      ),
+                      updated: Date.now()
+                    }));
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white font-bold text-xs"
+                >
+                  <option value="Schneider Electric">Schneider Electric</option>
+                  <option value="Legrand">Legrand</option>
+                  <option value="Efapel">Efapel</option>
+                  <option value="Chint">Chint</option>
+                  <option value="ABB">ABB</option>
+                  <option value="Siemens">Siemens</option>
+                  <option value="Eaton">Eaton</option>
+                </select>
+              </div>
+
               {/* Botões de Manobra Direta (Física) */}
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Acionamento Manual</label>
@@ -3284,6 +3117,88 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </button>
                 </div>
               </div>
+
+              {/* Parâmetros Específicos para Aterramento e Cargas 3D */}
+              {selectedComponent.code === 'EARTH_ROD' || selectedComponent.code === 'EARTH_PIT' ? (
+                <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-800/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-emerald-300 font-bold text-xs flex items-center gap-1.5">
+                      <span>⏚</span> Resistência de Aterramento (R<sub>A</sub>)
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-400">
+                      {selectedComponent.params?.resistance ?? 10} Ω
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value={Number(selectedComponent.params?.resistance ?? 10)}
+                    onChange={e => {
+                      const nextR = Number(e.target.value);
+                      setProject(prev => ({
+                        ...prev,
+                        components: prev.components.map(c =>
+                          c.id === selectedCompId ? { ...c, params: { ...c.params, resistance: nextR } } : c
+                        ),
+                        updated: Date.now()
+                      }));
+                    }}
+                    className="w-full accent-emerald-500 cursor-pointer"
+                  />
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-slate-400">IEC 60364-5-54:</span>
+                    <span className={`font-bold ${
+                      (selectedComponent.params?.resistance ?? 10) <= 10
+                        ? 'text-emerald-400'
+                        : (selectedComponent.params?.resistance ?? 10) <= 25
+                        ? 'text-amber-400'
+                        : 'text-rose-400'
+                    }`}>
+                      {(selectedComponent.params?.resistance ?? 10) <= 10
+                        ? 'Excelente (≤ 10 Ω)'
+                        : (selectedComponent.params?.resistance ?? 10) <= 25
+                        ? 'Aceitável (11-25 Ω)'
+                        : 'Crítico (> 25 Ω)'}
+                    </span>
+                  </div>
+                </div>
+              ) : selectedComponent.code.startsWith('LOAD_') || ['HEATER', 'MOTOR', 'M1PH', 'M3PH'].includes(selectedComponent.code) ? (
+                <div className="p-3 rounded-xl bg-blue-950/30 border border-blue-800/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-300 font-bold text-xs">Carga de Potência</span>
+                    <span className="text-xs font-mono font-bold text-amber-400">
+                      {selectedComponent.params?.power ?? 1500} W
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Tensão:</span>
+                      <strong className="text-white font-mono">{selectedComponent.params?.voltage ?? 230} V</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Corrente Nominal:</span>
+                      <strong className="text-amber-300 font-mono">
+                        {((Number(selectedComponent.params?.power ?? 1500)) / (Number(selectedComponent.params?.voltage ?? 230))).toFixed(1)} A
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="pt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                    <span className="text-slate-400">Bitola recomendada:</span>
+                    <span className="text-emerald-400 font-bold font-mono">
+                      {(() => {
+                        const cur = (Number(selectedComponent.params?.power ?? 1500)) / (Number(selectedComponent.params?.voltage ?? 230));
+                        if (cur <= 15.5) return '≥ 1.5 mm²';
+                        if (cur <= 21) return '≥ 2.5 mm²';
+                        if (cur <= 28) return '≥ 4.0 mm²';
+                        if (cur <= 36) return '≥ 6.0 mm²';
+                        return '≥ 10.0 mm²';
+                      })()}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Parâmetros Elétricos do Componente */}
               <div className="space-y-2 pt-2 border-t border-slate-800">
@@ -3489,8 +3404,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         )}
       </div>
 
-      {/* 3. DOCK MOBILE DE NAVEGAÇÃO RÁPIDA (RESPONSIVO: RETRATO E PAISAGEM - ITEM B) */}
-      <footer className="flex sm:hidden landscape:flex h-13 landscape:h-9 bg-[#0A1224]/95 border-t border-slate-800 items-center justify-around px-2 z-30 shrink-0 backdrop-blur-md">
+      {/* 3. DOCK MOBILE DE NAVEGAÇÃO RÁPIDA (RESPONSIVO: RETRATO E PAISAGEM NO CELULAR - ITEM B) */}
+      <footer className="flex md:hidden h-12 landscape:h-8.5 bg-[#0A1224]/95 border-t border-slate-800 items-center justify-around px-2 z-30 shrink-0 backdrop-blur-md">
         <button
           type="button"
           onClick={() => setShowLibrary(!showLibrary)}
@@ -3498,7 +3413,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             showLibrary ? 'text-blue-400' : 'text-slate-400'
           }`}
         >
-          <Layers className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
+          <Layers className="w-4 h-4 landscape:w-3 landscape:h-3" />
           <span>Biblioteca</span>
         </button>
 
@@ -3506,10 +3421,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           type="button"
           onClick={() => setShowProps(!showProps)}
           className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold ${
-            showProps && selectedComponent ? 'text-blue-400' : 'text-slate-400'
+            showProps && (selectedComponent || selectedWireId || selectedBusbarId) ? 'text-blue-400' : 'text-slate-400'
           }`}
         >
-          <Sliders className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
+          <Sliders className="w-4 h-4 landscape:w-3 landscape:h-3" />
           <span>Propriedades</span>
         </button>
 
@@ -3520,7 +3435,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             showScope ? 'text-blue-400' : 'text-slate-400'
           }`}
         >
-          <Activity className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
+          <Activity className="w-4 h-4 landscape:w-3 landscape:h-3" />
           <span>Osciloscópio</span>
         </button>
 
@@ -3529,7 +3444,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           onClick={handleFit}
           className="flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold text-slate-400 hover:text-white"
         >
-          <Maximize2 className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
+          <Maximize2 className="w-4 h-4 landscape:w-3 landscape:h-3" />
           <span>Enquadrar</span>
         </button>
 
@@ -3538,7 +3453,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           onClick={() => setIsPublishDialogOpen(true)}
           className="flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-black text-amber-300"
         >
-          <Zap className="w-4 h-4 landscape:w-3.5 landscape:h-3.5 fill-amber-300" />
+          <Zap className="w-4 h-4 landscape:w-3 landscape:h-3 fill-amber-300" />
           <span>Publicar</span>
         </button>
       </footer>

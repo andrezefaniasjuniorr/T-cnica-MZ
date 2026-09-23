@@ -95,36 +95,122 @@ export function getNormativeTerminalOffset(
     if (termId === '98') return { x: w * 0.42, y: h / 2, dir: 'bottom' };
   }
 
-  // 5. Disjuntores e Seccionadoras Tripolares (MCB3, MCCB, FU3)
+  // 5. Disjuntores e Seccionadoras Tetrapolares / Tripolares com Neutro (3P+N: MCB3, MCCB, FU3)
   if (d.kind === 'breaker3' || d.kind === 'fuse3') {
-    if (termId === '1') return { x: -w * 0.28, y: -h / 2, dir: 'top' };
-    if (termId === '3') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === '5') return { x: w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === '1') return { x: -w * 0.33, y: -h / 2, dir: 'top' };
+    if (termId === '3') return { x: -w * 0.11, y: -h / 2, dir: 'top' };
+    if (termId === '5') return { x: w * 0.11, y: -h / 2, dir: 'top' };
+    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.33, y: -h / 2, dir: 'top' };
 
-    if (termId === '2') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
-    if (termId === '4') return { x: 0, y: h / 2, dir: 'bottom' };
-    if (termId === '6') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === '2') return { x: -w * 0.33, y: h / 2, dir: 'bottom' };
+    if (termId === '4') return { x: -w * 0.11, y: h / 2, dir: 'bottom' };
+    if (termId === '6') return { x: w * 0.11, y: h / 2, dir: 'bottom' };
+    if (termId === 'N_OUT') return { x: w * 0.33, y: h / 2, dir: 'bottom' };
   }
 
-  // 6. Disjuntores Unipolares e Fusíveis (MCB1, FUSE, SPD)
-  if (d.kind === 'breaker' || d.kind === 'fuse' || d.kind === 'spd') {
+  // 5.5 Disjuntor Bipolar com Neutro (2P+N: MCB2)
+  if (d.kind === 'breaker2') {
+    if (termId === '1') return { x: -w * 0.3, y: -h / 2, dir: 'top' };
+    if (termId === '3') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.3, y: -h / 2, dir: 'top' };
+
+    if (termId === '2') return { x: -w * 0.3, y: h / 2, dir: 'bottom' };
+    if (termId === '4') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === 'N_OUT') return { x: w * 0.3, y: h / 2, dir: 'bottom' };
+  }
+
+  // 6. Disjuntores Unipolares com Neutro (1P+N: MCB1, RCBO)
+  if (d.kind === 'breaker' || d.kind === 'rcbo') {
     if (termId === '1' || termId === 'L' || func === 'IN') {
-      return { x: 0, y: -h / 2, dir: 'top' };
+      return { x: -w * 0.22, y: -h / 2, dir: 'top' };
+    }
+    if (termId === 'N' || termId === 'N_IN') {
+      return { x: w * 0.22, y: -h / 2, dir: 'top' };
+    }
+    if (termId === '2' || func === 'OUT') {
+      return { x: -w * 0.22, y: h / 2, dir: 'bottom' };
+    }
+    if (termId === 'N_OUT') {
+      return { x: w * 0.22, y: h / 2, dir: 'bottom' };
     }
     return { x: 0, y: h / 2, dir: 'bottom' };
   }
 
-  // 7. Disjuntor Diferencial Residual (RCD / DR Tetrapolar e Bipolar)
-  if (d.kind === 'rcd' || d.kind === 'rcd4') {
-    if (termId === '1') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
-    if (termId === '3') return { x: -w * 0.12, y: -h / 2, dir: 'top' };
-    if (termId === '5') return { x: w * 0.12, y: -h / 2, dir: 'top' };
-    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.35, y: -h / 2, dir: 'top' };
+  // 6.5 Fusíveis Simples
+  if (d.kind === 'fuse') {
+    if (termId === '1' || func === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
+    return { x: 0, y: h / 2, dir: 'bottom' };
+  }
 
-    if (termId === '2') return { x: -w * 0.35, y: h / 2, dir: 'bottom' };
-    if (termId === '4') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === '6') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === 'N_OUT') return { x: w * 0.35, y: h / 2, dir: 'bottom' };
+  // 6.8 Dispositivo Contra Surtos DPS (Monofásico L+N+PE e Trifásico 3P+N+PE)
+  if (d.kind === 'spd') {
+    if (termId === 'L' || termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'L1') return { x: -w * 0.33, y: -h / 2, dir: 'top' };
+    if (termId === 'L2') return { x: -w * 0.11, y: -h / 2, dir: 'top' };
+    if (termId === 'L3') return { x: w * 0.11, y: -h / 2, dir: 'top' };
+    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.3, y: -h / 2, dir: 'top' };
+    if (termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  // 7. Disjuntor Diferencial Residual (RCD / IDR Tetrapolar 3P+N e Bipolar 1P+N)
+  if (d.kind === 'rcd' || d.kind === 'rcd4') {
+    if (d.kind === 'rcd4' || d.terminals.length >= 8) {
+      if (termId === '1') return { x: -w * 0.33, y: -h / 2, dir: 'top' };
+      if (termId === '3') return { x: -w * 0.11, y: -h / 2, dir: 'top' };
+      if (termId === '5') return { x: w * 0.11, y: -h / 2, dir: 'top' };
+      if (termId === 'N' || termId === 'N_IN') return { x: w * 0.33, y: -h / 2, dir: 'top' };
+
+      if (termId === '2') return { x: -w * 0.33, y: h / 2, dir: 'bottom' };
+      if (termId === '4') return { x: -w * 0.11, y: h / 2, dir: 'bottom' };
+      if (termId === '6') return { x: w * 0.11, y: h / 2, dir: 'bottom' };
+      if (termId === 'N_OUT') return { x: w * 0.33, y: h / 2, dir: 'bottom' };
+    } else {
+      // IDR Bipolar (1P+N)
+      if (termId === '1') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
+      if (termId === 'N' || termId === 'N_IN') return { x: w * 0.22, y: -h / 2, dir: 'top' };
+      if (termId === '2') return { x: -w * 0.22, y: h / 2, dir: 'bottom' };
+      if (termId === 'N_OUT') return { x: w * 0.22, y: h / 2, dir: 'bottom' };
+    }
+  }
+
+  // 7.5 Aterramento Físico (Haste Copperweld, Caixa de Inspeção, Cobre Nu)
+  if (d.kind === 'earth_rod') {
+    return { x: 0, y: -h / 2, dir: 'top' };
+  }
+  if (d.kind === 'earth_pit') {
+    if (termId === 'PE1') return { x: -w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === 'PE2') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'PE3') return { x: w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === 'GND') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+  if (d.kind === 'bare_copper') {
+    if (termId === 'IN') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
+    if (termId === 'OUT') return { x: w * 0.35, y: h / 2, dir: 'bottom' };
+  }
+
+  // 7.8 Caixa de Derivação com Bornes Rápidos WAGO
+  if (d.kind === 'junction_box') {
+    if (termId === 'L_IN') return { x: -w * 0.32, y: -h / 2, dir: 'top' };
+    if (termId === 'L_OUT1') return { x: -w * 0.32, y: h / 2, dir: 'bottom' };
+    if (termId === 'L_OUT2') return { x: -w / 2, y: 0, dir: 'left' };
+    if (termId === 'N_IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'N_OUT1') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === 'N_OUT2') return { x: 0, y: 0, dir: 'top' };
+    if (termId === 'PE_IN') return { x: w * 0.32, y: -h / 2, dir: 'top' };
+    if (termId === 'PE_OUT') return { x: w * 0.32, y: h / 2, dir: 'bottom' };
+  }
+
+  // 7.9 Cargas Especiais 3D (Ar Condicionado, Chuveiro, Fogão, Micro-ondas)
+  if (d.kind === 'load_ac' || d.kind === 'load_shower' || d.kind === 'load_microwave') {
+    if (termId === 'L' || termId === '1') return { x: -w * 0.26, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'PE') return { x: w * 0.26, y: -h / 2, dir: 'top' };
+  }
+  if (d.kind === 'load_cooktop') {
+    if (termId === '1') return { x: -w * 0.33, y: -h / 2, dir: 'top' };
+    if (termId === '3') return { x: -w * 0.11, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.11, y: -h / 2, dir: 'top' };
+    if (termId === 'PE') return { x: w * 0.33, y: -h / 2, dir: 'top' };
   }
 
   // 8. Botões de Comando e Parada de Emergência (BTN_NO, BTN_NC, E_STOP)
@@ -394,7 +480,8 @@ export function drawProfessionalWire(
   cam: { zoom: number },
   isLive = false,
   isSelected = false,
-  animTick = 0
+  animTick = 0,
+  isOverheated = false
 ): void {
   if (!screenPoints || screenPoints.length < 2) return;
 
@@ -425,16 +512,24 @@ export function drawProfessionalWire(
   ctx.stroke();
   ctx.restore();
 
-  // 3. Corpo Primário da Isolação de PVC/XLPE
-  ctx.strokeStyle = norm.base;
+  // 3. Corpo Primário da Isolação de PVC/XLPE com Efeito Térmico Incandescente se Sobreaquecido
+  if (isOverheated) {
+    const pulse = (Math.sin(animTick * 0.15) + 1) * 0.5;
+    ctx.strokeStyle = `rgb(${Math.round(235 + pulse * 20)}, ${Math.round(50 + pulse * 80)}, 15)`;
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = (10 + pulse * 12) * cam.zoom;
+  } else {
+    ctx.strokeStyle = norm.base;
+  }
   ctx.lineWidth = wireW;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   traceFilletPath(ctx, screenPoints, filletRadius);
   ctx.stroke();
+  ctx.shadowColor = 'transparent';
 
-  // 4. Se for Terra (PE): Listras Amarelas de Segurança IEC
-  if (norm.isStriped) {
+  // 4. Se for Terra (PE): Listras Amarelas de Segurança IEC (a menos que esteja incandescente)
+  if (norm.isStriped && !isOverheated) {
     ctx.strokeStyle = '#eab308';
     ctx.lineWidth = wireW * 0.85;
     ctx.setLineDash([8 * cam.zoom, 8 * cam.zoom]);
@@ -444,7 +539,7 @@ export function drawProfessionalWire(
   }
 
   // 5. Linha de Reflexo Especular Superior 3D (Cilindro do Cabo)
-  ctx.strokeStyle = norm.highlight;
+  ctx.strokeStyle = isOverheated ? '#fed7aa' : norm.highlight;
   ctx.lineWidth = Math.max(0.7, 1 * cam.zoom);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -462,6 +557,29 @@ export function drawProfessionalWire(
     traceFilletPath(ctx, screenPoints, filletRadius);
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  // 6.5 Efeito de Fumaça Subindo se o Condutor Estiver Sobreaquecido (Subdimensionado)
+  if (isOverheated) {
+    const numPuffs = 4;
+    for (let p = 0; p < numPuffs; p++) {
+      const segIdx = Math.floor(((p + 0.5) / numPuffs) * (screenPoints.length - 1));
+      const ptA = screenPoints[segIdx];
+      const ptB = screenPoints[segIdx + 1] || ptA;
+      const midX = (ptA.x + ptB.x) / 2;
+      const midY = (ptA.y + ptB.y) / 2;
+
+      const puffLife = ((animTick * 0.4 + p * 12) % 40);
+      const puffX = midX + Math.sin(animTick * 0.08 + p) * 6 * cam.zoom;
+      const puffY = midY - puffLife * 1.3 * cam.zoom;
+      const puffRadius = (3.5 + puffLife * 0.28) * cam.zoom;
+      const alpha = Math.max(0, 0.4 - (puffLife / 40));
+
+      ctx.fillStyle = `rgba(148, 163, 184, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(puffX, puffY, puffRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // 7. Terminais Ilhós Tubulares (Ferrules) nos 2 Extremos da Conexão

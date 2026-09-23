@@ -181,31 +181,57 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     params: {}
   },
 
-  // PROTEÇÃO
+  // PROTEÇÃO COM CONDUTOR DE NEUTRO (IEC 60947-2 / IEC 60898-1)
   {
     code: 'MCB1',
-    name: 'Disjuntor Unipolar 1P Curva C',
+    name: 'Disjuntor Monofásico 1P+N Curva C (Fase + Neutro)',
     cat: 'protection',
     icon: '▣',
-    terminals: [['1', 'IN', 'L1'], ['2', 'OUT', 'L1']],
+    terminals: [
+      ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
+      ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
+    ],
     kind: 'breaker',
     params: { current: 16, curve: 'C', closed: true }
   },
   {
-    code: 'MCB3',
-    name: 'Disjuntor Tripolar 3P Curva C',
+    code: 'MCB2',
+    name: 'Disjuntor Bipolar 2P+N Curva C (2 Fases + Neutro)',
     cat: 'protection',
     icon: '▣',
-    terminals: [['1', 'IN', 'L1'], ['2', 'OUT', 'L1'], ['3', 'IN', 'L2'], ['4', 'OUT', 'L2'], ['5', 'IN', 'L3'], ['6', 'OUT', 'L3']],
+    terminals: [
+      ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
+      ['3', 'IN', 'L2'], ['4', 'OUT', 'L2'],
+      ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
+    ],
+    kind: 'breaker2',
+    params: { current: 25, curve: 'C', closed: true }
+  },
+  {
+    code: 'MCB3',
+    name: 'Disjuntor Tetrapolar 3P+N Curva C (3 Fases + Neutro)',
+    cat: 'protection',
+    icon: '▣',
+    terminals: [
+      ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
+      ['3', 'IN', 'L2'], ['4', 'OUT', 'L2'],
+      ['5', 'IN', 'L3'], ['6', 'OUT', 'L3'],
+      ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
+    ],
     kind: 'breaker3',
     params: { current: 32, curve: 'C', closed: true }
   },
   {
     code: 'MCCB',
-    name: 'Disjuntor Caixa Moldada 3P',
+    name: 'Disjuntor Caixa Moldada 3P+N',
     cat: 'protection',
     icon: '▰',
-    terminals: [['1', 'IN', 'L1'], ['2', 'OUT', 'L1'], ['3', 'IN', 'L2'], ['4', 'OUT', 'L2'], ['5', 'IN', 'L3'], ['6', 'OUT', 'L3']],
+    terminals: [
+      ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
+      ['3', 'IN', 'L2'], ['4', 'OUT', 'L2'],
+      ['5', 'IN', 'L3'], ['6', 'OUT', 'L3'],
+      ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
+    ],
     kind: 'breaker3',
     params: { current: 63, curve: 'C', closed: true }
   },
@@ -229,30 +255,62 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'RCD',
-    name: 'Interruptor Diferencial IDR 30mA',
+    name: 'Interruptor Diferencial Residual IDR 2P+N (30mA)',
     cat: 'protection',
     icon: '◉',
-    terminals: [['1', 'IN', 'L1'], ['2', 'OUT', 'L1'], ['3', 'IN', 'N'], ['4', 'OUT', 'N']],
+    terminals: [
+      ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
+      ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
+    ],
     kind: 'rcd',
     params: { current: 40, leakage: 30, closed: true }
   },
   {
-    code: 'RCBO',
-    name: 'Disjuntor Diferencial RCBO 30mA',
+    code: 'RCD4',
+    name: 'Interruptor Diferencial Residual IDR Tetrapolar 3P+N (30mA)',
     cat: 'protection',
     icon: '◉',
-    terminals: [['1', 'IN', 'L1'], ['2', 'OUT', 'L1'], ['3', 'IN', 'N'], ['4', 'OUT', 'N']],
+    terminals: [
+      ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
+      ['3', 'IN', 'L2'], ['4', 'OUT', 'L2'],
+      ['5', 'IN', 'L3'], ['6', 'OUT', 'L3'],
+      ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
+    ],
+    kind: 'rcd4',
+    params: { current: 63, leakage: 30, closed: true }
+  },
+  {
+    code: 'RCBO',
+    name: 'Disjuntor Diferencial Residual RCBO 1P+N (30mA)',
+    cat: 'protection',
+    icon: '◉',
+    terminals: [
+      ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
+      ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
+    ],
     kind: 'rcbo',
     params: { current: 16, leakage: 30, closed: true }
   },
   {
     code: 'SPD',
-    name: 'Dispositivo Contra Surtos DPS',
+    name: 'Dispositivo Contra Surtos DPS Monofásico (L+N+PE)',
     cat: 'protection',
     icon: '⚡',
-    terminals: [['L', 'IN', 'L1'], ['PE', 'PE', 'PE']],
+    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
     kind: 'spd',
-    params: { Uc: 275 }
+    params: { Uc: 275, In: 20 }
+  },
+  {
+    code: 'SPD3',
+    name: 'Dispositivo Contra Surtos DPS Trifásico (3P+N+PE)',
+    cat: 'protection',
+    icon: '⚡',
+    terminals: [
+      ['L1', 'IN', 'L1'], ['L2', 'IN', 'L2'], ['L3', 'IN', 'L3'],
+      ['N', 'IN', 'N'], ['PE', 'PE', 'PE']
+    ],
+    kind: 'spd',
+    params: { Uc: 440, In: 40 }
   },
   {
     code: 'OLR',
@@ -769,7 +827,93 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     icon: '▣',
     terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
     kind: 'outlet',
-    params: {}
+    params: { current: 16, voltage: 230 }
+  },
+
+  // CARGAS ESPECIAIS DE ALTA POTÊNCIA (IEC 60364)
+  {
+    code: 'LOAD_AC',
+    name: 'Ar Condicionado Split Inverter (12.000 BTU / 230V)',
+    cat: 'loads',
+    icon: '❄',
+    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
+    kind: 'load_ac',
+    params: { power: 1400, current: 6.2, voltage: 230, wireGauge: 2.5, btu: 12000, temp: 21 }
+  },
+  {
+    code: 'LOAD_COOKTOP',
+    name: 'Fogão de Indução Eletromagnético (4 Zonas / 7200W)',
+    cat: 'loads',
+    icon: '♨',
+    terminals: [
+      ['1', 'IN', 'L1'], ['3', 'IN', 'L2'],
+      ['N', 'IN', 'N'], ['PE', 'PE', 'PE']
+    ],
+    kind: 'load_cooktop',
+    params: { power: 7200, current: 31.3, voltage: 230, wireGauge: 6.0, pf: 0.98 }
+  },
+  {
+    code: 'LOAD_SHOWER',
+    name: 'Chuveiro Elétrico Multitemperatura (7500W Alta Potência)',
+    cat: 'loads',
+    icon: '🚿',
+    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
+    kind: 'load_shower',
+    params: { power: 7500, current: 32.6, voltage: 230, wireGauge: 6.0, pf: 1.0 }
+  },
+  {
+    code: 'LOAD_MICROWAVE',
+    name: 'Forno Micro-ondas Digital (1200W)',
+    cat: 'loads',
+    icon: '📻',
+    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
+    kind: 'load_microwave',
+    params: { power: 1200, current: 5.3, voltage: 230, wireGauge: 2.5, pf: 0.92 }
+  },
+
+  // ATERRAMENTO FÍSICO REALISTA & DISTRIBUIÇÃO (IEC 62305 / NBR 5410)
+  {
+    code: 'EARTH_ROD',
+    name: 'Haste de Aterramento Copperweld 5/8" × 2.4m',
+    cat: 'sources',
+    icon: '⏚',
+    terminals: [['PE', 'PE', 'PE']],
+    kind: 'earth_rod',
+    params: { resistance: 10, length: 2.4, material: 'copperweld' }
+  },
+  {
+    code: 'EARTH_PIT',
+    name: 'Caixa de Inspeção de Aterramento (BEP)',
+    cat: 'sources',
+    icon: '⌸',
+    terminals: [
+      ['PE1', 'PE', 'PE'], ['PE2', 'PE', 'PE'],
+      ['PE3', 'PE', 'PE'], ['GND', 'PE', 'PE']
+    ],
+    kind: 'earth_pit',
+    params: { resistance: 5 }
+  },
+  {
+    code: 'BARE_COPPER',
+    name: 'Cabo de Cobre Nu para Malha de Aterramento',
+    cat: 'sources',
+    icon: '〰',
+    terminals: [['IN', 'PE', 'PE'], ['OUT', 'PE', 'PE']],
+    kind: 'bare_copper',
+    params: { gauge: 35, length: 10 }
+  },
+  {
+    code: 'JUNCTION_BOX',
+    name: 'Caixa de Derivação com Bornes WAGO (Octogonal/Quadrada)',
+    cat: 'loads',
+    icon: '⊞',
+    terminals: [
+      ['L_IN', 'IN', 'L1'], ['L_OUT1', 'OUT', 'L1'], ['L_OUT2', 'OUT', 'L1'],
+      ['N_IN', 'IN', 'N'], ['N_OUT1', 'OUT', 'N'], ['N_OUT2', 'OUT', 'N'],
+      ['PE_IN', 'PE', 'PE'], ['PE_OUT', 'PE', 'PE']
+    ],
+    kind: 'junction_box',
+    params: { type: 'wago_221', ports: 8, rating: 32 }
   }
 ];
 
