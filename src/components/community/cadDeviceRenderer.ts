@@ -33,6 +33,10 @@ export interface BrandStyle {
 export interface DeviceFaultState {
   fault?: boolean;          // Curto-circuito ativo
   sparking?: boolean;       // Centelhamento / arco elétrico
+  sparkStartTime?: number;  // Início do evento de arco elétrico (~1.5s)
+  isBurned?: boolean;       // Queima permanente do dispositivo (desativa condução)
+  rotationDir?: 'CW' | 'CCW'; // Sentido horário ou anti-horário
+  phaseSequence?: string;   // Sequência de fase RST ou RTS
   thermal?: boolean;        // Sobrecarga térmica / aquecimento
   temperature?: number;     // Temperatura estimada (°C)
   damaged?: boolean;        // Dispositivo queimado / danificado
@@ -815,43 +819,120 @@ function renderMotorRotor(
   time: number,
   simRunning: boolean
 ) {
-  const isRunning = Boolean(simRunning && st.running && (st.rpm || 0) > 0);
+  const isBurned = Boolean(st.isBurned || st.damaged || c?.state?.isBurned);
+  const isRunning = Boolean(simRunning && st.running && (st.rpm || 0) > 0 && !isBurned);
   const rpm = isRunning ? (st.rpm || 0) : 0;
   const radius = Math.min(cw, ch) * 0.28;
+  const rotDir = st.rotationDir || c?.state?.rotationDir || 'CW';
+  const phaseSeq = st.phaseSequence || c?.state?.phaseSequence || (rotDir === 'CW' ? 'RST' : 'RTS');
+  const dir = rotDir === 'CCW' ? -1 : 1;
 
   ctx.save();
-  // Carcaça cilíndrica com aletas
+  // Carcaça cilíndrica com aletas térmicas
   const carGrad = ctx.createRadialGradient(0, -2 * zoom, radius * 0.2, 0, 0, radius);
-  carGrad.addColorStop(0, isRunning ? '#065f46' : '#334155');
-  carGrad.addColorStop(0.8, isRunning ? '#042f2e' : '#1e293b');
-  carGrad.addColorStop(1, '#090f1a');
+  if (isBurned) {
+    carGrad.addColorStop(0, '#1c1917');
+    carGrad.addColorStop(0.7, '#0f172a');
+    carGrad.addColorStop(1, '#020617');
+  } else {
+    carGrad.addColorStop(0, isRunning ? (rotDir === 'CW' ? '#065f46' : '#075985') : '#334155');
+    carGrad.addColorStop(0.8, isRunning ? (rotDir === 'CW' ? '#042f2e' : '#0c4a6e') : '#1e293b');
+    carGrad.addColorStop(1, '#090f1a');
+  }
   ctx.fillStyle = carGrad;
   ctx.beginPath();
   ctx.arc(0, -2 * zoom, radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // Eixo giratório
+  // Aletas de refrigeração do estator
+  ctx.strokeStyle = isBurned ? '#44403c' : (isRunning ? '#059669' : '#475569');
+  ctx.lineWidth = 1 * zoom;
+  for (let a = 0; a < 8; a++) {
+    const angle = (a * Math.PI) / 4;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * (radius * 0.84), -2 * zoom + Math.sin(angle) * (radius * 0.84));
+    ctx.lineTo(Math.cos(angle) * radius, -2 * zoom + Math.sin(angle) * radius);
+    ctx.stroke();
+  }
+
+  // Eixo giratório com inércia acoplada
   ctx.save();
   ctx.translate(0, -2 * zoom);
-  ctx.rotate(isRunning ? (time * (rpm / 60) * Math.PI * 2) : 0);
+  ctx.rotate(isRunning ? (dir * time * (rpm / 60) * Math.PI * 2) : 0);
 
-  ctx.strokeStyle = isRunning ? '#6ee7b7' : '#94a3b8';
+  ctx.strokeStyle = isBurned ? '#52525b' : (isRunning ? (rotDir === 'CW' ? '#6ee7b7' : '#7dd3fc') : '#94a3b8');
   ctx.lineWidth = 2 * zoom;
   ctx.lineCap = 'round';
   for (let i = 0; i < 4; i++) {
     ctx.rotate(Math.PI / 2);
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(0, radius * 0.75);
+    ctx.lineTo(0, radius * 0.72);
     ctx.stroke();
   }
   ctx.restore();
 
-  // Indicador de velocidade
-  ctx.fillStyle = isRunning ? '#34d399' : '#64748b';
-  ctx.font = `bold ${Math.max(7, 8 * zoom)}px monospace`;
+  // Seta Indicadora de Sentido de Rotação (Horário CW / RST vs Anti-horário CCW / RTS)
+  if (isRunning) {
+    ctx.save();
+    ctx.translate(0, -2 * zoom);
+    const arrowR = radius * 0.88;
+    const arrowColor = rotDir === 'CW' ? '#34d399' : '#38bdf8';
+    ctx.strokeStyle = arrowColor;
+    ctx.lineWidth = 1.6 * zoom;
+
+    ctx.beginPath();
+    if (rotDir === 'CW') {
+      ctx.arc(0, 0, arrowR, -Math.PI * 0.65, Math.PI * 0.15);
+    } else {
+      ctx.arc(0, 0, arrowR, -Math.PI * 0.35, Math.PI * 0.85, true);
+    }
+    ctx.stroke();
+
+    // Cabeça da seta de rotação
+    ctx.fillStyle = arrowColor;
+    ctx.beginPath();
+    if (rotDir === 'CW') {
+      const tx = Math.cos(Math.PI * 0.15) * arrowR;
+      const ty = Math.sin(Math.PI * 0.15) * arrowR;
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx - 3.5 * zoom, ty - 3.5 * zoom);
+      ctx.lineTo(tx + 0.5 * zoom, ty - 4.5 * zoom);
+    } else {
+      const tx = Math.cos(Math.PI * 0.85) * arrowR;
+      const ty = Math.sin(Math.PI * 0.85) * arrowR;
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx + 3.5 * zoom, ty - 3.5 * zoom);
+      ctx.lineTo(tx - 0.5 * zoom, ty - 4.5 * zoom);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Rótulos de Estado do Motor: Sentido de Rotação & RPM
   ctx.textAlign = 'center';
-  ctx.fillText(isRunning ? `${Math.round(rpm)} RPM` : 'PARADO', 0, ch / 2 - 8 * zoom);
+
+  if (isBurned) {
+    ctx.fillStyle = '#ef4444';
+    ctx.font = `bold ${Math.max(6.5, 7.5 * zoom)}px monospace`;
+    ctx.fillText('AVARIA (QUEIMADO)', 0, ch / 2 - 7 * zoom);
+  } else if (isRunning) {
+    // Rótulo de Sentido de Giro: "CW • RST" ou "CCW • RTS"
+    const dirLabel = `${rotDir} • ${phaseSeq}`;
+    ctx.fillStyle = rotDir === 'CW' ? '#34d399' : '#38bdf8';
+    ctx.font = `bold ${Math.max(6.5, 7.5 * zoom)}px monospace`;
+    ctx.fillText(dirLabel, 0, ch / 2 - 13 * zoom);
+
+    // RPM Real em Sincronia
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.max(7, 8.5 * zoom)}px monospace`;
+    ctx.fillText(`${Math.round(rpm)} RPM`, 0, ch / 2 - 3.5 * zoom);
+  } else {
+    ctx.fillStyle = '#64748b';
+    ctx.font = `bold ${Math.max(7, 8 * zoom)}px monospace`;
+    ctx.fillText('PARADO', 0, ch / 2 - 7 * zoom);
+  }
 
   ctx.restore();
 }
@@ -1407,9 +1488,14 @@ function renderFaultVisualEffects(
   zoom: number,
   time: number
 ) {
-  const isFault = Boolean(st.fault || st.sparking);
+  // O clarão e centelhamento da explosão duram ~1.5 segundos e cessam
+  const now = Date.now();
+  const sparkStart = st.sparkStartTime || 0;
+  const isSparkExplosionActive = Boolean(st.sparking && (!sparkStart || (now - sparkStart < 1500)));
+
+  const isFault = Boolean(st.fault || isSparkExplosionActive);
   const isThermal = Boolean(st.thermal);
-  const isDamaged = Boolean(st.damaged);
+  const isDamaged = Boolean(st.damaged || st.isBurned);
 
   if (!isFault && !isThermal && !isDamaged) return;
 
@@ -1439,14 +1525,14 @@ function renderFaultVisualEffects(
     ctx.fill();
   }
 
-  // 2. Curto-Circuito: Clarão de Arco Elétrico e Faíscas Brilhantes (Sparks)
-  if (isFault) {
-    // Clarão central plasma
-    const flashSize = (20 + Math.random() * 15) * zoom;
+  // 2. Curto-Circuito: Clarão de Arco Elétrico e Faíscas Brilhantes (Duração de ~1.5s)
+  if (isSparkExplosionActive) {
+    // Clarão central plasma de alta intensidade
+    const flashSize = (22 + Math.random() * 18) * zoom;
     const flashGrad = ctx.createRadialGradient(0, 0, 2 * zoom, 0, 0, flashSize);
     flashGrad.addColorStop(0, '#ffffff');
-    flashGrad.addColorStop(0.3, '#38bdf8');
-    flashGrad.addColorStop(0.7, '#f59e0b');
+    flashGrad.addColorStop(0.25, '#38bdf8');
+    flashGrad.addColorStop(0.65, '#f59e0b');
     flashGrad.addColorStop(1, 'transparent');
 
     ctx.fillStyle = flashGrad;
@@ -1454,47 +1540,60 @@ function renderFaultVisualEffects(
     ctx.arc(0, 0, flashSize, 0, Math.PI * 2);
     ctx.fill();
 
-    // Faíscas dinâmicas projetadas em múltiplos ângulos
-    const sparkCount = 14;
+    // Faíscas incandescentes projetadas em múltiplos ângulos
+    const sparkCount = 16;
     for (let i = 0; i < sparkCount; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const len = (14 + Math.random() * 26) * zoom;
-      const sx = Math.cos(angle) * (len * 0.3);
-      const sy = Math.sin(angle) * (len * 0.3);
+      const len = (16 + Math.random() * 30) * zoom;
+      const sx = Math.cos(angle) * (len * 0.25);
+      const sy = Math.sin(angle) * (len * 0.25);
       const ex = Math.cos(angle) * len;
       const ey = Math.sin(angle) * len;
 
-      ctx.strokeStyle = Math.random() > 0.4 ? '#fef08a' : '#ef4444';
-      ctx.lineWidth = (1.2 + Math.random() * 1.5) * zoom;
+      ctx.strokeStyle = Math.random() > 0.35 ? '#fef08a' : '#ef4444';
+      ctx.lineWidth = (1.2 + Math.random() * 1.6) * zoom;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(ex, ey);
       ctx.stroke();
 
-      // Pontinho brilhante na extremidade da faísca
+      // Ponto de plasma na extremidade
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(ex, ey, 1.2 * zoom, 0, Math.PI * 2);
+      ctx.arc(ex, ey, 1.4 * zoom, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  // 3. Queima / Dano com Pluma de Fumaça Dinâmica Subindo
+  // 3. Queima / Dano Definitivo (isBurned: true) com Fuligem Negra e Fumaça
   if (isDamaged || st.smokeAlpha) {
-    // Mancha de queima de fuligem preta (soot mark)
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+    // Mancha profunda de queima por fuligem preta (soot carbonization)
+    const sootGrad = ctx.createRadialGradient(0, 0, 4 * zoom, 0, 0, Math.max(cw, ch) * 0.45);
+    sootGrad.addColorStop(0, 'rgba(15, 23, 42, 0.85)');
+    sootGrad.addColorStop(0.6, 'rgba(30, 41, 59, 0.65)');
+    sootGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = sootGrad;
     ctx.beginPath();
-    ctx.arc(0, -ch * 0.2, 16 * zoom, 0, Math.PI * 2);
+    ctx.arc(0, 0, Math.max(cw, ch) * 0.45, 0, Math.PI * 2);
     ctx.fill();
+
+    // Rachaduras / marcas pretas de queima em bornes
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.lineWidth = 1.5 * zoom;
+    ctx.beginPath();
+    ctx.moveTo(-cw * 0.2, -ch * 0.25);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(cw * 0.22, ch * 0.2);
+    ctx.stroke();
 
     // Partículas de fumaça cinzenta subindo verticalmente
     const smokePuffs = 5;
     for (let s = 0; s < smokePuffs; s++) {
-      const puffOffset = ((time * 30 + s * 18) % 60) * zoom;
-      const puffX = Math.sin(time * 3 + s) * 8 * zoom;
+      const puffOffset = ((time * 26 + s * 16) % 55) * zoom;
+      const puffX = Math.sin(time * 2.5 + s) * 7 * zoom;
       const puffY = -ch / 2 - puffOffset;
-      const puffRadius = (6 + s * 3.5) * zoom;
-      const alpha = Math.max(0, 0.5 - (puffOffset / (60 * zoom)));
+      const puffRadius = (5 + s * 3) * zoom;
+      const alpha = Math.max(0, 0.45 - (puffOffset / (55 * zoom)));
 
       ctx.fillStyle = `rgba(148, 163, 184, ${alpha})`;
       ctx.beginPath();
