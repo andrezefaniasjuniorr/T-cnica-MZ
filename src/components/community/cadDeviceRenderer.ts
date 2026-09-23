@@ -65,7 +65,8 @@ export interface RenderDeviceOptions {
     h?: number;
     rot?: number;
     label?: string;
-    brand?: DeviceBrand;
+    brand?: DeviceBrand | string;
+    brandName?: string;
     state?: DeviceSimulationState;
     params?: Record<string, any>;
   };
@@ -251,9 +252,8 @@ export function renderDevice(
   const ch = (c.h || 75) * zoom;
   const rad = 6 * zoom;
 
-  // Marca Comercial (Schneider Electric por padrão de catálogo)
-  const brandName: DeviceBrand = c.brand || 'Schneider Electric';
-  const brandStyle = REAL_BRANDS[brandName] || REAL_BRANDS['Schneider Electric'];
+  // Marca Comercial Customizável (definida livremente pelo técnico ou em branco)
+  const brandText = (c.brandName !== undefined ? c.brandName : c.brand)?.toString().trim() || '';
 
   // Estados Operacionais
   const isTrip = Boolean(st.tripped);
@@ -331,8 +331,10 @@ export function renderDevice(
   ctx.roundRect(-cw / 2 + 3 * zoom, -ch / 2 + 3 * zoom, cw - 6 * zoom, ch - 6 * zoom, rad - 1);
   ctx.stroke();
 
-  // 5. Marca Comercial Sutil (Estilo Logótipo Industrial)
-  renderBrandWatermark(ctx, brandStyle, -cw / 2 + 6 * zoom, -ch / 2 + 10 * zoom, zoom);
+  // 5. Marca Comercial Customizável (Exibida somente se preenchida pelo técnico)
+  if (brandText) {
+    renderCustomBrandWatermark(ctx, brandText, -cw / 2 + 6 * zoom, -ch / 2 + 10 * zoom, zoom);
+  }
 
   // 6. Rótulo Compacto Padrão (Sem Poluição Visual)
   const compactName = getCompactDeviceLabel(c.code, c.label);
@@ -413,6 +415,40 @@ export function renderDevice(
 // ----------------------------------------------------------------------------
 
 /**
+ * Renderiza o logótipo/texto sutil da marca customizável do fabricante
+ */
+function renderCustomBrandWatermark(
+  ctx: CanvasRenderingContext2D,
+  brandText: string,
+  x: number,
+  y: number,
+  zoom: number
+) {
+  if (!brandText) return;
+  ctx.save();
+  const text = brandText.length > 14 ? brandText.substring(0, 14) : brandText;
+  ctx.font = `bold ${Math.max(6, 7 * zoom)}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  const metrics = ctx.measureText(text);
+  const tagW = Math.max(26 * zoom, metrics.width + 6 * zoom);
+  const tagH = 9 * zoom;
+
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+  ctx.strokeStyle = 'rgba(51, 65, 85, 0.7)';
+  ctx.lineWidth = 0.8 * zoom;
+  ctx.beginPath();
+  ctx.roundRect(x - 2 * zoom, y - 1 * zoom, tagW, tagH, 2 * zoom);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillText(text, x + 1 * zoom, y);
+  ctx.restore();
+}
+
+/**
  * Renderiza o logótipo/texto sutil da marca do fabricante
  */
 function renderBrandWatermark(
@@ -487,52 +523,49 @@ function renderDigitalMeasurementPanel(
   ctx.roundRect(-bezelW / 2 + 2 * zoom, bezelY + 2 * zoom, bezelW - 4 * zoom, bezelH - 4 * zoom, 2 * zoom);
   ctx.fill();
 
-  // Valores simulados em tempo real dinâmicos
+  // Valores medidos em tempo real dinâmicos (MNA / Kirchhoff)
   let displayValue = '---';
   let unit = '';
 
-  const jitter = simRunning ? (Math.sin(time * 6) * 0.2) : 0;
-
   switch (d.code) {
     case 'VM': {
-      // Voltímetro Digital True-RMS
-      const volts = simRunning ? (st.voltage ?? 230.0 + jitter) : 0.0;
-      displayValue = volts > 0 ? volts.toFixed(1) : '000.0';
-      unit = 'V AC';
+      // Voltímetro Digital True-RMS - Medição Real nos Nós Conectados
+      const volts = simRunning && typeof st.voltage === 'number' ? st.voltage : 0.0;
+      displayValue = volts > 0.1 ? volts.toFixed(1) : '0.0';
+      unit = 'V RMS';
       break;
     }
     case 'AM': {
-      // Amperímetro Digital
-      const isConducting = st.closed !== false;
-      const amps = simRunning ? (st.current ?? (isConducting ? 14.8 + jitter * 0.1 : 0.0)) : 0.0;
-      displayValue = amps > 0 ? amps.toFixed(2) : '00.00';
+      // Amperímetro Digital True-RMS - Medição Real em Série
+      const amps = simRunning && typeof st.current === 'number' ? st.current : 0.0;
+      displayValue = amps > 0.01 ? amps.toFixed(2) : '0.00';
       unit = 'A RMS';
       break;
     }
     case 'FREQ': {
-      // Frequencímetro Digital
-      const freq = simRunning ? (st.frequency ?? 50.0 + (jitter * 0.02)) : 0.0;
-      displayValue = freq > 0 ? freq.toFixed(1) : '00.0';
+      // Frequencímetro Digital - Frequência Real
+      const freq = simRunning && typeof st.frequency === 'number' ? st.frequency : 0.0;
+      displayValue = freq > 0.5 ? freq.toFixed(1) : '0.0';
       unit = 'Hz';
       break;
     }
     case 'WM': {
-      // Wattímetro
-      const kw = simRunning ? (st.powerKW ?? 3.45 + jitter * 0.05) : 0.0;
-      displayValue = kw > 0 ? kw.toFixed(2) : '0.00';
+      // Wattímetro - Potência Ativa Real
+      const kw = simRunning && typeof st.powerKW === 'number' ? st.powerKW : 0.0;
+      displayValue = kw > 0.005 ? kw.toFixed(2) : '0.00';
       unit = 'kW';
       break;
     }
     case 'COS': {
-      // Cosfímetro
-      const pf = simRunning ? (st.powerFactor ?? 0.92) : 1.0;
+      // Cosfímetro - Fator de Potência Real
+      const pf = simRunning && typeof st.powerFactor === 'number' ? st.powerFactor : 1.0;
       displayValue = pf.toFixed(2);
       unit = 'cos φ';
       break;
     }
     case 'ENERGY': {
       // Medidor de Energia Ativa
-      const kwh = simRunning ? (st.energyKWh ?? 142.85) : 142.8;
+      const kwh = simRunning && typeof st.energyKWh === 'number' ? st.energyKWh : 0.0;
       displayValue = kwh.toFixed(1);
       unit = 'kWh';
       break;
@@ -782,8 +815,8 @@ function renderMotorRotor(
   time: number,
   simRunning: boolean
 ) {
-  const isRunning = Boolean(st.running);
-  const rpm = isRunning ? (st.rpm || 2920) : 0;
+  const isRunning = Boolean(simRunning && st.running && (st.rpm || 0) > 0);
+  const rpm = isRunning ? (st.rpm || 0) : 0;
   const radius = Math.min(cw, ch) * 0.28;
 
   ctx.save();

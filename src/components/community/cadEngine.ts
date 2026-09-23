@@ -1121,14 +1121,14 @@ export function generateDirectMotorStarterCircuit(): { components: any[]; wires:
 
   const wires = [
     // Força: SRC1 -> Q1
-    { id: 'W1', a: { c: 'SRC1', t: 'L1' }, b: { c: 'Q1', t: '1' }, type: 'L1', live: true },
-    { id: 'W2', a: { c: 'SRC1', t: 'L2' }, b: { c: 'Q1', t: '3' }, type: 'L2', live: true },
-    { id: 'W3', a: { c: 'SRC1', t: 'L3' }, b: { c: 'Q1', t: '5' }, type: 'L3', live: true },
+    { id: 'W1', a: { c: 'SRC1', t: 'L1' }, b: { c: 'Q1', t: '1' }, type: 'L1', live: false },
+    { id: 'W2', a: { c: 'SRC1', t: 'L2' }, b: { c: 'Q1', t: '3' }, type: 'L2', live: false },
+    { id: 'W3', a: { c: 'SRC1', t: 'L3' }, b: { c: 'Q1', t: '5' }, type: 'L3', live: false },
 
     // Força: Q1 -> KM1
-    { id: 'W4', a: { c: 'Q1', t: '2' }, b: { c: 'KM1', t: '1' }, type: 'L1', live: true },
-    { id: 'W5', a: { c: 'Q1', t: '4' }, b: { c: 'KM1', t: '3' }, type: 'L2', live: true },
-    { id: 'W6', a: { c: 'Q1', t: '6' }, b: { c: 'KM1', t: '5' }, type: 'L3', live: true },
+    { id: 'W4', a: { c: 'Q1', t: '2' }, b: { c: 'KM1', t: '1' }, type: 'L1', live: false },
+    { id: 'W5', a: { c: 'Q1', t: '4' }, b: { c: 'KM1', t: '3' }, type: 'L2', live: false },
+    { id: 'W6', a: { c: 'Q1', t: '6' }, b: { c: 'KM1', t: '5' }, type: 'L3', live: false },
 
     // Força: KM1 -> F1
     { id: 'W7', a: { c: 'KM1', t: '2' }, b: { c: 'F1', t: '1' }, type: 'L1', live: false },
@@ -1141,14 +1141,14 @@ export function generateDirectMotorStarterCircuit(): { components: any[]; wires:
     { id: 'W12', a: { c: 'F1', t: '6' }, b: { c: 'M1', t: 'W' }, type: 'L3', live: false },
 
     // Comando: L1 -> 95 F1 (Contato NF Proteção) -> S0
-    { id: 'W13', a: { c: 'SRC1', t: 'L1' }, b: { c: 'F1', t: '95' }, type: 'CTRL', live: true },
-    { id: 'W14', a: { c: 'F1', t: '96' }, b: { c: 'S0', t: '1' }, type: 'CTRL', live: true },
+    { id: 'W13', a: { c: 'SRC1', t: 'L1' }, b: { c: 'F1', t: '95' }, type: 'CTRL', live: false },
+    { id: 'W14', a: { c: 'F1', t: '96' }, b: { c: 'S0', t: '1' }, type: 'CTRL', live: false },
 
     // Comando: S0 -> S1
-    { id: 'W15', a: { c: 'S0', t: '2' }, b: { c: 'S1', t: '3' }, type: 'CTRL', live: true },
+    { id: 'W15', a: { c: 'S0', t: '2' }, b: { c: 'S1', t: '3' }, type: 'CTRL', live: false },
 
     // Contato de Selo 13-14 KM1 em paralelo com S1 (3-4)
-    { id: 'W16', a: { c: 'S1', t: '3' }, b: { c: 'KM1', t: '13' }, type: 'CTRL', live: true },
+    { id: 'W16', a: { c: 'S1', t: '3' }, b: { c: 'KM1', t: '13' }, type: 'CTRL', live: false },
     { id: 'W17', a: { c: 'S1', t: '4' }, b: { c: 'KM1', t: '14' }, type: 'CTRL', live: false },
 
     // Acionamento da Bobina KM1 A1-A2
@@ -1174,7 +1174,7 @@ export function generateFourWayLightingCircuit(): { components: any[]; wires: an
       w: 110,
       h: 75,
       params: { voltage: 230, frequency: 50 },
-      state: { energized: true },
+      state: { energized: false },
       label: 'Fonte 230V AC'
     },
     {
@@ -1240,11 +1240,11 @@ export function generateFourWayLightingCircuit(): { components: any[]; wires: an
   ];
 
   const wires = [
-    { id: 'W1', a: { c: 'SRC1', t: 'L' }, b: { c: 'Q1', t: '1' }, type: 'L1', live: true },
-    { id: 'W2', a: { c: 'Q1', t: '2' }, b: { c: 'S1', t: 'COM' }, type: 'L1', live: true },
-    { id: 'W3', a: { c: 'S1', t: '1' }, b: { c: 'S2', t: '1' }, type: 'CTRL', live: true },
+    { id: 'W1', a: { c: 'SRC1', t: 'L' }, b: { c: 'Q1', t: '1' }, type: 'L1', live: false },
+    { id: 'W2', a: { c: 'Q1', t: '2' }, b: { c: 'S1', t: 'COM' }, type: 'L1', live: false },
+    { id: 'W3', a: { c: 'S1', t: '1' }, b: { c: 'S2', t: '1' }, type: 'CTRL', live: false },
     { id: 'W4', a: { c: 'S1', t: '2' }, b: { c: 'S2', t: '2' }, type: 'CTRL', live: false },
-    { id: 'W5', a: { c: 'S2', t: '3' }, b: { c: 'S3', t: '1' }, type: 'CTRL', live: true },
+    { id: 'W5', a: { c: 'S2', t: '3' }, b: { c: 'S3', t: '1' }, type: 'CTRL', live: false },
     { id: 'W6', a: { c: 'S2', t: '4' }, b: { c: 'S3', t: '2' }, type: 'CTRL', live: false },
     { id: 'W7', a: { c: 'S3', t: 'COM' }, b: { c: 'E1', t: 'L' }, type: 'L1', live: false },
     { id: 'W8', a: { c: 'E1', t: 'N' }, b: { c: 'SRC1', t: 'N' }, type: 'N', live: false }
@@ -1342,16 +1342,16 @@ export function generateQgdProtectionCircuit(): { components: any[]; wires: any[
   ];
 
   const wires = [
-    { id: 'W1', a: { c: 'SRC1', t: 'L' }, b: { c: 'Q_MAIN', t: '1' }, type: 'L1', live: true },
-    { id: 'W2', a: { c: 'Q_MAIN', t: '2' }, b: { c: 'RCD1', t: '1' }, type: 'L1', live: true },
+    { id: 'W1', a: { c: 'SRC1', t: 'L' }, b: { c: 'Q_MAIN', t: '1' }, type: 'L1', live: false },
+    { id: 'W2', a: { c: 'Q_MAIN', t: '2' }, b: { c: 'RCD1', t: '1' }, type: 'L1', live: false },
     { id: 'W3', a: { c: 'SRC1', t: 'N' }, b: { c: 'RCD1', t: '3' }, type: 'N', live: false },
     // Barramento Pós-DR
-    { id: 'W4', a: { c: 'RCD1', t: '2' }, b: { c: 'Q_C1', t: '1' }, type: 'L1', live: true },
-    { id: 'W5', a: { c: 'RCD1', t: '2' }, b: { c: 'Q_C2', t: '1' }, type: 'L1', live: true },
+    { id: 'W4', a: { c: 'RCD1', t: '2' }, b: { c: 'Q_C1', t: '1' }, type: 'L1', live: false },
+    { id: 'W5', a: { c: 'RCD1', t: '2' }, b: { c: 'Q_C2', t: '1' }, type: 'L1', live: false },
     // Cargas C1 e C2
-    { id: 'W6', a: { c: 'Q_C1', t: '2' }, b: { c: 'LAMP1', t: 'L' }, type: 'L1', live: true },
+    { id: 'W6', a: { c: 'Q_C1', t: '2' }, b: { c: 'LAMP1', t: 'L' }, type: 'L1', live: false },
     { id: 'W7', a: { c: 'LAMP1', t: 'N' }, b: { c: 'RCD1', t: '4' }, type: 'N', live: false },
-    { id: 'W8', a: { c: 'Q_C2', t: '2' }, b: { c: 'OUTLET1', t: 'L' }, type: 'L1', live: true },
+    { id: 'W8', a: { c: 'Q_C2', t: '2' }, b: { c: 'OUTLET1', t: 'L' }, type: 'L1', live: false },
     { id: 'W9', a: { c: 'OUTLET1', t: 'N' }, b: { c: 'RCD1', t: '4' }, type: 'N', live: false }
   ];
 
@@ -1448,19 +1448,19 @@ export function generateSolarPVIsoCircuit(): { components: any[]; wires: any[] }
 
   const wires = [
     // CC da String para a String Box
-    { id: 'W_PV1', a: { c: 'PV_STR1', t: '+' }, b: { c: 'SB1', t: 'IN+' }, type: '24+', live: true },
-    { id: 'W_PV2', a: { c: 'PV_STR1', t: '-' }, b: { c: 'SB1', t: 'IN-' }, type: '24-', live: true },
+    { id: 'W_PV1', a: { c: 'PV_STR1', t: '+' }, b: { c: 'SB1', t: 'IN+' }, type: '24+', live: false },
+    { id: 'W_PV2', a: { c: 'PV_STR1', t: '-' }, b: { c: 'SB1', t: 'IN-' }, type: '24-', live: false },
     // Aterramento da carcaça dos painéis
     { id: 'W_PE1', a: { c: 'PV_STR1', t: 'PE' }, b: { c: 'SB1', t: 'PE' }, type: 'PE', live: false },
     // String Box para Inversor Solar
-    { id: 'W_PV3', a: { c: 'SB1', t: 'OUT+' }, b: { c: 'INV1', t: 'PV+' }, type: '24+', live: true },
-    { id: 'W_PV4', a: { c: 'SB1', t: 'OUT-' }, b: { c: 'INV1', t: 'PV-' }, type: '24-', live: true },
+    { id: 'W_PV3', a: { c: 'SB1', t: 'OUT+' }, b: { c: 'INV1', t: 'PV+' }, type: '24+', live: false },
+    { id: 'W_PV4', a: { c: 'SB1', t: 'OUT-' }, b: { c: 'INV1', t: 'PV-' }, type: '24-', live: false },
     // Saída CA do Inversor para Disjuntor CA
-    { id: 'W_AC1', a: { c: 'INV1', t: 'L' }, b: { c: 'Q_AC1', t: '1' }, type: 'L1', live: true },
+    { id: 'W_AC1', a: { c: 'INV1', t: 'L' }, b: { c: 'Q_AC1', t: '1' }, type: 'L1', live: false },
     { id: 'W_AC2', a: { c: 'INV1', t: 'N' }, b: { c: 'RCD_PV', t: '3' }, type: 'N', live: false },
-    { id: 'W_AC3', a: { c: 'Q_AC1', t: '2' }, b: { c: 'RCD_PV', t: '1' }, type: 'L1', live: true },
+    { id: 'W_AC3', a: { c: 'Q_AC1', t: '2' }, b: { c: 'RCD_PV', t: '1' }, type: 'L1', live: false },
     // Pós IDR para Quadro de Cargas
-    { id: 'W_AC4', a: { c: 'RCD_PV', t: '2' }, b: { c: 'LOAD_AC1', t: 'L' }, type: 'L1', live: true },
+    { id: 'W_AC4', a: { c: 'RCD_PV', t: '2' }, b: { c: 'LOAD_AC1', t: 'L' }, type: 'L1', live: false },
     { id: 'W_AC5', a: { c: 'RCD_PV', t: '4' }, b: { c: 'LOAD_AC1', t: 'N' }, type: 'N', live: false },
     // Terra Geral
     { id: 'W_PE2', a: { c: 'INV1', t: 'PE' }, b: { c: 'LOAD_AC1', t: 'PE' }, type: 'PE', live: false }

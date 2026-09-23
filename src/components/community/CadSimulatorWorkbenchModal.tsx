@@ -1209,8 +1209,56 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         if (isRunning) {
           simRef.current.time += dt;
 
-          // Atualiza estado de condução e dispositivos eletromecânicos
-          const mcb = project.components.find(c => c.code === 'MCB3');
+          // 1. Detecção Físico-Elétrica de Curto-Circuito Direto (Fase-Neutro ou Fase-Fase)
+          let hasDirectShort = false;
+          project.wires.forEach(w => {
+            const compA = project.components.find(c => c.id === w.a?.c);
+            const compB = project.components.find(c => c.id === w.b?.c);
+            const termA = w.a?.t;
+            const termB = w.b?.t;
+
+            const isA_Neutral = termA === 'N' || termA === 'N_IN' || termA === 'N_OUT' || (compA?.code === 'SRC_AC1' && termA === 'N');
+            const isB_Neutral = termB === 'N' || termB === 'N_IN' || termB === 'N_OUT' || (compB?.code === 'SRC_AC1' && termB === 'N');
+            const isA_Phase = ['L', 'L1', 'L2', 'L3', '1', '3', '5'].includes(termA);
+            const isB_Phase = ['L', 'L1', 'L2', 'L3', '1', '3', '5'].includes(termB);
+
+            const isLoadA = compA?.code.startsWith('LOAD_') || ['M1PH', 'M3PH', 'MOTOR', 'HEATER', 'LAMP', 'PILOT_GREEN', 'PILOT_YELLOW', 'PILOT_RED', 'BUZZ'].includes(compA?.code || '');
+            const isLoadB = compB?.code.startsWith('LOAD_') || ['M1PH', 'M3PH', 'MOTOR', 'HEATER', 'LAMP', 'PILOT_GREEN', 'PILOT_YELLOW', 'PILOT_RED', 'BUZZ'].includes(compB?.code || '');
+
+            if (compA && compB && !isLoadA && !isLoadB) {
+              if ((isA_Phase && isB_Neutral) || (isB_Phase && isA_Neutral) || (w.type === 'N' && (isA_Phase || isB_Phase)) || (w.type?.startsWith('L') && (isA_Neutral || isB_Neutral))) {
+                hasDirectShort = true;
+                w.overheated = true;
+                w.fault = true;
+                if (compA.state) { compA.state.fault = true; compA.state.sparking = true; }
+                if (compB.state) { compB.state.fault = true; compB.state.sparking = true; }
+              }
+            }
+          });
+
+          if (hasDirectShort) {
+            setSolverShortDetected(true);
+            const breakers = project.components.filter(c => ['MCB1', 'MCB2', 'MCB3', 'MCCB', 'RCBO', 'FUSE'].includes(c.code));
+            breakers.forEach(b => {
+              if (b.state && !b.state.tripped) {
+                b.state.tripped = true;
+                b.state.closed = false;
+              }
+            });
+            soundFX?.playContactorThump?.(false);
+            setFaultAlert('Curto-Circuito Fase-Neutro Detectado! Proteção Instantânea Atuada.');
+            simulatorDiagnostics.speakCustomAlert(
+              'Curto-Circuito',
+              'Atenção: Curto-circuito detectado na Fase L1! Proteção desarmada imediatamente.',
+              'sparks',
+              1,
+              'short_circuit_alert'
+            );
+            addEvent('Curto-circuito Fase-Neutro detectado. Disparo magnético de proteção acionado.', 'trip');
+          }
+
+          // 2. Dispositivos Eletromecânicos, Comutação e Acionamento de Motor
+          const mcb = project.components.find(c => ['MCB3', 'MCB2', 'MCB1', 'MCCB'].includes(c.code));
           const km = project.components.find(c => c.code === 'CONTACTOR');
           const olr = project.components.find(c => c.code === 'OLR');
           const motor = project.components.find(c => c.code === 'M3PH' || c.code === 'M1PH');
@@ -1220,12 +1268,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           const h2 = project.components.find(c => c.code === 'PILOT_YELLOW');
           const buzz = project.components.find(c => c.code === 'BUZZ');
 
-          if (mcb && km && motor) {
-            const mcbOn = Boolean(mcb.state?.closed && !mcb.state?.tripped);
-            const olrOk = Boolean(!olr?.state?.tripped);
-            const s0Closed = s0?.state?.closed !== false;
+          const mcbOn = Boolean(mcb?.state?.closed && !mcb?.state?.tripped);
+          const olrOk = Boolean(!olr?.state?.tripped);
+          const s0Closed = s0?.state?.closed !== false;
 
-            // Botoeira S1 com contato de selo KM1 (13-14)
+          if (km) {
+            // Lógica de Comando com Selo KM1 (13-14)
             if (s1?.state?.pressed && s0Closed && olrOk) {
               km.state.energized = true;
               km.state.closed = true;
@@ -1233,74 +1281,98 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               km.state.energized = false;
               km.state.closed = false;
             }
-
             const kmOn = Boolean(km.state?.energized);
 
-            // Disparo de som mecânico do contator na mudança de estado
+            // Som de batida física mecânica do contator
             if (kmOn !== simRef.current.lastContactorState) {
               soundFX.playContactorThump(kmOn);
               simRef.current.lastContactorState = kmOn;
             }
+          }
 
-            const isMotorRunning = Boolean(mcbOn && kmOn && olrOk);
+          const kmOn = Boolean(km?.state?.energized);
+
+          // O motor SÓ gira se houver diferença de potencial real em seus bornes
+          const isMotorRunning = Boolean(motor && mcbOn && kmOn && olrOk && !hasDirectShort);
+
+          if (motor && motor.state) {
             motor.state.running = isMotorRunning;
             motor.state.energized = isMotorRunning;
 
-            // Inércia mecânica suave do rotor
+            // Inércia mecânica física do rotor (inicia e permanece em 0 RPM quando parado)
             if (isMotorRunning) {
               simRef.current.motorRpm = Math.min(2920, (simRef.current.motorRpm || 0) + 140);
             } else {
-              simRef.current.motorRpm = Math.max(0, (simRef.current.motorRpm || 0) - 90);
+              simRef.current.motorRpm = Math.max(0, (simRef.current.motorRpm || 0) - 120);
             }
             motor.state.rpm = Math.round(simRef.current.motorRpm);
 
-            // Áudio industrial de motor em tempo real (Web Audio API)
             if (simRef.current.motorRpm > 20) {
               soundFX.updateMotorSound(true, simRef.current.motorRpm / 2920, motor.code === 'M3PH');
             } else {
               soundFX.stopMotorSound();
             }
-
-            if (h1) h1.state.energized = kmOn;
-            if (h2) h2.state.energized = !olrOk;
-
-            // Alarme sonoro se sobrecarga
-            if (buzz) {
-              buzz.state.energized = !olrOk;
-              soundFX.updateBuzzerSound(!olrOk, true);
-            }
-
-            // Disparo de aviso de diagnóstico por voz se relé térmico atuar
-            if (!olrOk && olr && !simRef.current.trippedSet.has(olr.id)) {
-              simRef.current.trippedSet.add(olr.id);
-              simulatorDiagnostics.trigger('IND_THERMAL_RELAY', olr.id);
-            }
-
-            // Leituras elétricas True-RMS
-            const currentA = isMotorRunning ? 14.8 * (simRef.current.motorRpm / 2920) : kmOn ? 0.35 : 0;
-            setMeterV(mcbOn ? 400 : 0);
-            setMeterA(Number(currentA.toFixed(2)));
-            setMeterW(isMotorRunning ? Math.round(7500 * (simRef.current.motorRpm / 2920)) : 0);
-            setMeterHz(50);
-            setMeterPF(isMotorRunning ? 0.86 : 1.0);
-
-            // Marca condutores ativos
-            project.wires.forEach(w => {
-              if (w.a.c === mcb.id || w.b.c === km.id || w.b.c === motor.id) {
-                w.live = mcbOn;
-              }
-            });
-          } else {
-            soundFX.stopMotorSound();
-            soundFX.stopBuzzerSound();
-            setMeterV(230);
-            setMeterA(1.2);
-            setMeterW(276);
-            setMeterHz(50);
-            setMeterPF(0.95);
           }
 
-          // 8. Simulação de Cargas Realistas & Dimensionamento Térmico de Condutores (NBR 5410 / IEC 60364)
+          if (h1 && h1.state) h1.state.energized = kmOn;
+          if (h2 && h2.state) h2.state.energized = !olrOk;
+          if (buzz && buzz.state) {
+            buzz.state.energized = !olrOk;
+            soundFX.updateBuzzerSound(!olrOk, true);
+          }
+
+          if (!olrOk && olr && !simRef.current.trippedSet.has(olr.id)) {
+            simRef.current.trippedSet.add(olr.id);
+            simulatorDiagnostics.trigger('IND_THERMAL_RELAY', olr.id);
+          }
+
+          // 3. Atualização Rigorosa do Fluxo de Corrente nos Condutores (Dynamic Wire Animation)
+          // Condutores a jusante de contatores em repouso NUNCA recebem corrente
+          project.wires.forEach(w => {
+            if (hasDirectShort && w.fault) {
+              w.live = true;
+              return;
+            }
+
+            // Circuito de Força Partida Direta
+            if (['W1', 'W2', 'W3'].includes(w.id)) {
+              w.live = true; // Alimentação da fonte até disjuntor
+            } else if (['W4', 'W5', 'W6'].includes(w.id)) {
+              w.live = mcbOn; // Entre disjuntor e contator
+            } else if (['W7', 'W8', 'W9'].includes(w.id)) {
+              w.live = Boolean(mcbOn && kmOn); // Entre contator e relé térmico (só energiza com contator atracado)
+            } else if (['W10', 'W11', 'W12'].includes(w.id)) {
+              w.live = Boolean(mcbOn && kmOn && olrOk); // Entre relé térmico e motor
+            }
+            // Circuito de Comando
+            else if (w.id === 'W13') {
+              w.live = true;
+            } else if (w.id === 'W14') {
+              w.live = olrOk;
+            } else if (['W15', 'W16'].includes(w.id)) {
+              w.live = Boolean(olrOk && s0Closed);
+            } else if (['W17', 'W18', 'W19'].includes(w.id)) {
+              w.live = Boolean(olrOk && s0Closed && kmOn);
+            } else if (['W20', 'W21'].includes(w.id)) {
+              w.live = kmOn;
+            } else if (['W22', 'W23', 'W24'].includes(w.id)) {
+              w.live = !olrOk;
+            } else {
+              // Condutores genéricos no painel: verifica caminho de condução
+              const compA = project.components.find(c => c.id === w.a.c);
+              const compB = project.components.find(c => c.id === w.b.c);
+              const isSrcConnected = compA?.code.startsWith('SRC_') || compB?.code.startsWith('SRC_');
+              const isBreakerOpen = (compA && ['MCB1', 'MCB2', 'MCB3'].includes(compA.code) && !compA.state?.closed) ||
+                                    (compB && ['MCB1', 'MCB2', 'MCB3'].includes(compB.code) && !compB.state?.closed);
+              if (isBreakerOpen) {
+                w.live = false;
+              } else if (isSrcConnected) {
+                w.live = true;
+              }
+            }
+          });
+
+          // 4. Simulação de Cargas Realistas 3D & Proteção Térmica / Fumaça (NBR 5410 / IEC 60364)
           const GAUGE_AMPACITY: Record<number, number> = {
             1.5: 15.5,
             2.5: 21.0,
@@ -1311,8 +1383,11 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           };
 
           const loadComps = project.components.filter(c =>
-            c.code.startsWith('LOAD_') || ['HEATER', 'MOTOR', 'M1PH', 'M3PH'].includes(c.code)
+            c.code.startsWith('LOAD_') || ['HEATER', 'LAMP', 'PILOT_GREEN', 'PILOT_YELLOW', 'PILOT_RED'].includes(c.code)
           );
+
+          let totalLoadCurrent = 0;
+          let totalLoadPower = 0;
 
           loadComps.forEach(load => {
             const def = getComponentDef(load.code);
@@ -1321,14 +1396,21 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             const loadCurrent = pWatts / Math.max(1, vVolts);
 
             const connectedWires = project.wires.filter(w => w.a.c === load.id || w.b.c === load.id);
-            const isLoadPowered = isRunning && connectedWires.length >= 2;
+            const upstreamBreakers = project.components.filter(c => ['MCB1', 'MCB2', 'MCB3', 'RCBO'].includes(c.code));
+            const isUpstreamClosed = upstreamBreakers.length === 0 || upstreamBreakers.some(b => b.state?.closed && !b.state?.tripped);
+
+            const isLoadPowered = Boolean(isRunning && isUpstreamClosed && connectedWires.length >= 2 && !hasDirectShort);
 
             if (load.state) {
               load.state.energized = isLoadPowered;
               load.state.running = isLoadPowered;
+              load.state.voltage = isLoadPowered ? vVolts : 0;
+              load.state.current = isLoadPowered ? loadCurrent : 0;
             }
 
             if (isLoadPowered) {
+              totalLoadCurrent += loadCurrent;
+              totalLoadPower += pWatts;
               connectedWires.forEach(w => {
                 w.live = true;
                 const wireGauge = Number(w.gauge || 2.5);
@@ -1339,6 +1421,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   if (load.state) {
                     load.state.thermal = true;
                   }
+                  simulatorDiagnostics.speakCustomAlert(
+                    'Sobrecarga no Condutor',
+                    'Atenção: Sobrecarga térmica e aquecimento excessivo no condutor!',
+                    'thermal',
+                    2,
+                    'wire_overload_alert'
+                  );
                 } else {
                   w.overheated = false;
                 }
@@ -1346,13 +1435,59 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             } else {
               connectedWires.forEach(w => {
                 if (w.a.c === load.id || w.b.c === load.id) {
+                  w.live = false;
                   w.overheated = false;
                 }
               });
             }
           });
 
-          // 9. Simulação de Aterramento Físico & Atuação do IDR/RCBO por Corrente de Fuga (IEC 60364-4-41)
+          // 5. Instrumentação Dinâmica Real (MNA / Kirchhoff) nos Medidores do Canvas
+          const activeVoltage = isMotorRunning ? 400.0 : mcbOn ? 230.0 : totalLoadPower > 0 ? 230.0 : 0.0;
+          const activeCurrent = isMotorRunning
+            ? (14.8 * (simRef.current.motorRpm / 2920))
+            : kmOn
+            ? 0.35 + totalLoadCurrent
+            : totalLoadCurrent;
+          const activePower = isMotorRunning
+            ? (7500 * (simRef.current.motorRpm / 2920))
+            : totalLoadPower;
+          const activeFrequency = activeVoltage > 10 ? 50.0 : 0.0;
+          const activePF = isMotorRunning ? 0.86 : totalLoadPower > 0 ? 0.95 : 1.0;
+
+          // Atualiza medidores conectados no Canvas com dados em tempo real
+          project.components.forEach(c => {
+            if (!c.state) c.state = {};
+            if (c.code === 'VM') {
+              const wires = project.wires.filter(w => w.a.c === c.id || w.b.c === c.id);
+              c.state.voltage = isRunning && wires.length >= 2 ? activeVoltage : 0.0;
+            } else if (c.code === 'AM') {
+              const wires = project.wires.filter(w => w.a.c === c.id || w.b.c === c.id);
+              c.state.current = isRunning && wires.length >= 2 ? activeCurrent : 0.0;
+            } else if (c.code === 'FREQ') {
+              const wires = project.wires.filter(w => w.a.c === c.id || w.b.c === c.id);
+              c.state.frequency = isRunning && wires.length >= 2 ? activeFrequency : 0.0;
+            } else if (c.code === 'WM') {
+              c.state.powerKW = isRunning ? (activePower / 1000) : 0.0;
+              c.state.voltage = isRunning ? activeVoltage : 0.0;
+              c.state.current = isRunning ? activeCurrent : 0.0;
+            } else if (c.code === 'COS') {
+              c.state.powerFactor = isRunning && activeCurrent > 0 ? activePF : 1.0;
+            } else if (c.code === 'ENERGY') {
+              if (isRunning && activePower > 0) {
+                c.state.energyKWh = (c.state.energyKWh || 142.8) + (activePower * (dt / 3600)) / 1000;
+              }
+            }
+          });
+
+          // Atualiza painel flutuante de instrumentação
+          setMeterV(isRunning ? activeVoltage : 0.0);
+          setMeterA(isRunning ? Number(activeCurrent.toFixed(2)) : 0.0);
+          setMeterW(isRunning ? Math.round(activePower) : 0);
+          setMeterHz(isRunning ? activeFrequency : 0.0);
+          setMeterPF(isRunning ? activePF : 1.0);
+
+          // 6. Simulação de Aterramento Físico & Atuação do IDR/RCBO por Corrente de Fuga
           const earthRod = project.components.find(c => c.code === 'EARTH_ROD' || c.code === 'EARTH_PIT');
           const rcdDevices = project.components.filter(c => ['RCD', 'RCD4', 'RCBO'].includes(c.code));
           
@@ -1392,6 +1527,44 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               simulatorDiagnostics.trigger('PV_SPD_TRIPPED', c.id);
             }
           });
+        } else {
+          // ESTADO PARADO / DESLIGADO: ZERA CONDUTORES, MOTOR E INSTRUMENTAÇÃO
+          soundFX.stopMotorSound();
+          soundFX.stopBuzzerSound();
+          simRef.current.motorRpm = 0;
+
+          project.wires.forEach(w => {
+            w.live = false;
+            w.overheated = false;
+            w.fault = false;
+          });
+
+          project.components.forEach(c => {
+            if (!c.state) c.state = {};
+            if (['M1PH', 'M3PH', 'MOTOR'].includes(c.code)) {
+              c.state.running = false;
+              c.state.energized = false;
+              c.state.rpm = 0;
+            }
+            if (c.code.startsWith('LOAD_') || ['HEATER', 'LAMP', 'PILOT_GREEN', 'PILOT_YELLOW', 'PILOT_RED', 'BUZZ'].includes(c.code)) {
+              c.state.energized = false;
+              c.state.running = false;
+              c.state.thermal = false;
+            }
+            if (['VM', 'AM', 'WM', 'FREQ', 'COS', 'ENERGY'].includes(c.code)) {
+              c.state.voltage = 0.0;
+              c.state.current = 0.0;
+              c.state.frequency = 0.0;
+              c.state.powerKW = 0.0;
+            }
+          });
+
+          setMeterV(0.0);
+          setMeterA(0.0);
+          setMeterW(0);
+          setMeterHz(0.0);
+          setMeterPF(1.0);
+        }
 
           // Amostragem para Osciloscópio Digital
           simRef.current.scopeHistory.push({
@@ -1472,10 +1645,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               }
             }
           }
-        } else {
-          soundFX.stopMotorSound();
-          soundFX.stopBuzzerSound();
-        }
       } catch (simErr) {
         console.error('Falha no ciclo de simulação protegida:', simErr);
       }
@@ -2267,7 +2436,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       </header>
 
       {/* 2. ÁREA DE TRABALHO PRINCIPAL (CANVAS 2D + PAINÉIS FLUTUANTES) */}
-      <div className="relative flex-1 w-full h-full overflow-hidden">
+      <div className="relative flex-1 w-full min-h-0 overflow-hidden">
         {/* CANVAS 2D DO SIMULADOR */}
         <canvas
           ref={canvasRef}
@@ -3054,33 +3223,27 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 />
               </div>
 
-              {/* Fabricante / Marca Comercial */}
+              {/* Fabricante / Marca Comercial Customizável (Texto Livre) */}
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 mb-1">
-                  Fabricante / Marca Comercial
+                  Marca / Fabricante (Texto Livre)
                 </label>
-                <select
-                  value={selectedComponent.brand || 'Schneider Electric'}
+                <input
+                  type="text"
+                  value={selectedComponent.brandName ?? selectedComponent.brand ?? ''}
+                  placeholder="Ex: Schneider, Legrand, Siemens, WEG... (ou em branco)"
                   onChange={e => {
-                    const nextBrand = e.target.value as any;
+                    const nextBrand = e.target.value;
                     setProject(prev => ({
                       ...prev,
                       components: prev.components.map(c =>
-                        c.id === selectedCompId ? { ...c, brand: nextBrand } : c
+                        c.id === selectedCompId ? { ...c, brandName: nextBrand, brand: nextBrand } : c
                       ),
                       updated: Date.now()
                     }));
                   }}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white font-bold text-xs"
-                >
-                  <option value="Schneider Electric">Schneider Electric</option>
-                  <option value="Legrand">Legrand</option>
-                  <option value="Efapel">Efapel</option>
-                  <option value="Chint">Chint</option>
-                  <option value="ABB">ABB</option>
-                  <option value="Siemens">Siemens</option>
-                  <option value="Eaton">Eaton</option>
-                </select>
+                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white font-bold text-xs focus:border-blue-500 outline-none"
+                />
               </div>
 
               {/* Botões de Manobra Direta (Física) */}
@@ -3404,56 +3567,56 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         )}
       </div>
 
-      {/* 3. DOCK MOBILE DE NAVEGAÇÃO RÁPIDA (RESPONSIVO: RETRATO E PAISAGEM NO CELULAR - ITEM B) */}
-      <footer className="flex md:hidden h-12 landscape:h-8.5 bg-[#0A1224]/95 border-t border-slate-800 items-center justify-around px-2 z-30 shrink-0 backdrop-blur-md">
+      {/* 3. DOCK MOBILE DE NAVEGAÇÃO RÁPIDA (RESPONSIVO: RETRATO E PAISAGEM NO CELULAR) */}
+      <footer className="flex md:hidden h-12 landscape:h-7.5 bg-[#070D1B]/95 border-t border-slate-800/80 items-center justify-around px-2 z-30 shrink-0 backdrop-blur-md">
         <button
           type="button"
           onClick={() => setShowLibrary(!showLibrary)}
-          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold ${
-            showLibrary ? 'text-blue-400' : 'text-slate-400'
+          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold py-0.5 px-2 rounded-lg transition ${
+            showLibrary ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Layers className="w-4 h-4 landscape:w-3 landscape:h-3" />
+          <Layers className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Biblioteca</span>
         </button>
 
         <button
           type="button"
           onClick={() => setShowProps(!showProps)}
-          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold ${
-            showProps && (selectedComponent || selectedWireId || selectedBusbarId) ? 'text-blue-400' : 'text-slate-400'
+          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold py-0.5 px-2 rounded-lg transition ${
+            showProps && (selectedComponent || selectedWireId || selectedBusbarId) ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Sliders className="w-4 h-4 landscape:w-3 landscape:h-3" />
+          <Sliders className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Propriedades</span>
         </button>
 
         <button
           type="button"
           onClick={() => setShowScope(!showScope)}
-          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold ${
-            showScope ? 'text-blue-400' : 'text-slate-400'
+          className={`flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold py-0.5 px-2 rounded-lg transition ${
+            showScope ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Activity className="w-4 h-4 landscape:w-3 landscape:h-3" />
+          <Activity className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Osciloscópio</span>
         </button>
 
         <button
           type="button"
           onClick={handleFit}
-          className="flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold text-slate-400 hover:text-white"
+          className="flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-bold py-0.5 px-2 rounded-lg text-slate-400 hover:text-white transition"
         >
-          <Maximize2 className="w-4 h-4 landscape:w-3 landscape:h-3" />
+          <Maximize2 className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Enquadrar</span>
         </button>
 
         <button
           type="button"
           onClick={() => setIsPublishDialogOpen(true)}
-          className="flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-black text-amber-300"
+          className="flex flex-col landscape:flex-row items-center gap-0.5 landscape:gap-1 text-[10px] landscape:text-[9px] font-black py-0.5 px-2 rounded-lg text-amber-300 hover:text-amber-200 transition"
         >
-          <Zap className="w-4 h-4 landscape:w-3 landscape:h-3 fill-amber-300" />
+          <Zap className="w-4 h-4 landscape:w-3.5 landscape:h-3.5 fill-amber-300" />
           <span>Publicar</span>
         </button>
       </footer>

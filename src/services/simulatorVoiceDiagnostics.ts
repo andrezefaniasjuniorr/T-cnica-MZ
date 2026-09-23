@@ -511,6 +511,67 @@ export class SimulatorVoiceDiagnosticEngine {
     this.notify();
   }
 
+  public speakCustomAlert(
+    title: string,
+    spokenText: string,
+    visualEffect: DiagnosticVisualEffect = 'sparks',
+    level: DiagnosticSeverity = 1,
+    cooldownKey: string = 'custom_alert'
+  ): boolean {
+    const now = Date.now();
+    const lastSpoken = this.lastSpokenMap.get(cooldownKey) || 0;
+    if (now - lastSpoken < 4000) {
+      return false;
+    }
+    this.lastSpokenMap.set(cooldownKey, now);
+
+    const logItem: DiagnosticLogEntry = {
+      id: `LOG_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      time: new Date().toLocaleTimeString(),
+      timestamp: now,
+      code: cooldownKey.toUpperCase(),
+      level,
+      category: 'industrial',
+      title,
+      spokenText,
+      norma: 'IEC 60947 / IEC 60364',
+      visualEffect
+    };
+
+    this.logs.unshift(logItem);
+    if (this.logs.length > 80) this.logs.pop();
+    this.activeAlert = logItem;
+
+    const pseudoDef: DiagnosticEventDef = {
+      code: cooldownKey.toUpperCase(),
+      category: 'industrial',
+      level,
+      spokenText,
+      title,
+      norma: 'IEC 60947 / IEC 60364',
+      visualEffect,
+      cooldownMs: 4000
+    };
+
+    if (level === 1) {
+      this.queue = [pseudoDef];
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window && this.isSpeaking) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e: any) {}
+      }
+      this.playNextInQueue();
+    } else {
+      this.queue.push(pseudoDef);
+      if (!this.isSpeaking) {
+        this.playNextInQueue();
+      }
+    }
+
+    this.notify();
+    return true;
+  }
+
   public stopAll(): void {
     this.queue = [];
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
