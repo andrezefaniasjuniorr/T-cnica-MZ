@@ -85,10 +85,24 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const handleNavigate = (tabId: string) => {
+  const handleNavigate = (e: React.MouseEvent, tabId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     soundFX.playClick();
     onNavigateTab(tabId);
-    onClose();
+    setTimeout(() => {
+      onClose();
+    }, 50);
+  };
+
+  const handleCustomAction = (e: React.MouseEvent, actionFn?: () => void) => {
+    e.preventDefault();
+    e.stopPropagation();
+    soundFX.playClick();
+    if (actionFn) actionFn();
+    setTimeout(() => {
+      onClose();
+    }, 50);
   };
 
   const handleToggleSound = () => {
@@ -120,7 +134,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Dicas, novidades e perguntas',
       icon: Users,
       color: 'from-blue-600 to-indigo-600',
-      action: () => handleNavigate('community')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'community')
     },
     {
       id: 'stories',
@@ -128,11 +142,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Stories técnicos 24 horas',
       icon: Camera,
       color: 'from-pink-500 to-rose-600',
-      action: () => {
-        soundFX.playClick();
-        onNavigateTab('community');
-        onClose();
-      }
+      action: (e: React.MouseEvent) => handleNavigate(e, 'community')
     },
     {
       id: 'technicians_directory',
@@ -140,7 +150,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Profissionais auditados',
       icon: Wrench,
       color: 'from-sky-600 to-blue-700',
-      action: () => handleNavigate('technicians_directory')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'technicians_directory')
     },
     {
       id: 'ranking',
@@ -148,7 +158,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Top técnicos mais votados',
       icon: Trophy,
       color: 'from-amber-500 to-yellow-600',
-      action: () => handleNavigate('technicians_directory')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'technicians_directory')
     },
     {
       id: 'jobs',
@@ -156,7 +166,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Oportunidades e obras',
       icon: Briefcase,
       color: 'from-emerald-600 to-teal-700',
-      action: () => handleNavigate('jobs')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'jobs')
     },
     {
       id: 'company_directory',
@@ -164,7 +174,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Parceiros e empreiteiras',
       icon: Building2,
       color: 'from-purple-600 to-indigo-700',
-      action: () => handleNavigate('company_directory')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'company_directory')
     },
     {
       id: 'academy',
@@ -172,7 +182,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Academia MZ e normas técnicas',
       icon: BookOpen,
       color: 'from-teal-600 to-cyan-700',
-      action: () => handleNavigate('academy')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'academy')
     },
     {
       id: 'market',
@@ -180,7 +190,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Compre e venda equipamentos',
       icon: ShoppingBag,
       color: 'from-orange-500 to-amber-600',
-      action: () => handleNavigate('market')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'market')
     },
     {
       id: 'tools',
@@ -188,7 +198,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Dimensionamento e laudos',
       icon: Sliders,
       color: 'from-slate-700 to-slate-900',
-      action: () => handleNavigate('tools')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'tools')
     },
     ...(!isClientUser && isTechnicianUser ? [{
       id: 'sara',
@@ -196,11 +206,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Assistente com visão e normas',
       icon: Sparkles,
       color: 'from-blue-500 to-cyan-400',
-      action: () => {
-        soundFX.playClick();
-        onClose();
-        if (onOpenSaraAi) onOpenSaraAi();
-      }
+      action: (e: React.MouseEvent) => handleCustomAction(e, onOpenSaraAi)
     }] : []),
     {
       id: userDashboardTab,
@@ -208,7 +214,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Gerenciar serviços e propostas',
       icon: LayoutDashboard,
       color: 'from-blue-600 to-violet-600',
-      action: () => handleNavigate(userDashboardTab)
+      action: (e: React.MouseEvent) => handleNavigate(e, userDashboardTab)
     },
     {
       id: 'messages',
@@ -216,11 +222,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Conversas em tempo real',
       icon: MessageSquare,
       color: 'from-indigo-600 to-blue-600',
-      action: () => {
-        soundFX.playClick();
-        onClose();
-        if (onOpenMessages) onOpenMessages();
-      }
+      action: (e: React.MouseEvent) => handleCustomAction(e, onOpenMessages)
     },
     {
       id: 'notifications',
@@ -228,11 +230,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Alertas e novidades do sistema',
       icon: Bell,
       color: 'from-red-500 to-rose-600',
-      action: () => {
-        soundFX.playClick();
-        onClose();
-        if (onOpenNotifications) onOpenNotifications();
-      }
+      action: (e: React.MouseEvent) => handleCustomAction(e, onOpenNotifications)
     },
     {
       id: 'settings',
@@ -240,7 +238,7 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
       subtitle: 'Perfil, segurança e preferências',
       icon: Settings,
       color: 'from-slate-600 to-slate-800',
-      action: () => handleNavigate('settings')
+      action: (e: React.MouseEvent) => handleNavigate(e, 'settings')
     }
   ];
 
@@ -348,7 +346,12 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
               return (
                 <button
                   key={item.id}
-                  onClick={item.action}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    item.action(e);
+                  }}
                   className={`flex flex-col text-left p-3 rounded-2xl border transition-all duration-150 active:scale-95 group relative ${
                     isActive
                       ? 'bg-blue-50/80 border-blue-300 ring-2 ring-blue-500/20 shadow-xs'

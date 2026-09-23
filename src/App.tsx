@@ -281,6 +281,17 @@ const AppContent: React.FC = () => {
     hydrateLogoOnBoot();
   }, []);
 
+  // Desbloqueio da rotação de tela para suporte completo ao modo paisagem (landscape) no PWA mobile
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && 'screen' in window && window.screen.orientation) {
+        (window.screen.orientation as any).unlock?.();
+      }
+    } catch {
+      // Ignora plataformas ou navegadores que restringem unlock() fora de fullscreen
+    }
+  }, []);
+
   // Persistência contínua da última rota navegada (ocupando < 50 bytes)
   useEffect(() => {
     if (typeof window !== 'undefined' && activeTab) {

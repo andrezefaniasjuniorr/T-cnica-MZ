@@ -289,10 +289,15 @@ export const Header: React.FC<HeaderProps> = ({
                     {/* Sara IA Option in More Menu (Exclusivo Técnicos) */}
                     {!isClientUser && isTechnicianUser && (
                       <button
-                        onClick={() => {
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                           soundFX.playClick();
                           onOpenSaraAi();
-                          setIsMoreMenuOpen(false);
+                          setTimeout(() => {
+                            setIsMoreMenuOpen(false);
+                          }, 50);
                         }}
                         className="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition text-blue-600 hover:bg-blue-50 border-b border-slate-100"
                       >
@@ -307,10 +312,15 @@ export const Header: React.FC<HeaderProps> = ({
                       return (
                         <button
                           key={item.id}
-                          onClick={() => {
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             soundFX.playClick();
                             onNavigateTab(item.id);
-                            setIsMoreMenuOpen(false);
+                            setTimeout(() => {
+                              setIsMoreMenuOpen(false);
+                            }, 50);
                           }}
                           className={`w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition ${
                             isActive ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'
