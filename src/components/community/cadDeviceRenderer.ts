@@ -8,7 +8,7 @@ import { getComponentDef } from './cadEngine';
 import { getNormativeTerminalOffset } from './cadRouting';
 
 // ----------------------------------------------------------------------------
-// 1. TIPOS & INTERFACES ATUALIZADAS
+// 1. TIPOS & INTERFACES ATUALIZADAS (ESTRUTURA 100% PRESERVADA)
 // ----------------------------------------------------------------------------
 
 export type DeviceBrand =
@@ -28,6 +28,9 @@ export interface BrandStyle {
   badgeBg: string;
   textColor: string;
   logoSvgText?: string;
+  // Propriedades 3D adicionais para renderização volumétrica premium
+  chassisGradient?: [string, string, string];
+  highlightColor?: string;
 }
 
 export interface DeviceFaultState {
@@ -162,7 +165,7 @@ export const COMPACT_DEVICE_CODES: Record<string, string> = {
 };
 
 // ----------------------------------------------------------------------------
-// 3. SELEÇÃO DE MARCAS INDUSTRIAIS REAIS
+// 3. SELEÇÃO DE MARCAS INDUSTRIAIS REAIS COM ACABAMENTO VOLUMÉTRICO 3D
 // ----------------------------------------------------------------------------
 
 export const REAL_BRANDS: Record<DeviceBrand, BrandStyle> = {
@@ -171,56 +174,70 @@ export const REAL_BRANDS: Record<DeviceBrand, BrandStyle> = {
     shortName: 'Schneider',
     primaryColor: '#009933',
     accentColor: '#34d399',
-    badgeBg: 'rgba(0, 153, 51, 0.22)',
-    textColor: '#86efac'
+    badgeBg: 'rgba(0, 153, 51, 0.28)',
+    textColor: '#86efac',
+    chassisGradient: ['#00b33c', '#00802b', '#004d1a'],
+    highlightColor: '#4ade80'
   },
   Legrand: {
     name: 'Legrand',
     shortName: 'legrand',
     primaryColor: '#e11d48',
     accentColor: '#fb7185',
-    badgeBg: 'rgba(225, 29, 72, 0.22)',
-    textColor: '#fda4af'
+    badgeBg: 'rgba(225, 29, 72, 0.28)',
+    textColor: '#fda4af',
+    chassisGradient: ['#f43f5e', '#be123c', '#881337'],
+    highlightColor: '#fecdd3'
   },
   Efapel: {
     name: 'Efapel',
     shortName: 'EFAPEL',
     primaryColor: '#0284c7',
     accentColor: '#38bdf8',
-    badgeBg: 'rgba(2, 132, 199, 0.22)',
-    textColor: '#7dd3fc'
+    badgeBg: 'rgba(2, 132, 199, 0.28)',
+    textColor: '#7dd3fc',
+    chassisGradient: ['#0369a1', '#075985', '#0c4a6e'],
+    highlightColor: '#bae6fd'
   },
   Chint: {
     name: 'Chint',
     shortName: 'CHNT',
     primaryColor: '#2563eb',
     accentColor: '#60a5fa',
-    badgeBg: 'rgba(37, 99, 235, 0.22)',
-    textColor: '#93c5fd'
+    badgeBg: 'rgba(37, 99, 235, 0.28)',
+    textColor: '#93c5fd',
+    chassisGradient: ['#3b82f6', '#1d4ed8', '#1e40af'],
+    highlightColor: '#bfdbfe'
   },
   ABB: {
     name: 'ABB',
     shortName: 'ABB',
     primaryColor: '#dc2626',
     accentColor: '#f87171',
-    badgeBg: 'rgba(220, 38, 38, 0.22)',
-    textColor: '#fca5a5'
+    badgeBg: 'rgba(220, 38, 38, 0.28)',
+    textColor: '#fca5a5',
+    chassisGradient: ['#ef4444', '#b91c1c', '#7f1d1d'],
+    highlightColor: '#fecaca'
   },
   Siemens: {
     name: 'Siemens',
     shortName: 'SIEMENS',
     primaryColor: '#0d9488',
     accentColor: '#2dd4bf',
-    badgeBg: 'rgba(13, 148, 136, 0.22)',
-    textColor: '#5eead4'
+    badgeBg: 'rgba(13, 148, 136, 0.28)',
+    textColor: '#5eead4',
+    chassisGradient: ['#14b8a6', '#0f766e', '#134e4a'],
+    highlightColor: '#99f6e4'
   },
   Eaton: {
     name: 'Eaton',
     shortName: 'EATON',
     primaryColor: '#0284c7',
     accentColor: '#38bdf8',
-    badgeBg: 'rgba(2, 132, 199, 0.22)',
-    textColor: '#bae6fd'
+    badgeBg: 'rgba(2, 132, 199, 0.28)',
+    textColor: '#bae6fd',
+    chassisGradient: ['#0284c7', '#0369a1', '#075985'],
+    highlightColor: '#e0f2fe'
   }
 };
 
@@ -232,6 +249,82 @@ export function getCompactDeviceLabel(code: string, customLabel?: string): strin
     return customLabel.toUpperCase();
   }
   return COMPACT_DEVICE_CODES[code] || code;
+}
+
+// ----------------------------------------------------------------------------
+// 4. UTILITÁRIOS AUXILIARES DE RENDERIZAÇÃO 3D REALISTA (NOVOS)
+// ----------------------------------------------------------------------------
+
+/**
+ * Renderiza a marca d'água/logotipo da marca em alta definição 3D com baixo relevo
+ */
+export function renderCustomBrandWatermark(
+  ctx: CanvasRenderingContext2D,
+  brandInput: string,
+  x: number,
+  y: number,
+  zoom: number
+): void {
+  const brandKey = Object.keys(REAL_BRANDS).find(
+    (b) => b.toLowerCase() === brandInput.toLowerCase()
+  ) as DeviceBrand | undefined;
+
+  const style = brandKey ? REAL_BRANDS[brandKey] : null;
+  const displayText = style ? style.shortName : brandInput.toUpperCase();
+  const fontSize = Math.max(7, 8 * zoom);
+
+  ctx.save();
+  // Sombra interna para efeito gravado no plástico (Inset Engraving)
+  ctx.font = `bold ${fontSize}px "Segoe UI", Roboto, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  // Sombra projetada para efeito de gravura 3D
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillText(displayText, x + 0.8 * zoom, y + 0.8 * zoom);
+
+  // Efeito de iluminação na borda inferior do texto gravado
+  ctx.fillStyle = style ? style.textColor : '#94a3b8';
+  ctx.fillText(displayText, x, y);
+  ctx.restore();
+}
+
+/**
+ * Cria um gradiente tridimensional realista para corpos de policarbonato industrial
+ */
+export function create3DPolymerGradient(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  baseColor: 'light' | 'dark' | 'burned' | 'thermal' = 'dark'
+): CanvasGradient {
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+
+  if (baseColor === 'burned') {
+    grad.addColorStop(0, '#262626');
+    grad.addColorStop(0.3, '#171717');
+    grad.addColorStop(0.7, '#0a0a0a');
+    grad.addColorStop(1, '#171717');
+  } else if (baseColor === 'thermal') {
+    grad.addColorStop(0, '#7f1d1d');
+    grad.addColorStop(0.5, '#450a0a');
+    grad.addColorStop(1, '#1c1917');
+  } else if (baseColor === 'light') {
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.2, '#f1f5f9');
+    grad.addColorStop(0.8, '#cbd5e1');
+    grad.addColorStop(1, '#94a3b8');
+  } else {
+    // Dark RAL 7016 / 7035 Industrial Slate
+    grad.addColorStop(0, '#334155');
+    grad.addColorStop(0.15, '#1e293b');
+    grad.addColorStop(0.85, '#0f172a');
+    grad.addColorStop(1, '#020617');
+  }
+
+  return grad;
 }
 
 // ----------------------------------------------------------------------------
