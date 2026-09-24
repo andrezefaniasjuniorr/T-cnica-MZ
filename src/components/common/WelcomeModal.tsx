@@ -45,19 +45,10 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
   onNavigateTab,
   initialStep = 1
 }) => {
+  // 1. TODOS OS HOOKS NO TOPO DO COMPONENTE (Regra dos Hooks do React)
   const { currentUser, isTechnician, isCompany } = useAuth();
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
-  // Reinicia para a primeira etapa sempre que o modal for aberto
-  useEffect(() => {
-    if (isOpen) {
-      setCurrentStep(initialStep || 1);
-      setCopiedKey(null);
-    }
-  }, [isOpen, initialStep]);
-
-  if (!isOpen) return null;
 
   const totalSteps = 4;
 
@@ -78,6 +69,15 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
     onClose();
   };
 
+  // Reinicia para a primeira etapa sempre que o modal for aberto
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentStep(initialStep || 1);
+      setCopiedKey(null);
+    }
+  }, [isOpen, initialStep]);
+
+  // Hook de histórico do navegador chamado incondicionalmente no topo
   useModalHistory(isOpen, 'welcome_modal', () => {
     if (currentStep > 1) {
       setCurrentStep(prev => prev - 1);
@@ -85,6 +85,9 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
       handleSkip();
     }
   });
+
+  // 2. VERIFICAÇÃO DE EXIBIÇÃO APÓS TODOS OS HOOKS
+  if (!isOpen) return null;
 
   const handleNext = () => {
     if (currentStep < totalSteps) {
