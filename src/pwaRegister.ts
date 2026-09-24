@@ -19,11 +19,22 @@ export function registerPWA() {
               if (installingWorker.state === 'installed') {
                 if (navigator.serviceWorker.controller) {
                   console.log('[TécnicaMZ Pro] Nova versão disponível em segundo plano.');
+                  installingWorker.postMessage({ type: 'SKIP_WAITING' });
                 } else {
                   console.log('[TécnicaMZ Pro] Conteúdo em cache para uso 100% offline.');
                 }
               }
             });
+          }
+        });
+
+        // Recarrega automaticamente quando o novo service worker assumir controle (se houver controle anterior)
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            console.log('[TécnicaMZ Pro] Service Worker atualizado. Recarregando com versão nova.');
+            window.location.reload();
           }
         });
       })

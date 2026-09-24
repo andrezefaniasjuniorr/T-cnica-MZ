@@ -1,5 +1,5 @@
 // Service Worker Oficial - TécnicaMZ Pro (PWA Offline)
-const CACHE_NAME = 'tecnicamz-pro-v1';
+const CACHE_NAME = 'tecnicamz-pro-v2';
 const OFFLINE_URL = '/';
 
 const STATIC_ASSETS = [
@@ -13,24 +13,10 @@ const STATIC_ASSETS = [
   '/pwa-192x192.png',
   '/pwa-512x512.png',
   '/pwa-maskable-512x512.png',
-  '/tecnica_mz_slogan.jpg',
-  '/perfilTecnico.js',
-  '/bloco1Vendas.js',
-  '/bloco2Tecnica.js',
-  '/bloco3Gestao.js',
-  '/bloco4Comunidade.js',
-  '/chat.js',
-  '/app.js',
-  '/login.js',
-  '/dashboard.js',
-  '/admin.js',
-  '/login.html',
-  '/painel-cliente.html',
-  '/painel-empresa.html',
-  '/painel-tecnico.html'
+  '/tecnica_mz_slogan.jpg'
 ];
 
-// Install: Cache all core assets
+// 1. AUTO-UPDATE DE CACHE: Força skipWaiting no install
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -43,14 +29,14 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: Clean old caches
+// 2. INVALIDAÇÃO INSTANTÂNEA: Deleta todos os caches antigos e assume o controle com clients.claim()
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[TécnicaMZ SW] Removendo cache antigo:', key);
+            console.log('[TécnicaMZ SW] Invalidando e removendo cache residual antigo:', key);
             return caches.delete(key);
           }
         })
@@ -59,52 +45,62 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Network first with Cache fallback, Navigation fallback to '/'
+// Listener para comando manual de SKIP_WAITING caso solicitado pelo app
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// Fetch: Network-First para rotas de navegação (evita erro de cache residual no desktop), com fallback para Cache
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Não interceptar requisições para a API do Gemini ou SSE de streaming
-  if (url.pathname.startsWith('/api/sara') || url.pathname.startsWith('/api/')) {
+  // Ignorar métodos não-GET (POST, PUT, DELETE, etc.)
+  if (request.method !== 'GET') {
     return;
   }
 
-  // Navigation requests (HTML pages)
+  // Não interceptar requisições para a API do Gemini, Cloud ou rotas de backend
+  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Requisições de navegação (HTML): Network-First para sempre pegar a versão atualizada
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => {
-        return caches.match(OFFLINE_URL).then((cached) => {
-          return cached || caches.match('/index.html');
-        });
-      })
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(OFFLINE_URL).then((cached) => {
+            return cached || caches.match('/index.html');
+          });
+        })
     );
     return;
   }
 
-  // Static assets (CSS, JS, images, fonts)
+  // Assets estáticos (CSS, JS, imagens, fontes): Stale-While-Revalidate com revalidação
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Retorna imediatamente do cache e atualiza em segundo plano (Stale-While-Revalidate)
-        fetch(request).then((networkResponse) => {
+      const fetchPromise = fetch(request)
+        .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
             const copy = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
-        }).catch(() => {/* Offline silente */});
-        return cachedResponse;
-      }
+          return networkResponse;
+        })
+        .catch(() => cachedResponse);
 
-      // Se não estiver no cache, busca na rede e guarda no cache
-      return fetch(request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const copy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        }
-        return networkResponse;
-      }).catch((err) => {
-        console.warn('[TécnicaMZ SW] Falha de rede para:', request.url);
-      });
+      return cachedResponse || fetchPromise;
     })
   );
 });

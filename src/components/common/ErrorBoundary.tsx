@@ -37,9 +37,25 @@ export class ErrorBoundary extends React.Component<Props, State> {
     }
   }
 
-  public handleReload = () => {
+  public handleReload = async () => {
     if (typeof window !== 'undefined') {
-      window.location.reload();
+      try {
+        // 3. RECOVERY BUTTON:
+        // Desregistra todos os Service Workers e limpa caches antes de recarregar
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((reg) => reg.unregister()));
+        }
+        if ('caches' in window) {
+          const cacheKeys = await caches.keys();
+          await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+        }
+      } catch (err) {
+        console.warn('Erro ao desregistrar Service Worker na recuperação:', err);
+      } finally {
+        // Recarregamento forçado da página
+        window.location.reload();
+      }
     }
   };
 
