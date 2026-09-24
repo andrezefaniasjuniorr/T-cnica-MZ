@@ -1,0 +1,4 @@
+# Configuração do Bun para evitar erros com lockfile congelado no Cloudflare Pages
+[install]
+frozen = false
+save = false
