@@ -29,9 +29,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
     if (
       errorMsg.includes('isCorePipeline') ||
       errorMsg.includes('b815') ||
-      errorMsg.includes('FIRESTORE INTERNAL ASSERTION FAILED')
+      errorMsg.includes('FIRESTORE INTERNAL ASSERTION FAILED') ||
+      errorMsg.includes('Could not reach Cloud Firestore backend') ||
+      errorMsg.includes('code=unavailable') ||
+      errorMsg.includes('client will operate in offline mode')
     ) {
-      console.warn('Erro Firestore ignorado:', errorMsg);
+      console.warn('Erro Firestore absorvido com segurança pelo ErrorBoundary:', errorMsg);
     } else {
       console.error('ErrorBoundary caught error:', error, errorInfo);
     }

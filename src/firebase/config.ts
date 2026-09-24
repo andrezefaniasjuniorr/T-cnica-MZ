@@ -24,22 +24,44 @@ export const firebaseConfig = {
 
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
-// Suprimir logs informativos/debug de sincronização interna e clock drift do Firestore
+// Suprimir logs ruidosos do Firestore para permitir operação transparente em modo offline
 try {
-  setLogLevel('error');
+  setLogLevel('silent');
 } catch {
   // no-op
 }
 
-// Interceptor global para suprimir falhas de asserção interna transitórias do Firestore (ex: b815 / isCorePipeline)
+// Interceptor global para suprimir falhas de asserção interna transitórias e avisos de conexão do Firestore
 if (typeof window !== 'undefined') {
   const isIgnorableFirestoreError = (err: any): boolean => {
     const text = String(err?.message || err?.reason?.message || err?.reason || err || '');
     return (
       text.includes('isCorePipeline') ||
       text.includes('b815') ||
-      text.includes('FIRESTORE INTERNAL ASSERTION FAILED')
+      text.includes('FIRESTORE INTERNAL ASSERTION FAILED') ||
+      text.includes('Could not reach Cloud Firestore backend') ||
+      text.includes('code=unavailable') ||
+      text.includes('client will operate in offline mode')
     );
+  };
+
+  const originalConsoleError = console.error;
+  console.error = (...args: any[]) => {
+    const fullText = args
+      .map((a) => (typeof a === 'object' && a !== null ? (a.message || a.stack || JSON.stringify(a)) : String(a)))
+      .join(' ');
+    if (
+      fullText.includes('Could not reach Cloud Firestore backend') ||
+      fullText.includes('client will operate in offline mode') ||
+      (fullText.includes('@firebase/firestore') && fullText.includes('code=unavailable')) ||
+      fullText.includes('isCorePipeline') ||
+      fullText.includes('b815') ||
+      fullText.includes('FIRESTORE INTERNAL ASSERTION FAILED')
+    ) {
+      console.warn('[Firestore Offline/Aviso de Conexão absorvido com segurança]');
+      return;
+    }
+    originalConsoleError.apply(console, args);
   };
 
   window.addEventListener('error', (event) => {
@@ -192,20 +214,21 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// 2. Inicializar Firestore com cache offline persistente resiliente (persistentSingleTabManager)
-// Evita conflitos de eleição de abas e asserções internas no WebChannel (ID: b815 / isCorePipeline)
+// 2. Inicializar Firestore com cache offline persistente resiliente e auto detecção de long polling
 let dbInstance: Firestore;
 try {
   dbInstance = initializeFirestore(app, {
     localCache: persistentLocalCache({
       tabManager: persistentSingleTabManager({})
-    })
+    }),
+    experimentalAutoDetectLongPolling: true
   });
 } catch (err) {
   console.warn('[Firestore] Falha ao inicializar com persistentLocalCache, realizando fallback seguro:', err);
   try {
     dbInstance = initializeFirestore(app, {
-      localCache: memoryLocalCache()
+      localCache: memoryLocalCache(),
+      experimentalAutoDetectLongPolling: true
     });
   } catch (fallbackErr) {
     console.warn('[Firestore] Fallback para getFirestore padrão:', fallbackErr);
