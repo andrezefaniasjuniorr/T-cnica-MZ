@@ -1322,16 +1322,52 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         );
       }
 
-      // Fio em Criação (Preview Ortogonal Manhattan no Canvas com Iluminação 3D)
-      const currentDrag = simRef.current.drag;
-      if (simRef.current.wireStart && currentDrag?.mouse) {
-        const sPos = getNodeWorldPos(simRef.current.wireStart.c, simRef.current.wireStart.t, currentProj.components, currentProj.busbars || []);
-        const mPos = { x: currentDrag.mouse.x, y: currentDrag.mouse.y, dir: 'top' as const };
-        const pPath = calculateManhattanPath(sPos, mPos, 999).map((p: any) => toScreen(p));
-        if (pPath.length >= 2) {
-          drawProfessionalWire(ctx, pPath, selectedWireTypeRef.current, cam, false, true, 0);
-        }
-      }
+      // 3. Fiação Profissional Curva Realista (Efeito Cabo Flexível de Quadro Elétrico)
+project.wires.forEach((wire, wireIdx) => {
+  const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, project.components, project.busbars || []);
+  const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, project.components, project.busbars || []);
+
+  // Transforma para coordenadas da tela
+  const screenA = toScreen(posA);
+  const screenB = toScreen(posB);
+
+  // Cálculo da Distância e Vetores de Orientação do Terminal
+  const dx = screenB.x - screenA.x;
+  const dy = screenB.y - screenA.y;
+  const dist = Math.hypot(dx, dy);
+
+  // Tensão/Curvatura natural baseada na distância do cabo (Efeito Catenária/Bézier)
+  const curvatureOffset = Math.min(dist * 0.4, 80); 
+
+  // Ponto de controle inicial (sai perpendicular do terminal)
+  const cp1 = {
+    x: screenA.x + (posA.dir === 'left' ? -curvatureOffset : posA.dir === 'right' ? curvatureOffset : 0),
+    y: screenA.y + (posA.dir === 'top' ? -curvatureOffset : posA.dir === 'bottom' ? curvatureOffset : curvatureOffset * 0.5)
+  };
+
+  // Ponto de controle final (entra suavemente no terminal de destino)
+  const cp2 = {
+    x: screenB.x + (posB.dir === 'left' ? -curvatureOffset : posB.dir === 'right' ? curvatureOffset : 0),
+    y: screenB.y + (posB.dir === 'top' ? -curvatureOffset : posB.dir === 'bottom' ? curvatureOffset : -curvatureOffset * 0.5)
+  };
+
+  const isSelected = wire.id === selectedWireId;
+
+  // Renderiza o fio com curva Bézier Cúbica
+  drawCurvedRealWire(
+    ctx,
+    screenA,
+    cp1,
+    cp2,
+    screenB,
+    wire.type || 'L1',
+    cam,
+    isRunning && Boolean(wire.live),
+    isSelected,
+    simRef.current.time * 60,
+    Boolean(wire.overheated)
+  );
+});
 
       // 4. Componentes Elétricos no Canvas Principal
       currentProj.components.forEach(c => {
