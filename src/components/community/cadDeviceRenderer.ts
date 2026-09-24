@@ -8,82 +8,79 @@ import { getComponentDef } from './cadEngine';
 import { getNormativeTerminalOffset } from './cadRouting';
 
 // ----------------------------------------------------------------------------
-// 1. TIPOS & INTERFACES ATUALIZADAS (ESTRUTURA 100% PRESERVADA)
+// 1. TIPOS & INTERFACES ATUALIZADAS
 // ----------------------------------------------------------------------------
 
 export type DeviceBrand =
-  | 'Schneider Electric'
-  | 'Legrand'
-  | 'Efapel'
-  | 'Chint'
-  | 'ABB'
-  | 'Siemens'
-  | 'Eaton';
+  | 'Schneider Electric'
+  | 'Legrand'
+  | 'Efapel'
+  | 'Chint'
+  | 'ABB'
+  | 'Siemens'
+  | 'Eaton';
 
 export interface BrandStyle {
-  name: DeviceBrand;
-  shortName: string;
-  primaryColor: string;
-  accentColor: string;
-  badgeBg: string;
-  textColor: string;
-  logoSvgText?: string;
-  // Propriedades 3D adicionais para renderização volumétrica premium
-  chassisGradient?: [string, string, string];
-  highlightColor?: string;
+  name: DeviceBrand;
+  shortName: string;
+  primaryColor: string;
+  accentColor: string;
+  badgeBg: string;
+  textColor: string;
+  logoSvgText?: string;
 }
 
 export interface DeviceFaultState {
-  fault?: boolean;          // Curto-circuito ativo
-  sparking?: boolean;       // Centelhamento / arco elétrico
-  sparkStartTime?: number;  // Início do evento de arco elétrico (~1.5s)
-  isBurned?: boolean;       // Queima permanente do dispositivo (desativa condução)
-  rotationDir?: 'CW' | 'CCW'; // Sentido horário ou anti-horário
-  phaseSequence?: string;   // Sequência de fase RST ou RTS
-  thermal?: boolean;        // Sobrecarga térmica / aquecimento
-  temperature?: number;     // Temperatura estimada (°C)
-  damaged?: boolean;        // Dispositivo queimado / danificado
-  tripped?: boolean;        // Desarmado por proteção
-  smokeAlpha?: number;      // Densidade da fumaça (0..1)
+  fault?: boolean;          // Curto-circuito ativo
+  sparking?: boolean;       // Centelhamento / arco elétrico
+  sparkStartTime?: number;  // Início do evento de arco elétrico (~1.5s)
+  isBurned?: boolean;       // Queima permanente do dispositivo (desativa condução)
+  rotationDir?: 'CW' | 'CCW'; // Sentido horário ou anti-horário
+  phaseSequence?: string;   // Sequência de fase RST ou RTS
+  thermal?: boolean;        // Sobrecarga térmica / aquecimento
+  temperature?: number;     // Temperatura estimada (°C)
+  damaged?: boolean;        // Dispositivo queimado / danificado
+  tripped?: boolean;        // Desarmado por proteção
+  smokeAlpha?: number;      // Densidade da fumaça (0..1)
 }
 
 export interface DeviceSimulationState extends DeviceFaultState {
-  closed?: boolean;
-  pressed?: boolean;
-  energized?: boolean;
-  running?: boolean;
-  rpm?: number;
-  voltage?: number;         // Valor RMS de tensão (V)
-  current?: number;         // Valor RMS de corrente (A)
-  frequency?: number;       // Frequência (Hz)
-  powerKW?: number;         // Potência ativa (kW)
-  powerFactor?: number;     // Fator de potência (cos φ)
-  energyKWh?: number;       // Energia acumulada (kWh)
-  [key: string]: any;
+  closed?: boolean;
+  pressed?: boolean;
+  energized?: boolean;
+  running?: boolean;
+  rpm?: number;
+  voltage?: number;         // Valor RMS de tensão (V)
+  current?: number;         // Valor RMS de corrente (A)
+  frequency?: number;       // Frequência (Hz)
+  powerKW?: number;         // Potência ativa (kW)
+  powerFactor?: number;     // Fator de potência (cos φ)
+  energyKWh?: number;       // Energia acumulada (kWh)
+  [key: string]: any;
 }
 
 export interface RenderDeviceOptions {
-  component: {
-    id: string;
-    code: string;
-    x: number;
-    y: number;
-    w?: number;
-    h?: number;
-    rot?: number;
-    label?: string;
-    brand?: DeviceBrand | string;
-    brandName?: string;
-    state?: DeviceSimulationState;
-    params?: Record<string, any>;
-  };
-  camera: {
-    zoom: number;
-    pan: { x: number; y: number };
-  };
-  isSelected?: boolean;
-  time?: number;            // Timestamp para animações contínuas
-  simRunning?: boolean;
+  component: {
+    id: string;
+    code: string;
+    x: number;
+    y: number;
+    w?: number;
+    h?: number;
+    rot?: number;
+    label?: string;
+    brand?: DeviceBrand | string;
+    brandName?: string;
+    state?: DeviceSimulationState;
+    params?: Record<string, any>;
+  };
+  camera: {
+    zoom: number;
+    pan: { x: number; y: number };
+  };
+  isSelected?: boolean;
+  time?: number;            // Timestamp para animações contínuas
+  simRunning?: boolean;
 }
 
 // ----------------------------------------------------------------------------
@@ -91,164 +88,150 @@ export interface RenderDeviceOptions {
 // ----------------------------------------------------------------------------
 
 export const COMPACT_DEVICE_CODES: Record<string, string> = {
-  // Dispositivos de Proteção com Neutro (1P+N, 2P+N, 3P+N)
-  MCB1: 'MCB 1P+N',
-  MCB2: 'MCB 2P+N',
-  MCB3: 'MCB 3P+N',
-  MCB4: 'MCB 4P',
-  MCCB: 'MCCB',
-  RCD: 'IDR 2P+N',
-  RCD4: 'IDR 3P+N',
-  RCBO: 'RCBO 1P+N',
-  FUSE: 'FUSE',
-  FU3: 'FUSE 3P',
-  SPD: 'DPS 1P+N',
-  SPD3: 'DPS 3P+N',
-  OLR: 'OLR',
-  PHASE: 'RPF',
+  // Dispositivos de Proteção com Neutro (1P+N, 2P+N, 3P+N)
+  MCB1: 'MCB 1P+N',
+  MCB2: 'MCB 2P+N',
+  MCB3: 'MCB 3P+N',
+  MCB4: 'MCB 4P',
+  MCCB: 'MCCB',
+  RCD: 'IDR 2P+N',
+  RCD4: 'IDR 3P+N',
+  RCBO: 'RCBO 1P+N',
+  FUSE: 'FUSE',
+  FU3: 'FUSE 3P',
+  SPD: 'DPS 1P+N',
+  SPD3: 'DPS 3P+N',
+  OLR: 'OLR',
+  PHASE: 'RPF',
 
-  // Dispositivos de Comando & Chaveamento
-  PBNO: 'B/NA',
-  PBNC: 'B/NF',
-  SW: 'SW 1P',
-  THREE_WAY: '3-WAY',
-  FOUR_WAY: '4-WAY',
-  ESTOP: 'E-STOP',
-  SEL: 'SEL',
-  LIMIT: 'LIMIT',
-  FLOAT: 'FLOAT',
-  CONTACTOR: 'KM',
-  RELAY: 'KA',
-  TIMER: 'KT (TON)',
-  FLASH: 'KT (CYC)',
-  BUZZ: 'BUZZ',
+  // Dispositivos de Comando & Chaveamento
+  PBNO: 'B/NA',
+  PBNC: 'B/NF',
+  SW: 'SW 1P',
+  THREE_WAY: '3-WAY',
+  FOUR_WAY: '4-WAY',
+  ESTOP: 'E-STOP',
+  SEL: 'SEL',
+  LIMIT: 'LIMIT',
+  FLOAT: 'FLOAT',
+  CONTACTOR: 'KM',
+  RELAY: 'KA',
+  TIMER: 'KT (TON)',
+  FLASH: 'KT (CYC)',
+  BUZZ: 'BUZZ',
 
-  // Motores & Cargas 3D
-  M1PH: 'M 1F',
-  M3PH: 'M 3F',
-  MDC: 'M CC',
-  FAN: 'FAN',
-  PUMP: 'PUMP',
-  LAMP: 'LAMP',
-  HEATER: 'HEAT',
-  LOAD_AC: 'AC 12k',
-  LOAD_COOKTOP: 'COOKTOP',
-  LOAD_SHOWER: 'CHUVEIRO',
-  LOAD_MICROWAVE: 'MICRO',
+  // Motores & Cargas 3D
+  M1PH: 'M 1F',
+  M3PH: 'M 3F',
+  MDC: 'M CC',
+  FAN: 'FAN',
+  PUMP: 'PUMP',
+  LAMP: 'LAMP',
+  HEATER: 'HEAT',
+  LOAD_AC: 'AC 12k',
+  LOAD_COOKTOP: 'COOKTOP',
+  LOAD_SHOWER: 'CHUVEIRO',
+  LOAD_MICROWAVE: 'MICRO',
 
-  // Aterramento Físico & Caixas
-  EARTH_ROD: 'HASTE PE',
-  EARTH_PIT: 'CAIXA BEP',
-  BARE_COPPER: 'CU NU',
-  JUNCTION_BOX: 'WAGO CX',
+  // Aterramento Físico & Caixas
+  EARTH_ROD: 'HASTE PE',
+  EARTH_PIT: 'CAIXA BEP',
+  BARE_COPPER: 'CU NU',
+  JUNCTION_BOX: 'WAGO CX',
 
-  // Instrumentação & Medição
-  VM: 'VOLT',
-  AM: 'AMP',
-  WM: 'WATT',
-  FREQ: 'FREQ',
-  ENERGY: 'kWh',
-  COS: 'COS φ',
-  SCOPE: 'DSO',
+  // Instrumentação & Medição
+  VM: 'VOLT',
+  AM: 'AMP',
+  WM: 'WATT',
+  FREQ: 'FREQ',
+  ENERGY: 'kWh',
+  COS: 'COS φ',
+  SCOPE: 'DSO',
 
-  // Fontes & Sistemas Solares
-  SRC_AC1: 'AC 1F+N',
-  SRC_AC3: 'AC 3F+N',
-  SRC_DC24: 'DC 24V',
-  BAT: 'BAT 12V',
-  PSU: 'SMPS',
-  GND: 'PE / GND',
-  PV_PANEL: 'PV MOD',
-  PV_INVERTER: 'INV MPPT',
-  PV_STRINGBOX: 'STR-BOX',
-  PV_SPD_DC: 'SPD DC'
+  // Fontes & Sistemas Solares
+  SRC_AC1: 'AC 1F+N',
+  SRC_AC3: 'AC 3F+N',
+  SRC_DC24: 'DC 24V',
+  BAT: 'BAT 12V',
+  PSU: 'SMPS',
+  GND: 'PE / GND',
+  PV_PANEL: 'PV MOD',
+  PV_INVERTER: 'INV MPPT',
+  PV_STRINGBOX: 'STR-BOX',
+  PV_SPD_DC: 'SPD DC'
 };
 
 // ----------------------------------------------------------------------------
-// 3. SELEÇÃO DE MARCAS INDUSTRIAIS REAIS COM ACABAMENTO VOLUMÉTRICO 3D
+// 3. SELEÇÃO DE MARCAS INDUSTRIAIS REAIS
 // ----------------------------------------------------------------------------
 
 export const REAL_BRANDS: Record<DeviceBrand, BrandStyle> = {
-  'Schneider Electric': {
-    name: 'Schneider Electric',
-    shortName: 'Schneider',
-    primaryColor: '#009933',
-    accentColor: '#34d399',
-    badgeBg: 'rgba(0, 153, 51, 0.28)',
-    textColor: '#86efac',
-    chassisGradient: ['#00b33c', '#00802b', '#004d1a'],
-    highlightColor: '#4ade80'
-  },
-  Legrand: {
-    name: 'Legrand',
-    shortName: 'legrand',
-    primaryColor: '#e11d48',
-    accentColor: '#fb7185',
-    badgeBg: 'rgba(225, 29, 72, 0.28)',
-    textColor: '#fda4af',
-    chassisGradient: ['#f43f5e', '#be123c', '#881337'],
-    highlightColor: '#fecdd3'
-  },
-  Efapel: {
-    name: 'Efapel',
-    shortName: 'EFAPEL',
-    primaryColor: '#0284c7',
-    accentColor: '#38bdf8',
-    badgeBg: 'rgba(2, 132, 199, 0.28)',
-    textColor: '#7dd3fc',
-    chassisGradient: ['#0369a1', '#075985', '#0c4a6e'],
-    highlightColor: '#bae6fd'
-  },
-  Chint: {
-    name: 'Chint',
-    shortName: 'CHNT',
-    primaryColor: '#2563eb',
-    accentColor: '#60a5fa',
-    badgeBg: 'rgba(37, 99, 235, 0.28)',
-    textColor: '#93c5fd',
-    chassisGradient: ['#3b82f6', '#1d4ed8', '#1e40af'],
-    highlightColor: '#bfdbfe'
-  },
-  ABB: {
-    name: 'ABB',
-    shortName: 'ABB',
-    primaryColor: '#dc2626',
-    accentColor: '#f87171',
-    badgeBg: 'rgba(220, 38, 38, 0.28)',
-    textColor: '#fca5a5',
-    chassisGradient: ['#ef4444', '#b91c1c', '#7f1d1d'],
-    highlightColor: '#fecaca'
-  },
-  Siemens: {
-    name: 'Siemens',
-    shortName: 'SIEMENS',
-    primaryColor: '#0d9488',
-    accentColor: '#2dd4bf',
-    badgeBg: 'rgba(13, 148, 136, 0.28)',
-    textColor: '#5eead4',
-    chassisGradient: ['#14b8a6', '#0f766e', '#134e4a'],
-    highlightColor: '#99f6e4'
-  },
-  Eaton: {
-    name: 'Eaton',
-    shortName: 'EATON',
-    primaryColor: '#0284c7',
-    accentColor: '#38bdf8',
-    badgeBg: 'rgba(2, 132, 199, 0.28)',
-    textColor: '#bae6fd',
-    chassisGradient: ['#0284c7', '#0369a1', '#075985'],
-    highlightColor: '#e0f2fe'
-  }
+  'Schneider Electric': {
+    name: 'Schneider Electric',
+    shortName: 'Schneider',
+    primaryColor: '#009933',
+    accentColor: '#34d399',
+    badgeBg: 'rgba(0, 153, 51, 0.22)',
+    textColor: '#86efac'
+  },
+  Legrand: {
+    name: 'Legrand',
+    shortName: 'legrand',
+    primaryColor: '#e11d48',
+    accentColor: '#fb7185',
+    badgeBg: 'rgba(225, 29, 72, 0.22)',
+    textColor: '#fda4af'
+  },
+  Efapel: {
+    name: 'Efapel',
+    shortName: 'EFAPEL',
+    primaryColor: '#0284c7',
+    accentColor: '#38bdf8',
+    badgeBg: 'rgba(2, 132, 199, 0.22)',
+    textColor: '#7dd3fc'
+  },
+  Chint: {
+    name: 'Chint',
+    shortName: 'CHNT',
+    primaryColor: '#2563eb',
+    accentColor: '#60a5fa',
+    badgeBg: 'rgba(37, 99, 235, 0.22)',
+    textColor: '#93c5fd'
+  },
+  ABB: {
+    name: 'ABB',
+    shortName: 'ABB',
+    primaryColor: '#dc2626',
+    accentColor: '#f87171',
+    badgeBg: 'rgba(220, 38, 38, 0.22)',
+    textColor: '#fca5a5'
+  },
+  Siemens: {
+    name: 'Siemens',
+    shortName: 'SIEMENS',
+    primaryColor: '#0d9488',
+    accentColor: '#2dd4bf',
+    badgeBg: 'rgba(13, 148, 136, 0.22)',
+    textColor: '#5eead4'
+  },
+  Eaton: {
+    name: 'Eaton',
+    shortName: 'EATON',
+    primaryColor: '#0284c7',
+    accentColor: '#38bdf8',
+    badgeBg: 'rgba(2, 132, 199, 0.22)',
+    textColor: '#bae6fd'
+  }
 };
 
 /**
- * Retorna o rótulo compacto oficial para exibição no Canvas
- */
+ * Retorna o rótulo compacto oficial para exibição no Canvas
+ */
 export function getCompactDeviceLabel(code: string, customLabel?: string): string {
-  if (customLabel && customLabel.length <= 10 && !customLabel.includes(' ')) {
-    return customLabel.toUpperCase();
-  }
-  return COMPACT_DEVICE_CODES[code] || code;
+  if (customLabel && customLabel.length <= 10 && !customLabel.includes(' ')) {
+    return customLabel.toUpperCase();
+  }
+  return COMPACT_DEVICE_CODES[code] || code;
 }
 
 // ----------------------------------------------------------------------------
