@@ -466,12 +466,479 @@ function traceFilletPath(
   ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
 }
 
+export interface CurvedWirePath {
+  start: TerminalPosition;
+  cp1: { x: number; y: number };
+  cp2: { x: number; y: number };
+  end: TerminalPosition;
+}
+
 /**
- * RENDERIZAÇÃO ESTÉTICA PROFISSIONAL DE CABOS NO CANVAS 2D:
- * - Curvatura suave nas dobras (fillet corners de 10px)
- * - Iluminação 3D cilíndrica (sombra de fundo, cor primária do PVC e linha de reflexo)
- * - Terminais Ilhós Tubulares Crimpados (anilhas / ferrules cromados com colar plástico)
- * - Fluxo de elétrons pulsante para condutores energizados
+ * Calcula a geometria hiper-realista da curva Bézier cúbica de um condutor flexível de painel.
+ * Respeita a orientação física de saída/entrada dos bornes (dir) e gera caimento catenário natural.
+ */
+export function calculateCurvedPath(
+  posA: TerminalPosition,
+  posB: TerminalPosition,
+  wireIndex: number = 0
+): CurvedWirePath {
+  const dirA = posA.dir || 'bottom';
+  const dirB = posB.dir || 'top';
+
+  const dx = posB.x - posA.x;
+  const dy = posB.y - posA.y;
+  const dist = Math.hypot(dx, dy);
+
+  // Vetor normal unitário de saída do borne (perpendicular à carcaça do dispositivo)
+  const vA = {
+    x: dirA === 'right' ? 1 : dirA === 'left' ? -1 : 0,
+    y: dirA === 'bottom' ? 1 : dirA === 'top' ? -1 : 0
+  };
+  const vB = {
+    x: dirB === 'right' ? 1 : dirB === 'left' ? -1 : 0,
+    y: dirB === 'bottom' ? 1 : dirB === 'top' ? -1 : 0
+  };
+
+  // Caimento/tensão de flexão proporcional à distância com limites físicos realistas
+  const baseSag = Math.min(Math.max(dist * 0.42, 35), 180);
+
+  // Afastamento suave de feixe (bundle offset) para condutores paralelos (L1, L2, L3, N, PE)
+  const bundleOffset = ((wireIndex % 7) - 3) * 6;
+  const perpX = dist > 0.001 ? -dy / dist : 0;
+  const perpY = dist > 0.001 ? dx / dist : 1;
+
+  // Pontos de controle Bézier que garantem saída reta do terminal tubular e curvatura suave nas canaletas
+  const cp1 = {
+    x: posA.x + vA.x * baseSag + perpX * bundleOffset,
+    y: posA.y + vA.y * baseSag + perpY * bundleOffset
+  };
+
+  const cp2 = {
+    x: posB.x + vB.x * baseSag + perpX * bundleOffset,
+    y: posB.y + vB.y * baseSag + perpY * bundleOffset
+  };
+
+  return {
+    start: posA,
+    cp1,
+    cp2,
+    end: posB
+  };
+}
+
+/**
+ * Avalia amostras uniformes da curva Bézier para detecção de colisão (hit-test) e cálculos de física
+ */
+export function getBezierPoints(
+  path: CurvedWirePath,
+  numSamples: number = 18
+): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = [];
+  const p0 = path.start;
+  const p1 = path.cp1;
+  const p2 = path.cp2;
+  const p3 = path.end;
+
+  for (let i = 0; i <= numSamples; i++) {
+    const t = i / numSamples;
+    const invT = 1 - t;
+    const t2 = t * t;
+    const invT2 = invT * invT;
+
+    const x =
+      invT2 * invT * p0.x +
+      3 * invT2 * t * p1.x +
+      3 * invT * t2 * p2.x +
+      t2 * t * p3.x;
+
+    const y =
+      invT2 * invT * p0.y +
+      3 * invT2 * t * p1.y +
+      3 * invT * t2 * p2.y +
+      t2 * t * p3.y;
+
+    points.push({ x, y });
+  }
+
+  return points;
+}
+
+export interface CurvedWireRenderOptions {
+  wireType?: string;
+  cam: { zoom: number; pan?: { x: number; y: number } };
+  isLive?: boolean;
+  isSelected?: boolean;
+  isOverheated?: boolean;
+  animTick?: number;
+  toScreen: (p: { x: number; y: number }) => { x: number; y: number };
+}
+
+/**
+ * CAMADA 2: RENDERIZAÇÃO TRASEIRA DOS CONDUTORES (CORPO CURVO DO FIO)
+ * O corpo dos fios passa por TRÁS dos dispositivos (como em canaletas de quadro real).
+ * Inclui: Sombra projetada, PVC cilíndrico de alta definição, listras PE zebradas,
+ * brilho especular longitudinal, fluxo de elétrons e efeito térmico se sobreaquecido.
+ */
+export function renderCurvedWireBack(
+  ctx: CanvasRenderingContext2D,
+  path: CurvedWirePath,
+  options: CurvedWireRenderOptions
+): void {
+  const {
+    wireType = 'L1',
+    cam,
+    isLive = false,
+    isSelected = false,
+    isOverheated = false,
+    animTick = 0,
+    toScreen
+  } = options;
+
+  const sA = toScreen(path.start);
+  const sCP1 = toScreen(path.cp1);
+  const sCP2 = toScreen(path.cp2);
+  const sB = toScreen(path.end);
+
+  const norm = WIRE_NORM_COLORS[wireType] || WIRE_NORM_COLORS['L1'];
+  const z = Math.max(0.35, Math.min(2.5, cam.zoom));
+  const wireW = Math.max(2.4, 3.8 * z);
+
+  const traceBezier = (c: CanvasRenderingContext2D) => {
+    c.beginPath();
+    c.moveTo(sA.x, sA.y);
+    c.bezierCurveTo(sCP1.x, sCP1.y, sCP2.x, sCP2.y, sB.x, sB.y);
+  };
+
+  ctx.save();
+
+  // 1. Halo de Seleção Neon Pulsante
+  if (isSelected) {
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+    ctx.lineWidth = wireW + 9 * z;
+    ctx.lineCap = 'round';
+    traceBezier(ctx);
+    ctx.stroke();
+  }
+
+  // 2. Sombra Projetada Profunda (Drop Shadow) no Fundo do Quadro (Sensação 3D Real)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.lineWidth = wireW + 2 * z;
+  ctx.lineCap = 'round';
+  ctx.translate(2.2 * z, 3.8 * z);
+  traceBezier(ctx);
+  ctx.stroke();
+  ctx.restore();
+
+  // 3. Contorno Escuro de Profundidade do Cabo
+  ctx.strokeStyle = '#050b14';
+  ctx.lineWidth = wireW + 1.2 * z;
+  ctx.lineCap = 'round';
+  traceBezier(ctx);
+  ctx.stroke();
+
+  // 4. Corpo Primário da Isolação em PVC / XLPE
+  if (isOverheated) {
+    const pulse = (Math.sin(animTick * 0.18) + 1) * 0.5;
+    ctx.strokeStyle = `rgb(${Math.round(235 + pulse * 20)}, ${Math.round(50 + pulse * 80)}, 15)`;
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = (12 + pulse * 14) * z;
+  } else {
+    ctx.strokeStyle = norm.base;
+  }
+  ctx.lineWidth = wireW;
+  ctx.lineCap = 'round';
+  traceBezier(ctx);
+  ctx.stroke();
+  ctx.shadowColor = 'transparent';
+
+  // 5. Preservar Identificação Normatizada NBR 5410 / IEC: Listras Zebradas Amarelas para Terra (PE)
+  if (norm.isStriped && !isOverheated) {
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = wireW * 0.82;
+    ctx.setLineDash([7 * z, 7 * z]);
+    traceBezier(ctx);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 6. Brilho Longitudinal de Alta Definição (Cilindro Especular do PVC)
+  ctx.strokeStyle = isOverheated ? '#fef08a' : norm.highlight;
+  ctx.lineWidth = Math.max(0.75, 1.2 * z);
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.65;
+  traceBezier(ctx);
+  ctx.stroke();
+  ctx.globalAlpha = 1.0;
+
+  // 7. Fluxo de Cargas Elétricas / Elétrons em Tempo Real (Live Current Animation)
+  if (isLive) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(1.1, 1.8 * z);
+    ctx.setLineDash([5 * z, 9 * z]);
+    ctx.lineDashOffset = -animTick * 1.6;
+    traceBezier(ctx);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 8. Fumaça e Incandescência Térmica se Sobreaquecido
+  if (isOverheated) {
+    const numPuffs = 4;
+    for (let p = 0; p < numPuffs; p++) {
+      const t = (p + 0.5) / numPuffs;
+      const invT = 1 - t;
+      const t2 = t * t;
+      const invT2 = invT * invT;
+      const midX = invT2 * invT * sA.x + 3 * invT2 * t * sCP1.x + 3 * invT * t2 * sCP2.x + t2 * t * sB.x;
+      const midY = invT2 * invT * sA.y + 3 * invT2 * t * sCP1.y + 3 * invT * t2 * sCP2.y + t2 * t * sB.y;
+
+      const puffLife = (animTick * 0.4 + p * 12) % 40;
+      const puffX = midX + Math.sin(animTick * 0.08 + p) * 6 * z;
+      const puffY = midY - puffLife * 1.3 * z;
+      const puffRadius = (3.5 + puffLife * 0.28) * z;
+      const alpha = Math.max(0, 0.4 - puffLife / 40);
+
+      ctx.fillStyle = `rgba(148, 163, 184, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(puffX, puffY, puffRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+}
+
+/**
+ * CAMADA 4: RENDERIZAÇÃO HIPER-REALISTA DO TERMINAL ILHÓS TUBULAR (CORD END FERRULE)
+ * Renderizado no plano frontal, perfeitamente alinhado e inserido dentro do parafuso/borne do dispositivo:
+ * 1. Capa isolante de polipropileno colorido (luva cônica) ajustada à cor normativa do condutor.
+ * 2. Tubo metálico de cobre eletrolítico estanhado/prateado crimpado com ranhuras de prensagem.
+ * 3. Ponta de cobre multifilar exposta dentro do tubo metálico entrando na cavidade do borne.
+ * 4. Cavidade/alvéolo de encaixe 3D no parafuso do borne.
+ */
+export function renderFerruleTerminal(
+  ctx: CanvasRenderingContext2D,
+  screenPos: { x: number; y: number },
+  dir: 'top' | 'bottom' | 'left' | 'right',
+  wireType: string = 'L1',
+  cam: { zoom: number },
+  isLive: boolean = false,
+  isOverheated: boolean = false
+): void {
+  const norm = WIRE_NORM_COLORS[wireType] || WIRE_NORM_COLORS['L1'];
+  const z = Math.max(0.35, Math.min(2.5, cam.zoom));
+
+  ctx.save();
+  ctx.translate(screenPos.x, screenPos.y);
+
+  // Ângulo onde o terminal aponta para fora do dispositivo em direção ao cabo
+  let angle = 0;
+  if (dir === 'top') angle = -Math.PI / 2;
+  else if (dir === 'bottom') angle = Math.PI / 2;
+  else if (dir === 'left') angle = Math.PI;
+  else if (dir === 'right') angle = 0;
+
+  ctx.rotate(angle);
+
+  // Dimensões do Terminal Ilhós Pré-isolado conforme DIN 46228-4
+  const tubeLen = 8.5 * z;      // Comprimento do tubo de cobre estanhado crimpado
+  const collarLen = 7.5 * z;    // Comprimento da luva plástica isolante
+  const tubeHalfW = 1.6 * z;    // Meia-largura do tubo prateado crimpado
+  const collarEndHalfW = 2.8 * z; // Meia-largura da entrada cônica plástica
+
+  // 1. Alvéolo/Cavidade do Borne do Dispositivo (Encaixe 3D do Parafuso)
+  ctx.fillStyle = '#090e17';
+  ctx.beginPath();
+  ctx.roundRect(-2.8 * z, -3.2 * z, 3.4 * z, 6.4 * z, 0.8 * z);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 0.8 * z;
+  ctx.stroke();
+
+  // Cabeça do Parafuso de Aperto do Borne
+  ctx.fillStyle = '#64748b';
+  ctx.beginPath();
+  ctx.arc(-1.2 * z, 0, 1.8 * z, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 0.6 * z;
+  ctx.stroke();
+  // Fenda do Parafuso Phillips / Pozidriv
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 0.7 * z;
+  ctx.beginPath();
+  ctx.moveTo(-2.2 * z, 0);
+  ctx.lineTo(-0.2 * z, 0);
+  ctx.stroke();
+
+  // 2. Ponta Sutil do Cabo de Cobre Multifilar Exposto dentro do Tubo Prateado
+  ctx.fillStyle = isOverheated ? '#ea580c' : '#b45309';
+  ctx.fillRect(-0.4 * z, -1.1 * z, 2.6 * z, 2.2 * z);
+  // Fios individuais de cobre flexível (micro-filamentos)
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 0.5 * z;
+  ctx.beginPath();
+  ctx.moveTo(0, -0.6 * z);
+  ctx.lineTo(2.2 * z, -0.6 * z);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(2.5 * z, 0);
+  ctx.moveTo(0, 0.6 * z);
+  ctx.lineTo(2.2 * z, 0.6 * z);
+  ctx.stroke();
+
+  // 3. Tubo Metálico de Cobre Estanhado / Prateado Crimpado (Tin-Plated Copper Ferrule)
+  const metalGrad = ctx.createLinearGradient(0, -tubeHalfW, 0, tubeHalfW);
+  metalGrad.addColorStop(0, '#64748b');      // Sombra metálica superior
+  metalGrad.addColorStop(0.2, '#ffffff');    // Brilho cromado especular intenso
+  metalGrad.addColorStop(0.5, '#cbd5e1');    // Prata estanhada brilhante
+  metalGrad.addColorStop(0.85, '#94a3b8');   // Corpo estanhado
+  metalGrad.addColorStop(1, '#334155');      // Sombra inferior de profundidade
+
+  ctx.fillStyle = metalGrad;
+  ctx.beginPath();
+  ctx.roundRect(0.8 * z, -tubeHalfW, tubeLen, tubeHalfW * 2, 0.6 * z);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 0.6 * z;
+  ctx.stroke();
+
+  // Marcas de Crimpagem Trapezoidal / Hexagonal (Prensagem Industrial com Alicate de Terminal)
+  const drawCrimpIndent = (xPos: number) => {
+    // Ranhura escura de compressão
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 0.8 * z;
+    ctx.beginPath();
+    ctx.moveTo(xPos, -tubeHalfW + 0.3 * z);
+    ctx.lineTo(xPos, tubeHalfW - 0.3 * z);
+    ctx.stroke();
+    // Borda clara de reflexo do chanfro da crimpagem
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 0.5 * z;
+    ctx.beginPath();
+    ctx.moveTo(xPos + 0.5 * z, -tubeHalfW + 0.3 * z);
+    ctx.lineTo(xPos + 0.5 * z, tubeHalfW - 0.3 * z);
+    ctx.stroke();
+  };
+
+  drawCrimpIndent(3.2 * z);
+  drawCrimpIndent(6.2 * z);
+
+  // 4. Capa Isolante de Plástico Colorido (Luva de Polipropileno Pré-Isolada Cônica)
+  const collarStartX = tubeLen - 0.5 * z;
+  const collarEndX = collarStartX + collarLen;
+  const collarStartHalfW = tubeHalfW + 0.4 * z;
+
+  const collarGrad = ctx.createLinearGradient(0, -collarEndHalfW, 0, collarEndHalfW);
+  collarGrad.addColorStop(0, '#020617');                      // Borda escura cilíndrica
+  collarGrad.addColorStop(0.22, norm.highlight || '#ffffff');  // Reflexo de brilho plástico PVC
+  collarGrad.addColorStop(0.55, norm.base);                   // Cor normativa do condutor
+  collarGrad.addColorStop(0.85, norm.base);
+  collarGrad.addColorStop(1, '#050b14');                      // Sombra inferior
+
+  ctx.fillStyle = collarGrad;
+  ctx.beginPath();
+  ctx.moveTo(collarStartX, -collarStartHalfW);
+  ctx.lineTo(collarEndX, -collarEndHalfW);
+  ctx.arcTo(collarEndX + 1.2 * z, -collarEndHalfW, collarEndX + 1.2 * z, -1.8 * z, 1.0 * z);
+  ctx.lineTo(collarEndX + 1.2 * z, 1.8 * z);
+  ctx.arcTo(collarEndX + 1.2 * z, collarEndHalfW, collarEndX, collarEndHalfW, 1.0 * z);
+  ctx.lineTo(collarStartX, collarStartHalfW);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(15, 23, 42, 0.75)';
+  ctx.lineWidth = 0.7 * z;
+  ctx.stroke();
+
+  // Linha de Reflexo Especular da Luva Plástica
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.lineWidth = 0.75 * z;
+  ctx.beginPath();
+  ctx.moveTo(collarStartX + 0.5 * z, -collarStartHalfW * 0.6);
+  ctx.lineTo(collarEndX - 0.5 * z, -collarEndHalfW * 0.6);
+  ctx.stroke();
+
+  // Se for Condutor de Proteção (Terra PE): Faixa Zebrada Amarela na Luva Verde
+  if (norm.isStriped) {
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(collarStartX + 2.5 * z, -collarEndHalfW * 0.9, 1.8 * z, collarEndHalfW * 1.8);
+  }
+
+  // 5. Borda de Acomodação/Entrada do Cabo Flexível
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.beginPath();
+  ctx.ellipse(collarEndX + 0.8 * z, 0, 0.8 * z, collarEndHalfW * 0.85, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 6. Efeito Ativo Sutil de Energização no Borne
+  if (isLive) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 0.8 * z;
+    ctx.beginPath();
+    ctx.arc(-1.2 * z, 0, 2.2 * z, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Função utilitária unificada de renderização de condutores curvos com ferrules
+ */
+export function renderCurvedWireWithFerrules(
+  ctx: CanvasRenderingContext2D,
+  wire: any,
+  project: any,
+  cam: { zoom: number; pan?: { x: number; y: number } },
+  options: {
+    wireIndex?: number;
+    isSelected?: boolean;
+    isLive?: boolean;
+    isOverheated?: boolean;
+    animTick?: number;
+    toScreen: (p: { x: number; y: number }) => { x: number; y: number };
+  }
+): void {
+  const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, project.components, project.busbars || []);
+  const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, project.components, project.busbars || []);
+  const curvedPath = calculateCurvedPath(posA, posB, options.wireIndex || 0);
+
+  // Renderiza corpo do fio
+  renderCurvedWireBack(ctx, curvedPath, {
+    wireType: wire.type || 'L1',
+    cam,
+    isLive: options.isLive,
+    isSelected: options.isSelected,
+    isOverheated: options.isOverheated,
+    animTick: options.animTick || 0,
+    toScreen: options.toScreen
+  });
+
+  // Renderiza ferrules
+  renderFerruleTerminal(
+    ctx,
+    options.toScreen(posA),
+    posA.dir || 'bottom',
+    wire.type || 'L1',
+    cam,
+    options.isLive,
+    options.isOverheated
+  );
+
+  renderFerruleTerminal(
+    ctx,
+    options.toScreen(posB),
+    posB.dir || 'top',
+    wire.type || 'L1',
+    cam,
+    options.isLive,
+    options.isOverheated
+  );
+}
+
+/**
+ * RENDERIZAÇÃO ESTÉTICA PROFISSIONAL DE CABOS NO CANVAS 2D (COMPATIBILIDADE SNAPSHOT/LEGADO)
  */
 export function drawProfessionalWire(
   ctx: CanvasRenderingContext2D,
@@ -486,7 +953,7 @@ export function drawProfessionalWire(
   if (!screenPoints || screenPoints.length < 2) return;
 
   const norm = WIRE_NORM_COLORS[wireType] || WIRE_NORM_COLORS['L1'];
-  const wireW = Math.max(2.2, 3.5 * cam.zoom);
+  const wireW = Math.max(2.4, 3.8 * cam.zoom);
   const filletRadius = Math.max(6, 12 * cam.zoom);
 
   ctx.save();
@@ -502,17 +969,17 @@ export function drawProfessionalWire(
   }
 
   // 2. Sombra de profundidade projetada na placa de montagem
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-  ctx.lineWidth = wireW + 1.5 * cam.zoom;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.lineWidth = wireW + 2 * cam.zoom;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.save();
-  ctx.translate(1.5 * cam.zoom, 2.5 * cam.zoom);
+  ctx.translate(2 * cam.zoom, 3.5 * cam.zoom);
   traceFilletPath(ctx, screenPoints, filletRadius);
   ctx.stroke();
   ctx.restore();
 
-  // 3. Corpo Primário da Isolação de PVC/XLPE com Efeito Térmico Incandescente se Sobreaquecido
+  // 3. Corpo Primário da Isolação de PVC/XLPE
   if (isOverheated) {
     const pulse = (Math.sin(animTick * 0.15) + 1) * 0.5;
     ctx.strokeStyle = `rgb(${Math.round(235 + pulse * 20)}, ${Math.round(50 + pulse * 80)}, 15)`;
@@ -528,7 +995,7 @@ export function drawProfessionalWire(
   ctx.stroke();
   ctx.shadowColor = 'transparent';
 
-  // 4. Se for Terra (PE): Listras Amarelas de Segurança IEC (a menos que esteja incandescente)
+  // 4. Se for Terra (PE): Listras Amarelas de Segurança IEC
   if (norm.isStriped && !isOverheated) {
     ctx.strokeStyle = '#eab308';
     ctx.lineWidth = wireW * 0.85;
@@ -540,18 +1007,18 @@ export function drawProfessionalWire(
 
   // 5. Linha de Reflexo Especular Superior 3D (Cilindro do Cabo)
   ctx.strokeStyle = isOverheated ? '#fed7aa' : norm.highlight;
-  ctx.lineWidth = Math.max(0.7, 1 * cam.zoom);
+  ctx.lineWidth = Math.max(0.75, 1.2 * cam.zoom);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = 0.65;
   traceFilletPath(ctx, screenPoints, filletRadius);
   ctx.stroke();
   ctx.globalAlpha = 1.0;
 
-  // 6. Animação de Fluxo de Cargas se Energizado (Elétrons em Movimento)
+  // 6. Animação de Fluxo de Cargas se Energizado
   if (isLive) {
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = Math.max(1, 1.8 * cam.zoom);
+    ctx.lineWidth = Math.max(1.1, 1.8 * cam.zoom);
     ctx.setLineDash([5 * cam.zoom, 9 * cam.zoom]);
     ctx.lineDashOffset = -animTick * 1.5;
     traceFilletPath(ctx, screenPoints, filletRadius);
@@ -559,56 +1026,21 @@ export function drawProfessionalWire(
     ctx.setLineDash([]);
   }
 
-  // 6.5 Efeito de Fumaça Subindo se o Condutor Estiver Sobreaquecido (Subdimensionado)
-  if (isOverheated) {
-    const numPuffs = 4;
-    for (let p = 0; p < numPuffs; p++) {
-      const segIdx = Math.floor(((p + 0.5) / numPuffs) * (screenPoints.length - 1));
-      const ptA = screenPoints[segIdx];
-      const ptB = screenPoints[segIdx + 1] || ptA;
-      const midX = (ptA.x + ptB.x) / 2;
-      const midY = (ptA.y + ptB.y) / 2;
+  // 7. Terminais Ilhós nos 2 Extremos
+  const pA = screenPoints[0];
+  const pB = screenPoints[screenPoints.length - 1];
+  const pNextA = screenPoints[1] || pA;
+  const pPrevB = screenPoints[screenPoints.length - 2] || pB;
 
-      const puffLife = ((animTick * 0.4 + p * 12) % 40);
-      const puffX = midX + Math.sin(animTick * 0.08 + p) * 6 * cam.zoom;
-      const puffY = midY - puffLife * 1.3 * cam.zoom;
-      const puffRadius = (3.5 + puffLife * 0.28) * cam.zoom;
-      const alpha = Math.max(0, 0.4 - (puffLife / 40));
-
-      ctx.fillStyle = `rgba(148, 163, 184, ${alpha})`;
-      ctx.beginPath();
-      ctx.arc(puffX, puffY, puffRadius, 0, Math.PI * 2);
-      ctx.fill();
+  const getDirFromVector = (dx: number, dy: number): 'top' | 'bottom' | 'left' | 'right' => {
+    if (Math.abs(dx) > Math.abs(dy)) {
+      return dx > 0 ? 'right' : 'left';
     }
-  }
-
-  // 7. Terminais Ilhós Tubulares (Ferrules) nos 2 Extremos da Conexão
-  const drawFerrule = (pt: { x: number; y: number }, nextPt: { x: number; y: number }) => {
-    const angle = Math.atan2(nextPt.y - pt.y, nextPt.x - pt.x);
-    ctx.save();
-    ctx.translate(pt.x, pt.y);
-    ctx.rotate(angle);
-
-    // Ponteira Metálica Estanhada (Cobre Eletrolítico Cromado)
-    ctx.fillStyle = '#cbd5e1';
-    ctx.strokeStyle = '#475569';
-    ctx.lineWidth = Math.max(0.6, 0.8 * cam.zoom);
-    ctx.fillRect(-2 * cam.zoom, -wireW * 0.7, 7 * cam.zoom, wireW * 1.4);
-    ctx.strokeRect(-2 * cam.zoom, -wireW * 0.7, 7 * cam.zoom, wireW * 1.4);
-
-    // Colar Plástico Isolante Normativo (Cor do Cabo)
-    ctx.fillStyle = norm.base;
-    ctx.strokeStyle = norm.highlight;
-    ctx.beginPath();
-    ctx.roundRect(4 * cam.zoom, -wireW * 0.9, 5 * cam.zoom, wireW * 1.8, 1.5 * cam.zoom);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.restore();
+    return dy > 0 ? 'bottom' : 'top';
   };
 
-  drawFerrule(screenPoints[0], screenPoints[1]);
-  drawFerrule(screenPoints[screenPoints.length - 1], screenPoints[screenPoints.length - 2]);
+  renderFerruleTerminal(ctx, pA, getDirFromVector(pNextA.x - pA.x, pNextA.y - pA.y), wireType, cam, isLive, isOverheated);
+  renderFerruleTerminal(ctx, pB, getDirFromVector(pPrevB.x - pB.x, pPrevB.y - pB.y), wireType, cam, isLive, isOverheated);
 
   ctx.restore();
 }

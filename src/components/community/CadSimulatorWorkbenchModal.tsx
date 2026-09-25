@@ -41,10 +41,16 @@ import {
   getTerminalWorldPos,
   getNodeWorldPos,
   calculateManhattanPath,
+  calculateCurvedPath,
+  renderCurvedWireBack,
+  renderFerruleTerminal,
+  renderCurvedWireWithFerrules,
+  getBezierPoints,
   drawProfessionalWire,
   autoOrganizeCircuitWiring,
   WIRE_NORM_COLORS,
-  findJunctionDots
+  findJunctionDots,
+  TerminalPosition
 } from './cadRouting';
 import { generateMuralSnapshot } from './cadSnapshot';
 import { renderDevice } from './cadDeviceRenderer';
@@ -241,6 +247,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     lastContactorState: boolean;
     motorRpm: number;
     firedAlertsSet: Set<string>;
+    pointerWorld: { x: number; y: number } | null;
   }>({
     time: 0,
     lastTick: performance.now(),
@@ -254,7 +261,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     longPressTimer: null,
     lastContactorState: false,
     motorRpm: 0,
-    firedAlertsSet: new Set()
+    firedAlertsSet: new Set(),
+    pointerWorld: null
   });
 
   // Sincronização via useRef para evitar re-renderizações e closures obsoletas durante arraste a 60fps
@@ -1322,54 +1330,34 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         );
       }
 
-      // 3. Fiação Profissional Curva Realista (Efeito Cabo Flexível de Quadro Elétrico)
-project.wires.forEach((wire, wireIdx) => {
-  const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, project.components, project.busbars || []);
-  const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, project.components, project.busbars || []);
+      // ======================================================================
+      // FLUXO PRINCIPAL DE RENDERIZAÇÃO CAD INDUSTRIAL (4 CAMADAS / Z-INDEX)
+      // 1. Fundo do Quadro e Trilhos DIN (já executado acima)
+      // 2. Fios / Condutores Curvos (Passagem Traseira)
+      // 3. Dispositivos / Componentes Elétricos
+      // 4. Terminais Ilhós / Bornes de Conexão (Encaixe frontal perfeito)
+      // ======================================================================
 
-  // Transforma para coordenadas da tela
-  const screenA = toScreen(posA);
-  const screenB = toScreen(posB);
+      // 2. FIOS / CONDUTORES CURVOS (PASSAGEM TRASEIRA)
+      // Passam por trás dos componentes como em canaletas perfuradas de quadro real
+      project.wires.forEach((wire: any, wireIdx: number) => {
+        const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, project.components, project.busbars || []);
+        const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, project.components, project.busbars || []);
+        const curvedPath = calculateCurvedPath(posA, posB, wireIdx);
+        const isSelected = wire.id === selectedWireId;
 
-  // Cálculo da Distância e Vetores de Orientação do Terminal
-  const dx = screenB.x - screenA.x;
-  const dy = screenB.y - screenA.y;
-  const dist = Math.hypot(dx, dy);
+        renderCurvedWireBack(ctx, curvedPath, {
+          wireType: wire.type || 'L1',
+          cam,
+          isLive: isRunning && Boolean(wire.live),
+          isSelected,
+          isOverheated: Boolean(wire.overheated),
+          animTick: simRef.current.time * 60,
+          toScreen
+        });
+      });
 
-  // Tensão/Curvatura natural baseada na distância do cabo (Efeito Catenária/Bézier)
-  const curvatureOffset = Math.min(dist * 0.4, 80); 
-
-  // Ponto de controle inicial (sai perpendicular do terminal)
-  const cp1 = {
-    x: screenA.x + (posA.dir === 'left' ? -curvatureOffset : posA.dir === 'right' ? curvatureOffset : 0),
-    y: screenA.y + (posA.dir === 'top' ? -curvatureOffset : posA.dir === 'bottom' ? curvatureOffset : curvatureOffset * 0.5)
-  };
-
-  // Ponto de controle final (entra suavemente no terminal de destino)
-  const cp2 = {
-    x: screenB.x + (posB.dir === 'left' ? -curvatureOffset : posB.dir === 'right' ? curvatureOffset : 0),
-    y: screenB.y + (posB.dir === 'top' ? -curvatureOffset : posB.dir === 'bottom' ? curvatureOffset : -curvatureOffset * 0.5)
-  };
-
-  const isSelected = wire.id === selectedWireId;
-
-  // Renderiza o fio com curva Bézier Cúbica
-  drawCurvedRealWire(
-    ctx,
-    screenA,
-    cp1,
-    cp2,
-    screenB,
-    wire.type || 'L1',
-    cam,
-    isRunning && Boolean(wire.live),
-    isSelected,
-    simRef.current.time * 60,
-    Boolean(wire.overheated)
-  );
-});
-
-      // 4. Componentes Elétricos no Canvas Principal
+      // 3. DISPOSITIVOS / COMPONENTES ELÉTRICOS (CORPO DOS APARELHOS)
       currentProj.components.forEach(c => {
         const s = toScreen({ x: c.x, y: c.y });
         ctx.save();
@@ -1386,6 +1374,75 @@ project.wires.forEach((wire, wireIdx) => {
 
         ctx.restore();
       });
+
+      // 4. TERMINAIS ILHÓS / BORNES DE CONEXÃO (ENCAIXE FRONTAL PERFEITO NOS PARAFUSOS)
+      // Renderizados no topo dos componentes entrando diretamente nas cavidades dos bornes
+      project.wires.forEach((wire: any) => {
+        const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, project.components, project.busbars || []);
+        const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, project.components, project.busbars || []);
+        const isLive = isRunning && Boolean(wire.live);
+        const isOverheated = Boolean(wire.overheated);
+
+        // Terminal Ilhós A
+        renderFerruleTerminal(
+          ctx,
+          toScreen(posA),
+          posA.dir || 'bottom',
+          wire.type || 'L1',
+          cam,
+          isLive,
+          isOverheated
+        );
+
+        // Terminal Ilhós B
+        renderFerruleTerminal(
+          ctx,
+          toScreen(posB),
+          posB.dir || 'top',
+          wire.type || 'L1',
+          cam,
+          isLive,
+          isOverheated
+        );
+      });
+
+      // 5. Linha de Pré-visualização de Condutor em Criação (Toque/Arrasto ativo)
+      if (simRef.current.wireStart) {
+        const startPos = getNodeWorldPos(
+          simRef.current.wireStart.c,
+          simRef.current.wireStart.t,
+          project.components,
+          project.busbars || []
+        );
+        const curWorld = simRef.current.pointerWorld || { x: startPos.x, y: startPos.y + 60 };
+        const targetPos: TerminalPosition = {
+          x: curWorld.x,
+          y: curWorld.y,
+          dir: startPos.dir === 'top' ? 'bottom' : 'top',
+          normId: 'cursor'
+        };
+
+        const previewPath = calculateCurvedPath(startPos, targetPos, 0);
+        renderCurvedWireBack(ctx, previewPath, {
+          wireType: selectedWireType,
+          cam,
+          isLive: false,
+          isSelected: true,
+          isOverheated: false,
+          animTick: simRef.current.time * 60,
+          toScreen
+        });
+
+        renderFerruleTerminal(
+          ctx,
+          toScreen(startPos),
+          startPos.dir || 'bottom',
+          selectedWireType,
+          cam,
+          false,
+          false
+        );
+      }
 
       // 7. Simulação Transitória / Solver MNA com Execução Contínua & Cargas Reais
       try {
@@ -1957,7 +2014,7 @@ project.wires.forEach((wire, wireIdx) => {
     };
   }, [isOpen, terminalPos]);
 
-  // Helper: Detecção de colisão precisa com cabos e condutores Manhattan
+  // Helper: Detecção de colisão precisa com cabos e condutores curvos realistas
   const getHitWireId = (
     worldX: number,
     worldY: number,
@@ -1966,12 +2023,13 @@ project.wires.forEach((wire, wireIdx) => {
     busbars: any[],
     zoom: number
   ): string | null => {
-    const threshold = 14 / Math.max(0.2, zoom);
+    const threshold = 16 / Math.max(0.2, zoom);
     for (let i = wires.length - 1; i >= 0; i--) {
       const wire = wires[i];
       const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, components, busbars);
       const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, components, busbars);
-      const pts = calculateManhattanPath(posA, posB, i, wire.waypoints);
+      const curvedPath = calculateCurvedPath(posA, posB, i);
+      const pts = getBezierPoints(curvedPath, 16);
       for (let j = 0; j < pts.length - 1; j++) {
         const p1 = pts[j];
         const p2 = pts[j + 1];
@@ -2262,6 +2320,11 @@ project.wires.forEach((wire, wireIdx) => {
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
 
+    const cam = cameraRef.current;
+    const worldX = (px - cam.pan.x) / cam.zoom;
+    const worldY = (py - cam.pan.y) / cam.zoom;
+    simRef.current.pointerWorld = { x: worldX, y: worldY };
+
     // Atualiza rastreio no touchMap
     if (simRef.current.touchMap.has(e.pointerId)) {
       simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
@@ -2307,11 +2370,11 @@ project.wires.forEach((wire, wireIdx) => {
       simRef.current.longPressTimer = null;
     }
 
-    const cam = cameraRef.current;
-    const worldX = (px - cam.pan.x) / cam.zoom;
-    const worldY = (py - cam.pan.y) / cam.zoom;
+    const dragCam = cameraRef.current;
+    const dragWorldX = (px - dragCam.pan.x) / dragCam.zoom;
+    const dragWorldY = (py - dragCam.pan.y) / dragCam.zoom;
 
-    const hoverTerm = findNearestBusbarTerminal(projectRef.current.busbars || [], { x: worldX, y: worldY }, 18 / cam.zoom);
+    const hoverTerm = findNearestBusbarTerminal(projectRef.current.busbars || [], { x: dragWorldX, y: dragWorldY }, 18 / dragCam.zoom);
     const nextHoverId = hoverTerm ? hoverTerm.terminal.id : null;
     if (hoveredTerminalIdRef.current !== nextHoverId) {
       hoveredTerminalIdRef.current = nextHoverId;
@@ -2320,7 +2383,7 @@ project.wires.forEach((wire, wireIdx) => {
       }
     }
 
-    drag.mouse = { x: worldX, y: worldY };
+    drag.mouse = { x: dragWorldX, y: dragWorldY };
 
     if (drag.mode === 'comp' && drag.compId) {
       if (!isDraggingRef.current) {

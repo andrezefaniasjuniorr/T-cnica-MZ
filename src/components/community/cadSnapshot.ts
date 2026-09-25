@@ -3,7 +3,13 @@
 // Conforme normas IEC 60947 / IEC 60364: Enquadramento integral 100% visível
 // ============================================================================
 
-import { getNodeWorldPos, calculateManhattanPath, drawProfessionalWire } from './cadRouting';
+import {
+  getNodeWorldPos,
+  calculateCurvedPath,
+  calculateManhattanPath,
+  renderCurvedWireBack,
+  renderFerruleTerminal
+} from './cadRouting';
 import { drawBusbars, drawPanelEnclosure } from './cadBusbars';
 import { getComponentDef } from './cadEngine';
 
@@ -83,11 +89,12 @@ export function calculateCircuitBoundingBox(
     maxY = Math.max(maxY, b.y + (isH ? halfH : halfLen));
   });
 
-  // 4. Rede de Cabos e Vértices Ortogonais
+  // 4. Rede de Cabos e Vértices Curvos
   (project.wires || []).forEach((w, idx) => {
     const posA = getNodeWorldPos(w.a?.c, w.a?.t, project.components, project.busbars || []);
     const posB = getNodeWorldPos(w.b?.c, w.b?.t, project.components, project.busbars || []);
-    const pts = calculateManhattanPath(posA, posB, idx, w.waypoints);
+    const cPath = calculateCurvedPath(posA, posB, idx);
+    const pts = [cPath.start, cPath.cp1, cPath.cp2, cPath.end];
     pts.forEach(p => {
       minX = Math.min(minX, p.x);
       maxX = Math.max(maxX, p.x);
@@ -204,24 +211,21 @@ export function generateMuralSnapshot(
   const activeBusbars = new Set<string>(['phase_l1', 'phase_l2', 'phase_l3', 'neutral', 'earth']);
   drawBusbars(ctx, cam, project.busbars || [], null, null, activeBusbars);
 
-  // 5. Fiação Ortogonal (Manhattan, Fillets, Anilhas Crimpadas e 3D)
+  // 5. Fiação Curva Flexível Realista (Passagem Traseira)
   (project.wires || []).forEach((wire, wireIdx) => {
     const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, project.components, project.busbars || []);
     const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, project.components, project.busbars || []);
-    const pathPoints = calculateManhattanPath(posA, posB, wireIdx, wire.waypoints);
-    const screenPoints = pathPoints.map(p => toScreen(p));
+    const curvedPath = calculateCurvedPath(posA, posB, wireIdx);
 
-    if (screenPoints.length < 2) return;
-
-    drawProfessionalWire(
-      ctx,
-      screenPoints,
-      wire.type || 'L1',
+    renderCurvedWireBack(ctx, curvedPath, {
+      wireType: wire.type || 'L1',
       cam,
-      Boolean(wire.live),
-      false,
-      0
-    );
+      isLive: Boolean(wire.live),
+      isSelected: false,
+      isOverheated: false,
+      animTick: 0,
+      toScreen
+    });
   });
 
   // 6. Componentes Eletromecânicos
@@ -263,18 +267,32 @@ export function generateMuralSnapshot(
     ctx.fillText((c.label || d.name).substring(0, 18), 0, ch / 2 - 8 * cam.zoom);
 
     ctx.restore();
+  });
 
-    // Terminais
-    d.terminals.forEach(term => {
-      const tPos = toScreen(getNodeWorldPos(c.id, term[0], project.components, []));
-      ctx.fillStyle = '#0284c7';
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5 * cam.zoom;
-      ctx.beginPath();
-      ctx.arc(tPos.x, tPos.y, 4 * cam.zoom, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    });
+  // 7. Terminais Ilhós Tubulares Crimpados (Encaixe Frontal nos Parafusos)
+  (project.wires || []).forEach(wire => {
+    const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, project.components, project.busbars || []);
+    const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, project.components, project.busbars || []);
+
+    renderFerruleTerminal(
+      ctx,
+      toScreen(posA),
+      posA.dir || 'bottom',
+      wire.type || 'L1',
+      cam,
+      Boolean(wire.live),
+      false
+    );
+
+    renderFerruleTerminal(
+      ctx,
+      toScreen(posB),
+      posB.dir || 'top',
+      wire.type || 'L1',
+      cam,
+      Boolean(wire.live),
+      false
+    );
   });
 
   // 7. Rodapé com Carimbo Técnico Oficial do TécnicaMZ Pro
