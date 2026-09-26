@@ -1,5 +1,5 @@
 // ============================================================================
-// TÉCNICAMZ PRO — MOTOR CAD ELÉTRICO & ELETRÔNICO: SIMBOLOGIA NORMATIVA & 3D ULTRA-REALISTA
+// TÉCNICAMZ PRO — MOTOR CAD ELÉTRICO & ELETRÔNICO: SIMBOLOGIA NORMATIVA & 3D REALISTA
 // Padrão Normativo: IEC 60617 / DIN EN 60617 & ISO 128
 // Renderização Física Pseudo-3D (PBR Canvas2D) para Automação Industrial
 // ============================================================================
@@ -194,6 +194,33 @@ export function drawNormativeSymbol(
       ctx.moveTo(-s * 0.2, s * 0.5);
       ctx.lineTo(s * 0.2, s * 0.5);
       ctx.stroke();
+      break;
+    }
+
+    // COMUTADORES E INTERRUPTORES (3-WAY / 4-WAY - IEC 60617)
+    case 'THREE_WAY': {
+      const pos = st.state !== undefined ? st.state : (st.position || 0);
+      ctx.beginPath();
+      // Terminal COM
+      ctx.arc(0, s * 0.6, 3 * zoom, 0, Math.PI * 2);
+      // Terminais de saída 1 e 2
+      ctx.arc(-s * 0.5, -s * 0.6, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(s * 0.5, -s * 0.6, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+      // Lâmina basculante comutadora
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.5);
+      ctx.lineTo(pos === 0 ? -s * 0.45 : s * 0.45, -s * 0.5);
+      ctx.stroke();
+      break;
+    }
+
+    case 'FOUR_WAY': {
+      const crossed = st.state !== undefined ? st.state : (st.crossed ? 1 : 0);
+      ctx.font = `bold ${Math.max(8, 10 * zoom)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(crossed ? '⤮ 4-WAY' : '⇹ 4-WAY', 0, 0);
       break;
     }
 
@@ -640,19 +667,16 @@ export function drawMechanical3D(
     );
 
     if (isEmergency) {
-      // Botão Cogumelo de Emergência (Vermelho Amarelo Norma ISO 13850)
       btnGrad.addColorStop(0, '#fca5a5');
       btnGrad.addColorStop(0.4, '#dc2626');
       btnGrad.addColorStop(0.8, '#991b1b');
       btnGrad.addColorStop(1, '#450a0a');
     } else if (isNO) {
-      // Atuador Verde (Start/Liga)
       btnGrad.addColorStop(0, '#a7f3d0');
       btnGrad.addColorStop(0.4, '#16a34a');
       btnGrad.addColorStop(0.8, '#166534');
       btnGrad.addColorStop(1, '#052e16');
     } else {
-      // Atuador Vermelho (Stop/Desliga)
       btnGrad.addColorStop(0, '#fca5a5');
       btnGrad.addColorStop(0.4, '#dc2626');
       btnGrad.addColorStop(0.8, '#991b1b');
@@ -681,88 +705,118 @@ export function drawMechanical3D(
     // C. MOTOR ELÉTRICO ASÍNCRONO TRIFÁSICO (IEC Frame - Carcaça Aletada)
     // ------------------------------------------------------------------------
     const isRunning = Boolean(st.running);
-    const rpm = isRunning ? st.rpm || 2920 : 0;
+    const rpm = isRunning ? st.rpm || 1450 : 0;
+    const r = Math.min(cw, ch) * 0.42;
 
-    // Placa de Fundo da Base de Montagem
-    ctx.fillStyle = '#030712';
+    // Carcaça Aletada
+    const motorGrad = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
+    motorGrad.addColorStop(0, '#38bdf8');
+    motorGrad.addColorStop(0.7, '#0284c7');
+    motorGrad.addColorStop(1, '#0369a1');
+
+    ctx.fillStyle = motorGrad;
     ctx.beginPath();
-    ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 8 * zoom);
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = isSel ? '#38bdf8' : isRunning ? '#10b981' : '#1e293b';
-    ctx.lineWidth = isSel ? 2 * zoom : 1 * zoom;
+    ctx.strokeStyle = isSel ? '#38bdf8' : isRunning ? '#10b981' : '#075985';
+    ctx.lineWidth = 2 * zoom;
     ctx.stroke();
 
-    // Carcaça Cilíndrica em Ferro Fundido
-    const mRadius = Math.min(cw, ch) * 0.34;
-    const bodyGrad = ctx.createRadialGradient(-4, -4, mRadius * 0.2, 0, 0, mRadius);
-    bodyGrad.addColorStop(0, isRunning ? '#065f46' : '#334155');
-    bodyGrad.addColorStop(0.6, isRunning ? '#044e37' : '#1e293b');
-    bodyGrad.addColorStop(1, '#020617');
-
-    ctx.fillStyle = bodyGrad;
-    ctx.beginPath();
-    ctx.arc(0, -2 * zoom, mRadius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Aletas Radiadoras de Dissipação Térmica
-    ctx.strokeStyle = isRunning ? 'rgba(52, 211, 153, 0.4)' : 'rgba(71, 85, 105, 0.4)';
-    ctx.lineWidth = 2 * zoom;
-    for (let a = 0; a < 12; a++) {
-      const ang = (a * Math.PI) / 6;
+    // Aletas Radiais de Resfriamento
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1.2 * zoom;
+    for (let i = 0; i < 12; i++) {
+      const ang = (i * Math.PI) / 6;
       ctx.beginPath();
-      ctx.moveTo(Math.cos(ang) * (mRadius * 0.52), -2 * zoom + Math.sin(ang) * (mRadius * 0.52));
-      ctx.lineTo(Math.cos(ang) * (mRadius * 0.98), -2 * zoom + Math.sin(ang) * (mRadius * 0.98));
+      ctx.moveTo(Math.cos(ang) * (r * 0.5), Math.sin(ang) * (r * 0.5));
+      ctx.lineTo(Math.cos(ang) * (r * 0.95), Math.sin(ang) * (r * 0.95));
       ctx.stroke();
     }
 
-    // Eixo de Aço Retificado com Rotação Mecânica Ponderada
-    ctx.save();
-    ctx.translate(0, -2 * zoom);
-    const shaftR = mRadius * 0.4;
-
-    drawMetallicTexture(ctx, 0, 0, shaftR, 0);
-
-    // Rasgo de Chaveta DIN 6885 no Eixo
-    const shaftAngle = isRunning ? time * (rpm / 60) * Math.PI * 2 : 0;
-    ctx.rotate(shaftAngle);
-
-    ctx.fillStyle = '#090d16';
-    ctx.fillRect(shaftR * 0.25, -2.5 * zoom, shaftR * 0.65, 5 * zoom);
-
-    // Centro de Apontamento do Eixo
-    ctx.fillStyle = '#475569';
+    // Tampa do Eixo Central / Rolamento
+    ctx.fillStyle = '#0f172a';
     ctx.beginPath();
-    ctx.arc(0, 0, shaftR * 0.2, 0, Math.PI * 2);
+    ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2);
     ctx.fill();
+
+    // Eixo Rotativo com Chaveta
+    const rotAng = isRunning ? (time * 0.01 * (rpm / 100)) % (Math.PI * 2) : 0;
+    ctx.save();
+    ctx.rotate(rotAng);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Chaveta
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(r * 0.08, -2 * zoom, r * 0.1, 4 * zoom);
     ctx.restore();
 
-    // Caixa de Ligação / Bornes Superior (IP55)
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(-cw * 0.32, -ch / 2 + 2 * zoom, cw * 0.64, 9 * zoom);
-    ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 0.8 * zoom;
-    ctx.strokeRect(-cw * 0.32, -ch / 2 + 2 * zoom, cw * 0.64, 9 * zoom);
+    // Caixa de Bornes Superior
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(-cw * 0.25, -r - 8 * zoom, cw * 0.5, 9 * zoom);
+    ctx.strokeStyle = '#475569';
+    ctx.strokeRect(-cw * 0.25, -r - 8 * zoom, cw * 0.5, 9 * zoom);
 
-    // Tacômetro Digital Oled Integrado
-    ctx.fillStyle = isRunning ? '#34d399' : '#64748b';
-    ctx.font = `black ${Math.max(7, 8.5 * zoom)}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText(isRunning ? `${Math.round(rpm)} RPM` : '0 RPM', 0, ch / 2 - 7 * zoom);
+  } else if (kind === 'lamp' || kind.startsWith('pilot')) {
+    // ------------------------------------------------------------------------
+    // D. SINALIZADORES E ILUMINAÇÃO
+    // ------------------------------------------------------------------------
+    const isOn = Boolean(st.on || isEnergized);
+    const r = Math.min(cw, ch) * 0.36;
+    const isGreen = code.includes('GREEN') || st.color === 'green';
+    const isRed = code.includes('RED') || st.color === 'red';
+    const isYellow = code.includes('YELLOW') || st.color === 'yellow';
+
+    // Base metálica cilíndrica
+    drawMetallicTexture(ctx, 0, 0, r * 1.15, 0.4);
+
+    // Lente translúcida
+    const lensGrad = ctx.createRadialGradient(-r * 0.25, -r * 0.25, 1, 0, 0, r);
+    if (isOn) {
+      if (isGreen) {
+        lensGrad.addColorStop(0, '#86efac');
+        lensGrad.addColorStop(0.5, '#22c55e');
+        lensGrad.addColorStop(1, '#15803d');
+      } else if (isRed) {
+        lensGrad.addColorStop(0, '#fca5a5');
+        lensGrad.addColorStop(0.5, '#ef4444');
+        lensGrad.addColorStop(1, '#991b1b');
+      } else if (isYellow) {
+        lensGrad.addColorStop(0, '#fef08a');
+        lensGrad.addColorStop(0.5, '#eab308');
+        lensGrad.addColorStop(1, '#a16207');
+      } else {
+        lensGrad.addColorStop(0, '#ffffff');
+        lensGrad.addColorStop(0.6, '#fef08a');
+        lensGrad.addColorStop(1, '#eab308');
+      }
+    } else {
+      lensGrad.addColorStop(0, '#475569');
+      lensGrad.addColorStop(1, '#1e293b');
+    }
+
+    ctx.fillStyle = lensGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = isOn ? '#ffffff' : '#334155';
+    ctx.lineWidth = 1.5 * zoom;
+    ctx.stroke();
 
   } else {
     // ------------------------------------------------------------------------
-    // D. COMPONENTES GENÉRICOS DE PAINEL INDUSTRIAL
+    // E. DISPOSITIVOS GENÉRICOS / SENSORES
     // ------------------------------------------------------------------------
-    const genGrad = ctx.createLinearGradient(-cw / 2, -ch / 2, cw / 2, ch / 2);
-    genGrad.addColorStop(0, '#1e293b');
-    genGrad.addColorStop(1, '#0f172a');
-    ctx.fillStyle = genGrad;
+    ctx.fillStyle = '#1e293b';
     ctx.beginPath();
-    ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 5 * zoom);
+    ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 6 * zoom);
     ctx.fill();
-    ctx.strokeStyle = isSel ? '#38bdf8' : '#334155';
-    ctx.lineWidth = 1 * zoom;
+    ctx.strokeStyle = isSel ? '#38bdf8' : isEnergized ? '#10b981' : '#475569';
+    ctx.lineWidth = 1.5 * zoom;
     ctx.stroke();
+
+    drawNormativeSymbol(ctx, code, kind, cw, ch, zoom, st);
   }
 
   ctx.restore();

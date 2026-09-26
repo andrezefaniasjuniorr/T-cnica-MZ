@@ -14,7 +14,13 @@ import {
   Maximize2
 } from 'lucide-react';
 import { getComponentDef, WIRE_COLORS } from './cadEngine';
-import { calculateManhattanPath, getTerminalWorldPos, findJunctionDots } from './cadRouting';
+import {
+  calculateFilletManhattanPath,
+  getFilletSvgPathString,
+  getNodeWorldPos,
+  findJunctionDots,
+  getWireGaugeThickness
+} from './cadRouting';
 
 interface CadCircuitPreviewCardProps {
   circuit: CadCircuitProject;
@@ -44,10 +50,10 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
 
   const animationRef = useRef<number | null>(null);
 
-  // Física de Inércia Realista do Motor (Subida lenta e descida lenta por inércia mecânica)
+  // Física de Inércia do Motor no Card
   useEffect(() => {
     let lastTime = performance.now();
-    const targetRpm = motorTargetOn ? 2920 : 0; // RPM nominal de indução 4 polos
+    const targetRpm = motorTargetOn ? 2920 : 0;
 
     const updatePhysics = (time: number) => {
       const dt = (time - lastTime) / 1000;
@@ -55,8 +61,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
 
       setCurrentRpm(prevRpm => {
         if (Math.abs(prevRpm - targetRpm) < 1) return targetRpm;
-        // Taxa de aceleração (subida) vs Inércia de desaceleração (descida mais suave)
-        const rate = targetRpm > prevRpm ? 1200 : 800; 
         const delta = (targetRpm - prevRpm) * Math.min(dt * 3.5, 1);
         return prevRpm + delta;
       });
@@ -73,12 +77,12 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
   const isMotorRunning = currentRpm > 10;
   const isFourWayLampOn = swA !== swB !== swC;
 
-  // Cálculo da Bounding Box do Circuito Customizado para renderizar SVG perfeito
+  // Cálculo da Bounding Box do Circuito Customizado
   const customSvgBounds = useMemo(() => {
     if (!hasCustomCadData || !circuit.cadData) {
       return { vbX: 0, vbY: 0, vbW: 760, vbH: 240 };
     }
-    const comps = circuit.cadData.components;
+    const comps = circuit.cadData.components || [];
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
@@ -108,7 +112,7 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
       return { vbX: 0, vbY: 0, vbW: 760, vbH: 240 };
     }
 
-    const pad = 40;
+    const pad = 45;
     const vbX = minX - pad;
     const vbY = minY - pad;
     const vbW = Math.max(380, maxX - minX + pad * 2);
@@ -117,28 +121,56 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
     return { vbX, vbY, vbW, vbH };
   }, [hasCustomCadData, circuit.cadData]);
 
-  // Nós de derivação exclusivos calculados no circuito
   const junctionDots = useMemo(() => {
     if (!hasCustomCadData || !circuit.cadData) return [];
     return findJunctionDots(circuit.cadData.components, circuit.cadData.wires || []);
   }, [hasCustomCadData, circuit.cadData]);
 
   /**
-   * Gerador de Roteamento de Fios Realista para Painel (Canaletas e Ângulos de 90°)
-   * Garante que os condutores contornem os blocos e nunca passem por cima dos dispositivos.
+   * Renderizador de Terminal Ilhós Tubular (Ferrule) com Parafuso de Aperto no SVG
    */
-  const generatePanelRoutingPath = (posA: { x: number; y: number }, posB: { x: number; y: number }) => {
-    const dx = posB.x - posA.x;
-    const dy = posB.y - posA.y;
+  const renderSvgFerrule = (
+    x: number,
+    y: number,
+    dir: 'top' | 'bottom' | 'left' | 'right' = 'bottom',
+    wireType: string = 'L1',
+    gauge: number = 2.5
+  ) => {
+    let angle = 0;
+    if (dir === 'top') angle = -90;
+    else if (dir === 'bottom') angle = 90;
+    else if (dir === 'left') angle = 180;
+    else if (dir === 'right') angle = 0;
 
-    // Se estiverem perfeitamente alinhados ortogonalmente
-    if (Math.abs(dx) < 4 || Math.abs(dy) < 4) {
-      return `M ${posA.x} ${posA.y} L ${posB.x} ${posB.y}`;
-    }
+    const wireColor = WIRE_COLORS[wireType] || '#f59e0b';
+    const scale = Math.max(0.85, Math.min(1.35, Math.sqrt(gauge / 2.5)));
 
-    // Roteamento em 'L' ou 'Z' estilo canaleta de painel (evitando atravessar centros)
-    const midY = posA.y + dy * 0.5;
-    return `M ${posA.x} ${posA.y} L ${posA.x} ${midY} L ${posB.x} ${midY} L ${posB.x} ${posB.y}`;
+    return (
+      <g key={`ferrule_${x}_${y}_${dir}_${wireType}`} transform={`translate(${x}, ${y}) rotate(${angle}) scale(${scale})`}>
+        {/* Gaiola de Fixação do Borne */}
+        <rect x="-3.2" y="-3.5" width="4.2" height="7" rx="1" fill="#040812" stroke="#1e293b" strokeWidth="0.8" />
+        {/* Parafuso Pozidriv com Fenda de Aperto */}
+        <circle cx="-1.2" cy="0" r="2.2" fill="#94a3b8" stroke="#334155" strokeWidth="0.6" />
+        <line x1="-2.4" y1="0" x2="0" y2="0" stroke="#090d16" strokeWidth="0.8" />
+        <line x1="-1.2" y1="-1.2" x2="-1.2" y2="1.2" stroke="#090d16" strokeWidth="0.8" />
+
+        {/* Ponta de Cobre Multifilar */}
+        <rect x="0" y="-1" width="2.4" height="2" fill="#b45309" />
+        <line x1="0.4" y1="-0.6" x2="2.2" y2="-0.6" stroke="#f59e0b" strokeWidth="0.5" />
+        <line x1="0.4" y1="0.6" x2="2.2" y2="0.6" stroke="#f59e0b" strokeWidth="0.5" />
+
+        {/* Luva Tubular Estanhada com Marcas de Crimpagem */}
+        <rect x="0.8" y="-1.6" width="8.5" height="3.2" rx="0.5" fill="#cbd5e1" stroke="#475569" strokeWidth="0.6" />
+        <line x1="3.2" y1="-1.4" x2="3.2" y2="1.4" stroke="#1e293b" strokeWidth="0.8" />
+        <line x1="6.5" y1="-1.4" x2="6.5" y2="1.4" stroke="#1e293b" strokeWidth="0.8" />
+
+        {/* Colar Cônico Plástico com Cor Normativa */}
+        <path d="M 8 -2 L 13.5 -3.2 L 13.5 3.2 L 8 2 Z" fill={wireColor} stroke="#090d16" strokeWidth="0.6" />
+        {wireType === 'PE' && (
+          <rect x="9.8" y="-2.6" width="1.8" height="5.2" fill="#eab308" />
+        )}
+      </g>
+    );
   };
 
   return (
@@ -171,7 +203,7 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
       <div className="p-3 sm:p-4 bg-[#050A14] select-none relative group">
         
         {/* ================================================================= */}
-        {/* 0. CIRCUITO CUSTOMIZADO (DESENHADO PELO TÉCNICO)                    */}
+        {/* 0. CIRCUITO CUSTOMIZADO (Z-INDEX: FIOS RETOS NO FUNDO)            */}
         {/* ================================================================= */}
         {hasCustomCadData && circuit.cadData && (
           <div className="space-y-3">
@@ -185,6 +217,7 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 </pattern>
               </defs>
 
+              {/* Fundo do Painel */}
               <rect
                 x={customSvgBounds.vbX}
                 y={customSvgBounds.vbY}
@@ -202,7 +235,71 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 rx="10"
               />
 
-              {/* Barramentos e Trilhos DIN */}
+              {/* CAMADA 1: CONDUTORES RETOS COM CURVAS NOS CANTOS (PASSAM POR TRÁS) */}
+              {(circuit.cadData.wires || []).map((w: any, wireIdx: number) => {
+                const posA = getNodeWorldPos(w.a?.c, w.a?.t, circuit.cadData.components, circuit.cadData.busbars || []);
+                const posB = getNodeWorldPos(w.b?.c, w.b?.t, circuit.cadData.components, circuit.cadData.busbars || []);
+                const fillet = calculateFilletManhattanPath(posA, posB, wireIdx, w.waypoints);
+                const pathStr = getFilletSvgPathString(fillet.points, fillet.radius);
+                const wireColor = WIRE_COLORS[w.type] || '#f59e0b';
+                const wireThickness = getWireGaugeThickness(w.gauge || 2.5, 0.85);
+
+                return (
+                  <g key={w.id || wireIdx}>
+                    {/* Sombra de canaleta projetada no fundo */}
+                    <path
+                      d={pathStr}
+                      stroke="rgba(0,0,0,0.5)"
+                      strokeWidth={wireThickness + 2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                      transform="translate(1.5, 2.5)"
+                    />
+                    {/* Alma escura do condutor */}
+                    <path
+                      d={pathStr}
+                      stroke="#030712"
+                      strokeWidth={wireThickness + 1.2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                    {/* Isolamento PVC da Fase */}
+                    <path
+                      d={pathStr}
+                      stroke={wireColor}
+                      strokeWidth={wireThickness}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                    {/* Listras se for Terra PE */}
+                    {w.type === 'PE' && (
+                      <path
+                        d={pathStr}
+                        stroke="#eab308"
+                        strokeWidth={wireThickness * 0.82}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray="6 6"
+                        fill="none"
+                      />
+                    )}
+                    {/* Brilho especular */}
+                    <path
+                      d={pathStr}
+                      stroke="rgba(255,255,255,0.4)"
+                      strokeWidth={Math.max(0.7, wireThickness * 0.28)}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </g>
+                );
+              })}
+
+              {/* CAMADA 2: TRILHOS DIN E BARRAMENTOS (DESENHADOS SOBRE OS CABOS DE FUNDO) */}
               {(circuit.cadData.busbars || []).map((bb: any) => {
                 const isHoriz = bb.orientation === 'horizontal';
                 const len = bb.length || 600;
@@ -215,9 +312,9 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                   : bb.type === 'phase_l1'
                   ? '#991b1b'
                   : bb.type === 'phase_l2'
-                  ? '#b45309'
+                  ? '#0f172a'
                   : bb.type === 'phase_l3'
-                  ? '#1d4ed8'
+                  ? '#57534e'
                   : bb.type === 'neutral'
                   ? '#0284c7'
                   : '#15803d';
@@ -241,68 +338,7 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 );
               })}
 
-              {/* Condutores com Roteamento Realista (Canaletas e Ângulos de 90°) */}
-              {(circuit.cadData.wires || []).map((w: any, wireIdx: number) => {
-                const compA = circuit.cadData?.components.find((c: any) => c.id === w.a?.c);
-                const compB = circuit.cadData?.components.find((c: any) => c.id === w.b?.c);
-                if (!compA || !compB) return null;
-
-                const posA = getTerminalWorldPos(compA, w.a?.t);
-                const posB = getTerminalWorldPos(compB, w.b?.t);
-                const pathStr = generatePanelRoutingPath(posA, posB);
-                const wireColor = WIRE_COLORS[w.type] || '#f59e0b';
-
-                return (
-                  <g key={w.id || wireIdx}>
-                    {/* Sombra de profundidade do cabo */}
-                    <path
-                      d={pathStr}
-                      stroke="rgba(0,0,0,0.6)"
-                      strokeWidth="3.5"
-                      strokeLinecap="square"
-                      strokelinejoin="round"
-                      fill="none"
-                      transform="translate(1, 2)"
-                    />
-                    {/* Alma preta do isolamento */}
-                    <path
-                      d={pathStr}
-                      stroke="#030712"
-                      strokeWidth="3.0"
-                      strokeLinecap="square"
-                      strokelinejoin="round"
-                      fill="none"
-                    />
-                    {/* Condutor PVC colorido */}
-                    <path
-                      d={pathStr}
-                      stroke={wireColor}
-                      strokeWidth="2.0"
-                      strokeLinecap="square"
-                      strokelinejoin="round"
-                      fill="none"
-                    />
-                    {/* Luvas de Emenda / Terminais Ilhós nas extremidades */}
-                    <circle cx={posA.x} cy={posA.y} r="2.5" fill="#e2e8f0" stroke="#0f172a" strokeWidth="1" />
-                    <circle cx={posB.x} cy={posB.y} r="2.5" fill="#e2e8f0" stroke="#0f172a" strokeWidth="1" />
-                  </g>
-                );
-              })}
-
-              {/* Nós de Derivação (Junction Dots) */}
-              {junctionDots.map((jd, idx) => (
-                <circle
-                  key={`jd_${idx}`}
-                  cx={jd.x}
-                  cy={jd.y}
-                  r="3.5"
-                  fill={WIRE_COLORS[jd.netType] || '#f59e0b'}
-                  stroke="#070D1A"
-                  strokeWidth="1.5"
-                />
-              ))}
-
-              {/* Componentes Elétricos Modulares Reais */}
+              {/* CAMADA 3: DISPOSITIVOS ELÉTRICOS (DESENHADOS SOBRE A FIAÇÃO) */}
               {(circuit.cadData.components || []).map((c: any) => {
                 const d = getComponentDef(c.code);
                 const w = c.w || 90;
@@ -349,18 +385,46 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                   </g>
                 );
               })}
+
+              {/* CAMADA 4: TERMINAIS ILHÓS TUBULARES (FERRULES) COM PARAFUSO DE APERTO */}
+              {(circuit.cadData.wires || []).map((w: any) => {
+                const posA = getNodeWorldPos(w.a?.c, w.a?.t, circuit.cadData.components, circuit.cadData.busbars || []);
+                const posB = getNodeWorldPos(w.b?.c, w.b?.t, circuit.cadData.components, circuit.cadData.busbars || []);
+                const wireGauge = Number(w.gauge || 2.5);
+
+                return (
+                  <g key={`ferrules_${w.id}`}>
+                    {renderSvgFerrule(posA.x, posA.y, posA.dir, w.type, wireGauge)}
+                    {renderSvgFerrule(posB.x, posB.y, posB.dir, w.type, wireGauge)}
+                  </g>
+                );
+              })}
+
+              {/* Nós de Derivação */}
+              {junctionDots.map((jd, idx) => (
+                <circle
+                  key={`jd_${idx}`}
+                  cx={jd.x}
+                  cy={jd.y}
+                  r="3.5"
+                  fill={WIRE_COLORS[jd.netType] || '#f59e0b'}
+                  stroke="#070D1A"
+                  strokeWidth="1.5"
+                />
+              ))}
             </svg>
+
             <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
               <span className="font-mono">
-                {circuit.cadData.components.length} dispositivos • {circuit.cadData.wires?.length || 0} conexões ortogonais
+                {circuit.cadData.components.length} dispositivos • {circuit.cadData.wires?.length || 0} conexões em canaleta industrial
               </span>
-              <span className="text-emerald-400 font-bold">Esquema 100% IEC 60947 / 60364</span>
+              <span className="text-emerald-400 font-bold">Fiação Realista IEC 60947 / 60364</span>
             </div>
           </div>
         )}
 
         {/* ================================================================= */}
-        {/* 1. MOTOR DIRECT STARTER (COM INÉRCIA REALISTA E ROTAÇÃO PROPORCIONAL) */}
+        {/* 1. MOTOR DIRECT STARTER (CANALETAS RETAS COM DOBRAS CURVAS)       */}
         {/* ================================================================= */}
         {!hasCustomCadData && circuitType === 'direct_motor' && (
           <div className="space-y-3">
@@ -378,16 +442,32 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
               <rect width="760" height="230" fill="#070D1A" rx="10" />
               <rect width="760" height="230" fill="url(#cad_grid_mini)" rx="10" />
 
-              {/* Linhas de Alimentação com Canaletas ortogonais */}
-              <text x="25" y="45" fill="#EF4444" fontSize="11" fontWeight="bold" fontFamily="monospace">L1 (380V)</text>
-              <text x="25" y="70" fill="#F59E0B" fontSize="11" fontWeight="bold" fontFamily="monospace">L2 (380V)</text>
-              <text x="25" y="95" fill="#3B82F6" fontSize="11" fontWeight="bold" fontFamily="monospace">L3 (380V)</text>
-              <text x="25" y="120" fill="#10B981" fontSize="11" fontWeight="bold" fontFamily="monospace">PE (Terra)</text>
+              <text x="25" y="44" fill="#EF4444" fontSize="10" fontWeight="bold" fontFamily="monospace">L1 (400V)</text>
+              <text x="25" y="69" fill="#F59E0B" fontSize="10" fontWeight="bold" fontFamily="monospace">L2 (400V)</text>
+              <text x="25" y="94" fill="#3B82F6" fontSize="10" fontWeight="bold" fontFamily="monospace">L3 (400V)</text>
 
-              <path d="M 95 40 L 160 40" stroke="#EF4444" strokeWidth="2.5" fill="none" />
-              <path d="M 95 65 L 160 65" stroke="#F59E0B" strokeWidth="2.5" fill="none" />
-              <path d="M 95 90 L 160 90" stroke="#3B82F6" strokeWidth="2.5" fill="none" />
+              {/* CAMADA 1: CONDUTORES RETOS COM DOBRAS CURVAS */}
+              {/* SRC -> Q1 */}
+              <path d="M 95 40 L 160 40" stroke="#EF4444" strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 95 65 L 160 65" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 95 90 L 160 90" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round" fill="none" />
 
+              {/* Q1 -> KM1 */}
+              <path d="M 240 40 L 290 40" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 240 65 L 290 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 240 90 L 290 90" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+
+              {/* KM1 -> F1 */}
+              <path d="M 375 40 L 425 40" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 375 65 L 425 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 375 90 L 425 90" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+
+              {/* F1 -> M1 (Canaleta com Dobras Curvas Suaves R=12) */}
+              <path d="M 510 40 L 530 40 Q 540 40 540 46 L 540 50 Q 540 56 550 56 L 570 56" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 510 65 L 570 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 510 90 L 530 90 Q 540 90 540 84 L 540 78 Q 540 74 550 74 L 570 74" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
+
+              {/* CAMADA 2: DISPOSITIVOS (DESENHADOS SOBRE A FIAÇÃO) */}
               {/* Q1: Disjuntor-Motor */}
               <g transform="translate(160, 20)">
                 <rect x="0" y="0" width="80" height="95" rx="6" fill="#0B132B" stroke="#3B82F6" strokeWidth="1.5" />
@@ -396,10 +476,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 <circle cx="40" cy="60" r="12" fill={motorTargetOn ? '#10B981' : '#EF4444'} />
                 <text x="33" y="64" fill="#FFFFFF" fontSize="9" fontWeight="bold">{motorTargetOn ? 'ON' : 'OFF'}</text>
               </g>
-
-              <path d="M 240 40 L 290 40" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" fill="none" />
-              <path d="M 240 65 L 290 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" fill="none" />
-              <path d="M 240 90 L 290 90" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="2.5" fill="none" />
 
               {/* KM1: Contator Principal */}
               <g transform="translate(290, 20)">
@@ -412,10 +488,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 </text>
               </g>
 
-              <path d="M 375 40 L 425 40" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" fill="none" />
-              <path d="M 375 65 L 425 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" fill="none" />
-              <path d="M 375 90 L 425 90" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="2.5" fill="none" />
-
               {/* F1: Relé Térmico */}
               <g transform="translate(425, 20)">
                 <rect x="0" y="0" width="85" height="95" rx="6" fill="#0B132B" stroke="#F59E0B" strokeWidth="1.5" />
@@ -425,11 +497,7 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 <text x="35" y="66" fill="#FCD34D" fontSize="9" fontWeight="bold">OK</text>
               </g>
 
-              <path d="M 510 40 L 570 40" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="2.5" fill="none" />
-              <path d="M 510 65 L 570 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" fill="none" />
-              <path d="M 510 90 L 570 90" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="2.5" fill="none" />
-
-              {/* M1: Motor Trifásico com Display de RPM Fiel */}
+              {/* M1: Motor Trifásico */}
               <g transform="translate(570, 15)">
                 <rect x="0" y="0" width="150" height="105" rx="10" fill="#0B132B" stroke={isMotorRunning ? '#10B981' : '#3B82F6'} strokeWidth={isMotorRunning ? 2.5 : 1.5} />
                 <text x="16" y="26" fill="#FFFFFF" fontSize="11" fontWeight="bold">M1: Motor 3~</text>
@@ -441,10 +509,38 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 </text>
               </g>
 
-              {/* Circuito de Comando */}
+              {/* CAMADA 3: TERMINAIS ILHÓS TUBULARES NOS BORNES */}
+              {renderSvgFerrule(160, 40, 'left', 'L1', 4.0)}
+              {renderSvgFerrule(160, 65, 'left', 'L2', 4.0)}
+              {renderSvgFerrule(160, 90, 'left', 'L3', 4.0)}
+              {renderSvgFerrule(240, 40, 'right', 'L1', 4.0)}
+              {renderSvgFerrule(240, 65, 'right', 'L2', 4.0)}
+              {renderSvgFerrule(240, 90, 'right', 'L3', 4.0)}
+              {renderSvgFerrule(290, 40, 'left', 'L1', 4.0)}
+              {renderSvgFerrule(290, 65, 'left', 'L2', 4.0)}
+              {renderSvgFerrule(290, 90, 'left', 'L3', 4.0)}
+              {renderSvgFerrule(375, 40, 'right', 'L1', 4.0)}
+              {renderSvgFerrule(375, 65, 'right', 'L2', 4.0)}
+              {renderSvgFerrule(375, 90, 'right', 'L3', 4.0)}
+              {renderSvgFerrule(425, 40, 'left', 'L1', 4.0)}
+              {renderSvgFerrule(425, 65, 'left', 'L2', 4.0)}
+              {renderSvgFerrule(425, 90, 'left', 'L3', 4.0)}
+              {renderSvgFerrule(510, 40, 'right', 'L1', 4.0)}
+              {renderSvgFerrule(510, 65, 'right', 'L2', 4.0)}
+              {renderSvgFerrule(510, 90, 'right', 'L3', 4.0)}
+              {renderSvgFerrule(570, 56, 'left', 'L1', 4.0)}
+              {renderSvgFerrule(570, 65, 'left', 'L2', 4.0)}
+              {renderSvgFerrule(570, 74, 'left', 'L3', 4.0)}
+
+              {/* Circuito de Comando Reto com Ilhós */}
               <g transform="translate(40, 145)">
                 <rect x="0" y="0" width="680" height="70" rx="8" fill="#050A14" stroke="#1E293B" strokeWidth="1" />
                 <text x="20" y="24" fill="#FCD34D" fontSize="10" fontWeight="bold">Circuito de Comando 230V AC</text>
+
+                <path d="M 180 35 L 220 35" stroke="#F59E0B" strokeWidth="2" fill="none" />
+                <path d="M 300 35 L 330 35" stroke="#F59E0B" strokeWidth="2" fill="none" />
+                <path d="M 410 35 L 440 35" stroke="#F59E0B" strokeWidth="2" fill="none" />
+                <path d="M 540 35 L 594 35" stroke="#F59E0B" strokeWidth="2" fill="none" />
 
                 <rect x="220" y="15" width="80" height="40" rx="4" fill="#1E293B" stroke="#EF4444" />
                 <text x="235" y="32" fill="#FCA5A5" fontSize="9" fontWeight="bold">S0 (Parar)</text>
@@ -462,6 +558,14 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
 
                 <circle cx="610" cy="35" r="16" fill={motorTargetOn ? '#065F46' : '#1E293B'} stroke="#10B981" strokeWidth="2" />
                 <text x="610" y="39" fill="#FFFFFF" fontSize="9" fontWeight="bold" textAnchor="middle">A1-A2</text>
+
+                {renderSvgFerrule(220, 35, 'left', 'CTRL', 1.5)}
+                {renderSvgFerrule(300, 35, 'right', 'CTRL', 1.5)}
+                {renderSvgFerrule(330, 35, 'left', 'CTRL', 1.5)}
+                {renderSvgFerrule(410, 35, 'right', 'CTRL', 1.5)}
+                {renderSvgFerrule(440, 35, 'left', 'CTRL', 1.5)}
+                {renderSvgFerrule(540, 35, 'right', 'CTRL', 1.5)}
+                {renderSvgFerrule(594, 35, 'left', 'CTRL', 1.5)}
               </g>
             </svg>
 
@@ -491,14 +595,14 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                   : 'bg-slate-800 text-slate-400 border border-slate-700'
               }`}>
                 <span className={`w-2 h-2 rounded-full ${isMotorRunning ? 'bg-emerald-400 animate-ping' : currentRpm > 0 ? 'bg-amber-400 animate-pulse' : 'bg-slate-500'}`} />
-                <span>{isMotorRunning ? `Motor em Regime (${Math.round(currentRpm)} RPM)` : currentRpm > 0 ? `Desacelerando por Inércia (${Math.round(currentRpm)} RPM)` : 'Carga em Repouso'}</span>
+                <span>{isMotorRunning ? `Motor em Regime (${Math.round(currentRpm)} RPM)` : currentRpm > 0 ? `Desacelerando (${Math.round(currentRpm)} RPM)` : 'Carga em Repouso'}</span>
               </div>
             </div>
           </div>
         )}
 
         {/* ================================================================= */}
-        {/* 2. FOUR-WAY LIGHTING SCHEMATIC                                    */}
+        {/* 2. FOUR-WAY LIGHTING (CANALETAS RETAS E FERRULES)                 */}
         {/* ================================================================= */}
         {!hasCustomCadData && circuitType === 'four_way' && (
           <div className="space-y-3">
@@ -511,6 +615,16 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
               <path d="M 125 40 L 160 40" stroke="#EF4444" strokeWidth="2.5" fill="none" />
               <path d="M 125 170 L 680 170" stroke="#3B82F6" strokeWidth="2.5" fill="none" />
 
+              <path d="M 270 40 L 330 40" stroke={swA ? '#64748B' : '#F59E0B'} strokeWidth="2" strokeDasharray="4,4" fill="none" />
+              <path d="M 270 75 L 330 75" stroke={swA ? '#F59E0B' : '#64748B'} strokeWidth="2" strokeDasharray="4,4" fill="none" />
+
+              <path d="M 450 40 L 510 40" stroke={swB ? '#F59E0B' : '#64748B'} strokeWidth="2" strokeDasharray="4,4" fill="none" />
+              <path d="M 450 75 L 510 75" stroke={swB ? '#64748B' : '#F59E0B'} strokeWidth="2" strokeDasharray="4,4" fill="none" />
+
+              {/* Rotação com Dobra Curva Suave (Fillet R=12) na Canaleta da Lâmpada */}
+              <path d="M 620 58 L 668 58 Q 680 58 680 70 L 680 90" stroke={isFourWayLampOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" fill="none" />
+              <path d="M 680 144 L 680 170" stroke="#3B82F6" strokeWidth="2.5" fill="none" />
+
               <g transform="translate(160, 20)">
                 <rect x="0" y="0" width="110" height="85" rx="6" fill="#0B132B" stroke="#3B82F6" strokeWidth="1.5" />
                 <text x="14" y="24" fill="#93C5FD" fontSize="10" fontWeight="bold">S1: Three-Way</text>
@@ -518,9 +632,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 <circle cx="55" cy="58" r="10" fill={swA ? '#3B82F6' : '#1E293B'} stroke="#3B82F6" />
                 <text x="50" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swA ? 'V2' : 'V1'}</text>
               </g>
-
-              <path d="M 270 40 L 330 40" stroke={swA ? '#64748B' : '#F59E0B'} strokeWidth="2" strokeDasharray="3,3" fill="none" />
-              <path d="M 270 75 L 330 75" stroke={swA ? '#F59E0B' : '#64748B'} strokeWidth="2" strokeDasharray="3,3" fill="none" />
 
               <g transform="translate(330, 20)">
                 <rect x="0" y="0" width="120" height="85" rx="6" fill="#0B132B" stroke="#F59E0B" strokeWidth="1.5" />
@@ -530,9 +641,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 <text x="55" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swB ? '✕' : '═'}</text>
               </g>
 
-              <path d="M 450 40 L 510 40" stroke={swB ? '#F59E0B' : '#64748B'} strokeWidth="2" strokeDasharray="3,3" fill="none" />
-              <path d="M 450 75 L 510 75" stroke={swB ? '#64748B' : '#F59E0B'} strokeWidth="2" strokeDasharray="3,3" fill="none" />
-
               <g transform="translate(510, 20)">
                 <rect x="0" y="0" width="110" height="85" rx="6" fill="#0B132B" stroke="#3B82F6" strokeWidth="1.5" />
                 <text x="14" y="24" fill="#93C5FD" fontSize="10" fontWeight="bold">S3: Three-Way</text>
@@ -541,8 +649,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 <text x="50" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swC ? 'V2' : 'V1'}</text>
               </g>
 
-              <path d="M 620 58 L 680 58 L 680 90" stroke={isFourWayLampOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" fill="none" />
-
               <g transform="translate(650, 90)">
                 <circle cx="30" cy="30" r="24" fill={isFourWayLampOn ? '#FEF08A' : '#1E293B'} stroke={isFourWayLampOn ? '#FACC15' : '#475569'} strokeWidth="2" />
                 <text x="30" y="35" fill={isFourWayLampOn ? '#854D0E' : '#94A3B8'} fontSize="11" fontWeight="bold" textAnchor="middle">
@@ -550,7 +656,18 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 </text>
               </g>
 
-              <path d="M 680 144 L 680 170" stroke="#3B82F6" strokeWidth="2.5" fill="none" />
+              {renderSvgFerrule(160, 40, 'left', 'L1', 2.5)}
+              {renderSvgFerrule(270, 40, 'right', 'CTRL', 2.5)}
+              {renderSvgFerrule(270, 75, 'right', 'CTRL', 2.5)}
+              {renderSvgFerrule(330, 40, 'left', 'CTRL', 2.5)}
+              {renderSvgFerrule(330, 75, 'left', 'CTRL', 2.5)}
+              {renderSvgFerrule(450, 40, 'right', 'CTRL', 2.5)}
+              {renderSvgFerrule(450, 75, 'right', 'CTRL', 2.5)}
+              {renderSvgFerrule(510, 40, 'left', 'CTRL', 2.5)}
+              {renderSvgFerrule(510, 75, 'left', 'CTRL', 2.5)}
+              {renderSvgFerrule(620, 58, 'right', 'CTRL', 2.5)}
+              {renderSvgFerrule(680, 90, 'top', 'CTRL', 2.5)}
+              {renderSvgFerrule(680, 144, 'bottom', 'N', 2.5)}
             </svg>
 
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-xs">
@@ -601,12 +718,15 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
         )}
 
         {/* ================================================================= */}
-        {/* 3. QUADRO QGD / IDR / SOLAR                                       */}
+        {/* 3. QUADRO QGD / IDR                                               */}
         {/* ================================================================= */}
         {!hasCustomCadData && circuitType !== 'direct_motor' && circuitType !== 'four_way' && (
           <div className="space-y-3">
             <svg viewBox="0 0 760 190" className="w-full h-auto min-h-[140px] max-h-[200px]">
               <rect width="760" height="190" fill="#070D1A" rx="10" />
+
+              <path d="M 170 90 L 230 90" stroke="#EF4444" strokeWidth="3.2" fill="none" />
+              <path d="M 380 90 L 440 90" stroke={drTripped ? '#64748B' : '#EF4444'} strokeWidth="3.2" fill="none" />
               
               <g transform="translate(30, 20)">
                 <rect x="0" y="0" width="140" height="140" rx="8" fill="#0B132B" stroke="#3B82F6" strokeWidth="1.5" />
@@ -615,8 +735,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 <rect x="16" y="60" width="108" height="30" rx="4" fill="#1E293B" />
                 <text x="35" y="80" fill="#10B981" fontSize="10" fontWeight="bold">ARMADO</text>
               </g>
-
-              <path d="M 170 90 L 230 90" stroke="#EF4444" strokeWidth="3" fill="none" />
 
               <g transform="translate(230, 20)">
                 <rect x="0" y="0" width="150" height="140" rx="8" fill="#0B132B" stroke="#10B981" strokeWidth="1.5" />
@@ -628,8 +746,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 </text>
               </g>
 
-              <path d="M 380 90 L 440 90" stroke={drTripped ? '#64748B' : '#EF4444'} strokeWidth="3" fill="none" />
-
               <g transform="translate(440, 20)">
                 <rect x="0" y="0" width="280" height="140" rx="8" fill="#0B132B" stroke="#F59E0B" strokeWidth="1.5" />
                 <text x="16" y="28" fill="#FCD34D" fontSize="11" fontWeight="bold">Circuitos Terminais Protegidos</text>
@@ -638,6 +754,11 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 <text x="16" y="105" fill="#94A3B8" fontSize="9">C3: Ar Condicionado 20A • Cabo 4.0 mm²</text>
                 <text x="16" y="130" fill="#10B981" fontSize="9" fontWeight="bold">Status: Equilibrado • 50 Hz</text>
               </g>
+
+              {renderSvgFerrule(170, 90, 'right', 'L1', 6.0)}
+              {renderSvgFerrule(230, 90, 'left', 'L1', 6.0)}
+              {renderSvgFerrule(380, 90, 'right', 'L1', 6.0)}
+              {renderSvgFerrule(440, 90, 'left', 'L1', 6.0)}
             </svg>
 
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-xs">
