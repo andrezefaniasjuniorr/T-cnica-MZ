@@ -39,8 +39,8 @@ export default defineConfig(() => {
     base: '/',
     publicDir: 'public',
     build: {
-      target: ['es2015', 'chrome60', 'safari11', 'edge18'],
-      cssTarget: ['es2015', 'chrome60', 'safari11', 'edge18'],
+      target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
+      cssTarget: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
       assetsDir: 'assets',
       modulePreload: {
         polyfill: true,
