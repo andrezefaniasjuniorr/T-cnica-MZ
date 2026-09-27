@@ -11,13 +11,24 @@ function copyWellKnownPlugin(): Plugin {
   return {
     name: 'copy-well-known',
     closeBundle() {
-      const srcDir = path.resolve(__dirname, 'public/.well-known');
-      const destDir = path.resolve(__dirname, 'dist/.well-known');
-      if (fs.existsSync(srcDir)) {
-        if (!fs.existsSync(destDir)) {
-          fs.mkdirSync(destDir, { recursive: true });
+      try {
+        const srcDir = path.resolve(__dirname, 'public/.well-known');
+        const destDir = path.resolve(__dirname, 'dist/.well-known');
+        if (fs.existsSync(srcDir)) {
+          if (!fs.existsSync(destDir)) {
+            fs.mkdirSync(destDir, { recursive: true });
+          }
+          if (typeof (fs as any).cpSync === 'function') {
+            (fs as any).cpSync(srcDir, destDir, { recursive: true });
+          } else {
+            const files = fs.readdirSync(srcDir);
+            for (const file of files) {
+              fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
+            }
+          }
         }
-        fs.cpSync(srcDir, destDir, { recursive: true });
+      } catch (err) {
+        console.warn('Notice: .well-known copy skipped:', err);
       }
     },
   };

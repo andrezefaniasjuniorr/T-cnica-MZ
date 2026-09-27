@@ -257,6 +257,22 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   // 2. DISPOSITIVOS DE PROTEÇÃO
   // ==========================================================================
   {
+    code: 'MCB_1P',
+    name: 'Disjuntor Unipolar Parcial 1P Curva C (1 Polo 18mm)',
+    cat: 'protection',
+    icon: '🛡️',
+    terminals: [
+      ['1', 'IN', 'L1'],
+      ['2', 'OUT', 'L1']
+    ],
+    kind: 'breaker_1p',
+    params: { rating: 16, curve: 'C', breakingCapacity: 6, poles: 1 },
+    editableProps: [
+      { key: 'rating', label: 'Corrente Nominal In (A)', type: 'select', options: [{ label: '6 A', value: 6 }, { label: '10 A', value: 10 }, { label: '16 A', value: 16 }, { label: '20 A', value: 20 }, { label: '25 A', value: 25 }, { label: '32 A', value: 32 }, { label: '40 A', value: 40 }] },
+      { key: 'curve', label: 'Curva de Disparo', type: 'select', options: [{ label: 'Curva B', value: 'B' }, { label: 'Curva C', value: 'C' }, { label: 'Curva D', value: 'D' }] }
+    ]
+  },
+  {
     code: 'MCB1',
     name: 'Disjuntor Termomagnético Monopolar MCB 1P+N (Curva C 16A)',
     cat: 'protection',
@@ -710,6 +726,46 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     params: { closed: false }
   },
   {
+    code: 'SW2',
+    name: 'Interruptor Bipolar 2P 10A 250V (Corte de Fase e Neutro ou 2 Fases)',
+    cat: 'automation',
+    icon: '🔘',
+    terminals: [
+      ['1', 'IN', 'L1'],
+      ['3', 'IN', 'L2'],
+      ['2', 'OUT', 'L1'],
+      ['4', 'OUT', 'L2']
+    ],
+    kind: 'switch2',
+    params: { closed: false }
+  },
+  {
+    code: 'SW_DOUBLE',
+    name: 'Interruptor Duplo 2 Teclas (Fase Comum + Retornos Independentes R1 e R2)',
+    cat: 'automation',
+    icon: '🔘🔘',
+    terminals: [
+      ['1', 'IN', 'L1'],
+      ['2', 'OUT', 'L1'],
+      ['4', 'OUT', 'L1']
+    ],
+    kind: 'switch_double',
+    params: { closed1: false, closed2: false }
+  },
+  {
+    code: 'DIMMER',
+    name: 'Dimmer Rotativo Eletrônico (0-100% 230V 600W)',
+    cat: 'automation',
+    icon: '◐',
+    terminals: [
+      ['IN', 'IN', 'L1'],
+      ['OUT', 'OUT', 'L1'],
+      ['N', 'IN', 'N']
+    ],
+    kind: 'dimmer',
+    params: { percent: 100 }
+  },
+  {
     code: 'THREE_WAY',
     name: 'Interruptor Paralelo (Three-Way / Comutador de Escada SPDT)',
     cat: 'automation',
@@ -1112,6 +1168,31 @@ export const COMPONENT_MAP = new Map<string, ComponentDef>(
   COMPONENT_CATALOG.map(c => [c.code, c])
 );
 
+// Mapeamento de sinônimos/aliases para compatibilidade reversa
+const COMPONENT_ALIASES: Record<string, string> = {
+  PHOTOCELL: 'PHOTO_CELL',
+  GEN_DIESEL: 'GENERATOR_DIESEL',
+  ATS_SWITCH: 'ATS_100A',
+  MTS_SWITCH: 'MTS_100A',
+  PV_INVERTER_ONGRID: 'PV_INVERTER',
+  PV_INVERTER_OFFGRID: 'PV_INVERTER',
+  PV_INVERTER_HYBRID: 'PV_INVERTER',
+  BAT_LIFEPO4: 'BAT',
+  SRC1: 'SRC_AC1',
+  SRC3: 'SRC_AC3',
+  SRC_DC: 'BAT',
+  SRC_DC24: 'BAT',
+  SEL: 'THREE_WAY',
+  FLOAT: 'LIMIT_SWITCH',
+  LIMIT: 'LIMIT_SWITCH'
+};
+
 export function getComponentDef(code: string): ComponentDef {
-  return COMPONENT_MAP.get(code) || COMPONENT_CATALOG[0];
+  const direct = COMPONENT_MAP.get(code);
+  if (direct) return direct;
+  const aliasCode = COMPONENT_ALIASES[code];
+  if (aliasCode && COMPONENT_MAP.has(aliasCode)) {
+    return COMPONENT_MAP.get(aliasCode)!;
+  }
+  return COMPONENT_CATALOG[0];
 }
