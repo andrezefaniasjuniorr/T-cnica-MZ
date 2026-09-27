@@ -1,3 +1,5 @@
+import { AssessmentMCQuestion } from './assessment';
+
 export type AcademyArea = 'eletrotecnica' | 'mecanica';
 
 export type MasteryLevel = 'Aprendiz' | 'Técnico Nível 1' | 'Especialista IEC';
@@ -59,6 +61,7 @@ export interface AcademyLesson {
   durationMinutes: number;
   theory: AcademyLessonTheory;
   quiz: AcademyQuiz;
+  assessmentQuestions?: AssessmentMCQuestion[];
 }
 
 // Tipo canônico de Elemento de Competência

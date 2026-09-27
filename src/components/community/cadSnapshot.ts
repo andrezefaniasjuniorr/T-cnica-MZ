@@ -6,7 +6,6 @@
 import {
   getNodeWorldPos,
   calculateCurvedPath,
-  calculateManhattanPath,
   renderCurvedWireBack,
   renderFerruleTerminal
 } from './cadRouting';
@@ -94,7 +93,7 @@ export function calculateCircuitBoundingBox(
     const posA = getNodeWorldPos(w.a?.c, w.a?.t, project.components, project.busbars || []);
     const posB = getNodeWorldPos(w.b?.c, w.b?.t, project.components, project.busbars || []);
     const cPath = calculateCurvedPath(posA, posB, idx);
-    const pts = [cPath.start, cPath.cp1, cPath.cp2, cPath.end];
+    const pts = (cPath && Array.isArray(cPath.points)) ? cPath.points : [posA, posB];
     pts.forEach(p => {
       minX = Math.min(minX, p.x);
       maxX = Math.max(maxX, p.x);
@@ -279,6 +278,7 @@ export function generateMuralSnapshot(
       toScreen(posA),
       posA.dir || 'bottom',
       wire.type || 'L1',
+      Number(wire.gauge || 2.5),
       cam,
       Boolean(wire.live),
       false
@@ -289,6 +289,7 @@ export function generateMuralSnapshot(
       toScreen(posB),
       posB.dir || 'top',
       wire.type || 'L1',
+      Number(wire.gauge || 2.5),
       cam,
       Boolean(wire.live),
       false

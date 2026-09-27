@@ -1,14 +1,29 @@
 // ============================================================================
-// TÉCNICAMZ PRO — MOTOR CAD ELÉTRICO, FÍSICA NODAL & MATRIZ DE COMUTAÇÃO (V14)
-// Normas: IEC 60669 (Interruptores), NBR 14136, IEC 60947, IEC 60364 e IEC 60898
-// Pinagem Física NBR/IEC: 1P (L/R), 2P (L1/L2/L1'/L2'), 3-Way (C/R1/R2), 4-Way (IN1/IN2/OUT1/OUT2)
-// Matriz de Comutação Real, Malha Fechada BFS, Curvas Inversas e Estados Mecânicos
+// TÉCNICAMZ PRO — MOTOR CAD ELÉTRICO, FÍSICA NODAL & MATRIZ DE COMUTAÇÃO (V18)
+// Modelagem Física Real: Fotovoltaico (Série/Paralelo MPPT), Baterias LiFePO4,
+// Inversores On-Grid / Off-Grid / Híbrido, Smart Meter, Geradores e Motores
 // ============================================================================
 
+export type ComponentCategory =
+  | 'all'
+  | 'sources'
+  | 'protection'
+  | 'command'
+  | 'motors'
+  | 'automation'
+  | 'electronics'
+  | 'measurement'
+  | 'loads'
+  | 'legacy'
+  | 'solar'
+  | 'generators'
+  | 'grounding'
+  | 'busbars';
+
 export interface TerminalDef {
-  0: string; // Terminal ID (ex: 'L', 'R', 'C', 'R1', 'R2', 'IN1', 'OUT1', etc.)
-  1: string; // Função do Terminal: 'IN' | 'OUT' | 'COIL' | 'COM' | 'NO' | 'NC' | 'PWR' | 'PE' | 'A' | 'B' | 'C' | 'G' | 'D' | 'S' | 'K' | 'AUX' | 'DATA'
-  2: string; // Tipo de Condutor Padrão: 'L1' | 'L2' | 'L3' | 'N' | 'PE' | '24+' | '24-' | 'CTRL'
+  0: string; // Terminal ID
+  1: string; // Função: 'IN' | 'OUT' | 'COIL' | 'COM' | 'NO' | 'NC' | 'PWR' | 'PE' | etc.
+  2: string; // Tipo Condutor: 'L1' | 'L2' | 'L3' | 'N' | 'PE' | '24+' | '24-' | 'CTRL'
 }
 
 export interface Busbar {
@@ -24,7 +39,7 @@ export interface Busbar {
 export interface ComponentDef {
   code: string;
   name: string;
-  cat: 'sources' | 'protection' | 'command' | 'motors' | 'automation' | 'electronics' | 'measurement' | 'loads' | 'legacy' | 'solar';
+  cat: ComponentCategory;
   icon: string;
   terminals: [string, string, string][];
   kind: string;
@@ -35,17 +50,19 @@ export interface ComponentDef {
 }
 
 export const CATEGORIES: Record<string, string> = {
-  all: 'Todos',
-  solar: 'Energia Solar Fotovoltaica',
-  busbars: 'Trilhos & Barramentos (DIN)',
-  protection: 'Proteção',
-  command: 'Comandos & Relés',
-  motors: 'Motores & Cargas',
-  automation: 'Automação & CLP',
+  all: 'Todos os Dispositivos',
+  solar: 'Energia Solar & Armazenamento',
+  generators: 'Geração & Transferência (ATS/MTS)',
+  protection: 'Proteção & Seccionamento',
+  command: 'Comandos & Acionamentos',
+  motors: 'Motores & Cargas Mecânicas',
+  automation: 'Automação & Temporização',
   electronics: 'Eletrônica & Semicondutores',
   measurement: 'Instrumentação & Medição',
+  grounding: 'Aterramento & Distribuição',
   loads: 'Iluminação & Potência',
-  sources: 'Fontes de Alimentação',
+  sources: 'Rede Elétrica & Subestações',
+  busbars: 'Trilhos DIN & Barramentos',
   legacy: 'Eletromecânicos'
 };
 
@@ -54,19 +71,16 @@ export const WIRE_COLORS: Record<string, string> = {
   L2: '#1e293b', // Preto / Fase 2
   L3: '#64748b', // Cinzento / Fase 3
   N: '#0284c7',  // Azul Claro / Neutro
-  PE: '#10b981', // Verde-Amarelo / Terra de Proteção
-  '24+': '#ef4444', // Vermelho / DC Positivo (+24V)
-  '24-': '#3b82f6', // Azul Escuro / DC Negativo (0V)
+  PE: '#10b981', // Verde-Amarelo / Terra PE
+  '24+': '#ef4444', // Vermelho / DC Positivo (+24V / +48V / +PV)
+  '24-': '#3b82f6', // Azul Escuro / DC Negativo (0V / -PV)
   CTRL: '#f59e0b' // Amarelo / Comando & Intertravamento
 };
 
-// ----------------------------------------------------------------------------
-// CONSTANTES FÍSICAS REAIS DE ENGENHARIA ELÉTRICA (IEC 60364-5-52)
-// ----------------------------------------------------------------------------
-export const COPPER_RESISTIVITY = 0.0175; // Resistividade do Cobre a 20°C (Ω·mm²/m)
-export const COPPER_CONDUCTIVITY = 57.14; // Condutividade γ (m/(Ω·mm²))
-export const AMBIENT_TEMPERATURE = 25.0;  // Temperatura ambiente (°C)
-export const PVC_MAX_TEMP = 70.0;         // Temperatura máxima contínua do PVC (°C)
+export const COPPER_RESISTIVITY = 0.0175; // Ω·mm²/m
+export const COPPER_CONDUCTIVITY = 57.14;
+export const AMBIENT_TEMPERATURE = 25.0;
+export const PVC_MAX_TEMP = 70.0;
 export const THERMAL_DISSIPATION_COEFF = 0.12;
 
 export const GAUGE_AMPACITY: Record<number, number> = {
@@ -81,18 +95,20 @@ export const GAUGE_AMPACITY: Record<number, number> = {
 };
 
 // ----------------------------------------------------------------------------
-// CATÁLOGO DE COMPONENTES DE ENGENHARIA (COM PINAGEM FÍSICA CORRIGIDA)
+// CATÁLOGO COMPLETO DE COMPONENTES REAIS
 // ----------------------------------------------------------------------------
 export const COMPONENT_CATALOG: ComponentDef[] = [
-  // INTERRUPTORES E COMUTADORES (PINAGEM REAL IEC 60669 / NBR 14136)
+  // ==========================================================================
+  // 1. COMANDOS, SENSORES E CONTROLES
+  // ==========================================================================
   {
     code: 'SW',
     name: 'Interruptor Simples Unipolar 1P (10A 250V)',
     cat: 'command',
     icon: '⏻',
     terminals: [
-      ['L', 'IN', 'L1'],     // Borne de Entrada / Linha
-      ['R', 'OUT', 'L1']     // Borne de Saída / Retorno
+      ['L', 'IN', 'L1'],
+      ['R', 'OUT', 'L1']
     ],
     kind: 'switch',
     params: { closed: false, rockerAngle: 0 }
@@ -103,13 +119,26 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     cat: 'command',
     icon: '⏻',
     terminals: [
-      ['L1', 'IN', 'L1'],    // Entrada Polo 1
-      ['L2', 'IN', 'L2'],    // Entrada Polo 2
-      ["L1'", 'OUT', 'L1'],  // Saída Retorno 1
-      ["L2'", 'OUT', 'L2']   // Saída Retorno 2
+      ['L1', 'IN', 'L1'],
+      ['L2', 'IN', 'L2'],
+      ["L1'", 'OUT', 'L1'],
+      ["L2'", 'OUT', 'L2']
     ],
     kind: 'switch2',
     params: { closed: false, rockerAngle: 0 }
+  },
+  {
+    code: 'SW_DOUBLE',
+    name: 'Interruptor Duplo 2 Teclas (Fase Comum + 2 Retornos)',
+    cat: 'command',
+    icon: '⏻⏻',
+    terminals: [
+      ['L', 'IN', 'L1'],
+      ['R1', 'OUT', 'L1'],
+      ['R2', 'OUT', 'L1']
+    ],
+    kind: 'switch_double',
+    params: { closed1: false, closed2: false }
   },
   {
     code: 'THREE_WAY',
@@ -117,12 +146,12 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     cat: 'command',
     icon: '☵',
     terminals: [
-      ['C', 'COM', 'L1'],    // Borne Comum de Entrada / Saída
-      ['R1', 'OUT', 'CTRL'], // Borne de Retorno / Balanço 1
-      ['R2', 'OUT', 'CTRL']  // Borne de Retorno / Balanço 2
+      ['C', 'COM', 'L1'],
+      ['R1', 'OUT', 'CTRL'],
+      ['R2', 'OUT', 'CTRL']
     ],
     kind: 'selector',
-    params: { position: 0, rockerAngle: 0 } // position 0: C <-> R1 | position 1: C <-> R2
+    params: { position: 0, rockerAngle: 0 }
   },
   {
     code: 'FOUR_WAY',
@@ -130,17 +159,17 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     cat: 'command',
     icon: '☶',
     terminals: [
-      ['IN1', 'IN', 'CTRL'],   // Entrada Balanço 1
-      ['IN2', 'IN', 'CTRL'],   // Entrada Balanço 2
-      ['OUT1', 'OUT', 'CTRL'], // Saída Balanço 1
-      ['OUT2', 'OUT', 'CTRL']  // Saída Balanço 2
+      ['IN1', 'IN', 'CTRL'],
+      ['IN2', 'IN', 'CTRL'],
+      ['OUT1', 'OUT', 'CTRL'],
+      ['OUT2', 'OUT', 'CTRL']
     ],
     kind: 'selector',
-    params: { crossed: false, rockerAngle: 0 } // crossed false: Direto | crossed true: Cruzado
+    params: { crossed: false, rockerAngle: 0 }
   },
   {
     code: 'DIMMER',
-    name: 'Dimmer Rotativo / Variador de Tensão (0-100% 230V)',
+    name: 'Dimmer Rotativo Eletrônico (0-100% 230V 600W)',
     cat: 'command',
     icon: '◐',
     terminals: [
@@ -153,16 +182,47 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'SEL',
-    name: 'Seletor Man/Auto (2 Posições)',
+    name: 'Chave Seletora Rotativa 3 Posições (MAN - 0 - AUTO)',
     cat: 'command',
     icon: '◐',
-    terminals: [['1', 'COM', 'CTRL'], ['2', 'NO', 'CTRL'], ['3', 'NC', 'CTRL']],
+    terminals: [
+      ['C', 'COM', 'CTRL'],
+      ['MAN', 'NO', 'CTRL'],
+      ['0', 'AUX', 'CTRL'],
+      ['AUTO', 'NO', 'CTRL']
+    ],
     kind: 'selector',
-    params: { position: 0, rockerAngle: 0 }
+    params: { position: 0 }
+  },
+  {
+    code: 'PHOTOCELL',
+    name: 'Relé Fotoelétrico / Fotocélula Crepuscular (10A 230V)',
+    cat: 'command',
+    icon: '☼',
+    terminals: [
+      ['F', 'IN', 'L1'],
+      ['N', 'IN', 'N'],
+      ['R', 'OUT', 'L1']
+    ],
+    kind: 'photocell',
+    params: { ambientLux: 100, thresholdLux: 20, closed: false }
+  },
+  {
+    code: 'PIR_SENSOR',
+    name: 'Sensor de Presença Infravermelho PIR 360° de Teto',
+    cat: 'command',
+    icon: '👁',
+    terminals: [
+      ['L', 'IN', 'L1'],
+      ['N', 'IN', 'N'],
+      ['OUT', 'OUT', 'L1']
+    ],
+    kind: 'pir_sensor',
+    params: { presenceDetected: false, durationSec: 30 }
   },
   {
     code: 'PBNO',
-    name: 'Botoeira Pulsadora NA (Verde - S1 Liga)',
+    name: 'Botoeira Pulsadora NA 22mm (Verde - S1 Liga)',
     cat: 'command',
     icon: '●',
     terminals: [['3', 'IN', 'CTRL'], ['4', 'NO', 'CTRL']],
@@ -172,7 +232,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'PBNC',
-    name: 'Botoeira Pulsadora NF (Vermelha - S0 Desliga)',
+    name: 'Botoeira Pulsadora NF 22mm (Vermelha - S0 Desliga)',
     cat: 'command',
     icon: '○',
     terminals: [['1', 'IN', 'CTRL'], ['2', 'NC', 'CTRL']],
@@ -182,44 +242,43 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'ESTOP',
-    name: 'Botoeira de Emergência NF Cogumelo com Trava',
+    name: 'Botoeira de Emergência NF Cogumelo 40mm com Trava',
     cat: 'command',
     icon: '⛔',
     terminals: [['1', 'IN', 'CTRL'], ['2', 'NC', 'CTRL']],
     kind: 'switch',
-    params: { closed: true, pressed: false },
+    params: { closed: true, pressed: false, tripped: false },
     emergency: true
   },
   {
     code: 'LIMIT',
-    name: 'Fim de Curso (Limit Switch NF)',
+    name: 'Fim de Curso Blindado com Rolete Articulado (NF)',
     cat: 'command',
     icon: '⌁',
     terminals: [['1', 'IN', 'CTRL'], ['2', 'NC', 'CTRL']],
     kind: 'switch',
-    params: { closed: true }
+    params: { closed: true, actuated: false }
   },
   {
     code: 'FLOAT',
-    name: 'Boia de Nível Automática',
+    name: 'Bóia de Nível com Contato Reversor Hermético IP68',
     cat: 'command',
     icon: '≋',
-    terminals: [['1', 'IN', 'CTRL'], ['2', 'NO', 'CTRL']],
-    kind: 'switch',
-    params: { closed: false }
+    terminals: [
+      ['COM', 'IN', 'L1'],
+      ['NA', 'OUT', 'CTRL'],
+      ['NF', 'OUT', 'CTRL']
+    ],
+    kind: 'float_switch',
+    params: { closed: false, high: false }
   },
-  {
-    code: 'RELAY',
-    name: 'Relé Auxiliar de Comando (1 Contato Reversível)',
-    cat: 'command',
-    icon: 'K',
-    terminals: [['A1', 'COIL', 'CTRL'], ['A2', 'COIL', 'N'], ['11', 'COM', 'CTRL'], ['12', 'NC', 'CTRL'], ['14', 'NO', 'CTRL']],
-    kind: 'relay',
-    params: { coil: 230, minPickupRatio: 0.85 }
-  },
+
+  // ==========================================================================
+  // 2. CONTACTORES, RELÉS E TEMPORIZADORES DIN
+  // ==========================================================================
   {
     code: 'CONTACTOR',
-    name: 'Contator de Potência 3P + Contatos Auxiliares',
+    name: 'Contator de Potência 3P 25A (AC-3) + Contatos Auxiliares',
     cat: 'command',
     icon: 'KM',
     terminals: [
@@ -234,34 +293,108 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     params: { coil: 230, minPickupRatio: 0.85, ac3Current: 25 }
   },
   {
+    code: 'AUX_BLOCK_2NA2NF',
+    name: 'Bloco de Contatos Auxiliares Frontal (2NA + 2NF)',
+    cat: 'command',
+    icon: '⊞',
+    terminals: [
+      ['53', 'NO', 'CTRL'], ['54', 'NO', 'CTRL'],
+      ['61', 'NC', 'CTRL'], ['62', 'NC', 'CTRL'],
+      ['71', 'NC', 'CTRL'], ['72', 'NC', 'CTRL'],
+      ['83', 'NO', 'CTRL'], ['84', 'NO', 'CTRL']
+    ],
+    kind: 'aux_block',
+    params: {}
+  },
+  {
+    code: 'RELAY',
+    name: 'Relé Auxiliar Industrial de Soquete DIN (1 Reversível)',
+    cat: 'command',
+    icon: 'KA',
+    terminals: [
+      ['A1', 'COIL', 'CTRL'], ['A2', 'COIL', 'N'],
+      ['11', 'COM', 'CTRL'], ['12', 'NC', 'CTRL'], ['14', 'NO', 'CTRL']
+    ],
+    kind: 'relay',
+    params: { coil: 230, minPickupRatio: 0.85 }
+  },
+  {
     code: 'TIMER',
     name: 'Relé Temporizador com Retardo na Energização (TON)',
-    cat: 'command',
+    cat: 'automation',
     icon: '⏱',
-    terminals: [['A1', 'COIL', 'CTRL'], ['A2', 'COIL', 'N'], ['15', 'COM', 'CTRL'], ['16', 'NC', 'CTRL'], ['18', 'NO', 'CTRL']],
+    terminals: [
+      ['A1', 'COIL', 'CTRL'], ['A2', 'COIL', 'N'],
+      ['15', 'COM', 'CTRL'], ['16', 'NC', 'CTRL'], ['18', 'NO', 'CTRL']
+    ],
     kind: 'timer',
     params: { delay: 5, mode: 'TON', elapsed: 0, minPickupRatio: 0.85 }
   },
   {
-    code: 'FLASH',
-    name: 'Relé Intermitente Cíclico',
-    cat: 'command',
-    icon: '◌',
-    terminals: [['A1', 'COIL', 'CTRL'], ['A2', 'COIL', 'N'], ['15', 'COM', 'CTRL'], ['18', 'NO', 'CTRL']],
-    kind: 'flasher',
-    params: { period: 1, elapsed: 0 }
+    code: 'TIMER_TOF',
+    name: 'Relé Temporizador com Retardo na Desenergização (TOF)',
+    cat: 'automation',
+    icon: '⏱',
+    terminals: [
+      ['A1', 'PWR', 'CTRL'], ['A2', 'PWR', 'N'],
+      ['Y1', 'IN', 'CTRL'],
+      ['15', 'COM', 'CTRL'], ['16', 'NC', 'CTRL'], ['18', 'NO', 'CTRL']
+    ],
+    kind: 'timer_tof',
+    params: { delay: 5, elapsed: 0 }
   },
   {
-    code: 'BUZZ',
-    name: 'Sirene Sonora / Buzzer de Alarme',
-    cat: 'command',
-    icon: '🔊',
-    terminals: [['+', 'IN', '24+'], ['-', 'IN', '24-']],
-    kind: 'load',
-    params: { power: 5, voltage: 24 }
+    code: 'TIMER_STAR_DELTA',
+    name: 'Relé Temporizador Estrela-Triângulo Dedicado (Y-Δ 50ms Pausa)',
+    cat: 'automation',
+    icon: 'Y-Δ',
+    terminals: [
+      ['A1', 'COIL', 'CTRL'], ['A2', 'COIL', 'N'],
+      ['15', 'COM', 'CTRL'],
+      ['18', 'OUT', 'CTRL'],
+      ['28', 'OUT', 'CTRL']
+    ],
+    kind: 'timer_star_delta',
+    params: { delaySec: 6, pauseMs: 50, phase: 'star', elapsed: 0 }
+  },
+  {
+    code: 'TIMER_DIGITAL',
+    name: 'Interruptor Horário Digital Programável Semanal (Trilho DIN)',
+    cat: 'automation',
+    icon: '🕦',
+    terminals: [
+      ['L', 'IN', 'L1'], ['N', 'IN', 'N'],
+      ['15', 'COM', 'CTRL'], ['16', 'NC', 'CTRL'], ['18', 'NO', 'CTRL']
+    ],
+    kind: 'timer_digital',
+    params: { isRelayOn: false, currentMode: 'AUTO' }
+  },
+  {
+    code: 'THERMOSTAT_DIGITAL',
+    name: 'Termostato Digital Industrial com Sonda Térmica NTC',
+    cat: 'automation',
+    icon: '🌡',
+    terminals: [
+      ['L', 'IN', 'L1'], ['N', 'IN', 'N'],
+      ['COM', 'COM', 'CTRL'], ['NO', 'NO', 'CTRL'], ['NC', 'NC', 'CTRL'],
+      ['S1', 'AUX', 'CTRL'], ['S2', 'AUX', 'CTRL']
+    ],
+    kind: 'thermostat_digital',
+    params: { currentTemp: 25.0, setpoint: 45.0 }
   },
 
-  // PROTEÇÃO (CURVAS B, C, D - IEC 60947-2 / IEC 60898-1)
+  // ==========================================================================
+  // 3. DISJUNTORES, FUSÍVEIS E PROTEÇÃO DIN
+  // ==========================================================================
+  {
+    code: 'MCB_1P',
+    name: 'Disjuntor Unipolar Parcial 1P Curva C (1 Polo 18mm)',
+    cat: 'protection',
+    icon: '▣',
+    terminals: [['1', 'IN', 'L1'], ['2', 'OUT', 'L1']],
+    kind: 'breaker_1p',
+    params: { current: 16, curve: 'C', closed: true, temp: 25, overloadTimer: 0, tripped: false }
+  },
   {
     code: 'MCB1',
     name: 'Disjuntor Monofásico 1P+N Curva C (Fase + Neutro)',
@@ -276,16 +409,28 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'MCB2',
-    name: 'Disjuntor Bipolar 2P+N Curva C (2 Fases + Neutro)',
+    name: 'Disjuntor Bipolar 2P Curva C (2 Fases)',
     cat: 'protection',
     icon: '▣',
     terminals: [
       ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
-      ['3', 'IN', 'L2'], ['4', 'OUT', 'L2'],
-      ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
+      ['3', 'IN', 'L2'], ['4', 'OUT', 'L2']
     ],
     kind: 'breaker2',
     params: { current: 25, curve: 'C', closed: true, temp: 25, overloadTimer: 0, tripped: false }
+  },
+  {
+    code: 'MPCB',
+    name: 'Disjuntor-Motor Magnético-Térmico 3P (Sem Neutro / Start-Stop)',
+    cat: 'protection',
+    icon: '⚙',
+    terminals: [
+      ['1', 'IN', 'L1'], ['2', 'OUT', 'L1'],
+      ['3', 'IN', 'L2'], ['4', 'OUT', 'L2'],
+      ['5', 'IN', 'L3'], ['6', 'OUT', 'L3']
+    ],
+    kind: 'motor_breaker',
+    params: { current: 16, rangeMin: 10, rangeMax: 16, closed: true, temp: 25, overloadTimer: 0, tripped: false }
   },
   {
     code: 'MCB3',
@@ -303,7 +448,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'MCCB',
-    name: 'Disjuntor Caixa Moldada 3P+N (Ajustável)',
+    name: 'Disjuntor Caixa Moldada 3P+N Industrial (Icu 36kA Ajustável)',
     cat: 'protection',
     icon: '▰',
     terminals: [
@@ -312,12 +457,12 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
       ['5', 'IN', 'L3'], ['6', 'OUT', 'L3'],
       ['N_IN', 'IN', 'N'], ['N_OUT', 'OUT', 'N']
     ],
-    kind: 'breaker3',
-    params: { current: 63, curve: 'C', closed: true, icu: 25, temp: 25, overloadTimer: 0, tripped: false }
+    kind: 'mccb',
+    params: { current: 63, curve: 'C', closed: true, icu: 36, temp: 25, overloadTimer: 0, tripped: false }
   },
   {
     code: 'FUSE',
-    name: 'Fusível Diazed / Cartucho gG',
+    name: 'Porta-Fusível Seccionável DIN 10x38mm (Cerâmico gG)',
     cat: 'protection',
     icon: '⏤',
     terminals: [['1', 'IN', 'L1'], ['2', 'OUT', 'L1']],
@@ -326,7 +471,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'FU3',
-    name: 'Seccionadora com Fusíveis 3P gG',
+    name: 'Seccionadora Tripolar de Fusíveis 3P 10x38mm',
     cat: 'protection',
     icon: '⏤',
     terminals: [
@@ -339,7 +484,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'RCD',
-    name: 'Interruptor Diferencial Residual IDR 2P+N (30mA)',
+    name: 'Interruptor Diferencial Residual IDR 2P+N (30mA / Botão T)',
     cat: 'protection',
     icon: '◉',
     terminals: [
@@ -377,7 +522,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'SPD',
-    name: 'Dispositivo Contra Surtos DPS Monofásico (L+N+PE / 20kA)',
+    name: 'DPS Monofásico com Cartucho Plugável (L+N+PE / 20kA)',
     cat: 'protection',
     icon: '⚡',
     terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
@@ -386,14 +531,14 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'SPD3',
-    name: 'Dispositivo Contra Surtos DPS Trifásico (3P+N+PE / 40kA)',
+    name: 'DPS Tetrapolar com Cartuchos Plugáveis (3P+N+PE / 45kA)',
     cat: 'protection',
     icon: '⚡',
     terminals: [
       ['L1', 'IN', 'L1'], ['L2', 'IN', 'L2'], ['L3', 'IN', 'L3'],
       ['N', 'IN', 'N'], ['PE', 'PE', 'PE']
     ],
-    kind: 'spd',
+    kind: 'spd3',
     params: { uc: 440, in: 40, imax: 65, health: 100, status: 'green' }
   },
   {
@@ -424,10 +569,231 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     params: { asymmetryMax: 0.15, underVoltage: 180, delay: 0.5, tripped: false }
   },
 
-  // FONTES E ALIMENTAÇÃO
+  // ==========================================================================
+  // 4. GERAÇÃO & TRANSFERÊNCIA (GMG, ATS, MTS)
+  // ==========================================================================
+  {
+    code: 'GEN_DIESEL',
+    name: 'Grupo Gerador a Diesel Trifásico (GMG 25kVA 400V com AVR)',
+    cat: 'generators',
+    icon: '⛽',
+    terminals: [
+      ['L1', 'OUT', 'L1'], ['L2', 'OUT', 'L2'], ['L3', 'OUT', 'L3'],
+      ['N', 'OUT', 'N'], ['PE', 'PE', 'PE'],
+      ['REMOTE_START', 'IN', 'CTRL']
+    ],
+    kind: 'generator_diesel',
+    params: { kva: 25, voltage: 400, frequency: 50, running: false, rpm: 1500 }
+  },
+  {
+    code: 'ATS_SWITCH',
+    name: 'Quadro de Transferência Automática (ATS Rede/Gerador Motorizado)',
+    cat: 'generators',
+    icon: '⇄',
+    terminals: [
+      ['N_L1', 'IN', 'L1'], ['N_L2', 'IN', 'L2'], ['N_L3', 'IN', 'L3'], ['N_N', 'IN', 'N'],
+      ['G_L1', 'IN', 'L1'], ['G_L2', 'IN', 'L2'], ['G_L3', 'IN', 'L3'], ['G_N', 'IN', 'N'],
+      ['LOAD_L1', 'OUT', 'L1'], ['LOAD_L2', 'OUT', 'L2'], ['LOAD_L3', 'OUT', 'L3'], ['LOAD_N', 'OUT', 'N'],
+      ['GEN_START', 'OUT', 'CTRL']
+    ],
+    kind: 'ats_switch',
+    params: { sourceInUse: 'GRID', gridHealthy: true }
+  },
+  {
+    code: 'MTS_SWITCH',
+    name: 'Chave Comutadora de Transferência Manual I-0-II (Rede/0/Gerador)',
+    cat: 'generators',
+    icon: '⇄',
+    terminals: [
+      ['R_L1', 'IN', 'L1'], ['R_L2', 'IN', 'L2'], ['R_L3', 'IN', 'L3'], ['R_N', 'IN', 'N'],
+      ['G_L1', 'IN', 'L1'], ['G_L2', 'IN', 'L2'], ['G_L3', 'IN', 'L3'], ['G_N', 'IN', 'N'],
+      ['OUT_L1', 'OUT', 'L1'], ['OUT_L2', 'OUT', 'L2'], ['OUT_L3', 'OUT', 'L3'], ['OUT_N', 'OUT', 'N']
+    ],
+    kind: 'mts_switch',
+    params: { position: 1 }
+  },
+
+  // ==========================================================================
+  // 5. ENERGIA SOLAR & ARMAZENAMENTO INTELIGENTE
+  // ==========================================================================
+  {
+    code: 'PV_PANEL',
+    name: 'Módulo Fotovoltaico Monocristalino Half-Cell 550Wp (Tier 1)',
+    cat: 'solar',
+    icon: '☀️',
+    terminals: [
+      ['+', 'OUT', '24+'],
+      ['-', 'OUT', '24-'],
+      ['PE', 'PE', 'PE']
+    ],
+    kind: 'pv_panel',
+    params: { pMax: 550, voc: 49.8, isc: 13.9, vmpp: 41.8, impp: 13.15, irradiance: 1000 }
+  },
+  {
+    code: 'PV_INVERTER_ONGRID',
+    name: 'Inversor Solar On-Grid Grid-Tie com Duplo MPPT (10kW Trifásico)',
+    cat: 'solar',
+    icon: '⚡',
+    terminals: [
+      ['DC1+', 'IN', '24+'], ['DC1-', 'IN', '24-'],
+      ['DC2+', 'IN', '24+'], ['DC2-', 'IN', '24-'],
+      ['AC_L1', 'OUT', 'L1'], ['AC_L2', 'OUT', 'L2'], ['AC_L3', 'OUT', 'L3'],
+      ['AC_N', 'OUT', 'N'], ['PE', 'PE', 'PE']
+    ],
+    kind: 'pv_inverter_ongrid',
+    params: { powerKW: 10, mpptMinV: 160, mpptMaxV: 850, syncActive: false, gridVoltage: 400 }
+  },
+  {
+    code: 'PV_INVERTER_OFFGRID',
+    name: 'Inversor Solar Off-Grid 5kW 48V (Carregador Solar MPPT + AC Pura)',
+    cat: 'solar',
+    icon: '⚡',
+    terminals: [
+      ['PV+', 'IN', '24+'], ['PV-', 'IN', '24-'],
+      ['BAT+', 'IN', '24+'], ['BAT-', 'IN', '24-'],
+      ['AC_L', 'OUT', 'L1'], ['AC_N', 'OUT', 'N'], ['PE', 'PE', 'PE']
+    ],
+    kind: 'pv_inverter_offgrid',
+    params: { powerW: 5000, batVoltage: 48, acOutVoltage: 230, running: false }
+  },
+  {
+    code: 'PV_INVERTER_HYBRID',
+    name: 'Inversor Solar Híbrido Inteligente (Rede + Bateria + Backup EPS)',
+    cat: 'solar',
+    icon: '⚡',
+    terminals: [
+      ['PV1+', 'IN', '24+'], ['PV1-', 'IN', '24-'],
+      ['BAT+', 'IN', '24+'], ['BAT-', 'IN', '24-'],
+      ['GRID_L', 'IN', 'L1'], ['GRID_N', 'IN', 'N'],
+      ['EPS_L', 'OUT', 'L1'], ['EPS_N', 'OUT', 'N'],
+      ['PE', 'PE', 'PE']
+    ],
+    kind: 'pv_inverter_hybrid',
+    params: { powerKW: 6, mode: 'HYBRID', epsActive: false }
+  },
+  {
+    code: 'BAT_LIFEPO4',
+    name: 'Bateria de Lítio LiFePO4 Rack 48V 100Ah (5.12kWh com BMS)',
+    cat: 'solar',
+    icon: '🔋',
+    terminals: [
+      ['+', 'OUT', '24+'],
+      ['-', 'OUT', '24-'],
+      ['PE', 'PE', 'PE']
+    ],
+    kind: 'bat_lifepo4',
+    params: { voltage: 51.2, capacityAh: 100, socPercent: 90, bmsOk: true }
+  },
+  {
+    code: 'SMART_METER',
+    name: 'Smart Meter Medidor Bidirecional RS-485 para Inversores',
+    cat: 'solar',
+    icon: '🎛',
+    terminals: [
+      ['L_IN', 'IN', 'L1'], ['N_IN', 'IN', 'N'],
+      ['L_OUT', 'OUT', 'L1'], ['N_OUT', 'OUT', 'N']
+    ],
+    kind: 'smart_meter',
+    params: { importedKWh: 0, exportedKWh: 0, powerW: 0 }
+  },
+
+  // ==========================================================================
+  // 6. MOTORES & MÁQUINAS
+  // ==========================================================================
+  {
+    code: 'M1PH',
+    name: 'Motor Monofásico 230V CA (1 CV / 1450 RPM)',
+    cat: 'motors',
+    icon: 'M',
+    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
+    kind: 'motor1',
+    params: { power: 750, rpm: 1450, voltage: 230, pf: 0.82 }
+  },
+  {
+    code: 'M3PH',
+    name: 'Motor Trifásico MIT 3 Pontas (10 CV / 400V 2920 RPM)',
+    cat: 'motors',
+    icon: 'M3',
+    terminals: [['U', 'IN', 'L1'], ['V', 'IN', 'L2'], ['W', 'IN', 'L3'], ['PE', 'PE', 'PE']],
+    kind: 'motor3',
+    params: { power: 7500, rpm: 2920, voltage: 400, pf: 0.86 }
+  },
+  {
+    code: 'M3PH_6L',
+    name: 'Motor Trifásico de 6 Pontas (Partida Estrela-Triângulo Y-Δ)',
+    cat: 'motors',
+    icon: 'M6',
+    terminals: [
+      ['U1', 'IN', 'L1'], ['V1', 'IN', 'L2'], ['W1', 'IN', 'L3'],
+      ['W2', 'IN', 'L1'], ['U2', 'IN', 'L2'], ['V2', 'IN', 'L3'],
+      ['PE', 'PE', 'PE']
+    ],
+    kind: 'motor3_6lead',
+    params: { power: 11000, rpm: 2940, voltageDelta: 400, voltageStar: 690, pf: 0.88, connection: 'none' }
+  },
+  {
+    code: 'FAN',
+    name: 'Exaustor / Ventilador Axial Industrial 230V',
+    cat: 'motors',
+    icon: '🌀',
+    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
+    kind: 'fan',
+    params: { power: 250, rpm: 1400, voltage: 230 }
+  },
+  {
+    code: 'PUMP',
+    name: 'Eletrobomba Centrífuga Trifásica em Caracol (Voluta)',
+    cat: 'motors',
+    icon: '💧',
+    terminals: [['U', 'IN', 'L1'], ['V', 'IN', 'L2'], ['W', 'IN', 'L3'], ['PE', 'PE', 'PE']],
+    kind: 'pump',
+    params: { power: 3000, rpm: 2880, voltage: 400, pf: 0.85 }
+  },
+
+  // ==========================================================================
+  // 7. ATERRAMENTO & DISTRIBUIÇÃO
+  // ==========================================================================
+  {
+    code: 'EARTH_ROD',
+    name: 'Haste de Aterramento Cobreada 5/8" x 2.4m com Grampo',
+    cat: 'grounding',
+    icon: '⏚',
+    terminals: [['PE', 'PE', 'PE']],
+    kind: 'earth_rod',
+    params: { resistanceOhm: 8.5 }
+  },
+  {
+    code: 'EARTH_PIT',
+    name: 'Caixa de Inspeção BEP (Barramento de Equipotencialização)',
+    cat: 'grounding',
+    icon: '⌸',
+    terminals: [
+      ['BEP1', 'PE', 'PE'], ['BEP2', 'PE', 'PE'],
+      ['BEP3', 'PE', 'PE'], ['GND', 'PE', 'PE']
+    ],
+    kind: 'earth_pit',
+    params: { resistanceOhm: 3.2 }
+  },
+  {
+    code: 'JUNCTION_BOX',
+    name: 'Caixa de Derivação com Bornes WAGO Rápidos (L / N / PE)',
+    cat: 'grounding',
+    icon: '⊞',
+    terminals: [
+      ['L_IN', 'IN', 'L1'], ['L1', 'OUT', 'L1'], ['L2', 'OUT', 'L1'],
+      ['N_IN', 'IN', 'N'], ['N1', 'OUT', 'N'], ['N2', 'OUT', 'N'],
+      ['PE_IN', 'PE', 'PE'], ['PE1', 'PE', 'PE']
+    ],
+    kind: 'junction_box',
+    params: { maxCurrent: 32 }
+  },
+
+  // ==========================================================================
+  // 8. FONTES, ILUMINAÇÃO & CARGAS
+  // ==========================================================================
   {
     code: 'SRC_AC1',
-    name: 'Fonte Monofásica (230V / 50Hz)',
+    name: 'Alimentação Monofásica (230V / 50Hz True-RMS Digital)',
     cat: 'sources',
     icon: '⌁',
     terminals: [['L', 'OUT', 'L1'], ['N', 'OUT', 'N']],
@@ -437,7 +803,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'SRC_AC3',
-    name: 'Rede Trifásica (400V / 50Hz)',
+    name: 'Rede Trifásica Subestação (400V 3F+N+PE com Voltímetro)',
     cat: 'sources',
     icon: '⚡',
     terminals: [['L1', 'OUT', 'L1'], ['L2', 'OUT', 'L2'], ['L3', 'OUT', 'L3'], ['N', 'OUT', 'N'], ['PE', 'PE', 'PE']],
@@ -447,7 +813,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'SRC_DC24',
-    name: 'Fonte CC Industrial (24V)',
+    name: 'Fonte CC Industrial de Precisão (24Vcc)',
     cat: 'sources',
     icon: '⎓',
     terminals: [['+', 'OUT', '24+'], ['-', 'OUT', '24-']],
@@ -457,7 +823,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'BAT',
-    name: 'Bateria Chumbo-Ácido (12V)',
+    name: 'Bateria Chumbo-Ácido Estacionária (12V 60Ah)',
     cat: 'sources',
     icon: '🔋',
     terminals: [['+', 'OUT', '24+'], ['-', 'OUT', '24-']],
@@ -466,336 +832,8 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     sourceType: 'DC'
   },
   {
-    code: 'PSU',
-    name: 'Fonte Chaveada 230V / 24Vdc',
-    cat: 'sources',
-    icon: '▣',
-    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['+', 'OUT', '24+'], ['-', 'OUT', '24-']],
-    kind: 'converter',
-    params: { vin: 230, vout: 24, power: 120, eff: 0.88 }
-  },
-  {
-    code: 'TRF',
-    name: 'Transformador de Comando (230/24V)',
-    cat: 'sources',
-    icon: '⟂',
-    terminals: [['P1', 'IN', 'L1'], ['P2', 'IN', 'N'], ['S1', 'OUT', 'CTRL'], ['S2', 'OUT', 'N']],
-    kind: 'transformer',
-    params: { ratio: 9.58, vsec: 24, powerVA: 100 }
-  },
-  {
-    code: 'GND',
-    name: 'Aterramento de Proteção (PE / Terra)',
-    cat: 'sources',
-    icon: '⏚',
-    terminals: [['G', 'PE', 'PE']],
-    kind: 'ground',
-    params: { resistance: 5 }
-  },
-
-  // MOTORES
-  {
-    code: 'M1PH',
-    name: 'Motor Monofásico 230V CA',
-    cat: 'motors',
-    icon: 'M',
-    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
-    kind: 'motor1',
-    params: { power: 750, rpm: 1450, voltage: 230, pf: 0.82 }
-  },
-  {
-    code: 'M3PH',
-    name: 'Motor Trifásico de Indução Gaiola de Esquilo (MIT)',
-    cat: 'motors',
-    icon: 'M3',
-    terminals: [['U', 'IN', 'L1'], ['V', 'IN', 'L2'], ['W', 'IN', 'L3'], ['PE', 'PE', 'PE']],
-    kind: 'motor3',
-    params: { power: 7500, rpm: 2920, voltage: 400, pf: 0.86 }
-  },
-  {
-    code: 'MDC',
-    name: 'Motor de Corrente Contínua 24Vcc',
-    cat: 'motors',
-    icon: '⎓',
-    terminals: [['+', 'IN', '24+'], ['-', 'IN', '24-']],
-    kind: 'motorDC',
-    params: { power: 180, rpm: 3000, voltage: 24 }
-  },
-  {
-    code: 'FAN',
-    name: 'Ventilador Industrial de Exaustão',
-    cat: 'motors',
-    icon: '🌀',
-    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N']],
-    kind: 'fan',
-    params: { power: 120, rpm: 1350, voltage: 230 }
-  },
-  {
-    code: 'PUMP',
-    name: 'Eletrobomba Centrífuga Trifásica',
-    cat: 'motors',
-    icon: '💧',
-    terminals: [['U', 'IN', 'L1'], ['V', 'IN', 'L2'], ['W', 'IN', 'L3'], ['PE', 'PE', 'PE']],
-    kind: 'motor3',
-    params: { power: 2200, rpm: 2850, voltage: 400, pf: 0.85 }
-  },
-
-  // AUTOMAÇÃO
-  {
-    code: 'PLC',
-    name: 'CLP Industrial Compacto 24Vdc (4 Entradas / 4 Saídas)',
-    cat: 'automation',
-    icon: 'PLC',
-    terminals: [
-      ['L+', 'PWR', '24+'], ['M', 'PWR', '24-'],
-      ['I0', 'IN', 'CTRL'], ['I1', 'IN', 'CTRL'], ['I2', 'IN', 'CTRL'], ['I3', 'IN', 'CTRL'],
-      ['Q0', 'OUT', 'CTRL'], ['Q1', 'OUT', 'CTRL'], ['Q2', 'OUT', 'CTRL'], ['Q3', 'OUT', 'CTRL']
-    ],
-    kind: 'plc',
-    params: { scan: 20 }
-  },
-  {
-    code: 'VFD',
-    name: 'Inversor de Frequência Vetorial 3F',
-    cat: 'automation',
-    icon: 'VFD',
-    terminals: [
-      ['L1', 'IN', 'L1'], ['L2', 'IN', 'L2'], ['L3', 'IN', 'L3'],
-      ['U', 'OUT', 'L1'], ['V', 'OUT', 'L2'], ['W', 'OUT', 'L3'], ['PE', 'PE', 'PE'],
-      ['DI1', 'CTRL', 'CTRL'], ['AI1', 'CTRL', 'CTRL']
-    ],
-    kind: 'vfd',
-    params: { frequency: 50, setpoint: 50 }
-  },
-  {
-    code: 'SOFT',
-    name: 'Chave de Partida Suave (Soft-Starter 3P)',
-    cat: 'automation',
-    icon: 'SS',
-    terminals: [
-      ['L1', 'IN', 'L1'], ['L2', 'IN', 'L2'], ['L3', 'IN', 'L3'],
-      ['T1', 'OUT', 'L1'], ['T2', 'OUT', 'L2'], ['T3', 'OUT', 'L3'],
-      ['A1', 'CTRL', 'CTRL'], ['A2', 'CTRL', 'N']
-    ],
-    kind: 'softstarter',
-    params: { ramp: 6 }
-  },
-  {
-    code: 'PROX',
-    name: 'Sensor de Proximidade Indutivo PNP',
-    cat: 'automation',
-    icon: '◉',
-    terminals: [['+', 'PWR', '24+'], ['-', 'PWR', '24-'], ['OUT', 'OUT', 'CTRL']],
-    kind: 'sensor',
-    params: { distance: 5, triggered: false }
-  },
-  {
-    code: 'TEMP',
-    name: 'Transmissor de Temperatura PT100',
-    cat: 'automation',
-    icon: 'T',
-    terminals: [['+', 'PWR', '24+'], ['-', 'PWR', '24-'], ['OUT', 'OUT', 'CTRL']],
-    kind: 'sensor',
-    params: { temperature: 25 }
-  },
-
-  // ELETRÔNICA & SEMICONDUTORES
-  {
-    code: 'R',
-    name: 'Resistor de Precisão',
-    cat: 'electronics',
-    icon: 'Ω',
-    terminals: [['1', 'A', 'CTRL'], ['2', 'B', 'CTRL']],
-    kind: 'resistor',
-    params: { ohm: 1000 }
-  },
-  {
-    code: 'POT',
-    name: 'Potenciômetro Linear',
-    cat: 'electronics',
-    icon: '▱',
-    terminals: [['1', 'A', 'CTRL'], ['2', 'W', 'CTRL'], ['3', 'B', 'CTRL']],
-    kind: 'pot',
-    params: { ohm: 10000, value: 50 }
-  },
-  {
-    code: 'C',
-    name: 'Capacitor Cerâmico',
-    cat: 'electronics',
-    icon: '||',
-    terminals: [['1', 'A', 'CTRL'], ['2', 'B', 'CTRL']],
-    kind: 'capacitor',
-    params: { uF: 100 }
-  },
-  {
-    code: 'C_POL',
-    name: 'Capacitor Eletrolítico Polarizado',
-    cat: 'electronics',
-    icon: '|(|',
-    terminals: [['+', 'A', 'CTRL'], ['-', 'B', 'CTRL']],
-    kind: 'capacitor',
-    params: { uF: 470 }
-  },
-  {
-    code: 'L',
-    name: 'Indutor de Potência',
-    cat: 'electronics',
-    icon: '⌁',
-    terminals: [['1', 'A', 'CTRL'], ['2', 'B', 'CTRL']],
-    kind: 'inductor',
-    params: { mH: 10 }
-  },
-  {
-    code: 'DIODE',
-    name: 'Diodo Retificador (1N4007)',
-    cat: 'electronics',
-    icon: '▷|',
-    terminals: [['A', 'A', 'CTRL'], ['K', 'K', 'CTRL']],
-    kind: 'diode',
-    params: { vf: 0.7 }
-  },
-  {
-    code: 'LED',
-    name: 'LED Sinalizador (Diodo Emissor de Luz)',
-    cat: 'electronics',
-    icon: '◉',
-    terminals: [['A', 'A', 'CTRL'], ['K', 'K', 'CTRL']],
-    kind: 'led',
-    params: { vf: 2.1, current: 0.02 }
-  },
-  {
-    code: 'ZENER',
-    name: 'Diodo Zener Regulador (5.1V)',
-    cat: 'electronics',
-    icon: '↯',
-    terminals: [['A', 'A', 'CTRL'], ['K', 'K', 'CTRL']],
-    kind: 'zener',
-    params: { vz: 5.1 }
-  },
-  {
-    code: 'BRIDGE',
-    name: 'Ponte Retificadora de Onda Completa',
-    cat: 'electronics',
-    icon: '▣',
-    terminals: [['~1', 'IN', 'L1'], ['~2', 'IN', 'N'], ['+', 'OUT', '24+'], ['-', 'OUT', '24-']],
-    kind: 'bridge',
-    params: {}
-  },
-  {
-    code: 'BJT_NPN',
-    name: 'Transistor Bipolar NPN (BC548)',
-    cat: 'electronics',
-    icon: 'NPN',
-    terminals: [['C', 'C', 'CTRL'], ['B', 'B', 'CTRL'], ['E', 'E', 'CTRL']],
-    kind: 'bjt',
-    params: { beta: 120, type: 'NPN' }
-  },
-  {
-    code: 'BJT_PNP',
-    name: 'Transistor Bipolar PNP (BC558)',
-    cat: 'electronics',
-    icon: 'PNP',
-    terminals: [['E', 'E', 'CTRL'], ['B', 'B', 'CTRL'], ['C', 'C', 'CTRL']],
-    kind: 'bjt',
-    params: { beta: 120, type: 'PNP' }
-  },
-  {
-    code: 'MOS_N',
-    name: 'MOSFET Canal N de Potência (IRF540)',
-    cat: 'electronics',
-    icon: 'NMOS',
-    terminals: [['D', 'D', 'CTRL'], ['G', 'G', 'CTRL'], ['S', 'S', 'CTRL']],
-    kind: 'mosfet',
-    params: { rds: 0.044, type: 'N' }
-  },
-  {
-    code: 'OPAMP',
-    name: 'Amplificador Operacional (LM741)',
-    cat: 'electronics',
-    icon: 'AOP',
-    terminals: [['V+', 'PWR', '24+'], ['V-', 'PWR', '24-'], ['+', 'IN', 'CTRL'], ['-', 'IN', 'CTRL'], ['OUT', 'OUT', 'CTRL']],
-    kind: 'opamp',
-    params: { gain: 100000 }
-  },
-  {
-    code: 'REG5',
-    name: 'Regulador Linear LM7805 (5V / 1.5A)',
-    cat: 'electronics',
-    icon: '5V',
-    terminals: [['IN', 'IN', '24+'], ['GND', 'GND', '24-'], ['OUT', 'OUT', 'CTRL']],
-    kind: 'regulator',
-    params: { vout: 5 }
-  },
-
-  // MEDIÇÃO & INSTRUMENTAÇÃO
-  {
-    code: 'VM',
-    name: 'Voltímetro Digital True-RMS',
-    cat: 'measurement',
-    icon: 'V',
-    terminals: [['+', 'A', 'CTRL'], ['-', 'B', 'CTRL']],
-    kind: 'meterV',
-    params: {}
-  },
-  {
-    code: 'AM',
-    name: 'Amperímetro Digital True-RMS',
-    cat: 'measurement',
-    icon: 'A',
-    terminals: [['1', 'A', 'CTRL'], ['2', 'B', 'CTRL']],
-    kind: 'meterA',
-    params: {}
-  },
-  {
-    code: 'WM',
-    name: 'Wattímetro Digital Monofásico / Trifásico',
-    cat: 'measurement',
-    icon: 'W',
-    terminals: [['L', 'A', 'CTRL'], ['N', 'B', 'CTRL'], ['I1', 'AUX', 'CTRL'], ['I2', 'AUX', 'CTRL']],
-    kind: 'meterW',
-    params: {}
-  },
-  {
-    code: 'FREQ',
-    name: 'Frequencímetro Digital de Precisão',
-    cat: 'measurement',
-    icon: 'Hz',
-    terminals: [['1', 'A', 'CTRL'], ['2', 'B', 'CTRL']],
-    kind: 'meterF',
-    params: {}
-  },
-  {
-    code: 'ENERGY',
-    name: 'Medidor de Energia Ativa Acumulada (kWh)',
-    cat: 'measurement',
-    icon: 'kWh',
-    terminals: [['L', 'A', 'CTRL'], ['N', 'B', 'CTRL']],
-    kind: 'meterE',
-    params: { energy: 0 }
-  },
-  {
-    code: 'COS',
-    name: 'Cosfímetro Digital (Fator de Potência cos φ)',
-    cat: 'measurement',
-    icon: 'cosφ',
-    terminals: [['L', 'A', 'CTRL'], ['N', 'B', 'CTRL']],
-    kind: 'meterPF',
-    params: {}
-  },
-  {
-    code: 'SCOPE',
-    name: 'Osciloscópio Digital de 2 Canais',
-    cat: 'measurement',
-    icon: 'OSC',
-    terminals: [['CH1', 'A', 'CTRL'], ['GND', 'B', 'CTRL'], ['CH2', 'AUX', 'CTRL']],
-    kind: 'scope',
-    params: {}
-  },
-
-  // CARGAS & POTÊNCIA
-  {
     code: 'LAMP',
-    name: 'Lâmpada Incandescente / LED 230V',
+    name: 'Lâmpada Residencial E27 (Bulbo de Vidro com Filamento)',
     cat: 'loads',
     icon: '💡',
     terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N']],
@@ -804,7 +842,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'PILOT_GREEN',
-    name: 'Sinaleiro Piloto Verde (Em Marcha / Ligado)',
+    name: 'Sinaleiro Piloto Industrial 22mm Verde (Em Marcha)',
     cat: 'loads',
     icon: '🟢',
     terminals: [['L', 'IN', 'CTRL'], ['N', 'IN', 'N']],
@@ -813,7 +851,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'PILOT_RED',
-    name: 'Sinaleiro Piloto Vermelho (Desligado / Falha)',
+    name: 'Sinaleiro Piloto Industrial 22mm Vermelho (Desligado)',
     cat: 'loads',
     icon: '🔴',
     terminals: [['L', 'IN', 'CTRL'], ['N', 'IN', 'N']],
@@ -822,7 +860,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'PILOT_YELLOW',
-    name: 'Sinaleiro Piloto Amarelo (Sobrecarga / Alerta)',
+    name: 'Sinaleiro Piloto Industrial 22mm Amarelo (Falha / Alerta)',
     cat: 'loads',
     icon: '🟡',
     terminals: [['L', 'IN', 'CTRL'], ['N', 'IN', 'N']],
@@ -831,7 +869,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
   },
   {
     code: 'HEATER',
-    name: 'Resistência de Aquecimento Industrial',
+    name: 'Resistência Elétrica Tubular de Aquecimento (2000W 230V)',
     cat: 'loads',
     icon: '♨',
     terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N']],
@@ -839,99 +877,31 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     params: { power: 2000, voltage: 230, pf: 1.0 }
   },
   {
+    code: 'LOAD_AC',
+    name: 'Ar Condicionado Split Inverter 12.000 BTU com Display',
+    cat: 'loads',
+    icon: '❄',
+    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
+    kind: 'load_ac',
+    params: { power: 1400, voltage: 230, pf: 0.95 }
+  },
+  {
+    code: 'LOAD_COOKTOP',
+    name: 'Fogão de Indução Vitrocerâmico (Zonas Radiantes 7.2kW)',
+    cat: 'loads',
+    icon: '♨',
+    terminals: [['L1', 'IN', 'L1'], ['L2', 'IN', 'L2'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
+    kind: 'load_cooktop',
+    params: { power: 7200, voltage: 230, pf: 0.98 }
+  },
+  {
     code: 'OUTLET',
-    name: 'Tomada 2P+T 16A 230V (Schuko / NBR)',
+    name: 'Tomada de Uso Geral 2P+T 16A 230V (Schuko / NBR)',
     cat: 'loads',
     icon: '▣',
     terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
     kind: 'outlet',
     params: { current: 16, voltage: 230 }
-  },
-
-  // CARGAS ESPECIAIS DE ALTA POTÊNCIA (IEC 60364)
-  {
-    code: 'LOAD_AC',
-    name: 'Ar Condicionado Split Inverter (12.000 BTU / 230V)',
-    cat: 'loads',
-    icon: '❄',
-    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
-    kind: 'load_ac',
-    params: { power: 1400, current: 6.2, voltage: 230, wireGauge: 2.5, btu: 12000, temp: 21, pf: 0.95 }
-  },
-  {
-    code: 'LOAD_COOKTOP',
-    name: 'Fogão de Indução Eletromagnético (4 Zonas / 7200W)',
-    cat: 'loads',
-    icon: '♨',
-    terminals: [
-      ['1', 'IN', 'L1'], ['3', 'IN', 'L2'],
-      ['N', 'IN', 'N'], ['PE', 'PE', 'PE']
-    ],
-    kind: 'load_cooktop',
-    params: { power: 7200, current: 31.3, voltage: 230, wireGauge: 6.0, pf: 0.98 }
-  },
-  {
-    code: 'LOAD_SHOWER',
-    name: 'Chuveiro Elétrico Multitemperatura (7500W Alta Potência)',
-    cat: 'loads',
-    icon: '🚿',
-    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
-    kind: 'load_shower',
-    params: { power: 7500, current: 32.6, voltage: 230, wireGauge: 6.0, pf: 1.0 }
-  },
-  {
-    code: 'LOAD_MICROWAVE',
-    name: 'Forno Micro-ondas Digital (1200W)',
-    cat: 'loads',
-    icon: '📻',
-    terminals: [['L', 'IN', 'L1'], ['N', 'IN', 'N'], ['PE', 'PE', 'PE']],
-    kind: 'load_microwave',
-    params: { power: 1200, current: 5.3, voltage: 230, wireGauge: 2.5, pf: 0.92 }
-  },
-
-  // ATERRAMENTO FÍSICO REALISTA & DISTRIBUIÇÃO (IEC 62305 / NBR 5410)
-  {
-    code: 'EARTH_ROD',
-    name: 'Haste de Aterramento Copperweld 5/8" × 2.4m',
-    cat: 'sources',
-    icon: '⏚',
-    terminals: [['PE', 'PE', 'PE']],
-    kind: 'earth_rod',
-    params: { resistance: 10, length: 2.4, material: 'copperweld' }
-  },
-  {
-    code: 'EARTH_PIT',
-    name: 'Caixa de Inspeção de Aterramento (BEP)',
-    cat: 'sources',
-    icon: '⌸',
-    terminals: [
-      ['PE1', 'PE', 'PE'], ['PE2', 'PE', 'PE'],
-      ['PE3', 'PE', 'PE'], ['GND', 'PE', 'PE']
-    ],
-    kind: 'earth_pit',
-    params: { resistance: 5 }
-  },
-  {
-    code: 'BARE_COPPER',
-    name: 'Cabo de Cobre Nu para Malha de Aterramento',
-    cat: 'sources',
-    icon: '〰',
-    terminals: [['IN', 'PE', 'PE'], ['OUT', 'PE', 'PE']],
-    kind: 'bare_copper',
-    params: { gauge: 35, length: 10 }
-  },
-  {
-    code: 'JUNCTION_BOX',
-    name: 'Caixa de Derivação com Bornes WAGO (Octogonal/Quadrada)',
-    cat: 'loads',
-    icon: '⊞',
-    terminals: [
-      ['L_IN', 'IN', 'L1'], ['L_OUT1', 'OUT', 'L1'], ['L_OUT2', 'OUT', 'L1'],
-      ['N_IN', 'IN', 'N'], ['N_OUT1', 'OUT', 'N'], ['N_OUT2', 'OUT', 'N'],
-      ['PE_IN', 'PE', 'PE'], ['PE_OUT', 'PE', 'PE']
-    ],
-    kind: 'junction_box',
-    params: { type: 'wago_221', ports: 8, rating: 32 }
   }
 ];
 
@@ -1021,7 +991,6 @@ export function gaussComplex(A: Complex[][], b: Complex[]): Complex[] {
 // ----------------------------------------------------------------------------
 // MOTOR DE FÍSICA NODAL REAL & GRAFO DE CONECTIVIDADE SEM MOCKS
 // ----------------------------------------------------------------------------
-
 export interface SimulationStepResult {
   hasDirectShort: boolean;
   shortCause: string;
@@ -1038,11 +1007,9 @@ interface InternalEdge {
   target: string;
   r: number;
   wireId?: string;
+  attenuation?: number;
 }
 
-/**
- * MOTOR DE VALIDAÇÃO DE CIRCUITO FECHADO E PROPAGAÇÃO POR GRAFO DINÂMICO
- */
 export function solveCircuitPhysicsStep(
   project: { components: any[]; wires: any[]; busbars?: Busbar[] },
   dt: number,
@@ -1065,7 +1032,6 @@ export function solveCircuitPhysicsStep(
   const wires = project.wires || [];
   const busbars = project.busbars || [];
 
-  // Se o simulador estiver desligado, limpa e resfria todos os elementos imediatamente
   if (!isSimRunning) {
     wires.forEach(w => {
       w.live = false;
@@ -1093,17 +1059,16 @@ export function solveCircuitPhysicsStep(
   }
 
   // 1. CONSTRUÇÃO DO GRAFO NODAL DE ADJACÊNCIA
-  // Cada terminal é uma chave `${id}:${terminalId}`
   const graph = new Map<string, InternalEdge[]>();
 
-  const addGraphEdge = (u: string, v: string, r: number, wireId?: string) => {
+  const addGraphEdge = (u: string, v: string, r: number, wireId?: string, attenuation = 1.0) => {
     if (!graph.has(u)) graph.set(u, []);
     if (!graph.has(v)) graph.set(v, []);
-    graph.get(u)!.push({ target: v, r, wireId });
-    graph.get(v)!.push({ target: u, r, wireId });
+    graph.get(u)!.push({ target: v, r, wireId, attenuation });
+    graph.get(v)!.push({ target: u, r, wireId, attenuation });
   };
 
-  // A. Arestas de Condutores (Fios) com resistência física R = ρ * L / S
+  // A. Arestas de Condutores com Resistência Real R = ρ * L / S
   wires.forEach(w => {
     if (w.fault || w.burned) return;
     const u = `${w.a.c}:${w.a.t}`;
@@ -1114,7 +1079,7 @@ export function solveCircuitPhysicsStep(
     addGraphEdge(u, v, r, w.id);
   });
 
-  // B. Arestas Internas dos Barramentos Elétricos (Spine de cobre unificado)
+  // B. Arestas Internas dos Barramentos DIN
   busbars.forEach(bb => {
     if (bb.type === 'din' || !bb.terminals) return;
     const spine = `${bb.id}:SPINE`;
@@ -1123,43 +1088,61 @@ export function solveCircuitPhysicsStep(
     });
   });
 
-  // 2. CONVERGÊNCIA ITERATIVA DE CONTATOS ELETROMECÂNICOS (CONVERSÃO MULTIPASSO)
-  // Contatores (KM), Relés, Temporizadores, Relé de Falta de Fase e Botoeiras
-  const maxIterations = 4;
+  // ==========================================================================
+  // RESOLUÇÃO DE CADEIA SOLAR DC (SÉRIE E PARALELO REAL)
+  // ==========================================================================
+  const pvPanels = comps.filter(c => c.code === 'PV_PANEL');
+  pvPanels.forEach(pv => {
+    pv.state = pv.state || {};
+    const irr = Number(pv.params?.irradiance ?? 1000);
+    const vocNom = Number(pv.params?.voc ?? 49.8);
+    const vmppNom = Number(pv.params?.vmpp ?? 41.8);
+    const imppNom = Number(pv.params?.impp ?? 13.15);
+
+    // Física fotovoltaica com proporcionalidade de irradiância real
+    const effRatio = Math.max(0, Math.min(1.2, irr / 1000));
+    pv.state.voltage = effRatio > 0.05 ? Number((vmppNom * (0.95 + 0.05 * Math.log(effRatio + 0.1))).toFixed(1)) : 0;
+    pv.state.current = Number((imppNom * effRatio).toFixed(2));
+    pv.state.powerKW = Number(((pv.state.voltage * pv.state.current) / 1000).toFixed(3));
+    pv.state.energized = pv.state.voltage > 5;
+  });
+
+  // 2. CONVERGÊNCIA ITERATIVA ELETROMECÂNICA
+  const maxIterations = 5;
   let pass = 0;
-  let contactorStateChanged = true;
+  let stateChanged = true;
 
   type SourcePole = { id: string; net: string; v: number; angle: number; sourceId: string };
   let sourcePoles: SourcePole[] = [];
-  let reachMap = new Map<string, Map<string, { rPath: number; sourcePole: SourcePole }>>();
+  let reachMap = new Map<string, Map<string, { rPath: number; vFactor: number; sourcePole: SourcePole }>>();
 
-  while (contactorStateChanged && pass < maxIterations) {
+  while (stateChanged && pass < maxIterations) {
     pass++;
-    contactorStateChanged = false;
+    stateChanged = false;
 
-    // C. Constrói as arestas internas dos aparelhos baseadas no estado de chaveamento atual
     comps.forEach(c => {
       c.state = c.state || {};
       const d = getComponentDef(c.code);
       const isBurned = Boolean(c.state.isBurned || c.state.damaged);
       const isTripped = Boolean(c.state.tripped);
 
-      // Disjuntores e Seccionadoras
-      if (['breaker', 'breaker2', 'breaker3', 'rcbo'].includes(d.kind)) {
+      // Disjuntores Termomagnéticos e Caixa Moldada
+      if (['breaker', 'breaker_1p', 'breaker2', 'breaker3', 'mccb', 'motor_breaker', 'rcbo'].includes(d.kind)) {
         const isClosed = c.state.closed !== false && !isTripped && !isBurned;
         c.state.flagColor = isTripped ? 'yellow' : isClosed ? 'red' : 'green';
         c.state.leverPos = isTripped ? 'trip' : isClosed ? 'up' : 'down';
 
         if (isClosed) {
           addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
-          if (c.code === 'MCB2' || c.code === 'MCB3' || c.code === 'MCCB') {
+          if (['MCB2', 'MCB3', 'MCCB', 'MPCB'].includes(c.code)) {
             addGraphEdge(`${c.id}:3`, `${c.id}:4`, 0.002);
           }
-          if (c.code === 'MCB3' || c.code === 'MCCB') {
+          if (['MCB3', 'MCCB', 'MPCB'].includes(c.code)) {
             addGraphEdge(`${c.id}:5`, `${c.id}:6`, 0.002);
           }
-          addGraphEdge(`${c.id}:N_IN`, `${c.id}:N_OUT`, 0.001);
-          addGraphEdge(`${c.id}:N`, `${c.id}:N_OUT`, 0.001);
+          if (c.code !== 'MPCB' && c.code !== 'MCB_1P' && c.code !== 'MCB2') {
+            addGraphEdge(`${c.id}:N_IN`, `${c.id}:N_OUT`, 0.001);
+          }
         }
       }
 
@@ -1174,7 +1157,7 @@ export function solveCircuitPhysicsStep(
         }
       }
 
-      // Interruptor Diferencial Residual (IDR / DR)
+      // Dispositivos DR (IDR 2P e IDR 4P)
       if (['rcd', 'rcd4'].includes(d.kind)) {
         c.state.flagColor = isTripped ? 'yellow' : c.state.closed !== false ? 'red' : 'green';
         c.state.leverPos = isTripped ? 'trip' : c.state.closed !== false ? 'up' : 'down';
@@ -1192,24 +1175,33 @@ export function solveCircuitPhysicsStep(
       // Contator de Potência (KM)
       if (d.kind === 'contactor') {
         if (c.state.energized) {
-          // Contatos de Força Principais e Selo Auxiliar 13-14 Fecham
           addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
           addGraphEdge(`${c.id}:3`, `${c.id}:4`, 0.002);
           addGraphEdge(`${c.id}:5`, `${c.id}:6`, 0.002);
           addGraphEdge(`${c.id}:13`, `${c.id}:14`, 0.002);
         } else {
-          // Contato Auxiliar NF 21-22 Fechado em Repouso
           addGraphEdge(`${c.id}:21`, `${c.id}:22`, 0.002);
         }
       }
 
-      // Relé Térmico de Sobrecarga (OLR)
+      // Bloco Auxiliar Frontal 2NA + 2NF
+      if (c.code === 'AUX_BLOCK_2NA2NF') {
+        const kmParent = comps.find(k => k.code === 'CONTACTOR');
+        const kmOn = Boolean(kmParent?.state?.energized);
+        if (kmOn) {
+          addGraphEdge(`${c.id}:53`, `${c.id}:54`, 0.002);
+          addGraphEdge(`${c.id}:83`, `${c.id}:84`, 0.002);
+        } else {
+          addGraphEdge(`${c.id}:61`, `${c.id}:62`, 0.002);
+          addGraphEdge(`${c.id}:71`, `${c.id}:72`, 0.002);
+        }
+      }
+
+      // Relé Térmico (OLR)
       if (d.kind === 'overload') {
-        // Pinos de força sempre conduzem pelo bimetal
         addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.005);
         addGraphEdge(`${c.id}:3`, `${c.id}:4`, 0.005);
         addGraphEdge(`${c.id}:5`, `${c.id}:6`, 0.005);
-        // Contatos de comando: 95-96 NF em operação normal, 97-98 NA em trip
         if (!isTripped) {
           addGraphEdge(`${c.id}:95`, `${c.id}:96`, 0.002);
         } else {
@@ -1217,112 +1209,112 @@ export function solveCircuitPhysicsStep(
         }
       }
 
-      // ======================================================================
-      // MATRIZ DE COMUTAÇÃO FÍSICA REAL: INTERRUPTORES E COMUTADORES (NBR/IEC)
-      // ======================================================================
-      // 1. Interruptor Simples (1P): 2 bornes (L e R / 1 e 2)
-      if (c.code === 'SW') {
-        c.state.rockerAngle = c.state.closed ? 1 : 0;
-        if (c.state.closed) {
-          addGraphEdge(`${c.id}:L`, `${c.id}:R`, 0.002);
-          addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002); // alias retrocompatível
+      // Chave de Transferência Manual (MTS I-0-II)
+      if (c.code === 'MTS_SWITCH') {
+        const pos = Number(c.params?.position ?? 1);
+        if (pos === 1) {
+          addGraphEdge(`${c.id}:R_L1`, `${c.id}:OUT_L1`, 0.002);
+          addGraphEdge(`${c.id}:R_L2`, `${c.id}:OUT_L2`, 0.002);
+          addGraphEdge(`${c.id}:R_L3`, `${c.id}:OUT_L3`, 0.002);
+          addGraphEdge(`${c.id}:R_N`, `${c.id}:OUT_N`, 0.002);
+        } else if (pos === 2) {
+          addGraphEdge(`${c.id}:G_L1`, `${c.id}:OUT_L1`, 0.002);
+          addGraphEdge(`${c.id}:G_L2`, `${c.id}:OUT_L2`, 0.002);
+          addGraphEdge(`${c.id}:G_L3`, `${c.id}:OUT_L3`, 0.002);
+          addGraphEdge(`${c.id}:G_N`, `${c.id}:OUT_N`, 0.002);
         }
       }
 
-      // 2. Interruptor Bipolar (2P): 4 bornes (L1/L2 e L1'/L2')
-      else if (c.code === 'SW2') {
-        c.state.rockerAngle = c.state.closed ? 1 : 0;
+      // Quadro de Transferência Automática (ATS)
+      if (c.code === 'ATS_SWITCH') {
+        const gridAvail = c.params?.gridHealthy !== false;
+        if (gridAvail) {
+          c.params.sourceInUse = 'GRID';
+          addGraphEdge(`${c.id}:N_L1`, `${c.id}:LOAD_L1`, 0.002);
+          addGraphEdge(`${c.id}:N_L2`, `${c.id}:LOAD_L2`, 0.002);
+          addGraphEdge(`${c.id}:N_L3`, `${c.id}:LOAD_L3`, 0.002);
+          addGraphEdge(`${c.id}:N_N`, `${c.id}:LOAD_N`, 0.002);
+        } else {
+          c.params.sourceInUse = 'GEN';
+          addGraphEdge(`${c.id}:G_L1`, `${c.id}:LOAD_L1`, 0.002);
+          addGraphEdge(`${c.id}:G_L2`, `${c.id}:LOAD_L2`, 0.002);
+          addGraphEdge(`${c.id}:G_L3`, `${c.id}:LOAD_L3`, 0.002);
+          addGraphEdge(`${c.id}:G_N`, `${c.id}:LOAD_N`, 0.002);
+        }
+      }
+
+      // Smart Meter passagem interna
+      if (c.code === 'SMART_METER') {
+        addGraphEdge(`${c.id}:L_IN`, `${c.id}:L_OUT`, 0.001);
+        addGraphEdge(`${c.id}:N_IN`, `${c.id}:N_OUT`, 0.001);
+      }
+
+      // Interruptores
+      if (c.code === 'SW') {
+        if (c.state.closed) addGraphEdge(`${c.id}:L`, `${c.id}:R`, 0.002);
+      } else if (c.code === 'SW2') {
         if (c.state.closed) {
           addGraphEdge(`${c.id}:L1`, `${c.id}:L1'`, 0.002);
           addGraphEdge(`${c.id}:L2`, `${c.id}:L2'`, 0.002);
-          addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002); // alias
-          addGraphEdge(`${c.id}:3`, `${c.id}:4`, 0.002); // alias
         }
-      }
-
-      // 3. Interruptor 3-WAY (Paralelo): 3 bornes (Comum C + Retornos R1 e R2)
-      else if (c.code === 'THREE_WAY') {
+      } else if (c.code === 'SW_DOUBLE') {
+        if (c.state.closed1) addGraphEdge(`${c.id}:L`, `${c.id}:R1`, 0.002);
+        if (c.state.closed2) addGraphEdge(`${c.id}:L`, `${c.id}:R2`, 0.002);
+      } else if (c.code === 'THREE_WAY') {
         const pos = Number(c.params?.position ?? (c.state?.closed ? 1 : 0));
-        c.state.rockerAngle = pos;
-
-        if (pos === 0) {
-          // Posição A: Comum C conectado ao Retorno R1 (R2 fica aberto)
-          addGraphEdge(`${c.id}:C`, `${c.id}:R1`, 0.002);
-          addGraphEdge(`${c.id}:COM`, `${c.id}:R1`, 0.002);
-          addGraphEdge(`${c.id}:COM`, `${c.id}:1`, 0.002); // alias
-          addGraphEdge(`${c.id}:C`, `${c.id}:1`, 0.002);   // alias
-        } else {
-          // Posição B: Comum C conectado ao Retorno R2 (R1 fica aberto)
-          addGraphEdge(`${c.id}:C`, `${c.id}:R2`, 0.002);
-          addGraphEdge(`${c.id}:COM`, `${c.id}:R2`, 0.002);
-          addGraphEdge(`${c.id}:COM`, `${c.id}:2`, 0.002); // alias
-          addGraphEdge(`${c.id}:C`, `${c.id}:2`, 0.002);   // alias
-        }
-      }
-
-      // 4. Interruptor 4-WAY (Intermediário): 4 bornes (Entradas IN1/IN2 e Saídas OUT1/OUT2)
-      else if (c.code === 'FOUR_WAY') {
+        addGraphEdge(`${c.id}:C`, pos === 0 ? `${c.id}:R1` : `${c.id}:R2`, 0.002);
+      } else if (c.code === 'FOUR_WAY') {
         const crossed = Boolean(c.params?.crossed ?? c.state?.closed);
-        c.state.rockerAngle = crossed ? 1 : 0;
-
         if (!crossed) {
-          // Modo Direto: IN1 <-> OUT1 e IN2 <-> OUT2
           addGraphEdge(`${c.id}:IN1`, `${c.id}:OUT1`, 0.002);
           addGraphEdge(`${c.id}:IN2`, `${c.id}:OUT2`, 0.002);
-          addGraphEdge(`${c.id}:1`, `${c.id}:3`, 0.002); // alias
-          addGraphEdge(`${c.id}:2`, `${c.id}:4`, 0.002); // alias
         } else {
-          // Modo Cruzado: IN1 <-> OUT2 e IN2 <-> OUT1
           addGraphEdge(`${c.id}:IN1`, `${c.id}:OUT2`, 0.002);
           addGraphEdge(`${c.id}:IN2`, `${c.id}:OUT1`, 0.002);
-          addGraphEdge(`${c.id}:1`, `${c.id}:4`, 0.002); // alias
-          addGraphEdge(`${c.id}:2`, `${c.id}:3`, 0.002); // alias
         }
-      }
-
-      // 5. Dimmer Variador Rotativo (0-100%)
-      else if (c.code === 'DIMMER') {
-        const percent = Number(c.params?.percent ?? 100);
-        if (percent > 0) {
-          addGraphEdge(`${c.id}:IN`, `${c.id}:OUT`, 0.01);
-          addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.01); // alias
-        }
-      }
-
-      // 6. Botoeiras (Pulsadoras NA/NF e Parada de Emergência)
-      else if (c.code === 'PBNO') {
+      } else if (c.code === 'SEL') {
+        const pos = Number(c.params?.position ?? c.state?.position ?? 0);
+        if (pos === 1) addGraphEdge(`${c.id}:C`, `${c.id}:MAN`, 0.002);
+        else if (pos === 2) addGraphEdge(`${c.id}:C`, `${c.id}:AUTO`, 0.002);
+      } else if (c.code === 'FLOAT') {
+        const isHigh = Boolean(c.state?.high || c.state?.closed);
+        if (isHigh) addGraphEdge(`${c.id}:COM`, `${c.id}:NA`, 0.002);
+        else addGraphEdge(`${c.id}:COM`, `${c.id}:NF`, 0.002);
+      } else if (c.code === 'PHOTOCELL') {
+        const isDark = (c.params?.ambientLux ?? 100) <= (c.params?.thresholdLux ?? 20);
+        if (isDark) addGraphEdge(`${c.id}:F`, `${c.id}:R`, 0.002);
+      } else if (c.code === 'DIMMER') {
+        const pct = Math.max(0, Math.min(100, Number(c.params?.percent ?? 100)));
+        if (pct > 0) addGraphEdge(`${c.id}:IN`, `${c.id}:OUT`, 0.01, undefined, pct / 100.0);
+      } else if (c.code === 'LIMIT') {
+        if (!c.state?.actuated && c.state?.closed !== false) addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
+      } else if (c.code === 'ESTOP') {
+        if (!c.state?.pressed && !c.state?.tripped && c.state?.closed !== false) addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
+      } else if (c.code === 'PBNO') {
         if (c.state.pressed || c.state.closed) addGraphEdge(`${c.id}:3`, `${c.id}:4`, 0.002);
       } else if (c.code === 'PBNC') {
         if (!c.state.pressed && c.state.closed !== false) addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
-      } else if (c.code === 'ESTOP') {
-        if (!c.state.pressed && c.state.closed !== false) addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
-      } else if (c.code === 'SEL') {
-        const pos = Number(c.params?.position || 0);
-        c.state.rockerAngle = pos;
-        addGraphEdge(`${c.id}:1`, pos === 0 ? `${c.id}:2` : `${c.id}:3`, 0.002);
       } else if (c.code === 'JUNCTION_BOX') {
-        addGraphEdge(`${c.id}:L_IN`, `${c.id}:L_OUT1`, 0.001);
-        addGraphEdge(`${c.id}:L_IN`, `${c.id}:L_OUT2`, 0.001);
-        addGraphEdge(`${c.id}:N_IN`, `${c.id}:N_OUT1`, 0.001);
-        addGraphEdge(`${c.id}:N_IN`, `${c.id}:N_OUT2`, 0.001);
-        addGraphEdge(`${c.id}:PE_IN`, `${c.id}:PE_OUT`, 0.001);
-      } else if (c.code === 'BARE_COPPER') {
-        addGraphEdge(`${c.id}:IN`, `${c.id}:OUT`, 0.001);
+        addGraphEdge(`${c.id}:L_IN`, `${c.id}:L1`, 0.0005);
+        addGraphEdge(`${c.id}:L_IN`, `${c.id}:L2`, 0.0005);
+        addGraphEdge(`${c.id}:N_IN`, `${c.id}:N1`, 0.0005);
+        addGraphEdge(`${c.id}:N_IN`, `${c.id}:N2`, 0.0005);
+        addGraphEdge(`${c.id}:PE_IN`, `${c.id}:PE1`, 0.0005);
       } else if (c.code === 'EARTH_PIT') {
-        addGraphEdge(`${c.id}:PE1`, `${c.id}:GND`, 0.001);
-        addGraphEdge(`${c.id}:PE2`, `${c.id}:GND`, 0.001);
-        addGraphEdge(`${c.id}:PE3`, `${c.id}:GND`, 0.001);
+        addGraphEdge(`${c.id}:BEP1`, `${c.id}:GND`, 0.0005);
+        addGraphEdge(`${c.id}:BEP2`, `${c.id}:GND`, 0.0005);
+        addGraphEdge(`${c.id}:BEP3`, `${c.id}:GND`, 0.0005);
       }
     });
 
-    // D. Identificação de Polos de Fontes Primárias e Barramentos Gerais
+    // Fontes de Tensão Primárias
     sourcePoles = [];
     comps.forEach(c => {
-      const isSrc = c.code.startsWith('SRC_') || c.code === 'BAT' || c.code === 'PV_INVERTER';
+      const isSrc = c.code.startsWith('SRC_') || c.code === 'BAT' || c.code === 'GEN_DIESEL' || c.code === 'BAT_LIFEPO4' || c.code === 'PV_PANEL';
       const isClosed = c.params?.closed !== false && c.state?.closed !== false && !c.state?.tripped && !c.state?.isBurned;
       if (!isSrc || !isClosed) return;
 
-      const vNom = Number(c.params?.voltage || 230);
+      const vNom = Number(c.params?.voltage || (c.code === 'BAT_LIFEPO4' ? 51.2 : c.code === 'PV_PANEL' ? (c.state?.voltage || 41.8) : 230));
       result.activeFrequency = Number(c.params?.frequency || 50);
 
       if (c.code === 'SRC_AC3') {
@@ -1332,19 +1324,29 @@ export function solveCircuitPhysicsStep(
         sourcePoles.push({ id: `${c.id}:N`, net: 'N', v: 0, angle: 0, sourceId: c.id });
         sourcePoles.push({ id: `${c.id}:PE`, net: 'PE', v: 0, angle: 0, sourceId: c.id });
         result.mainVoltageRMS = vNom;
-      } else if (c.code === 'SRC_AC1' || c.code === 'PV_INVERTER') {
+      } else if (c.code === 'GEN_DIESEL') {
+        if (c.params?.running !== false || c.state?.running) {
+          sourcePoles.push({ id: `${c.id}:L1`, net: 'L1', v: 230, angle: 0, sourceId: c.id });
+          sourcePoles.push({ id: `${c.id}:L2`, net: 'L2', v: 230, angle: -120, sourceId: c.id });
+          sourcePoles.push({ id: `${c.id}:L3`, net: 'L3', v: 230, angle: 120, sourceId: c.id });
+          sourcePoles.push({ id: `${c.id}:N`, net: 'N', v: 0, angle: 0, sourceId: c.id });
+          sourcePoles.push({ id: `${c.id}:PE`, net: 'PE', v: 0, angle: 0, sourceId: c.id });
+        }
+      } else if (c.code === 'SRC_AC1') {
         sourcePoles.push({ id: `${c.id}:L`, net: 'L1', v: vNom, angle: 0, sourceId: c.id });
         sourcePoles.push({ id: `${c.id}:N`, net: 'N', v: 0, angle: 0, sourceId: c.id });
         result.mainVoltageRMS = vNom;
-      } else if (c.code === 'SRC_DC24' || c.code === 'BAT') {
+      } else if (c.code === 'SRC_DC24' || c.code === 'BAT' || c.code === 'BAT_LIFEPO4') {
         sourcePoles.push({ id: `${c.id}:+`, net: '24+', v: vNom, angle: 0, sourceId: c.id });
         sourcePoles.push({ id: `${c.id}:-`, net: '24-', v: 0, angle: 0, sourceId: c.id });
-        result.mainVoltageRMS = vNom;
-        result.activeFrequency = 0;
+      } else if (c.code === 'PV_PANEL') {
+        if ((c.state?.voltage || 0) > 2) {
+          sourcePoles.push({ id: `${c.id}:+`, net: '24+', v: Number(c.state.voltage), angle: 0, sourceId: c.id });
+          sourcePoles.push({ id: `${c.id}:-`, net: '24-', v: 0, angle: 0, sourceId: c.id });
+        }
       }
     });
 
-    // Barramentos gerais alimentados pela subestação
     busbars.forEach(bb => {
       if (bb.type === 'phase_l1') sourcePoles.push({ id: `${bb.id}:SPINE`, net: 'L1', v: 230, angle: 0, sourceId: bb.id });
       else if (bb.type === 'phase_l2') sourcePoles.push({ id: `${bb.id}:SPINE`, net: 'L2', v: 230, angle: -120, sourceId: bb.id });
@@ -1353,35 +1355,136 @@ export function solveCircuitPhysicsStep(
       else if (bb.type === 'earth') sourcePoles.push({ id: `${bb.id}:SPINE`, net: 'PE', v: 0, angle: 0, sourceId: bb.id });
     });
 
-    // E. Busca em Largura (BFS) com cálculo de resistência acumulada a partir de cada polo
+    // BFS Nodal
     reachMap = new Map();
 
     sourcePoles.forEach(sp => {
-      const queue: { node: string; rPath: number }[] = [{ node: sp.id, rPath: 0 }];
+      const queue: { node: string; rPath: number; vFactor: number }[] = [{ node: sp.id, rPath: 0, vFactor: 1.0 }];
       const visited = new Set<string>([sp.id]);
 
       if (!reachMap.has(sp.id)) reachMap.set(sp.id, new Map());
       const poleMap = reachMap.get(sp.id)!;
-      poleMap.set(sp.id, { rPath: 0, sourcePole: sp });
+      poleMap.set(sp.id, { rPath: 0, vFactor: 1.0, sourcePole: sp });
 
       while (queue.length > 0) {
-        const { node, rPath } = queue.shift()!;
+        const { node, rPath, vFactor } = queue.shift()!;
         const edges = graph.get(node) || [];
 
         for (const edge of edges) {
           if (!visited.has(edge.target)) {
             visited.add(edge.target);
             const totalR = rPath + edge.r;
-            poleMap.set(edge.target, { rPath: totalR, sourcePole: sp });
-            queue.push({ node: edge.target, rPath: totalR });
+            const nextVFactor = vFactor * (edge.attenuation ?? 1.0);
+            poleMap.set(edge.target, { rPath: totalR, vFactor: nextVFactor, sourcePole: sp });
+            queue.push({ node: edge.target, rPath: totalR, vFactor: nextVFactor });
           }
         }
       }
     });
 
-    // F. Validação Física da Bobina do Contator (KM)
+    // ========================================================================
+    // CONVERGÊNCIA DOS INVERSORES SOLARES (OFF-GRID, ON-GRID E HÍBRIDO)
+    // ========================================================================
+    comps.forEach(inv => {
+      inv.state = inv.state || {};
+
+      if (inv.code === 'PV_INVERTER_OFFGRID') {
+        const nBatP = `${inv.id}:BAT+`;
+        const nBatM = `${inv.id}:BAT-`;
+        const nPvP = `${inv.id}:PV+`;
+        const nPvM = `${inv.id}:PV-`;
+
+        let batConnected = false;
+        let vBat = 0;
+        let pvConnected = false;
+        let vPv = 0;
+
+        sourcePoles.forEach(sp => {
+          const m = reachMap.get(sp.id);
+          if (!m) return;
+          if (m.has(nBatP) && sp.net === '24+') { batConnected = true; vBat = sp.v; }
+          if (m.has(nPvP) && sp.net === '24+') { pvConnected = true; vPv += sp.v; }
+        });
+
+        // Inversor Off-Grid precisa de bateria conectada (>42V) ou PV ativo (>60V)
+        const isPowered = (batConnected && vBat >= 42) || (pvConnected && vPv >= 60);
+
+        if (isPowered !== inv.state.running) {
+          inv.state.running = isPowered;
+          inv.state.energized = isPowered;
+          stateChanged = true;
+        }
+
+        inv.state.batVoltage = vBat > 0 ? Number(vBat.toFixed(1)) : 0;
+        inv.state.pvVoltage = vPv > 0 ? Number(vPv.toFixed(1)) : 0;
+
+        if (isPowered) {
+          inv.state.voltage = 230.0;
+          sourcePoles.push({ id: `${inv.id}:AC_L`, net: 'L1', v: 230, angle: 0, sourceId: inv.id });
+          sourcePoles.push({ id: `${inv.id}:AC_N`, net: 'N', v: 0, angle: 0, sourceId: inv.id });
+          addGraphEdge(`${inv.id}:AC_L`, `${inv.id}:AC_N_VIRT`, 0.001);
+        }
+      }
+
+      else if (inv.code === 'PV_INVERTER_ONGRID') {
+        const nDc1P = `${inv.id}:DC1+`;
+        const nGridL1 = `${inv.id}:AC_L1`;
+
+        let vString = 0;
+        let gridPresent = false;
+
+        sourcePoles.forEach(sp => {
+          const m = reachMap.get(sp.id);
+          if (!m) return;
+          if (m.has(nDc1P) && sp.net === '24+') vString += sp.v;
+          if (m.has(nGridL1) && sp.net === 'L1') gridPresent = true;
+        });
+
+        // On-Grid precisa de tensão de string dentro do MPPT (160V-850V) e REDE CA PRESENTE
+        const inMpptWindow = vString >= 160 && vString <= 850;
+        const isSync = inMpptWindow && gridPresent;
+
+        inv.state.running = isSync;
+        inv.state.energized = isSync;
+        inv.state.pvVoltage = Number(vString.toFixed(1));
+        inv.params.syncActive = isSync;
+
+        if (isSync) {
+          inv.state.powerKW = Number(Math.min(10, (vString * 11) / 1000).toFixed(2));
+          inv.state.voltage = 400.0;
+        } else {
+          inv.state.powerKW = 0;
+        }
+      }
+
+      else if (inv.code === 'PV_INVERTER_HYBRID') {
+        const nBatP = `${inv.id}:BAT+`;
+        const nPvP = `${inv.id}:PV1+`;
+        let hasDC = false;
+        let vDC = 0;
+
+        sourcePoles.forEach(sp => {
+          const m = reachMap.get(sp.id);
+          if (!m) return;
+          if ((m.has(nBatP) || m.has(nPvP)) && sp.net === '24+') { hasDC = true; vDC = Math.max(vDC, sp.v); }
+        });
+
+        const isRunning = hasDC && vDC >= 42;
+        inv.state.running = isRunning;
+        inv.state.energized = isRunning;
+        inv.state.pvVoltage = Number(vDC.toFixed(1));
+
+        if (isRunning) {
+          inv.state.voltage = 230.0;
+          sourcePoles.push({ id: `${inv.id}:EPS_L`, net: 'L1', v: 230, angle: 0, sourceId: inv.id });
+          sourcePoles.push({ id: `${inv.id}:EPS_N`, net: 'N', v: 0, angle: 0, sourceId: inv.id });
+        }
+      }
+    });
+
+    // Validação de Bobinas (KM, KA, Timers)
     comps.forEach(c => {
-      if (c.code === 'CONTACTOR') {
+      if (['CONTACTOR', 'RELAY', 'TIMER', 'TIMER_STAR_DELTA', 'TIMER_TOF'].includes(c.code)) {
         const nodeA1 = `${c.id}:A1`;
         const nodeA2 = `${c.id}:A2`;
 
@@ -1398,13 +1501,13 @@ export function solveCircuitPhysicsStep(
         const coilPowered = Boolean(phasePoleFound && neutralPoleFound && !result.hasDirectShort);
         if (c.state.energized !== coilPowered) {
           c.state.energized = coilPowered;
-          contactorStateChanged = true;
+          stateChanged = true;
         }
       }
     });
   }
 
-  // 3. DETECÇÃO DE CURTO-CIRCUITO DIRETO VIA GRAFO (Fase encontra Neutro diretamente)
+  // 3. CURTO-CIRCUITO DIRETO FASE-NEUTRO
   sourcePoles.forEach(spPhase => {
     if (!spPhase.net.startsWith('L') && spPhase.net !== '24+') return;
     const phaseMap = reachMap.get(spPhase.id);
@@ -1422,7 +1525,7 @@ export function solveCircuitPhysicsStep(
 
   if (result.hasDirectShort) {
     comps.forEach(c => {
-      if (['MCB1', 'MCB2', 'MCB3', 'MCCB', 'RCBO', 'FUSE', 'FU3'].includes(c.code)) {
+      if (['MCB1', 'MCB_1P', 'MCB2', 'MCB3', 'MCCB', 'MPCB', 'RCBO', 'FUSE', 'FU3'].includes(c.code)) {
         if (c.state && !c.state.tripped && !c.state.burned) {
           c.state.tripped = true;
           c.state.closed = false;
@@ -1433,26 +1536,80 @@ export function solveCircuitPhysicsStep(
     });
   }
 
-  // 4. RESOLUÇÃO REAL DAS CARGAS: VALIDAÇÃO DE CIRCUITO FECHADO (CLOSED-LOOP)
+  // 4. RESOLUÇÃO REAL DAS CARGAS & MOTORES
   const activeWireIds = new Set<string>();
 
   comps.forEach(load => {
     load.state = load.state || {};
     const d = getComponentDef(load.code);
-    const isMotor = d.kind === 'motor3' || d.kind === 'motor1';
-    const isAppliance = load.code.startsWith('LOAD_') || ['HEATER', 'LAMP', 'PILOT_GREEN', 'PILOT_RED', 'PILOT_YELLOW', 'BUZZ'].includes(load.code);
+    const isMotor = ['motor3', 'motor1', 'motor3_6lead', 'fan', 'pump'].includes(d.kind);
+    const isAppliance = ['HEATER', 'LAMP', 'PILOT_GREEN', 'PILOT_RED', 'PILOT_YELLOW', 'BUZZ', 'LOAD_AC', 'LOAD_COOKTOP'].includes(load.code);
 
     if (!isMotor && !isAppliance) return;
 
-    // A. MOTOR TRIFÁSICO (M3PH, PUMP): Exige L1 em U, L2 em V e L3 em W simultaneamente
-    if (d.kind === 'motor3') {
+    // MOTOR TRIFÁSICO DE 6 PONTAS (PARTIDA ESTRELA-TRIÂNGULO)
+    if (load.code === 'M3PH_6L') {
+      const nU1 = `${load.id}:U1`;
+      const nV1 = `${load.id}:V1`;
+      const nW1 = `${load.id}:W1`;
+      const nU2 = `${load.id}:U2`;
+      const nV2 = `${load.id}:V2`;
+      const nW2 = `${load.id}:W2`;
+
+      let hasL1 = false, hasL2 = false, hasL3 = false;
+      sourcePoles.forEach(sp => {
+        const m = reachMap.get(sp.id);
+        if (!m) return;
+        if (sp.net === 'L1' && m.has(nU1)) hasL1 = true;
+        if (sp.net === 'L2' && m.has(nV1)) hasL2 = true;
+        if (sp.net === 'L3' && m.has(nW1)) hasL3 = true;
+      });
+
+      const starShorted = graph.get(nU2)?.some(e => e.target === nV2 || e.target === nW2);
+      const isStar = hasL1 && hasL2 && hasL3 && Boolean(starShorted);
+      const isDelta = hasL1 && hasL2 && hasL3 && !starShorted;
+
+      if (isStar || isDelta) {
+        const pNom = Number(load.params?.power || 11000);
+        const vNom = isDelta ? 400 : (400 / Math.sqrt(3));
+        const pf = Number(load.params?.pf || 0.88);
+        const iReal = pNom / (Math.sqrt(3) * (isDelta ? 400 : 230) * pf);
+
+        load.state.running = true;
+        load.state.energized = true;
+        load.state.voltage = Math.round(vNom);
+        load.state.current = Number(iReal.toFixed(2));
+        load.state.powerKW = Number((pNom / 1000).toFixed(2));
+        load.state.rpm = isDelta ? 2940 : 2850;
+        load.params.connection = isDelta ? 'DELTA (Δ)' : 'STAR (Y)';
+
+        result.totalActivePower += pNom;
+        result.totalLineCurrent += iReal;
+
+        wires.forEach(w => {
+          if (w.a.c === load.id || w.b.c === load.id) {
+            activeWireIds.add(w.id);
+            w.current = Number(iReal.toFixed(2));
+          }
+        });
+      } else {
+        load.state.running = false;
+        load.state.energized = false;
+        load.state.voltage = 0;
+        load.state.current = 0;
+        load.state.rpm = 0;
+        load.params.connection = 'none';
+      }
+      return;
+    }
+
+    // MOTOR TRIFÁSICO PADRÃO / BOMBA CENTRÍFUGA
+    if (d.kind === 'motor3' || load.code === 'PUMP') {
       const nodeU = `${load.id}:U`;
       const nodeV = `${load.id}:V`;
       const nodeW = `${load.id}:W`;
 
-      let hasL1 = false;
-      let hasL2 = false;
-      let hasL3 = false;
+      let hasL1 = false, hasL2 = false, hasL3 = false;
       let totalRPath = 0;
 
       sourcePoles.forEach(sp => {
@@ -1463,15 +1620,13 @@ export function solveCircuitPhysicsStep(
         if (sp.net === 'L3' && m.has(nodeW)) { hasL3 = true; totalRPath += m.get(nodeW)!.rPath; }
       });
 
-      // RIGOR ABSOLUTO: Se faltar qualquer uma das 3 fases (fio solto, contator aberto ou disjuntor desligado), O MOTOR NÃO GIRA
       const is3PhaseClosed = hasL1 && hasL2 && hasL3 && !result.hasDirectShort && !load.state.isBurned;
 
       if (is3PhaseClosed) {
         const pNom = Number(load.params?.power || 7500);
-        const vNom = Number(load.params?.voltage || 400);
+        const vNom = 400;
         const pf = Number(load.params?.pf || 0.86);
 
-        // Queda de tensão trifásica: ΔV = √3 * R * I
         const iEstimated = pNom / (Math.sqrt(3) * vNom * pf);
         const deltaV = Math.sqrt(3) * (totalRPath / 3) * iEstimated;
         const vReal = Math.max(0, vNom - deltaV);
@@ -1496,18 +1651,16 @@ export function solveCircuitPhysicsStep(
           }
         });
       } else {
-        // ZERAMENTO INCONDICIONAL: Nó flutuante ou fase ausente
         load.state.running = false;
         load.state.energized = false;
         load.state.voltage = 0;
         load.state.current = 0;
-        load.state.powerKW = 0;
         load.state.rpm = 0;
       }
       return;
     }
 
-    // B. CARGAS MONOFÁSICAS E DE ILUMINAÇÃO (Lâmpadas, Resistências, Chuveiro, etc.)
+    // CARGAS MONOFÁSICAS, EXAUSTORES E ILUMINAÇÃO
     const tL = ['L', '1', '+', 'L_IN'].find(t => load.terminals?.some((x: any) => x[0] === t)) || 'L';
     const tN = ['N', '2', '-', 'N_IN'].find(t => load.terminals?.some((x: any) => x[0] === t)) || 'N';
 
@@ -1516,15 +1669,17 @@ export function solveCircuitPhysicsStep(
 
     let phasePole: SourcePole | null = null;
     let neutralPole: SourcePole | null = null;
-    let rPhase = 0;
-    let rNeutral = 0;
+    let rPhase = 0, rNeutral = 0;
+    let vAttenuation = 1.0;
 
     sourcePoles.forEach(sp => {
       const m = reachMap.get(sp.id);
       if (!m) return;
       if ((sp.net.startsWith('L') || sp.net === '24+') && m.has(nodeL)) {
         phasePole = sp;
-        rPhase = m.get(nodeL)!.rPath;
+        const entry = m.get(nodeL)!;
+        rPhase = entry.rPath;
+        vAttenuation = entry.vFactor;
       }
       if ((sp.net === 'N' || sp.net === '24-') && m.has(nodeN)) {
         neutralPole = sp;
@@ -1532,17 +1687,17 @@ export function solveCircuitPhysicsStep(
       }
     });
 
-    // RIGOR DE CIRCUITO FECHADO: Exige simultaneamente Fase e Retorno Neutro
-    const isLoopClosed = Boolean(phasePole && neutralPole && !result.hasDirectShort && !load.state.isBurned);
+    const isLoopClosed = Boolean(phasePole && neutralPole && !result.hasDirectShort && !load.state.isBurned && vAttenuation > 0.02);
 
     if (isLoopClosed) {
-      const pNom = Number(load.params?.power || 1500);
+      const pNom = Number(load.params?.power || 100);
       const vNom = Number(load.params?.voltage || 230);
       const pf = Number(load.params?.pf || 1.0);
 
-      const iEst = pNom / (vNom * pf);
+      const vAvailable = vNom * vAttenuation;
+      const iEst = (pNom / (vNom * pf)) * vAttenuation;
       const deltaV = (rPhase + rNeutral) * iEst;
-      const vEffective = Math.max(0, vNom - deltaV);
+      const vEffective = Math.max(0, vAvailable - deltaV);
       const pReal = pNom * Math.pow(vEffective / vNom, 2);
       const iReal = pReal / (Math.max(1, vEffective) * pf);
 
@@ -1551,6 +1706,9 @@ export function solveCircuitPhysicsStep(
       load.state.voltage = Number(vEffective.toFixed(1));
       load.state.current = Number(iReal.toFixed(2));
       load.state.powerKW = Number((pReal / 1000).toFixed(2));
+      if (d.kind === 'fan' || d.kind === 'motor1') {
+        load.state.rpm = Math.round(Number(load.params?.rpm || 1400) * (vEffective / vNom));
+      }
 
       result.totalActivePower += pReal;
       result.totalLineCurrent += iReal;
@@ -1563,7 +1721,6 @@ export function solveCircuitPhysicsStep(
         }
       });
     } else {
-      // NÓ FLUTUANTE: Desconexão instantânea
       load.state.energized = false;
       load.state.running = false;
       load.state.voltage = 0;
@@ -1573,7 +1730,7 @@ export function solveCircuitPhysicsStep(
     }
   });
 
-  // 5. ATUALIZAÇÃO DA CONDUTIVIDADE E TEMPERATURA DOS FIOS (EFEITO JOULE)
+  // Atualização dos Condutores
   wires.forEach(w => {
     const isCarryingCurrent = activeWireIds.has(w.id);
     w.live = isCarryingCurrent;
@@ -1598,12 +1755,12 @@ export function solveCircuitPhysicsStep(
     }
   });
 
-  // 6. DISPARO TÉRMICO-MAGNÉTICO DE DISJUNTORES (CURVAS B, C, D - IEC 60898)
+  // Disparo de Proteções
   comps.forEach(prot => {
     prot.state = prot.state || {};
     if (prot.state.tripped || prot.state.burned) return;
 
-    const isProtective = ['MCB1', 'MCB2', 'MCB3', 'MCCB', 'RCBO', 'FUSE', 'FU3', 'OLR'].includes(prot.code);
+    const isProtective = ['MCB1', 'MCB_1P', 'MCB2', 'MCB3', 'MCCB', 'MPCB', 'RCBO', 'FUSE', 'FU3', 'OLR'].includes(prot.code);
     if (!isProtective) return;
 
     const inCurrent = Number(prot.params?.current || 16);
@@ -1613,22 +1770,10 @@ export function solveCircuitPhysicsStep(
     const ratio = maxI / Math.max(0.1, inCurrent);
     prot.state.loadRatio = Number(ratio.toFixed(2));
 
-    if (ratio < 1.13) {
-      prot.state.thermal = false;
-      prot.params.overloadTimer = 0;
-      prot.state.temp = Math.max(AMBIENT_TEMPERATURE, (prot.state.temp || AMBIENT_TEMPERATURE) - dt * 2.0);
-    } else if (ratio >= 1.13 && ratio <= 1.45) {
+    if (ratio >= 1.13 && ratio <= 1.45) {
       prot.state.thermal = true;
       prot.params.overloadTimer = (prot.params.overloadTimer || 0) + dt;
-      prot.state.temp = (prot.state.temp || AMBIENT_TEMPERATURE) + (ratio * 4.0 * dt);
-
-      if (prot.params.overloadTimer > 10.0) {
-        prot.state.burned = true;
-        prot.state.isBurned = true;
-        prot.state.damaged = true;
-        prot.state.closed = false;
-        result.burnedIds.push(prot.id);
-      } else if (prot.params.overloadTimer >= 6.0) {
+      if (prot.params.overloadTimer >= 6.0) {
         prot.state.tripped = true;
         prot.state.closed = false;
         result.trippedIds.push(prot.id);
@@ -1641,14 +1786,12 @@ export function solveCircuitPhysicsStep(
     }
   });
 
-  // 7. SOMA VETORIAL CONTÍNUA DE CORRENTE RESIDUAL EM IDR / DR (IEC 61008)
+  // Teste de Fuga à Terra IDR
   comps.forEach(rcd => {
     if (['RCD', 'RCD4', 'RCBO'].includes(rcd.code)) {
       rcd.state = rcd.state || {};
       if (rcd.state.tripped) return;
-
-      const testActive = Boolean(rcd.params?.testPressed);
-      if (testActive) {
+      if (rcd.params?.testPressed) {
         rcd.state.tripped = true;
         rcd.state.closed = false;
         result.trippedIds.push(rcd.id);
@@ -1656,7 +1799,7 @@ export function solveCircuitPhysicsStep(
     }
   });
 
-  // 8. MEDIÇÕES TRUE-RMS REAIS NOS NÓS (SEM MOCKS OU LEITURAS FICTÍCIAS)
+  // Medições True-RMS e Smart Meter
   comps.forEach(m => {
     if (m.code === 'VM') {
       const nodeA = `${m.id}:+`;
@@ -1667,8 +1810,8 @@ export function solveCircuitPhysicsStep(
       sourcePoles.forEach(sp => {
         const map = reachMap.get(sp.id);
         if (!map) return;
-        if (map.has(nodeA)) vA = sp.v;
-        if (map.has(nodeB)) vB = sp.v;
+        if (map.has(nodeA)) vA = sp.v * map.get(nodeA)!.vFactor;
+        if (map.has(nodeB)) vB = sp.v * map.get(nodeB)!.vFactor;
       });
 
       m.state.voltage = (vA > 0 || vB > 0) && vA !== vB ? Math.abs(vA - vB) : 0.0;
@@ -1683,9 +1826,15 @@ export function solveCircuitPhysicsStep(
       m.state.frequency = result.mainVoltageRMS > 0 ? result.activeFrequency : 0;
     } else if (m.code === 'COS') {
       m.state.powerFactor = result.totalLineCurrent > 0 ? result.activePF : 1.0;
+    } else if (m.code === 'SMART_METER') {
+      const pThrough = result.totalActivePower;
+      m.state.powerKW = Number((pThrough / 1000).toFixed(2));
+      m.state.voltage = result.mainVoltageRMS || 230.0;
+      m.state.current = result.totalLineCurrent;
+      m.state.energyKWh = Number(((m.state.energyKWh || 0) + (pThrough * (dt / 3600)) / 1000).toFixed(2));
     } else if (m.code === 'ENERGY') {
       if (result.totalActivePower > 0) {
-        m.state.energyKWh = (m.state.energyKWh || 142.8) + (result.totalActivePower * (dt / 3600)) / 1000;
+        m.state.energyKWh = (m.state.energyKWh || 0) + (result.totalActivePower * (dt / 3600)) / 1000;
       }
     }
   });
@@ -1694,33 +1843,31 @@ export function solveCircuitPhysicsStep(
 }
 
 // ----------------------------------------------------------------------------
-// CIRCUITOS DE REFERÊNCIA NORMATIVOS PREDEFINIDOS (COM PINAGEM REAL)
+// CIRCUITOS DE REFERÊNCIA NORMATIVOS
 // ----------------------------------------------------------------------------
-
 export function generateDirectMotorStarterCircuit(): { components: any[]; wires: any[] } {
   const components = [
-    // Circuito de Força (Potência)
     {
       id: 'SRC1',
       code: 'SRC_AC3',
       x: -360,
       y: -90,
       rot: 0,
-      w: 110,
-      h: 75,
+      w: 125,
+      h: 85,
       params: { voltage: 400, frequency: 50, internalR: 0.03, closed: true },
       state: { energized: true, running: true },
       label: 'Rede 400V 3F+N+PE'
     },
     {
       id: 'Q1',
-      code: 'MCB3',
+      code: 'MPCB',
       x: -210,
       y: -90,
       rot: 0,
-      w: 100,
-      h: 75,
-      params: { current: 32, curve: 'C', closed: true, temp: 25 },
+      w: 95,
+      h: 85,
+      params: { current: 16, closed: true, temp: 25 },
       state: { closed: true, tripped: false, flagColor: 'red', leverPos: 'up' },
       label: 'Q1: Disjuntor-Motor'
     },
@@ -1730,8 +1877,8 @@ export function generateDirectMotorStarterCircuit(): { components: any[]; wires:
       x: -50,
       y: -90,
       rot: 0,
-      w: 115,
-      h: 75,
+      w: 110,
+      h: 85,
       params: { coil: 230, minPickupRatio: 0.85 },
       state: { closed: false, energized: false },
       label: 'KM1: Contator Principal'
@@ -1739,116 +1886,85 @@ export function generateDirectMotorStarterCircuit(): { components: any[]; wires:
     {
       id: 'F1',
       code: 'OLR',
-      x: 120,
+      x: 110,
       y: -90,
       rot: 0,
-      w: 110,
-      h: 75,
-      params: { current: 18, resetMode: 'manual' },
+      w: 105,
+      h: 80,
+      params: { current: 16, resetMode: 'manual' },
       state: { tripped: false },
       label: 'F1: Relé Térmico'
     },
     {
       id: 'M1',
       code: 'M3PH',
-      x: 300,
+      x: 280,
       y: -90,
       rot: 0,
-      w: 110,
-      h: 80,
+      w: 120,
+      h: 90,
       params: { power: 7500, rpm: 2920, voltage: 400, pf: 0.86 },
       state: { running: false, energized: false, rpm: 0 },
       label: 'M1: Motor Trifásico'
     },
-
-    // Circuito de Comando (230V AC)
     {
       id: 'S0',
       code: 'PBNC',
       x: -210,
       y: 130,
       rot: 0,
-      w: 95,
+      w: 90,
       h: 65,
       params: { closed: true, pressed: false },
       state: { closed: true, pressed: false },
-      label: 'S0: Botoeira Desliga (NF)'
+      label: 'S0: Desliga (NF)'
     },
     {
       id: 'S1',
       code: 'PBNO',
-      x: -50,
+      x: -60,
       y: 130,
       rot: 0,
-      w: 95,
+      w: 90,
       h: 65,
       params: { closed: false, pressed: false },
       state: { closed: false, pressed: false },
-      label: 'S1: Botoeira Liga (NA)'
+      label: 'S1: Liga (NA)'
     },
     {
       id: 'H1',
       code: 'PILOT_GREEN',
-      x: 120,
+      x: 110,
       y: 130,
       rot: 0,
-      w: 90,
+      w: 85,
       h: 65,
       params: { power: 3, voltage: 230 },
       state: { energized: false },
-      label: 'H1: Em Marcha (Verde)'
-    },
-    {
-      id: 'H2',
-      code: 'PILOT_YELLOW',
-      x: 270,
-      y: 130,
-      rot: 0,
-      w: 90,
-      h: 65,
-      params: { power: 3, voltage: 230 },
-      state: { energized: false },
-      label: 'H2: Sobrecarga F1'
+      label: 'H1: Em Marcha'
     }
   ];
 
   const wires = [
-    // Força: SRC1 -> Q1
     { id: 'W1', a: { c: 'SRC1', t: 'L1' }, b: { c: 'Q1', t: '1' }, type: 'L1', gauge: 4.0, length: 2.5, live: false },
     { id: 'W2', a: { c: 'SRC1', t: 'L2' }, b: { c: 'Q1', t: '3' }, type: 'L2', gauge: 4.0, length: 2.5, live: false },
     { id: 'W3', a: { c: 'SRC1', t: 'L3' }, b: { c: 'Q1', t: '5' }, type: 'L3', gauge: 4.0, length: 2.5, live: false },
-
-    // Força: Q1 -> KM1
     { id: 'W4', a: { c: 'Q1', t: '2' }, b: { c: 'KM1', t: '1' }, type: 'L1', gauge: 4.0, length: 1.5, live: false },
     { id: 'W5', a: { c: 'Q1', t: '4' }, b: { c: 'KM1', t: '3' }, type: 'L2', gauge: 4.0, length: 1.5, live: false },
     { id: 'W6', a: { c: 'Q1', t: '6' }, b: { c: 'KM1', t: '5' }, type: 'L3', gauge: 4.0, length: 1.5, live: false },
-
-    // Força: KM1 -> F1
     { id: 'W7', a: { c: 'KM1', t: '2' }, b: { c: 'F1', t: '1' }, type: 'L1', gauge: 4.0, length: 1.2, live: false },
     { id: 'W8', a: { c: 'KM1', t: '4' }, b: { c: 'F1', t: '3' }, type: 'L2', gauge: 4.0, length: 1.2, live: false },
     { id: 'W9', a: { c: 'KM1', t: '6' }, b: { c: 'F1', t: '5' }, type: 'L3', gauge: 4.0, length: 1.2, live: false },
-
-    // Força: F1 -> M1
     { id: 'W10', a: { c: 'F1', t: '2' }, b: { c: 'M1', t: 'U' }, type: 'L1', gauge: 4.0, length: 6.0, live: false },
     { id: 'W11', a: { c: 'F1', t: '4' }, b: { c: 'M1', t: 'V' }, type: 'L2', gauge: 4.0, length: 6.0, live: false },
     { id: 'W12', a: { c: 'F1', t: '6' }, b: { c: 'M1', t: 'W' }, type: 'L3', gauge: 4.0, length: 6.0, live: false },
-
-    // Comando: L1 -> 95 F1 (Contato NF Proteção) -> S0
     { id: 'W13', a: { c: 'SRC1', t: 'L1' }, b: { c: 'F1', t: '95' }, type: 'CTRL', gauge: 1.5, length: 3.0, live: false },
     { id: 'W14', a: { c: 'F1', t: '96' }, b: { c: 'S0', t: '1' }, type: 'CTRL', gauge: 1.5, length: 2.0, live: false },
-
-    // Comando: S0 -> S1
     { id: 'W15', a: { c: 'S0', t: '2' }, b: { c: 'S1', t: '3' }, type: 'CTRL', gauge: 1.5, length: 1.0, live: false },
-
-    // Contato de Selo 13-14 KM1 em paralelo com S1 (3-4)
     { id: 'W16', a: { c: 'S1', t: '3' }, b: { c: 'KM1', t: '13' }, type: 'CTRL', gauge: 1.5, length: 2.5, live: false },
     { id: 'W17', a: { c: 'S1', t: '4' }, b: { c: 'KM1', t: '14' }, type: 'CTRL', gauge: 1.5, length: 2.5, live: false },
-
-    // Acionamento da Bobina KM1 A1-A2
     { id: 'W18', a: { c: 'KM1', t: '14' }, b: { c: 'KM1', t: 'A1' }, type: 'CTRL', gauge: 1.5, length: 0.8, live: false },
     { id: 'W19', a: { c: 'KM1', t: 'A2' }, b: { c: 'SRC1', t: 'N' }, type: 'N', gauge: 1.5, length: 3.5, live: false },
-
-    // Sinalização H1 (Verde) em paralelo com a bobina KM1
     { id: 'W20', a: { c: 'KM1', t: 'A1' }, b: { c: 'H1', t: 'L' }, type: 'CTRL', gauge: 1.5, length: 2.0, live: false },
     { id: 'W21', a: { c: 'H1', t: 'N' }, b: { c: 'SRC1', t: 'N' }, type: 'N', gauge: 1.5, length: 3.5, live: false }
   ];
@@ -1865,22 +1981,22 @@ export function generateFourWayLightingCircuit(): { components: any[]; wires: an
       y: 0,
       rot: 0,
       w: 110,
-      h: 75,
+      h: 80,
       params: { voltage: 230, frequency: 50, closed: true },
       state: { energized: true },
       label: 'Fonte 230V AC'
     },
     {
       id: 'Q1',
-      code: 'MCB1',
+      code: 'MCB_1P',
       x: -220,
       y: 0,
       rot: 0,
-      w: 95,
+      w: 50,
       h: 75,
       params: { current: 10, curve: 'C', closed: true },
       state: { closed: true, tripped: false, flagColor: 'red', leverPos: 'up' },
-      label: 'Q1: Disjuntor Iluminação'
+      label: 'Q1: MCB 1P 10A'
     },
     {
       id: 'S1',
@@ -1888,7 +2004,7 @@ export function generateFourWayLightingCircuit(): { components: any[]; wires: an
       x: -70,
       y: 0,
       rot: 0,
-      w: 100,
+      w: 95,
       h: 75,
       params: { position: 0 },
       state: { closed: false, rockerAngle: 0 },
@@ -1900,11 +2016,11 @@ export function generateFourWayLightingCircuit(): { components: any[]; wires: an
       x: 90,
       y: 0,
       rot: 0,
-      w: 105,
+      w: 100,
       h: 75,
       params: { crossed: false },
       state: { closed: false, rockerAngle: 0 },
-      label: 'S2: Four-Way (Intermediário)'
+      label: 'S2: Four-Way (Cruzamento)'
     },
     {
       id: 'S3',
@@ -1912,7 +2028,7 @@ export function generateFourWayLightingCircuit(): { components: any[]; wires: an
       x: 250,
       y: 0,
       rot: 0,
-      w: 100,
+      w: 95,
       h: 75,
       params: { position: 0 },
       state: { closed: false, rockerAngle: 0 },
@@ -1924,11 +2040,11 @@ export function generateFourWayLightingCircuit(): { components: any[]; wires: an
       x: 390,
       y: 0,
       rot: 0,
-      w: 95,
-      h: 75,
+      w: 85,
+      h: 85,
       params: { power: 60, voltage: 230, pf: 1.0 },
       state: { energized: false },
-      label: 'E1: Lâmpada 230V'
+      label: 'E1: Lâmpada E27'
     }
   ];
 
@@ -1955,7 +2071,7 @@ export function generateQgdProtectionCircuit(): { components: any[]; wires: any[
       y: 0,
       rot: 0,
       w: 110,
-      h: 75,
+      h: 80,
       params: { voltage: 230, frequency: 50, closed: true },
       state: { energized: true },
       label: 'Rede Baixa Tensão'
@@ -1966,67 +2082,67 @@ export function generateQgdProtectionCircuit(): { components: any[]; wires: any[
       x: -210,
       y: 0,
       rot: 0,
-      w: 95,
+      w: 90,
       h: 75,
       params: { current: 63, curve: 'C', closed: true },
       state: { closed: true, tripped: false, flagColor: 'red', leverPos: 'up' },
-      label: 'Disjuntor Geral 63A'
+      label: 'Geral: 1P+N 63A'
     },
     {
       id: 'RCD1',
       code: 'RCD',
-      x: -50,
+      x: -60,
       y: 0,
       rot: 0,
-      w: 105,
+      w: 100,
       h: 75,
       params: { current: 40, leakage: 0.03, closed: true, testPressed: false },
       state: { closed: true, tripped: false, flagColor: 'red', leverPos: 'up' },
-      label: 'IDR Diferencial 30mA'
+      label: 'IDR 2P 30mA'
     },
     {
       id: 'Q_C1',
-      code: 'MCB1',
-      x: 120,
+      code: 'MCB_1P',
+      x: 110,
       y: -90,
       rot: 0,
-      w: 95,
-      h: 70,
+      w: 50,
+      h: 75,
       params: { current: 10, curve: 'C', closed: true },
       state: { closed: true, tripped: false, flagColor: 'red', leverPos: 'up' },
-      label: 'C1: Iluminação 10A'
+      label: 'C1: Ilum 10A'
     },
     {
       id: 'LAMP1',
       code: 'LAMP',
-      x: 270,
+      x: 250,
       y: -90,
       rot: 0,
-      w: 90,
-      h: 70,
+      w: 85,
+      h: 85,
       params: { power: 100, voltage: 230, pf: 1.0 },
       state: { energized: true },
       label: 'Lâmpadas 100W'
     },
     {
       id: 'Q_C2',
-      code: 'MCB1',
-      x: 120,
+      code: 'MCB_1P',
+      x: 110,
       y: 90,
       rot: 0,
-      w: 95,
-      h: 70,
+      w: 50,
+      h: 75,
       params: { current: 16, curve: 'C', closed: true },
       state: { closed: true, tripped: false, flagColor: 'red', leverPos: 'up' },
-      label: 'C2: Tomadas TUG 16A'
+      label: 'C2: TUG 16A'
     },
     {
       id: 'OUTLET1',
       code: 'OUTLET',
-      x: 270,
+      x: 250,
       y: 90,
       rot: 0,
-      w: 90,
+      w: 85,
       h: 70,
       params: { current: 16, voltage: 230 },
       state: { energized: true },
@@ -2037,15 +2153,14 @@ export function generateQgdProtectionCircuit(): { components: any[]; wires: any[
   const wires = [
     { id: 'W1', a: { c: 'SRC1', t: 'L' }, b: { c: 'Q_MAIN', t: '1' }, type: 'L1', gauge: 10.0, length: 1.0, live: false },
     { id: 'W2', a: { c: 'Q_MAIN', t: '2' }, b: { c: 'RCD1', t: '1' }, type: 'L1', gauge: 10.0, length: 1.2, live: false },
-    { id: 'W3', a: { c: 'SRC1', t: 'N' }, b: { c: 'RCD1', t: 'N_IN' }, type: 'N', gauge: 10.0, length: 2.2, live: false },
-    // Barramento Pós-DR
-    { id: 'W4', a: { c: 'RCD1', t: '2' }, b: { c: 'Q_C1', t: '1' }, type: 'L1', gauge: 4.0, length: 1.5, live: false },
-    { id: 'W5', a: { c: 'RCD1', t: '2' }, b: { c: 'Q_C2', t: '1' }, type: 'L1', gauge: 4.0, length: 1.5, live: false },
-    // Cargas C1 e C2
-    { id: 'W6', a: { c: 'Q_C1', t: '2' }, b: { c: 'LAMP1', t: 'L' }, type: 'L1', gauge: 1.5, length: 3.5, live: false },
-    { id: 'W7', a: { c: 'LAMP1', t: 'N' }, b: { c: 'RCD1', t: 'N_OUT' }, type: 'N', gauge: 1.5, length: 3.5, live: false },
-    { id: 'W8', a: { c: 'Q_C2', t: '2' }, b: { c: 'OUTLET1', t: 'L' }, type: 'L1', gauge: 2.5, length: 4.0, live: false },
-    { id: 'W9', a: { c: 'OUTLET1', t: 'N' }, b: { c: 'RCD1', t: 'N_OUT' }, type: 'N', gauge: 2.5, length: 4.0, live: false }
+    { id: 'W3', a: { c: 'SRC1', t: 'N' }, b: { c: 'Q_MAIN', t: 'N_IN' }, type: 'N', gauge: 10.0, length: 1.0, live: false },
+    { id: 'W4', a: { c: 'Q_MAIN', t: 'N_OUT' }, b: { c: 'RCD1', t: 'N_IN' }, type: 'N', gauge: 10.0, length: 1.2, live: false },
+    { id: 'W5', a: { c: 'RCD1', t: '2' }, b: { c: 'Q_C1', t: '1' }, type: 'L1', gauge: 4.0, length: 1.5, live: false },
+    { id: 'W6', a: { c: 'RCD1', t: '2' }, b: { c: 'Q_C2', t: '1' }, type: 'L1', gauge: 4.0, length: 1.5, live: false },
+    { id: 'W7', a: { c: 'Q_C1', t: '2' }, b: { c: 'LAMP1', t: 'L' }, type: 'L1', gauge: 1.5, length: 3.5, live: false },
+    { id: 'W8', a: { c: 'LAMP1', t: 'N' }, b: { c: 'RCD1', t: 'N_OUT' }, type: 'N', gauge: 1.5, length: 3.5, live: false },
+    { id: 'W9', a: { c: 'Q_C2', t: '2' }, b: { c: 'OUTLET1', t: 'L' }, type: 'L1', gauge: 2.5, length: 4.0, live: false },
+    { id: 'W10', a: { c: 'OUTLET1', t: 'N' }, b: { c: 'RCD1', t: 'N_OUT' }, type: 'N', gauge: 2.5, length: 4.0, live: false }
   ];
 
   return { components, wires };
@@ -2054,103 +2169,94 @@ export function generateQgdProtectionCircuit(): { components: any[]; wires: any[
 export function generateSolarPVIsoCircuit(): { components: any[]; wires: any[] } {
   const components = [
     {
-      id: 'PV_STR1',
+      id: 'PV1',
       code: 'PV_PANEL',
       x: -360,
-      y: -40,
+      y: -60,
       rot: 0,
-      w: 120,
-      h: 80,
-      params: { power: 2700, voc: 288, isc: 11.2, vmpp: 249 },
+      w: 110,
+      h: 100,
+      params: { pMax: 550, voc: 49.8, isc: 13.9, vmpp: 41.8, impp: 13.15, irradiance: 1000 },
       state: { energized: true, running: true },
-      label: 'String FV (6x 450W • 2.7kWp)'
+      label: 'Módulo FV 1 (550W)'
     },
     {
-      id: 'SB1',
-      code: 'PV_STRINGBOX',
-      x: -190,
-      y: -40,
+      id: 'PV2',
+      code: 'PV_PANEL',
+      x: -230,
+      y: -60,
       rot: 0,
-      w: 115,
-      h: 80,
-      params: { vMax: 1000, closed: true },
-      state: { closed: true, tripped: false },
-      label: 'String Box CC + Seccionadora'
+      w: 110,
+      h: 100,
+      params: { pMax: 550, voc: 49.8, isc: 13.9, vmpp: 41.8, impp: 13.15, irradiance: 1000 },
+      state: { energized: true, running: true },
+      label: 'Módulo FV 2 (550W)'
     },
     {
-      id: 'SPD_DC1',
-      code: 'PV_SPD_DC',
-      x: -190,
+      id: 'BAT1',
+      code: 'BAT_LIFEPO4',
+      x: -360,
       y: 90,
-      rot: 0,
-      w: 95,
-      h: 70,
-      params: { uc: 600, in: 20, health: 100, status: 'green' },
-      state: { closed: true, tripped: false },
-      label: 'DPS CC 600Vdc'
-    },
-    {
-      id: 'INV1',
-      code: 'PV_INVERTER',
-      x: -20,
-      y: -40,
       rot: 0,
       w: 125,
       h: 85,
-      params: { pNom: 3000, mpptMin: 60, mpptMax: 500, voltage: 230 },
-      state: { energized: true, running: true, gridConnected: true },
-      label: 'Inversor Grid-Tie 3kW MPPT'
-    },
-    {
-      id: 'Q_AC1',
-      code: 'MCB2',
-      x: 140,
-      y: -40,
-      rot: 0,
-      w: 100,
-      h: 75,
-      params: { current: 16, curve: 'C', closed: true },
-      state: { closed: true, tripped: false, flagColor: 'red', leverPos: 'up' },
-      label: 'Disjuntor CA Inversor 16A'
-    },
-    {
-      id: 'RCD_PV',
-      code: 'RCD',
-      x: 270,
-      y: -40,
-      rot: 0,
-      w: 105,
-      h: 75,
-      params: { current: 25, leakage: 0.03, closed: true, testPressed: false },
-      state: { closed: true, tripped: false, flagColor: 'red', leverPos: 'up' },
-      label: 'IDR 30mA (Tipo B/CA)'
-    },
-    {
-      id: 'LOAD_AC1',
-      code: 'OUTLET',
-      x: 400,
-      y: -40,
-      rot: 0,
-      w: 90,
-      h: 70,
-      params: { current: 16, voltage: 230 },
+      params: { voltage: 51.2, capacityAh: 100, socPercent: 95 },
       state: { energized: true },
-      label: 'Cargas AC / Quadro QDL'
+      label: 'Bateria LiFePO4 48V'
+    },
+    {
+      id: 'INV1',
+      code: 'PV_INVERTER_OFFGRID',
+      x: -60,
+      y: 0,
+      rot: 0,
+      w: 125,
+      h: 90,
+      params: { powerW: 5000, batVoltage: 48, acOutVoltage: 230, running: true },
+      state: { energized: true, running: true, voltage: 230 },
+      label: 'Inversor Off-Grid 5kW'
+    },
+    {
+      id: 'METER1',
+      code: 'SMART_METER',
+      x: 120,
+      y: 0,
+      rot: 0,
+      w: 75,
+      h: 80,
+      params: { importedKWh: 0, exportedKWh: 0 },
+      state: { energized: true },
+      label: 'Smart Meter RS-485'
+    },
+    {
+      id: 'LAMP1',
+      code: 'LAMP',
+      x: 260,
+      y: 0,
+      rot: 0,
+      w: 85,
+      h: 85,
+      params: { power: 100, voltage: 230, pf: 1.0 },
+      state: { energized: true },
+      label: 'Cargas AC 230V'
     }
   ];
 
   const wires = [
-    { id: 'W_PV1', a: { c: 'PV_STR1', t: '+' }, b: { c: 'SB1', t: 'IN+' }, type: '24+', gauge: 4.0, length: 10.0, live: false },
-    { id: 'W_PV2', a: { c: 'PV_STR1', t: '-' }, b: { c: 'SB1', t: 'IN-' }, type: '24-', gauge: 4.0, length: 10.0, live: false },
-    { id: 'W_PE1', a: { c: 'PV_STR1', t: 'PE' }, b: { c: 'SB1', t: 'PE' }, type: 'PE', gauge: 6.0, length: 12.0, live: false },
-    { id: 'W_PV3', a: { c: 'SB1', t: 'OUT+' }, b: { c: 'INV1', t: 'PV+' }, type: '24+', gauge: 4.0, length: 2.0, live: false },
-    { id: 'W_PV4', a: { c: 'SB1', t: 'OUT-' }, b: { c: 'INV1', t: 'PV-' }, type: '24-', gauge: 4.0, length: 2.0, live: false },
-    { id: 'W_AC1', a: { c: 'INV1', t: 'L' }, b: { c: 'Q_AC1', t: '1' }, type: 'L1', gauge: 4.0, length: 1.5, live: false },
-    { id: 'W_AC2', a: { c: 'INV1', t: 'N' }, b: { c: 'RCD_PV', t: 'N_IN' }, type: 'N', gauge: 4.0, length: 2.5, live: false },
-    { id: 'W_AC3', a: { c: 'Q_AC1', t: '2' }, b: { c: 'RCD_PV', t: '1' }, type: 'L1', gauge: 4.0, length: 1.5, live: false },
-    { id: 'W_AC4', a: { c: 'RCD_PV', t: '2' }, b: { c: 'LOAD_AC1', t: 'L' }, type: 'L1', gauge: 2.5, length: 3.0, live: false },
-    { id: 'W_AC5', a: { c: 'RCD_PV', t: 'N_OUT' }, b: { c: 'LOAD_AC1', t: 'N' }, type: 'N', gauge: 2.5, length: 3.0, live: false },
-    { id: 'W_PE2', a: { c: 'INV1', t: 'PE' }, b: { c: 'LOAD_AC1', t: 'PE' }, type: 'PE', gauge: 4.0, length: 4.0, live: false }
+    // Ligação dos painéis em SÉRIE (+ do PV1 no - do PV2 para somar tensões)
+    { id: 'W_SERIE', a: { c: 'PV1', t: '+' }, b: { c: 'PV2', t: '-' }, type: '24+', gauge: 4.0, length: 1.5, live: true },
+    // String ligada na entrada PV do inversor
+    { id: 'W_PV_P', a: { c: 'PV2', t: '+' }, b: { c: 'INV1', t: 'PV+' }, type: '24+', gauge: 4.0, length: 3.0, live: true },
+    { id: 'W_PV_M', a: { c: 'PV1', t: '-' }, b: { c: 'INV1', t: 'PV-' }, type: '24-', gauge: 4.0, length: 4.5, live: true },
+    // Bateria ligada aos bornes BAT do inversor
+    { id: 'W_BAT_P', a: { c: 'BAT1', t: '+' }, b: { c: 'INV1', t: 'BAT+' }, type: '24+', gauge: 16.0, length: 2.0, live: true },
+    { id: 'W_BAT_M', a: { c: 'BAT1', t: '-' }, b: { c: 'INV1', t: 'BAT-' }, type: '24-', gauge: 16.0, length: 2.0, live: true },
+    // Saída CA 230V do inversor passando pelo Smart Meter
+    { id: 'W_AC_L', a: { c: 'INV1', t: 'AC_L' }, b: { c: 'METER1', t: 'L_IN' }, type: 'L1', gauge: 2.5, length: 2.0, live: true },
+    { id: 'W_AC_N', a: { c: 'INV1', t: 'AC_N' }, b: { c: 'METER1', t: 'N_IN' }, type: 'N', gauge: 2.5, length: 2.0, live: true },
+    // Smart Meter alimentando as cargas AC
+    { id: 'W_OUT_L', a: { c: 'METER1', t: 'L_OUT' }, b: { c: 'LAMP1', t: 'L' }, type: 'L1', gauge: 2.5, length: 2.0, live: true },
+    { id: 'W_OUT_N', a: { c: 'METER1', t: 'N_OUT' }, b: { c: 'LAMP1', t: 'N' }, type: 'N', gauge: 2.5, length: 2.0, live: true }
   ];
 
   return { components, wires };

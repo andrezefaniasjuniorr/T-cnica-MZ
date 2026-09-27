@@ -1,7 +1,7 @@
 // ============================================================================
 // TÉCNICAMZ PRO — MOTOR CAD ELÉTRICO & ELETRÔNICO: SIMBOLOGIA NORMATIVA & 3D REALISTA
-// Padrão Normativo: IEC 60617 / DIN EN 60617 & ISO 128
-// Renderização Física Pseudo-3D (PBR Canvas2D) para Automação Industrial
+// Padrão Normativo: IEC 60617 / DIN EN 60617, IEC 60669, IEC 60947 & ISO 13850
+// Renderização Física Pseudo-3D (PBR Canvas2D) Comercial para Comutação e Controle
 // ============================================================================
 
 import { ComponentDef, WIRE_COLORS } from './cadEngine';
@@ -167,7 +167,7 @@ export function drawNormativeSymbol(
       ctx.arc(0, 0, s * 0.75, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Símbolo DC Normativo (Linha contínua e tracejada)
+      // Símbolo DC Normativo
       ctx.beginPath();
       ctx.moveTo(-s * 0.35, -s * 0.15);
       ctx.lineTo(s * 0.35, -s * 0.15);
@@ -183,7 +183,6 @@ export function drawNormativeSymbol(
     }
 
     case 'GND': {
-      // Terra de Proteção (PE - IEC 60617-2)
       ctx.beginPath();
       ctx.moveTo(0, -s * 0.7);
       ctx.lineTo(0, 0);
@@ -197,30 +196,180 @@ export function drawNormativeSymbol(
       break;
     }
 
-    // COMUTADORES E INTERRUPTORES (3-WAY / 4-WAY - IEC 60617)
-    case 'THREE_WAY': {
-      const pos = st.state !== undefined ? st.state : (st.position || 0);
+    // INTERRUPTORES E COMUTADORES (IEC 60617-7)
+    case 'SW': {
+      const isClosed = Boolean(st.closed);
       ctx.beginPath();
-      // Terminal COM
-      ctx.arc(0, s * 0.6, 3 * zoom, 0, Math.PI * 2);
-      // Terminais de saída 1 e 2
+      ctx.arc(0, s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(0, -s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.45);
+      ctx.lineTo(isClosed ? 0 : s * 0.4, -s * 0.45);
+      ctx.stroke();
+      break;
+    }
+
+    case 'SW2': {
+      const isClosed = Boolean(st.closed);
+      for (let p = -1; p <= 1; p += 2) {
+        const ox = p * s * 0.4;
+        ctx.beginPath();
+        ctx.arc(ox, s * 0.5, 2 * zoom, 0, Math.PI * 2);
+        ctx.arc(ox, -s * 0.5, 2 * zoom, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(ox, s * 0.45);
+        ctx.lineTo(isClosed ? ox : ox + s * 0.35, -s * 0.45);
+        ctx.stroke();
+      }
+      ctx.setLineDash([2 * zoom, 2 * zoom]);
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.3, 0);
+      ctx.lineTo(s * 0.3, 0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      break;
+    }
+
+    case 'THREE_WAY': {
+      const pos = st.position !== undefined ? st.position : (st.closed ? 1 : 0);
+      ctx.beginPath();
+      ctx.arc(0, s * 0.6, 2.5 * zoom, 0, Math.PI * 2);
       ctx.arc(-s * 0.5, -s * 0.6, 2.5 * zoom, 0, Math.PI * 2);
       ctx.arc(s * 0.5, -s * 0.6, 2.5 * zoom, 0, Math.PI * 2);
       ctx.fill();
-      // Lâmina basculante comutadora
+
       ctx.beginPath();
-      ctx.moveTo(0, s * 0.5);
-      ctx.lineTo(pos === 0 ? -s * 0.45 : s * 0.45, -s * 0.5);
+      ctx.moveTo(0, s * 0.55);
+      ctx.lineTo(pos === 0 ? -s * 0.45 : s * 0.45, -s * 0.55);
       ctx.stroke();
       break;
     }
 
     case 'FOUR_WAY': {
-      const crossed = st.state !== undefined ? st.state : (st.crossed ? 1 : 0);
-      ctx.font = `bold ${Math.max(8, 10 * zoom)}px sans-serif`;
+      const crossed = Boolean(st.crossed ?? st.closed);
+      ctx.beginPath();
+      ctx.arc(-s * 0.4, -s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(s * 0.4, -s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(-s * 0.4, s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(s * 0.4, s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      if (!crossed) {
+        ctx.moveTo(-s * 0.4, -s * 0.4);
+        ctx.lineTo(-s * 0.4, s * 0.4);
+        ctx.moveTo(s * 0.4, -s * 0.4);
+        ctx.lineTo(s * 0.4, s * 0.4);
+      } else {
+        ctx.moveTo(-s * 0.4, -s * 0.4);
+        ctx.lineTo(s * 0.4, s * 0.4);
+        ctx.moveTo(s * 0.4, -s * 0.4);
+        ctx.lineTo(-s * 0.4, s * 0.4);
+      }
+      ctx.stroke();
+      break;
+    }
+
+    case 'SEL': {
+      const pos = Number(st.position ?? 0);
+      ctx.beginPath();
+      ctx.arc(0, s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(-s * 0.45, -s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(s * 0.45, -s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.45);
+      ctx.lineTo(pos === 0 ? -s * 0.4 : s * 0.4, -s * 0.45);
+      ctx.stroke();
+
+      ctx.font = `bold ${Math.max(6, 7 * zoom)}px sans-serif`;
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(crossed ? '⤮ 4-WAY' : '⇹ 4-WAY', 0, 0);
+      ctx.fillText('M', -s * 0.5, -s * 0.7);
+      ctx.fillText('A', s * 0.5, -s * 0.7);
+      break;
+    }
+
+    case 'DIMMER': {
+      const pct = Number(st.percent ?? 100);
+      ctx.beginPath();
+      ctx.rect(-s * 0.6, -s * 0.4, s * 1.2, s * 0.8);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.5, s * 0.5);
+      ctx.lineTo(s * 0.5, -s * 0.5);
+      ctx.lineTo(s * 0.2, -s * 0.5);
+      ctx.moveTo(s * 0.5, -s * 0.5);
+      ctx.lineTo(s * 0.5, -s * 0.2);
+      ctx.stroke();
+
+      ctx.font = `bold ${Math.max(7, 8 * zoom)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${pct}%`, 0, s * 0.75);
+      break;
+    }
+
+    case 'ESTOP': {
+      const isTripped = Boolean(st.pressed || st.tripped || !st.closed);
+      ctx.beginPath();
+      ctx.arc(0, s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(0, -s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.45);
+      ctx.lineTo(isTripped ? s * 0.4 : 0, -s * 0.45);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(isTripped ? s * 0.4 : 0, -s * 0.65, 4.5 * zoom, 0, Math.PI, true);
+      ctx.stroke();
+      break;
+    }
+
+    case 'LIMIT': {
+      const actuated = Boolean(st.actuated || st.pressed);
+      ctx.beginPath();
+      ctx.arc(0, s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(0, -s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.45);
+      ctx.lineTo(actuated ? s * 0.35 : 0, -s * 0.45);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(actuated ? s * 0.45 : s * 0.1, -s * 0.6, 3 * zoom, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+
+    case 'FLOAT': {
+      const isUp = Boolean(st.closed || st.high);
+      ctx.beginPath();
+      ctx.arc(0, s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.arc(0, -s * 0.5, 2.5 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.45);
+      ctx.lineTo(isUp ? 0 : s * 0.35, -s * 0.45);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(s * 0.4, 0, 4 * zoom, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(s * 0.2, 7 * zoom);
+      ctx.lineTo(s * 0.6, 7 * zoom);
+      ctx.stroke();
       break;
     }
 
@@ -274,14 +423,12 @@ export function drawNormativeSymbol(
       ctx.arc(0, 0, s * 0.8, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Placa de Base
       ctx.lineWidth = Math.max(2.5, 3 * zoom);
       ctx.beginPath();
       ctx.moveTo(-s * 0.3, -s * 0.45);
       ctx.lineTo(-s * 0.3, s * 0.45);
       ctx.stroke();
 
-      // Terminais
       ctx.lineWidth = Math.max(1.5, 1.8 * zoom);
       ctx.beginPath();
       ctx.moveTo(-s * 0.75, 0);
@@ -292,7 +439,6 @@ export function drawNormativeSymbol(
       ctx.lineTo(s * 0.45, s * 0.6);
       ctx.stroke();
 
-      // Seta de Emissor Preenchida
       ctx.beginPath();
       if (isNPN) {
         ctx.moveTo(s * 0.45, s * 0.6);
@@ -308,18 +454,15 @@ export function drawNormativeSymbol(
       break;
     }
 
-    // PASSIVOS & ELEMENTOS DE COMANDO (IEC 60617-4 / IEC 60617-7)
     case 'R':
     case 'POT': {
       const w = s * 0.8;
       const h = s * 0.3;
-      // Resistor Norma IEC (Retângulo limpo)
       ctx.beginPath();
       ctx.rect(-w * 0.6, -h, w * 1.2, h * 2);
       ctx.stroke();
 
       if (code === 'POT') {
-        // Seta de Ajuste Variável IEC
         ctx.beginPath();
         ctx.moveTo(-w * 0.5, h * 1.6);
         ctx.lineTo(w * 0.5, -h * 1.6);
@@ -359,7 +502,6 @@ export function drawNormativeSymbol(
       const isNO = code === 'PBNO';
       const pressed = Boolean(st.pressed || (isNO ? st.closed : !st.closed));
 
-      // Terminais FIXOS
       ctx.beginPath();
       ctx.arc(-s * 0.4, s * 0.2, 2.5 * zoom, 0, Math.PI * 2);
       ctx.arc(s * 0.4, s * 0.2, 2.5 * zoom, 0, Math.PI * 2);
@@ -367,7 +509,6 @@ export function drawNormativeSymbol(
 
       const barY = isNO ? (pressed ? s * 0.18 : -s * 0.15) : (pressed ? -s * 0.15 : s * 0.18);
 
-      // Ponte MÓVEL
       ctx.beginPath();
       ctx.moveTo(-s * 0.5, barY);
       ctx.lineTo(s * 0.5, barY);
@@ -432,9 +573,379 @@ export function drawMechanical3D(
   ctx.shadowOffsetY = 8 * zoom;
 
   // --------------------------------------------------------------------------
-  // A. EQUIPAMENTOS EM TRILHO DIN (Disjuntores, Contactores, Relés, PLCs)
+  // 1. INTERRUPTORES RESIDENCIAIS & COMERCIAIS (MODULARES 4x2)
   // --------------------------------------------------------------------------
-  if (
+  if (code === 'SW' || code === 'SW2' || code === 'SW_DOUBLE' || code === 'THREE_WAY' || code === 'FOUR_WAY') {
+    const plateW = cw * 0.92;
+    const plateH = ch * 0.86;
+    const plateRad = 5 * zoom;
+
+    const plateGrad = ctx.createLinearGradient(-plateW / 2, -plateH / 2, plateW / 2, plateH / 2);
+    plateGrad.addColorStop(0, '#f8fafc');
+    plateGrad.addColorStop(0.3, '#f1f5f9');
+    plateGrad.addColorStop(0.7, '#e2e8f0');
+    plateGrad.addColorStop(1, '#cbd5e1');
+
+    ctx.fillStyle = plateGrad;
+    ctx.beginPath();
+    ctx.roundRect(-plateW / 2, -plateH / 2, plateW, plateH, plateRad);
+    ctx.fill();
+
+    ctx.strokeStyle = isSel ? '#38bdf8' : '#94a3b8';
+    ctx.lineWidth = isSel ? 2.5 * zoom : 1.2 * zoom;
+    ctx.stroke();
+
+    const recessW = plateW * 0.74;
+    const recessH = plateH * 0.74;
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.roundRect(-recessW / 2, -recessH / 2, recessW, recessH, 3 * zoom);
+    ctx.fill();
+
+    if (code === 'SW_DOUBLE') {
+      const keyW = (recessW - 4 * zoom) / 2;
+      const keyH = recessH - 3 * zoom;
+      const states = [Boolean(st.closed1 ?? st.closed), Boolean(st.closed2)];
+
+      [-1, 1].forEach((dir, idx) => {
+        const kx = dir * (keyW / 2 + 1.5 * zoom);
+        const kOn = states[idx];
+        const tiltGrad = ctx.createLinearGradient(0, -keyH / 2, 0, keyH / 2);
+
+        if (kOn) {
+          tiltGrad.addColorStop(0, '#0f172a');
+          tiltGrad.addColorStop(0.5, '#1e293b');
+          tiltGrad.addColorStop(1, '#475569');
+        } else {
+          tiltGrad.addColorStop(0, '#475569');
+          tiltGrad.addColorStop(0.5, '#1e293b');
+          tiltGrad.addColorStop(1, '#0f172a');
+        }
+
+        ctx.fillStyle = tiltGrad;
+        ctx.beginPath();
+        ctx.roundRect(kx - keyW / 2, -keyH / 2, keyW, keyH, 2 * zoom);
+        ctx.fill();
+
+        ctx.fillStyle = kOn ? '#22c55e' : '#475569';
+        ctx.beginPath();
+        ctx.arc(kx, kOn ? keyH * 0.35 : -keyH * 0.35, 2 * zoom, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+    } else {
+      const isPosActive = code === 'THREE_WAY'
+        ? (Number(st.position ?? (st.closed ? 1 : 0)) === 1)
+        : code === 'FOUR_WAY'
+        ? Boolean(st.crossed ?? st.closed)
+        : Boolean(st.closed || st.rockerAngle === 1);
+
+      const keyW = recessW - 3 * zoom;
+      const keyH = recessH - 3 * zoom;
+
+      const tiltGrad = ctx.createLinearGradient(0, -keyH / 2, 0, keyH / 2);
+      if (isPosActive) {
+        tiltGrad.addColorStop(0, '#0f172a');
+        tiltGrad.addColorStop(0.48, '#1e293b');
+        tiltGrad.addColorStop(0.52, '#334155');
+        tiltGrad.addColorStop(1, '#64748b');
+      } else {
+        tiltGrad.addColorStop(0, '#64748b');
+        tiltGrad.addColorStop(0.48, '#334155');
+        tiltGrad.addColorStop(0.52, '#1e293b');
+        tiltGrad.addColorStop(1, '#0f172a');
+      }
+
+      ctx.fillStyle = tiltGrad;
+      ctx.beginPath();
+      ctx.roundRect(-keyW / 2, -keyH / 2, keyW, keyH, 2.5 * zoom);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.lineWidth = 1 * zoom;
+      ctx.beginPath();
+      ctx.moveTo(-keyW / 2 + 3 * zoom, 0);
+      ctx.lineTo(keyW / 2 - 3 * zoom, 0);
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (code === 'FOUR_WAY') {
+        ctx.fillStyle = isPosActive ? '#38bdf8' : '#eab308';
+        ctx.font = `bold ${Math.max(10, 13 * zoom)}px monospace`;
+        ctx.fillText(isPosActive ? '✕' : '═', 0, 0);
+
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = `bold ${Math.max(5.5, 6.5 * zoom)}px sans-serif`;
+        ctx.fillText(isPosActive ? 'CRUZADO' : 'DIRETO', 0, isPosActive ? -keyH * 0.28 : keyH * 0.28);
+
+      } else if (code === 'THREE_WAY') {
+        ctx.fillStyle = isPosActive ? '#38bdf8' : '#94a3b8';
+        ctx.font = `bold ${Math.max(7.5, 9 * zoom)}px sans-serif`;
+        ctx.fillText('▼ R2', 0, keyH * 0.25);
+
+        ctx.fillStyle = !isPosActive ? '#38bdf8' : '#94a3b8';
+        ctx.fillText('▲ R1', 0, -keyH * 0.25);
+
+      } else if (code === 'SW2') {
+        ctx.fillStyle = isPosActive ? '#22c55e' : '#64748b';
+        ctx.font = `bold ${Math.max(8, 10 * zoom)}px monospace`;
+        ctx.fillText(isPosActive ? '2P • I' : '2P • O', 0, isPosActive ? keyH * 0.25 : -keyH * 0.25);
+
+      } else {
+        ctx.fillStyle = isPosActive ? '#22c55e' : '#64748b';
+        ctx.font = `bold ${Math.max(8, 10 * zoom)}px monospace`;
+        ctx.fillText(isPosActive ? 'I' : 'O', 0, isPosActive ? keyH * 0.25 : -keyH * 0.25);
+      }
+
+      const dotY = isPosActive ? keyH * 0.36 : -keyH * 0.36;
+      ctx.fillStyle = isPosActive ? '#22c55e' : '#475569';
+      ctx.beginPath();
+      ctx.arc(0, dotY, 2.4 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+  // --------------------------------------------------------------------------
+  // 2. DIMMER ROTATIVO COM KNOB ESCALONADO E DISPLAY DE NÍVEL
+  // --------------------------------------------------------------------------
+  } else if (code === 'DIMMER') {
+    const percent = Math.max(0, Math.min(100, Number(st.percent ?? 100)));
+    const knobR = Math.min(cw, ch) * 0.32;
+    const startAng = -135 * (Math.PI / 180);
+    const totalAng = 270 * (Math.PI / 180);
+    const currAng = startAng + (percent / 100) * totalAng;
+
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 6 * zoom);
+    ctx.fill();
+    ctx.strokeStyle = isSel ? '#38bdf8' : '#334155';
+    ctx.lineWidth = isSel ? 2 * zoom : 1 * zoom;
+    ctx.stroke();
+
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 4 * zoom;
+    ctx.beginPath();
+    ctx.arc(0, 0, knobR + 7 * zoom, startAng, startAng + totalAng);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(0, 0, knobR + 7 * zoom, startAng, currAng);
+    ctx.stroke();
+
+    drawMetallicTexture(ctx, 0, 0, knobR, currAng);
+
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 2.5 * zoom;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(currAng) * (knobR * 0.8), Math.sin(currAng) * (knobR * 0.8));
+    ctx.stroke();
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = `bold ${Math.max(7, 8.5 * zoom)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${percent}%`, 0, ch / 2 - 6 * zoom);
+
+  // --------------------------------------------------------------------------
+  // 3. CHAVE SELETORA ROTATIVA (MAN - O - AUTO)
+  // --------------------------------------------------------------------------
+  } else if (code === 'SEL') {
+    const pos = Number(st.position ?? 0);
+    const ang = pos === -1 ? -0.7 : pos === 1 ? 0.7 : 0;
+
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 6 * zoom);
+    ctx.fill();
+    ctx.strokeStyle = isSel ? '#38bdf8' : '#334155';
+    ctx.lineWidth = isSel ? 2 * zoom : 1 * zoom;
+    ctx.stroke();
+
+    const fR = Math.min(cw, ch) * 0.36;
+    drawMetallicTexture(ctx, 0, 0, fR, 0);
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.font = `bold ${Math.max(6, 7.5 * zoom)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('MAN', -fR * 0.75, -fR * 0.65);
+    ctx.fillText('0', 0, -fR * 0.85);
+    ctx.fillText('AUTO', fR * 0.75, -fR * 0.65);
+
+    ctx.save();
+    ctx.rotate(ang);
+    const kGrad = ctx.createLinearGradient(-6 * zoom, -fR * 0.6, 6 * zoom, fR * 0.6);
+    kGrad.addColorStop(0, '#475569');
+    kGrad.addColorStop(0.5, '#0f172a');
+    kGrad.addColorStop(1, '#020617');
+
+    ctx.fillStyle = kGrad;
+    ctx.beginPath();
+    ctx.roundRect(-5 * zoom, -fR * 0.75, 10 * zoom, fR * 1.5, 3 * zoom);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-2 * zoom, -fR * 0.7, 4 * zoom, 7 * zoom);
+    ctx.restore();
+
+  // --------------------------------------------------------------------------
+  // 4. BOTOEIRA DE EMERGÊNCIA (ISO 13850 - COGUMELO 40mm COM TRAVA)
+  // --------------------------------------------------------------------------
+  } else if (code === 'ESTOP') {
+    const isActuated = Boolean(st.pressed || st.tripped || !st.closed);
+    const rOuter = Math.min(cw, ch) * 0.44;
+
+    ctx.fillStyle = '#facc15';
+    ctx.strokeStyle = '#ca8a04';
+    ctx.lineWidth = 2 * zoom;
+    ctx.beginPath();
+    ctx.arc(0, 0, rOuter, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `bold ${Math.max(5.5, 6.5 * zoom)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('EMERGENCY STOP', 0, -rOuter + 8 * zoom);
+
+    const mushR = rOuter * 0.65;
+    const travel = isActuated ? 3.5 * zoom : 0;
+
+    const mushGrad = ctx.createRadialGradient(-3 * zoom, -3 * zoom + travel, mushR * 0.15, 0, travel, mushR);
+    mushGrad.addColorStop(0, '#f87171');
+    mushGrad.addColorStop(0.4, '#dc2626');
+    mushGrad.addColorStop(0.8, '#991b1b');
+    mushGrad.addColorStop(1, '#450a0a');
+
+    ctx.fillStyle = mushGrad;
+    ctx.beginPath();
+    ctx.arc(0, travel, mushR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = isActuated ? '#ef4444' : '#ffffff';
+    ctx.lineWidth = 1.2 * zoom;
+    ctx.stroke();
+
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 1.4 * zoom;
+    ctx.beginPath();
+    ctx.arc(0, travel, mushR * 0.45, 0.4, Math.PI * 1.6);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fef08a';
+    ctx.font = `bold ${Math.max(5, 6 * zoom)}px sans-serif`;
+    ctx.fillText('RESET ↻', 0, travel + 2 * zoom);
+
+  // --------------------------------------------------------------------------
+  // 5. FIM DE CURSO BLINDADO (LIMIT SWITCH COM ROLETE ARTICULADO)
+  // --------------------------------------------------------------------------
+  } else if (code === 'LIMIT') {
+    const isHit = Boolean(st.actuated || st.pressed);
+
+    const bodyW = cw * 0.72;
+    const bodyH = ch * 0.55;
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.roundRect(-bodyW / 2, -bodyH * 0.2, bodyW, bodyH, 4 * zoom);
+    ctx.fill();
+    ctx.strokeStyle = isSel ? '#38bdf8' : '#1e293b';
+    ctx.lineWidth = 1.5 * zoom;
+    ctx.stroke();
+
+    drawIndustrialScrew(ctx, -bodyW * 0.35, 0, 2.5 * zoom);
+    drawIndustrialScrew(ctx, bodyW * 0.35, 0, 2.5 * zoom);
+
+    const armAng = isHit ? 0.35 : -0.2;
+    ctx.save();
+    ctx.translate(0, -bodyH * 0.2);
+    ctx.rotate(armAng);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(-2.5 * zoom, -20 * zoom, 5 * zoom, 20 * zoom);
+
+    drawMetallicTexture(ctx, 0, -22 * zoom, 7 * zoom, armAng);
+    ctx.restore();
+
+  // --------------------------------------------------------------------------
+  // 6. BÓIA DE NÍVEL ESTANQUE IP68 (CÁPSULA COM CABO E ESFERA)
+  // --------------------------------------------------------------------------
+  } else if (code === 'FLOAT') {
+    const isTilted = Boolean(st.closed || st.high);
+    const tilt = isTilted ? 0.45 : -0.45;
+
+    ctx.save();
+    ctx.rotate(tilt);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(-3 * zoom, -ch * 0.45, 6 * zoom, 12 * zoom);
+
+    const fGrad = ctx.createLinearGradient(-15 * zoom, 0, 15 * zoom, 0);
+    fGrad.addColorStop(0, '#ea580c');
+    fGrad.addColorStop(0.5, '#f97316');
+    fGrad.addColorStop(1, '#c2410c');
+
+    ctx.fillStyle = fGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 14 * zoom, 22 * zoom, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#7c2d12';
+    ctx.lineWidth = 1.2 * zoom;
+    ctx.stroke();
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath();
+    ctx.arc(0, isTilted ? 10 * zoom : -10 * zoom, 5 * zoom, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+  // --------------------------------------------------------------------------
+  // 7. BOTOEIRAS PULSADORAS NA/NF (22mm METÁLICAS)
+  // --------------------------------------------------------------------------
+  } else if (code === 'PBNO' || code === 'PBNC') {
+    const isNO = code === 'PBNO';
+    const isPressed = Boolean(st.pressed);
+    const rOuter = Math.min(cw, ch) * 0.38;
+
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 6 * zoom);
+    ctx.fill();
+
+    drawMetallicTexture(ctx, 0, 0, rOuter, 2.35);
+
+    const travel = isPressed ? 2.5 * zoom : 0;
+    const rBtn = (rOuter - 4 * zoom) - (isPressed ? 1 * zoom : 0);
+
+    const btnGrad = ctx.createRadialGradient(-rBtn * 0.35, -rBtn * 0.35 + travel, rBtn * 0.1, 0, travel, rBtn);
+    if (isNO) {
+      btnGrad.addColorStop(0, '#86efac');
+      btnGrad.addColorStop(0.4, '#22c55e');
+      btnGrad.addColorStop(0.8, '#15803d');
+      btnGrad.addColorStop(1, '#052e16');
+    } else {
+      btnGrad.addColorStop(0, '#fca5a5');
+      btnGrad.addColorStop(0.4, '#ef4444');
+      btnGrad.addColorStop(0.8, '#991b1b');
+      btnGrad.addColorStop(1, '#450a0a');
+    }
+
+    ctx.fillStyle = btnGrad;
+    ctx.beginPath();
+    ctx.arc(0, travel, rBtn, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.max(9, 11 * zoom)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isNO ? 'I' : 'O', 0, travel);
+
+  // --------------------------------------------------------------------------
+  // 8. EQUIPAMENTOS DIN (DISJUNTORES, CONTACTORES, RELÉS, FUSÍVEIS)
+  // --------------------------------------------------------------------------
+  } else if (
     kind === 'breaker' ||
     kind === 'breaker3' ||
     kind === 'contactor' ||
@@ -446,7 +957,6 @@ export function drawMechanical3D(
     kind === 'plc' ||
     kind === 'vfd'
   ) {
-    // Carcaça Termoplástica de Alta Resistência V0 (Texturizada)
     const baseGrad = ctx.createLinearGradient(-cw / 2, -ch / 2, cw / 2, ch / 2);
     if (isTripped) {
       baseGrad.addColorStop(0, '#450a0a');
@@ -460,23 +970,15 @@ export function drawMechanical3D(
     }
 
     ctx.fillStyle = baseGrad;
-    ctx.strokeStyle = isSel
-      ? '#38bdf8'
-      : isTripped
-      ? '#ef4444'
-      : isEnergized
-      ? '#10b981'
-      : '#475569';
+    ctx.strokeStyle = isSel ? '#38bdf8' : isTripped ? '#ef4444' : isEnergized ? '#10b981' : '#475569';
     ctx.lineWidth = isSel ? 2.5 * zoom : 1.2 * zoom;
 
-    // Perfil Chanfrado do Módulo DIN (ISO/EN 50022)
     const rCorner = 4 * zoom;
     ctx.beginPath();
     ctx.roundRect(-cw / 2, -ch / 2, cw, ch, rCorner);
     ctx.fill();
     ctx.stroke();
 
-    // Reflexo Especular de Luz no Ângulo do Painel Superior
     ctx.shadowColor = 'transparent';
     const specGrad = ctx.createLinearGradient(-cw / 2, -ch / 2, -cw / 2, -ch / 2 + 12 * zoom);
     specGrad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
@@ -486,34 +988,23 @@ export function drawMechanical3D(
     ctx.roundRect(-cw / 2 + 1, -ch / 2 + 1, cw - 2, 10 * zoom, [rCorner, rCorner, 0, 0]);
     ctx.fill();
 
-    // Ranhuras de Travamento do Trilho DIN 35mm
-    ctx.fillStyle = '#020617';
-    ctx.fillRect(-cw * 0.45, -ch / 2 + 2 * zoom, cw * 0.9, 3 * zoom);
-    ctx.fillRect(-cw * 0.45, ch / 2 - 5 * zoom, cw * 0.9, 3 * zoom);
-
-    // Bornes de Ligação em Cobre/Aço com Parafusos Imperdíveis
     const nTerminals = kind === 'breaker3' || kind === 'contactor' ? 3 : 2;
     for (let i = 0; i < nTerminals; i++) {
       const step = (cw * 0.68) / (nTerminals - 1 || 1);
       const sx = -cw * 0.34 + i * step;
 
-      // Túnel de Entrada de Cabos
       ctx.fillStyle = '#090d16';
       ctx.beginPath();
       ctx.arc(sx, -ch / 2 + 9 * zoom, 5 * zoom, 0, Math.PI * 2);
       ctx.arc(sx, ch / 2 - 9 * zoom, 5 * zoom, 0, Math.PI * 2);
       ctx.fill();
 
-      // Parafusos M3/M4 dos Bornes
       drawIndustrialScrew(ctx, sx, -ch / 2 + 9 * zoom, 3.8 * zoom, 0.4);
       drawIndustrialScrew(ctx, sx, ch / 2 - 9 * zoom, 3.8 * zoom, 1.2);
     }
 
-    // DISJUNTORES (MCB/MCCB): Alavanca Bipolar/Tripolar com Trava Mecânica
     if (kind === 'breaker' || kind === 'breaker3' || kind === 'overload' || kind === 'rcd' || kind === 'rcbo') {
       const isClosed = Boolean(st.closed && !isTripped);
-
-      // Flag Visual de Estado Mecânico (Norma IEC: Vermelho=LIG/ON, Verde=DESL/OFF)
       const flagW = cw * 0.38;
       const flagH = 6 * zoom;
       const flagY = -ch * 0.28;
@@ -526,24 +1017,15 @@ export function drawMechanical3D(
       ctx.lineWidth = 0.8;
       ctx.stroke();
 
-      // Texto de Flag Impresso
       ctx.fillStyle = '#ffffff';
       ctx.font = `black ${Math.max(6, 7 * zoom)}px monospace`;
       ctx.textAlign = 'center';
       ctx.fillText(isTripped ? 'TRIP' : isClosed ? 'I-ON' : 'O-OFF', 0, flagY + flagH * 0.8);
 
-      // Alavanca Basculante 3D (Toggle Switch)
       const levW = Math.min(cw * 0.4, 22 * zoom);
       const levH = 24 * zoom;
       const levY = isClosed ? -10 * zoom : 2 * zoom;
 
-      // Sombra Dinâmica da Alavanca
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.beginPath();
-      ctx.roundRect(-levW / 2 + 2, levY + 4, levW, levH, 3 * zoom);
-      ctx.fill();
-
-      // Cor do Atuador
       const levGrad = ctx.createLinearGradient(0, levY, 0, levY + levH);
       if (isTripped) {
         levGrad.addColorStop(0, '#f87171');
@@ -562,30 +1044,17 @@ export function drawMechanical3D(
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = 0.8 * zoom;
       ctx.stroke();
-
-      // Ranhuras Antiderrapantes na Alavanca
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-      ctx.lineWidth = 1 * zoom;
-      for (let r = 1; r <= 3; r++) {
-        ctx.beginPath();
-        ctx.moveTo(-levW * 0.35, levY + r * 5 * zoom);
-        ctx.lineTo(levW * 0.35, levY + r * 5 * zoom);
-        ctx.stroke();
-      }
     }
 
-    // CONTACTORES E RELÉS: Armadura Móvel (Plunger Magnet) e Núcleo Rebaixado
     if (kind === 'contactor' || kind === 'relay') {
       const coilOn = Boolean(st.energized);
       const pW = cw * 0.62;
       const pH = ch * 0.25;
       const pY = -pH / 2;
 
-      // Cavidade Interna da Armadura
       ctx.fillStyle = '#020617';
       ctx.fillRect(-pW / 2 - 1.5, pY - 1.5, pW + 3, pH + 3);
 
-      // Armadura Solenóide Recuada/Atracada
       const plungeOffset = coilOn ? 2.5 * zoom : 0;
       const pGrad = ctx.createLinearGradient(0, pY, 0, pY + pH);
 
@@ -601,114 +1070,26 @@ export function drawMechanical3D(
 
       ctx.fillStyle = pGrad;
       ctx.beginPath();
-      ctx.roundRect(
-        -pW / 2 + plungeOffset * 0.5,
-        pY + plungeOffset,
-        pW - plungeOffset,
-        pH,
-        3 * zoom
-      );
+      ctx.roundRect(-pW / 2 + plungeOffset * 0.5, pY + plungeOffset, pW - plungeOffset, pH, 3 * zoom);
       ctx.fill();
       ctx.strokeStyle = coilOn ? '#6ee7b7' : '#64748b';
       ctx.lineWidth = 1 * zoom;
       ctx.stroke();
-
-      // Indicador Óptico de Bobina Energizada (LED Status)
-      ctx.fillStyle = coilOn ? '#34d399' : '#334155';
-      ctx.shadowColor = coilOn ? '#34d399' : 'transparent';
-      ctx.shadowBlur = 8 * zoom;
-      ctx.beginPath();
-      ctx.arc(-pW / 2 + 6 * zoom, pY + pH / 2, 2 * zoom, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
     }
 
-    // Placa de Identificação Laser (Gravação Técnica)
     ctx.fillStyle = '#94a3b8';
     ctx.font = `bold ${Math.max(7, 8 * zoom)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText(code, 0, ch / 2 - 18 * zoom);
 
-  } else if (kind === 'push' || kind === 'switch') {
-    // ------------------------------------------------------------------------
-    // B. BOTOEIRAS INDUSTRIAIS IP65 (Anel Cromado, Atuador de Silicone)
-    // ------------------------------------------------------------------------
-    const isNO = code === 'PBNO';
-    const isPressed = Boolean(st.pressed);
-    const isEmergency = Boolean(code === 'ESTOP');
-
-    // Flange Industrial de Fixação em Painel
-    const flangeGrad = ctx.createLinearGradient(-cw / 2, -ch / 2, cw / 2, ch / 2);
-    flangeGrad.addColorStop(0, '#1e293b');
-    flangeGrad.addColorStop(1, '#020617');
-    ctx.fillStyle = flangeGrad;
-    ctx.beginPath();
-    ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 8 * zoom);
-    ctx.fill();
-    ctx.strokeStyle = isSel ? '#38bdf8' : '#334155';
-    ctx.lineWidth = isSel ? 2 * zoom : 1 * zoom;
-    ctx.stroke();
-
-    // Anel Biselado Metálico Cromado (Bezel Industrial)
-    const rOuter = Math.min(cw, ch) * 0.38;
-    drawMetallicTexture(ctx, 0, 0, rOuter, 2.35);
-
-    // Atuador Cilíndrico com Recuo Físico no Clique
-    const travel = isPressed ? 2.5 * zoom : 0;
-    const rBtn = (rOuter - 4.5 * zoom) - (isPressed ? 1 * zoom : 0);
-
-    const btnGrad = ctx.createRadialGradient(
-      -rBtn * 0.35,
-      -rBtn * 0.35 + travel,
-      rBtn * 0.1,
-      0,
-      travel,
-      rBtn
-    );
-
-    if (isEmergency) {
-      btnGrad.addColorStop(0, '#fca5a5');
-      btnGrad.addColorStop(0.4, '#dc2626');
-      btnGrad.addColorStop(0.8, '#991b1b');
-      btnGrad.addColorStop(1, '#450a0a');
-    } else if (isNO) {
-      btnGrad.addColorStop(0, '#a7f3d0');
-      btnGrad.addColorStop(0.4, '#16a34a');
-      btnGrad.addColorStop(0.8, '#166534');
-      btnGrad.addColorStop(1, '#052e16');
-    } else {
-      btnGrad.addColorStop(0, '#fca5a5');
-      btnGrad.addColorStop(0.4, '#dc2626');
-      btnGrad.addColorStop(0.8, '#991b1b');
-      btnGrad.addColorStop(1, '#450a0a');
-    }
-
-    ctx.fillStyle = btnGrad;
-    ctx.beginPath();
-    ctx.arc(0, travel, rBtn, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Anel de Vedação em Borracha NBR
-    ctx.strokeStyle = isPressed ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 1.2 * zoom;
-    ctx.stroke();
-
-    // Símbolo Tampografado na Face do Botão
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `black ${Math.max(9, 11 * zoom)}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(isEmergency ? 'EMERG' : isNO ? 'I' : 'O', 0, travel);
-
+  // --------------------------------------------------------------------------
+  // 9. MOTORES TRIFÁSICOS / MONOFÁSICOS
+  // --------------------------------------------------------------------------
   } else if (kind === 'motor3' || kind === 'motor1' || kind === 'fan') {
-    // ------------------------------------------------------------------------
-    // C. MOTOR ELÉTRICO ASÍNCRONO TRIFÁSICO (IEC Frame - Carcaça Aletada)
-    // ------------------------------------------------------------------------
     const isRunning = Boolean(st.running);
     const rpm = isRunning ? st.rpm || 1450 : 0;
     const r = Math.min(cw, ch) * 0.42;
 
-    // Carcaça Aletada
     const motorGrad = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
     motorGrad.addColorStop(0, '#38bdf8');
     motorGrad.addColorStop(0.7, '#0284c7');
@@ -722,24 +1103,21 @@ export function drawMechanical3D(
     ctx.lineWidth = 2 * zoom;
     ctx.stroke();
 
-    // Aletas Radiais de Resfriamento
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-    ctx.lineWidth = 1.2 * zoom;
     for (let i = 0; i < 12; i++) {
       const ang = (i * Math.PI) / 6;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1.2 * zoom;
       ctx.beginPath();
       ctx.moveTo(Math.cos(ang) * (r * 0.5), Math.sin(ang) * (r * 0.5));
       ctx.lineTo(Math.cos(ang) * (r * 0.95), Math.sin(ang) * (r * 0.95));
       ctx.stroke();
     }
 
-    // Tampa do Eixo Central / Rolamento
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
     ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2);
     ctx.fill();
 
-    // Eixo Rotativo com Chaveta
     const rotAng = isRunning ? (time * 0.01 * (rpm / 100)) % (Math.PI * 2) : 0;
     ctx.save();
     ctx.rotate(rotAng);
@@ -747,31 +1125,22 @@ export function drawMechanical3D(
     ctx.beginPath();
     ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2);
     ctx.fill();
-    // Chaveta
     ctx.fillStyle = '#0284c7';
     ctx.fillRect(r * 0.08, -2 * zoom, r * 0.1, 4 * zoom);
     ctx.restore();
 
-    // Caixa de Bornes Superior
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(-cw * 0.25, -r - 8 * zoom, cw * 0.5, 9 * zoom);
-    ctx.strokeStyle = '#475569';
-    ctx.strokeRect(-cw * 0.25, -r - 8 * zoom, cw * 0.5, 9 * zoom);
-
+  // --------------------------------------------------------------------------
+  // 10. LÂMPADAS E SINALIZADORES PILOTO
+  // --------------------------------------------------------------------------
   } else if (kind === 'lamp' || kind.startsWith('pilot')) {
-    // ------------------------------------------------------------------------
-    // D. SINALIZADORES E ILUMINAÇÃO
-    // ------------------------------------------------------------------------
     const isOn = Boolean(st.on || isEnergized);
     const r = Math.min(cw, ch) * 0.36;
     const isGreen = code.includes('GREEN') || st.color === 'green';
     const isRed = code.includes('RED') || st.color === 'red';
     const isYellow = code.includes('YELLOW') || st.color === 'yellow';
 
-    // Base metálica cilíndrica
     drawMetallicTexture(ctx, 0, 0, r * 1.15, 0.4);
 
-    // Lente translúcida
     const lensGrad = ctx.createRadialGradient(-r * 0.25, -r * 0.25, 1, 0, 0, r);
     if (isOn) {
       if (isGreen) {
@@ -804,10 +1173,10 @@ export function drawMechanical3D(
     ctx.lineWidth = 1.5 * zoom;
     ctx.stroke();
 
+  // --------------------------------------------------------------------------
+  // 11. DEMAIS DISPOSITIVOS (FALLBACK NORMATIVO)
+  // --------------------------------------------------------------------------
   } else {
-    // ------------------------------------------------------------------------
-    // E. DISPOSITIVOS GENÉRICOS / SENSORES
-    // ------------------------------------------------------------------------
     ctx.fillStyle = '#1e293b';
     ctx.beginPath();
     ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 6 * zoom);

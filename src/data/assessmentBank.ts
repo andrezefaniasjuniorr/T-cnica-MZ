@@ -725,6 +725,10 @@ function buildOperationalPointsQuestions(lesson: AcademyLesson): RawQuestion[] {
  * Gerador de Banco de 15 a 25 Questões Técnicas Especializadas para qualquer lição (ZERO TEMPLATES)
  */
 export function generateQuestionPoolForLesson(lesson: AcademyLesson): AssessmentMCQuestion[] {
+  if (lesson.assessmentQuestions && lesson.assessmentQuestions.length > 0) {
+    return lesson.assessmentQuestions;
+  }
+
   const code = (lesson.code || '').toLowerCase();
   const title = (lesson.title || '').toLowerCase();
   const norma = lesson.norma || 'IEC 60364';
@@ -834,6 +838,49 @@ export function generateAssessmentForLesson(
   technicianName: string = 'Técnico Autorizado',
   technicianId: string = 'guest'
 ): AssessmentAttempt {
+  // Caso a lição possua exatamente as 3 questões purificadas exclusivas:
+  if (lesson.assessmentQuestions && lesson.assessmentQuestions.length === 3) {
+    const formattedMC = lesson.assessmentQuestions.map((q, idx) => ({
+      ...q,
+      points: idx === 2 ? 34 : 33, // 33 + 33 + 34 = 100 pontos totais
+      options: shuffleOptionsWithLabels(q.options)
+    }));
+
+    const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const authCode = `TMZ-ACAD-${dateStr}-${randomHex}`;
+
+    return {
+      attemptId: `${lesson.id}_att_${Date.now()}`,
+      attemptNumber,
+      maxAttempts: 3,
+      lessonId: lesson.id,
+      lessonCode: lesson.code || 'EC',
+      lessonTitle: lesson.title,
+      moduleTitle: lesson.moduleTitle,
+      norma: lesson.norma,
+      technicianName,
+      technicianId,
+      date: new Date().toLocaleDateString('pt-PT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      authCode,
+      mcQuestions: formattedMC,
+      mcAnswers: {},
+      mcEarnedPoints: 0,
+      mcTotalPoints: 100,
+      correctAnswersCount: 0,
+      totalQuestionsCount: 3,
+      finalScorePercent: 0,
+      status: 'NAO_ALCANCA',
+      isPassed: false
+    };
+  }
+
   // 1. Obter o banco extenso completo da lição (15 a 25 questões ricas e sem templates)
   const fullPool = generateQuestionPoolForLesson(lesson);
 

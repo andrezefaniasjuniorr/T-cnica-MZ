@@ -173,6 +173,185 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
     );
   };
 
+  /**
+   * Renderizador visual SVG próprio para cada tipo de componente no preview
+   */
+  const renderDeviceVisualSvg = (c: any) => {
+    const d = getComponentDef(c.code);
+    const w = c.w || 90;
+    const h = c.h || 80;
+    const isClosed = Boolean(c.state?.closed);
+    const isTripped = Boolean(c.state?.tripped);
+
+    // 1. Interruptores e Comutadores (Moldura 4x2 com Tecla Basculante)
+    if (['SW', 'SW2', 'SW_DOUBLE', 'THREE_WAY', 'FOUR_WAY'].includes(c.code)) {
+      const isPosActive = c.code === 'THREE_WAY'
+        ? Number(c.params?.position ?? 0) === 1
+        : c.code === 'FOUR_WAY'
+        ? Boolean(c.params?.crossed)
+        : isClosed;
+
+      return (
+        <g>
+          {/* Espelho ABS Branco */}
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#F1F5F9" stroke="#94A3B8" strokeWidth="1.2" />
+          {/* Berço escuro rebaixado */}
+          <rect x={-w * 0.36} y={-h * 0.35} width={w * 0.72} height={h * 0.7} rx="3" fill="#0F172A" />
+          
+          {c.code === 'SW_DOUBLE' ? (
+            <g>
+              <rect x={-w * 0.32} y={-h * 0.3} width={w * 0.3} height={h * 0.6} rx="2" fill="#334155" />
+              <rect x={w * 0.02} y={-h * 0.3} width={w * 0.3} height={h * 0.6} rx="2" fill="#334155" />
+              <circle cx={-w * 0.17} cy={h * 0.15} r="2" fill="#22C55E" />
+              <circle cx={w * 0.17} cy={h * 0.15} r="2" fill="#475569" />
+            </g>
+          ) : (
+            <g>
+              {/* Tecla basculante */}
+              <rect x={-w * 0.33} y={-h * 0.32} width={w * 0.66} height={h * 0.64} rx="3" fill={isPosActive ? '#1E293B' : '#475569'} />
+              <line x1={-w * 0.3} y1="0" x2={w * 0.3} y2="0" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+              {/* Ponto indicador tátil */}
+              <circle cx="0" cy={isPosActive ? h * 0.2 : -h * 0.2} r="2.5" fill={isPosActive ? '#22C55E' : '#64748B'} />
+              <text x="0" y="2" fill="#FFFFFF" fontSize="8" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
+                {c.code === 'FOUR_WAY' ? (isPosActive ? '✕' : '═') : c.code === 'THREE_WAY' ? (isPosActive ? 'R2' : 'R1') : (isPosActive ? 'I' : 'O')}
+              </text>
+            </g>
+          )}
+        </g>
+      );
+    }
+
+    // 2. Dimmer Rotativo
+    if (c.code === 'DIMMER') {
+      const pct = Number(c.params?.percent ?? 100);
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#1E293B" stroke="#475569" strokeWidth="1.2" />
+          <circle cx="0" cy="-2" r={Math.min(w, h) * 0.34} fill="#0F172A" stroke="#38BDF8" strokeWidth="1.5" />
+          <circle cx="0" cy="-2" r={Math.min(w, h) * 0.22} fill="#334155" stroke="#94A3B8" strokeWidth="1" />
+          <line x1="0" y1="-2" x2="6" y2="-12" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" />
+          <text x="0" y={h / 2 - 6} fill="#38BDF8" fontSize="7.5" fontWeight="bold" textAnchor="middle">{pct}%</text>
+        </g>
+      );
+    }
+
+    // 3. Chave Seletora Man/Auto
+    if (c.code === 'SEL') {
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#1E293B" stroke="#475569" strokeWidth="1.2" />
+          <circle cx="0" cy="-2" r={Math.min(w, h) * 0.34} fill="#CBD5E1" stroke="#475569" strokeWidth="1" />
+          <rect x="-3" y="-14" width="6" height="24" rx="2" fill="#0F172A" />
+          <rect x="-1.5" y="-13" width="3" height="6" fill="#FFFFFF" />
+          <text x="-14" y="-12" fill="#94A3B8" fontSize="6" fontWeight="bold">M</text>
+          <text x="0" y="-16" fill="#94A3B8" fontSize="6" fontWeight="bold">0</text>
+          <text x="14" y="-12" fill="#94A3B8" fontSize="6" fontWeight="bold">A</text>
+        </g>
+      );
+    }
+
+    // 4. Botoeira de Emergência (E-STOP)
+    if (c.code === 'ESTOP') {
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#0F172A" stroke="#334155" strokeWidth="1.2" />
+          <circle cx="0" cy="-2" r={Math.min(w, h) * 0.38} fill="#FACC15" stroke="#CA8A04" strokeWidth="1.5" />
+          <circle cx="0" cy="-2" r={Math.min(w, h) * 0.26} fill="#DC2626" stroke="#991B1B" strokeWidth="1.5" />
+          <text x="0" y="-1" fill="#FFFFFF" fontSize="7" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">STOP</text>
+        </g>
+      );
+    }
+
+    // 5. Botoeiras Pulsadoras (PBNO / PBNC)
+    if (c.code === 'PBNO' || c.code === 'PBNC') {
+      const isNO = c.code === 'PBNO';
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#1E293B" stroke="#334155" strokeWidth="1.2" />
+          <circle cx="0" cy="-2" r={Math.min(w, h) * 0.36} fill="#CBD5E1" stroke="#475569" strokeWidth="1" />
+          <circle cx="0" cy="-2" r={Math.min(w, h) * 0.26} fill={isNO ? '#16A34A' : '#DC2626'} stroke={isNO ? '#14532D' : '#7F1D1D'} strokeWidth="1.2" />
+          <text x="0" y="-1" fill="#FFFFFF" fontSize="8" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
+            {isNO ? 'I' : 'O'}
+          </text>
+        </g>
+      );
+    }
+
+    // 6. Fim de Curso (LIMIT)
+    if (c.code === 'LIMIT') {
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#1E293B" stroke="#334155" strokeWidth="1.2" />
+          <rect x={-w * 0.3} y={-h * 0.15} width={w * 0.6} height={h * 0.55} rx="3" fill="#334155" stroke="#1E293B" strokeWidth="1" />
+          <line x1="0" y1={-h * 0.15} x2="4" y2={-h * 0.38} stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="4" cy={-h * 0.38} r="4" fill="#CBD5E1" stroke="#475569" strokeWidth="1" />
+        </g>
+      );
+    }
+
+    // 7. Bóia de Nível (FLOAT)
+    if (c.code === 'FLOAT') {
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#0F172A" stroke="#334155" strokeWidth="1.2" />
+          <rect x="-2" y={-h * 0.42} width="4" height="8" fill="#1E293B" />
+          <ellipse cx="0" cy="-2" rx="10" ry="16" fill="#EA580C" stroke="#C2410C" strokeWidth="1.2" />
+          <circle cx="0" cy="4" r="3.5" fill="#E2E8F0" />
+        </g>
+      );
+    }
+
+    // 8. Disjuntores Modulares DIN e IDRs
+    if (d.kind === 'breaker' || d.kind === 'breaker2' || d.kind === 'breaker3' || d.kind === 'rcd' || d.kind === 'rcd4' || d.kind === 'rcbo') {
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="5" fill="#0F172A" stroke={isTripped ? '#EF4444' : isClosed ? '#10B981' : '#334155'} strokeWidth="1.5" />
+          {/* Visor ótico verde/vermelho */}
+          <rect x="-10" y={-h * 0.32} width="20" height="4" rx="1" fill={isTripped ? '#F59E0B' : isClosed ? '#DC2626' : '#16A34A'} />
+          {/* Manípulo basculante */}
+          <rect x="-8" y={isClosed ? -h * 0.16 : 2} width="16" height="12" rx="2" fill={isTripped ? '#D97706' : isClosed ? '#B91C1C' : '#334155'} stroke="#64748B" strokeWidth="0.8" />
+          <text x="0" y={isClosed ? -h * 0.16 + 6 : 8} fill="#FFFFFF" fontSize="7" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
+            {isTripped ? 'TRIP' : isClosed ? 'I' : 'O'}
+          </text>
+        </g>
+      );
+    }
+
+    // 9. Motores
+    if (d.kind === 'motor3' || d.kind === 'motor1') {
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#0B132B" stroke="#334155" strokeWidth="1.5" />
+          <circle cx="0" cy="-4" r="16" fill="#0F172A" stroke="#34D399" strokeWidth="1.5" />
+          <text x="0" y="-3" fill="#34D399" fontSize="10" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
+            {d.kind === 'motor3' ? 'M 3~' : 'M 1~'}
+          </text>
+        </g>
+      );
+    }
+
+    // 10. Lâmpadas
+    if (d.kind === 'lamp') {
+      return (
+        <g>
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#0B132B" stroke="#334155" strokeWidth="1.5" />
+          <circle cx="0" cy="-2" r="13" fill="#1E293B" stroke="#FACC15" strokeWidth="1.5" />
+          <text x="0" y="-1" fill="#FDE047" fontSize="11" textAnchor="middle" dominantBaseline="middle">💡</text>
+        </g>
+      );
+    }
+
+    // Fallback padrão
+    return (
+      <g>
+        <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="6" fill="#0B132B" stroke="#334155" strokeWidth="1.5" />
+        <text x="0" y="-2" fill="#93C5FD" fontSize="16" textAnchor="middle" dominantBaseline="middle">
+          {d.icon || '⚡'}
+        </text>
+      </g>
+    );
+  };
+
   return (
     <div className={`rounded-2xl border border-blue-900/40 bg-[#070D1A] overflow-hidden shadow-lg space-y-0 ${className}`}>
       {/* CAD Header Bar */}
@@ -246,7 +425,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
 
                 return (
                   <g key={w.id || wireIdx}>
-                    {/* Sombra de canaleta projetada no fundo */}
                     <path
                       d={pathStr}
                       stroke="rgba(0,0,0,0.5)"
@@ -256,7 +434,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                       fill="none"
                       transform="translate(1.5, 2.5)"
                     />
-                    {/* Alma escura do condutor */}
                     <path
                       d={pathStr}
                       stroke="#030712"
@@ -265,7 +442,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                       strokeLinejoin="round"
                       fill="none"
                     />
-                    {/* Isolamento PVC da Fase */}
                     <path
                       d={pathStr}
                       stroke={wireColor}
@@ -274,7 +450,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                       strokeLinejoin="round"
                       fill="none"
                     />
-                    {/* Listras se for Terra PE */}
                     {w.type === 'PE' && (
                       <path
                         d={pathStr}
@@ -286,7 +461,6 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                         fill="none"
                       />
                     )}
-                    {/* Brilho especular */}
                     <path
                       d={pathStr}
                       stroke="rgba(255,255,255,0.4)"
@@ -299,7 +473,7 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 );
               })}
 
-              {/* CAMADA 2: TRILHOS DIN E BARRAMENTOS (DESENHADOS SOBRE OS CABOS DE FUNDO) */}
+              {/* CAMADA 2: TRILHOS DIN E BARRAMENTOS */}
               {(circuit.cadData.busbars || []).map((bb: any) => {
                 const isHoriz = bb.orientation === 'horizontal';
                 const len = bb.length || 600;
@@ -338,44 +512,20 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 );
               })}
 
-              {/* CAMADA 3: DISPOSITIVOS ELÉTRICOS (DESENHADOS SOBRE A FIAÇÃO) */}
+              {/* CAMADA 3: DISPOSITIVOS ELÉTRICOS COM DESIGN REALISTA */}
               {(circuit.cadData.components || []).map((c: any) => {
                 const d = getComponentDef(c.code);
-                const w = c.w || 90;
                 const h = c.h || 80;
-                const isMotor = d.kind === 'motor3' || d.kind === 'motor1';
 
                 return (
                   <g key={c.id} transform={`translate(${c.x}, ${c.y}) rotate(${c.rot || 0})`}>
-                    <rect
-                      x={-w / 2}
-                      y={-h / 2}
-                      width={w}
-                      height={h}
-                      rx="6"
-                      fill="#0B132B"
-                      stroke="#334155"
-                      strokeWidth="1.5"
-                    />
-
-                    {isMotor ? (
-                      <g>
-                        <circle cx="0" cy="-4" r="14" fill="#0f172a" stroke="#34D399" strokeWidth="1.5" />
-                        <text x="0" y="0" fill="#34D399" fontSize="9" fontWeight="bold" textAnchor="middle">
-                          M 3~
-                        </text>
-                      </g>
-                    ) : (
-                      <text x="0" y="-2" fill="#93C5FD" fontSize="16" textAnchor="middle" dominantBaseline="middle">
-                        {d.icon || '⚡'}
-                      </text>
-                    )}
+                    {renderDeviceVisualSvg(c)}
 
                     <text
                       x="0"
-                      y={h / 2 - 8}
+                      y={h / 2 - 7}
                       fill="#E2E8F0"
-                      fontSize="8.5"
+                      fontSize="8"
                       fontWeight="bold"
                       textAnchor="middle"
                       fontFamily="sans-serif"
@@ -416,7 +566,7 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
 
             <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
               <span className="font-mono">
-                {circuit.cadData.components.length} dispositivos • {circuit.cadData.wires?.length || 0} conexões em canaleta industrial
+                {circuit.cadData.components.length} dispositivos • {circuit.cadData.wires?.length || 0} conexões industriais
               </span>
               <span className="text-emerald-400 font-bold">Fiação Realista IEC 60947 / 60364</span>
             </div>
@@ -447,54 +597,51 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
               <text x="25" y="94" fill="#3B82F6" fontSize="10" fontWeight="bold" fontFamily="monospace">L3 (400V)</text>
 
               {/* CAMADA 1: CONDUTORES RETOS COM DOBRAS CURVAS */}
-              {/* SRC -> Q1 */}
               <path d="M 95 40 L 160 40" stroke="#EF4444" strokeWidth="3" strokeLinecap="round" fill="none" />
               <path d="M 95 65 L 160 65" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round" fill="none" />
               <path d="M 95 90 L 160 90" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round" fill="none" />
 
-              {/* Q1 -> KM1 */}
               <path d="M 240 40 L 290 40" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
               <path d="M 240 65 L 290 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
               <path d="M 240 90 L 290 90" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
 
-              {/* KM1 -> F1 */}
               <path d="M 375 40 L 425 40" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
               <path d="M 375 65 L 425 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
               <path d="M 375 90 L 425 90" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
 
-              {/* F1 -> M1 (Canaleta com Dobras Curvas Suaves R=12) */}
               <path d="M 510 40 L 530 40 Q 540 40 540 46 L 540 50 Q 540 56 550 56 L 570 56" stroke={motorTargetOn ? '#EF4444' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
               <path d="M 510 65 L 570 65" stroke={motorTargetOn ? '#F59E0B' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
               <path d="M 510 90 L 530 90 Q 540 90 540 84 L 540 78 Q 540 74 550 74 L 570 74" stroke={motorTargetOn ? '#3B82F6' : '#64748B'} strokeWidth="3" strokeLinecap="round" fill="none" />
 
-              {/* CAMADA 2: DISPOSITIVOS (DESENHADOS SOBRE A FIAÇÃO) */}
+              {/* CAMADA 2: DISPOSITIVOS COM DESIGN REALISTA */}
               {/* Q1: Disjuntor-Motor */}
               <g transform="translate(160, 20)">
                 <rect x="0" y="0" width="80" height="95" rx="6" fill="#0B132B" stroke="#3B82F6" strokeWidth="1.5" />
-                <text x="14" y="22" fill="#93C5FD" fontSize="10" fontWeight="bold">Q1 (MCB)</text>
-                <text x="14" y="38" fill="#64748B" fontSize="9">3P • 25A</text>
-                <circle cx="40" cy="60" r="12" fill={motorTargetOn ? '#10B981' : '#EF4444'} />
-                <text x="33" y="64" fill="#FFFFFF" fontSize="9" fontWeight="bold">{motorTargetOn ? 'ON' : 'OFF'}</text>
+                <rect x="22" y="10" width="36" height="5" rx="1.5" fill={motorTargetOn ? '#DC2626' : '#16A34A'} />
+                <rect x="26" y="24" width="28" height="18" rx="3" fill={motorTargetOn ? '#991B1B' : '#334155'} />
+                <text x="40" y="36" fill="#FFFFFF" fontSize="9" fontWeight="bold" textAnchor="middle">{motorTargetOn ? 'I' : 'O'}</text>
+                <text x="40" y="60" fill="#93C5FD" fontSize="9.5" fontWeight="bold" textAnchor="middle">Q1: MCB</text>
+                <text x="40" y="74" fill="#64748B" fontSize="8" textAnchor="middle">3P • 25A</text>
               </g>
 
               {/* KM1: Contator Principal */}
               <g transform="translate(290, 20)">
                 <rect x="0" y="0" width="85" height="95" rx="6" fill="#0B132B" stroke="#10B981" strokeWidth="1.5" />
-                <text x="14" y="22" fill="#6EE7B7" fontSize="10" fontWeight="bold">KM1 (KM)</text>
-                <text x="14" y="38" fill="#64748B" fontSize="9">AC-3 • 25A</text>
-                <rect x="18" y="52" width="48" height="24" rx="4" fill={motorTargetOn ? '#065F46' : '#1E293B'} stroke={motorTargetOn ? '#10B981' : '#475569'} />
-                <text x="24" y="68" fill={motorTargetOn ? '#34D399' : '#94A3B8'} fontSize="9" fontWeight="bold">
-                  {motorTargetOn ? 'RETIDO' : 'ABERTO'}
+                <rect x="18" y="12" width="49" height="24" rx="3" fill={motorTargetOn ? '#065F46' : '#1E293B'} stroke={motorTargetOn ? '#10B981' : '#475569'} />
+                <text x="42.5" y="27" fill={motorTargetOn ? '#34D399' : '#94A3B8'} fontSize="8.5" fontWeight="bold" textAnchor="middle">
+                  {motorTargetOn ? '▲ RETIDO' : '▼ ABERTO'}
                 </text>
+                <text x="42.5" y="56" fill="#6EE7B7" fontSize="10" fontWeight="bold" textAnchor="middle">KM1 (KM)</text>
+                <text x="42.5" y="70" fill="#64748B" fontSize="8.5" textAnchor="middle">AC-3 • 25A</text>
               </g>
 
               {/* F1: Relé Térmico */}
               <g transform="translate(425, 20)">
                 <rect x="0" y="0" width="85" height="95" rx="6" fill="#0B132B" stroke="#F59E0B" strokeWidth="1.5" />
-                <text x="14" y="22" fill="#FCD34D" fontSize="10" fontWeight="bold">F1 (Térmico)</text>
-                <text x="14" y="38" fill="#64748B" fontSize="9">9-13A • Cl.10</text>
-                <circle cx="42" cy="62" r="10" fill="#1E293B" stroke="#F59E0B" strokeWidth="1.5" />
-                <text x="35" y="66" fill="#FCD34D" fontSize="9" fontWeight="bold">OK</text>
+                <circle cx="42.5" cy="24" r="11" fill="#1E293B" stroke="#F59E0B" strokeWidth="1.5" />
+                <text x="42.5" y="28" fill="#FCD34D" fontSize="9" fontWeight="bold" textAnchor="middle">OK</text>
+                <text x="42.5" y="56" fill="#FCD34D" fontSize="10" fontWeight="bold" textAnchor="middle">F1: OLR</text>
+                <text x="42.5" y="70" fill="#64748B" fontSize="8.5" textAnchor="middle">9-13A • Cl.10</text>
               </g>
 
               {/* M1: Motor Trifásico */}
@@ -542,18 +689,23 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
                 <path d="M 410 35 L 440 35" stroke="#F59E0B" strokeWidth="2" fill="none" />
                 <path d="M 540 35 L 594 35" stroke="#F59E0B" strokeWidth="2" fill="none" />
 
+                {/* S0 (Botoeira NF Vermelha) */}
                 <rect x="220" y="15" width="80" height="40" rx="4" fill="#1E293B" stroke="#EF4444" />
-                <text x="235" y="32" fill="#FCA5A5" fontSize="9" fontWeight="bold">S0 (Parar)</text>
-                <text x="240" y="46" fill="#94A3B8" fontSize="8">NF (1-2)</text>
+                <circle cx="236" cy="35" r="9" fill="#DC2626" stroke="#991B1B" />
+                <text x="250" y="32" fill="#FCA5A5" fontSize="8.5" fontWeight="bold">S0 (Parar)</text>
+                <text x="250" y="44" fill="#94A3B8" fontSize="7.5">NF (1-2)</text>
 
+                {/* S1 (Botoeira NA Verde) */}
                 <rect x="330" y="15" width="80" height="40" rx="4" fill="#1E293B" stroke="#10B981" />
-                <text x="345" y="32" fill="#86EFAC" fontSize="9" fontWeight="bold">S1 (Ligar)</text>
-                <text x="350" y="46" fill="#94A3B8" fontSize="8">NA (3-4)</text>
+                <circle cx="346" cy="35" r="9" fill="#16A34A" stroke="#14532D" />
+                <text x="360" y="32" fill="#86EFAC" fontSize="8.5" fontWeight="bold">S1 (Ligar)</text>
+                <text x="360" y="44" fill="#94A3B8" fontSize="7.5">NA (3-4)</text>
 
+                {/* Contato de Selo */}
                 <rect x="440" y="15" width="100" height="40" rx="4" fill="#1E293B" stroke="#3B82F6" />
                 <text x="455" y="32" fill="#93C5FD" fontSize="9" fontWeight="bold">Selo KM1</text>
                 <text x="455" y="46" fill={motorTargetOn ? '#34D399' : '#64748B'} fontSize="8">
-                  {motorTargetOn ? 'RETIDO' : 'ABERTO'}
+                  {motorTargetOn ? 'RETIDO (13-14)' : 'ABERTO'}
                 </text>
 
                 <circle cx="610" cy="35" r="16" fill={motorTargetOn ? '#065F46' : '#1E293B'} stroke="#10B981" strokeWidth="2" />
@@ -621,34 +773,37 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
               <path d="M 450 40 L 510 40" stroke={swB ? '#F59E0B' : '#64748B'} strokeWidth="2" strokeDasharray="4,4" fill="none" />
               <path d="M 450 75 L 510 75" stroke={swB ? '#64748B' : '#F59E0B'} strokeWidth="2" strokeDasharray="4,4" fill="none" />
 
-              {/* Rotação com Dobra Curva Suave (Fillet R=12) na Canaleta da Lâmpada */}
               <path d="M 620 58 L 668 58 Q 680 58 680 70 L 680 90" stroke={isFourWayLampOn ? '#F59E0B' : '#64748B'} strokeWidth="2.5" fill="none" />
               <path d="M 680 144 L 680 170" stroke="#3B82F6" strokeWidth="2.5" fill="none" />
 
+              {/* S1: Three-Way Realista */}
               <g transform="translate(160, 20)">
-                <rect x="0" y="0" width="110" height="85" rx="6" fill="#0B132B" stroke="#3B82F6" strokeWidth="1.5" />
-                <text x="14" y="24" fill="#93C5FD" fontSize="10" fontWeight="bold">S1: Three-Way</text>
-                <text x="14" y="40" fill="#64748B" fontSize="9">Pavimento 1</text>
-                <circle cx="55" cy="58" r="10" fill={swA ? '#3B82F6' : '#1E293B'} stroke="#3B82F6" />
-                <text x="50" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swA ? 'V2' : 'V1'}</text>
+                <rect x="0" y="0" width="110" height="85" rx="6" fill="#F1F5F9" stroke="#94A3B8" strokeWidth="1.2" />
+                <rect x="25" y="10" width="60" height="65" rx="3" fill="#0F172A" />
+                <rect x="28" y="13" width="54" height="59" rx="2" fill={swA ? '#1E293B' : '#475569'} />
+                <circle cx="55" cy={swA ? 58 : 26} r="2.5" fill={swA ? '#22C55E' : '#94A3B8'} />
+                <text x="55" y="44" fill="#FFFFFF" fontSize="8.5" fontWeight="bold" textAnchor="middle">{swA ? '▼ R2' : '▲ R1'}</text>
               </g>
 
+              {/* S2: Four-Way Realista */}
               <g transform="translate(330, 20)">
-                <rect x="0" y="0" width="120" height="85" rx="6" fill="#0B132B" stroke="#F59E0B" strokeWidth="1.5" />
-                <text x="14" y="24" fill="#FCD34D" fontSize="10" fontWeight="bold">S2: Four-Way</text>
-                <text x="14" y="40" fill="#64748B" fontSize="9">Pavimento 2</text>
-                <circle cx="60" cy="58" r="10" fill={swB ? '#F59E0B' : '#1E293B'} stroke="#F59E0B" />
-                <text x="55" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swB ? '✕' : '═'}</text>
+                <rect x="0" y="0" width="120" height="85" rx="6" fill="#F1F5F9" stroke="#94A3B8" strokeWidth="1.2" />
+                <rect x="30" y="10" width="60" height="65" rx="3" fill="#0F172A" />
+                <rect x="33" y="13" width="54" height="59" rx="2" fill={swB ? '#1E293B' : '#475569'} />
+                <text x="60" y="43" fill={swB ? '#38BDF8' : '#FCD34D'} fontSize="12" fontWeight="bold" textAnchor="middle">{swB ? '✕' : '═'}</text>
+                <text x="60" y="60" fill="#94A3B8" fontSize="6.5" fontWeight="bold" textAnchor="middle">{swB ? 'CRUZADO' : 'DIRETO'}</text>
               </g>
 
+              {/* S3: Three-Way Realista */}
               <g transform="translate(510, 20)">
-                <rect x="0" y="0" width="110" height="85" rx="6" fill="#0B132B" stroke="#3B82F6" strokeWidth="1.5" />
-                <text x="14" y="24" fill="#93C5FD" fontSize="10" fontWeight="bold">S3: Three-Way</text>
-                <text x="14" y="40" fill="#64748B" fontSize="9">Pavimento 3</text>
-                <circle cx="55" cy="58" r="10" fill={swC ? '#3B82F6' : '#1E293B'} stroke="#3B82F6" />
-                <text x="50" y="62" fill="#FFFFFF" fontSize="9" fontWeight="bold">{swC ? 'V2' : 'V1'}</text>
+                <rect x="0" y="0" width="110" height="85" rx="6" fill="#F1F5F9" stroke="#94A3B8" strokeWidth="1.2" />
+                <rect x="25" y="10" width="60" height="65" rx="3" fill="#0F172A" />
+                <rect x="28" y="13" width="54" height="59" rx="2" fill={swC ? '#1E293B' : '#475569'} />
+                <circle cx="55" cy={swC ? 58 : 26} r="2.5" fill={swC ? '#22C55E' : '#94A3B8'} />
+                <text x="55" y="44" fill="#FFFFFF" fontSize="8.5" fontWeight="bold" textAnchor="middle">{swC ? '▼ R2' : '▲ R1'}</text>
               </g>
 
+              {/* Lâmpada */}
               <g transform="translate(650, 90)">
                 <circle cx="30" cy="30" r="24" fill={isFourWayLampOn ? '#FEF08A' : '#1E293B'} stroke={isFourWayLampOn ? '#FACC15' : '#475569'} strokeWidth="2" />
                 <text x="30" y="35" fill={isFourWayLampOn ? '#854D0E' : '#94A3B8'} fontSize="11" fontWeight="bold" textAnchor="middle">
@@ -728,24 +883,33 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
               <path d="M 170 90 L 230 90" stroke="#EF4444" strokeWidth="3.2" fill="none" />
               <path d="M 380 90 L 440 90" stroke={drTripped ? '#64748B' : '#EF4444'} strokeWidth="3.2" fill="none" />
               
+              {/* Geral: MCB */}
               <g transform="translate(30, 20)">
                 <rect x="0" y="0" width="140" height="140" rx="8" fill="#0B132B" stroke="#3B82F6" strokeWidth="1.5" />
-                <text x="16" y="28" fill="#93C5FD" fontSize="11" fontWeight="bold">Geral: MCB 63A</text>
-                <text x="16" y="46" fill="#64748B" fontSize="9">Curva C • Icu 10kA</text>
-                <rect x="16" y="60" width="108" height="30" rx="4" fill="#1E293B" />
-                <text x="35" y="80" fill="#10B981" fontSize="10" fontWeight="bold">ARMADO</text>
+                <rect x="50" y="18" width="40" height="6" rx="2" fill="#DC2626" />
+                <rect x="55" y="32" width="30" height="20" rx="3" fill="#B91C1C" />
+                <text x="70" y="45" fill="#FFFFFF" fontSize="9" fontWeight="bold" textAnchor="middle">I-ON</text>
+                <text x="16" y="78" fill="#93C5FD" fontSize="11" fontWeight="bold">Geral: MCB 63A</text>
+                <text x="16" y="96" fill="#64748B" fontSize="9">Curva C • Icu 10kA</text>
+                <text x="70" y="122" fill="#10B981" fontSize="10" fontWeight="bold" textAnchor="middle">ARMADO</text>
               </g>
 
+              {/* IDR / DR 30mA */}
               <g transform="translate(230, 20)">
                 <rect x="0" y="0" width="150" height="140" rx="8" fill="#0B132B" stroke="#10B981" strokeWidth="1.5" />
-                <text x="16" y="28" fill="#6EE7B7" fontSize="11" fontWeight="bold">IDR / DR 30mA</text>
-                <text x="16" y="46" fill="#64748B" fontSize="9">Tipo A • I_Δn = 0.03A</text>
-                <rect x="16" y="60" width="118" height="30" rx="4" fill={drTripped ? '#7F1D1D' : '#064E3B'} />
-                <text x="32" y="80" fill={drTripped ? '#FCA5A5' : '#86EFAC'} fontSize="10" fontWeight="bold">
-                  {drTripped ? 'DISPARADO (FALTA)' : 'NORMAL'}
+                <rect x="50" y="18" width="50" height="6" rx="2" fill={drTripped ? '#F59E0B' : '#DC2626'} />
+                <rect x="55" y="32" width="40" height="20" rx="3" fill={drTripped ? '#78350F' : '#B91C1C'} />
+                <text x="75" y="45" fill="#FFFFFF" fontSize="9" fontWeight="bold" textAnchor="middle">{drTripped ? 'TRIP' : 'I-ON'}</text>
+                <circle cx="120" cy="42" r="6" fill="#0284C7" stroke="#BAE6FD" />
+                <text x="120" y="45" fill="#FFFFFF" fontSize="7" fontWeight="bold" textAnchor="middle">T</text>
+                <text x="16" y="78" fill="#6EE7B7" fontSize="11" fontWeight="bold">IDR / DR 30mA</text>
+                <text x="16" y="96" fill="#64748B" fontSize="9">Tipo A • I_Δn = 0.03A</text>
+                <text x="75" y="122" fill={drTripped ? '#FCA5A5' : '#86EFAC'} fontSize="9.5" fontWeight="bold" textAnchor="middle">
+                  {drTripped ? 'DISPARADO (FALTA)' : 'OPERANDO'}
                 </text>
               </g>
 
+              {/* Circuitos Terminais */}
               <g transform="translate(440, 20)">
                 <rect x="0" y="0" width="280" height="140" rx="8" fill="#0B132B" stroke="#F59E0B" strokeWidth="1.5" />
                 <text x="16" y="28" fill="#FCD34D" fontSize="11" fontWeight="bold">Circuitos Terminais Protegidos</text>

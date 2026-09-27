@@ -1,8 +1,13 @@
 // ============================================================================
-// TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO DE CONDUTORES, FÍSICA E ANATOMIA IEC/DIN
-// Normas: IEC 60669 (Interruptores), NBR 14136, IEC 60364-5-52, DIN 46228-4
-// Pinagem Física NBR/IEC: 1P (L/R), 2P (L1/L2/L1'/L2'), 3-Way (C/R1/R2), 4-Way (IN1/IN2/OUT1/OUT2)
-// Roteamento em Canaletas Retas com Dobras Curvas Suaves (Fillet R=12-14px)
+// TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO DE CONDUTORES, FÍSICA E ANATOMIA IEC/DIN (V17)
+// Normas: IEC 60669, NBR 14136, IEC 60947, IEC 60898, IEC 60034, IEC 62109, DIN 46228-4
+// Mapeamento Normativo e Coordenadas Espaciais sem Sobreposição:
+// - Motor 6 Pontas (U1, V1, W1 / W2, U2, V2)
+// - ATS / MTS (Entradas Rede, Entradas Gerador e Saídas Carga)
+// - Inversores Solares On-Grid, Off-Grid, Híbrido, Módulos FV e Bateria LiFePO4
+// - Timers Estrela-Triângulo (Y-Δ), TOF, Temporizador Digital e Termostato
+// - Fotocélula Crepuscular e Sensor PIR de Presença
+// - Aterramento BEP, Haste de Cobre e Caixas WAGO
 // ============================================================================
 
 import { getComponentDef } from './cadEngine';
@@ -26,9 +31,6 @@ export const WIRE_NORM_COLORS: Record<string, { base: string; highlight: string;
   CTRL: { base: '#d97706', highlight: '#fde047', name: 'Comando • Âmbar' }
 };
 
-/**
- * Retorna a espessura proporcional do condutor no canvas conforme a bitola real (mm²)
- */
 export function getWireGaugeThickness(gauge: number = 2.5, zoom: number = 1.0): number {
   const z = Math.max(0.35, Math.min(2.5, zoom));
   switch (Number(gauge)) {
@@ -44,6 +46,10 @@ export function getWireGaugeThickness(gauge: number = 2.5, zoom: number = 1.0): 
       return Math.max(5.0, 7.6 * z);
     case 16.0:
       return Math.max(6.0, 9.0 * z);
+    case 25.0:
+      return Math.max(7.2, 10.5 * z);
+    case 35.0:
+      return Math.max(8.5, 12.0 * z);
     default:
       return Math.max(3.0, 4.2 * z);
   }
@@ -69,19 +75,13 @@ export function getNormativeTerminalOffset(
   }
 
   // --------------------------------------------------------------------------
-  // INTERRUPTORES, COMUTADORES E DIMMERS (PINAGEM NBR/IEC REAL)
+  // INTERRUPTORES, COMUTADORES E CONTROLES
   // --------------------------------------------------------------------------
-  // A. Interruptor Simples Unipolar (1P): 2 Bornes (L e R / 1 e 2)
   if (comp.code === 'SW' || d.kind === 'switch') {
-    if (termId === 'L' || termId === '1' || func === 'IN') {
-      return { x: 0, y: -h / 2, dir: 'top' };      // Borne Linha / Entrada
-    }
-    if (termId === 'R' || termId === '2' || func === 'OUT') {
-      return { x: 0, y: h / 2, dir: 'bottom' };   // Borne Retorno / Saída
-    }
+    if (termId === 'L' || termId === '1' || func === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'R' || termId === '2' || func === 'OUT') return { x: 0, y: h / 2, dir: 'bottom' };
   }
 
-  // B. Interruptor Bipolar (2P): 4 Bornes (L1, L2 no topo; L1', L2' na base)
   if (comp.code === 'SW2' || d.kind === 'switch2') {
     if (termId === 'L1' || termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
     if (termId === 'L2' || termId === '3') return { x: w * 0.25, y: -h / 2, dir: 'top' };
@@ -89,63 +89,280 @@ export function getNormativeTerminalOffset(
     if (termId === "L2'" || termId === '4') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
   }
 
-  // C. Interruptor 3-WAY (Paralelo / Escada): Exatamente 3 Bornes
-  // Topo: Comum 'C' (ou 'COM') | Base: Retorno 1 'R1' e Retorno 2 'R2'
+  if (comp.code === 'SW_DOUBLE' || d.kind === 'switch_double') {
+    if (termId === 'L' || termId === '1' || func === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'R1' || termId === '2') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === 'R2' || termId === '4' || termId === '3') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+  }
+
   if (comp.code === 'THREE_WAY') {
-    if (termId === 'C' || termId === 'COM' || func === 'COM') {
-      return { x: 0, y: -h / 2, dir: 'top' };
-    }
-    if (termId === 'R1' || termId === '1') {
-      return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
-    }
-    if (termId === 'R2' || termId === '2') {
-      return { x: w * 0.25, y: h / 2, dir: 'bottom' };
-    }
+    if (termId === 'C' || termId === 'COM' || func === 'COM') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'R1' || termId === '1') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === 'R2' || termId === '2') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
   }
 
-  // D. Interruptor 4-WAY (Intermediário / Cruzamento): Exatamente 4 Bornes
-  // Topo: Entradas de Balanço 'IN1' e 'IN2' | Base: Saídas de Balanço 'OUT1' e 'OUT2'
   if (comp.code === 'FOUR_WAY') {
-    if (termId === 'IN1' || termId === '1') {
-      return { x: -w * 0.25, y: -h / 2, dir: 'top' };
-    }
-    if (termId === 'IN2' || termId === '2') {
-      return { x: w * 0.25, y: -h / 2, dir: 'top' };
-    }
-    if (termId === 'OUT1' || termId === '3') {
-      return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
-    }
-    if (termId === 'OUT2' || termId === '4') {
-      return { x: w * 0.25, y: h / 2, dir: 'bottom' };
+    if (termId === 'IN1' || termId === '1') return { x: -w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === 'IN2' || termId === '2') return { x: w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === 'OUT1' || termId === '3') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === 'OUT2' || termId === '4') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'DIMMER' || d.kind === 'dimmer') {
+    if (termId === 'IN' || termId === '1') return { x: -w * 0.24, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.24, y: -h / 2, dir: 'top' };
+    if (termId === 'OUT' || termId === '2') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'SEL' || d.kind === 'selector') {
+    if (termId === 'C' || termId === '1' || termId === 'COM' || func === 'COM') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'MAN' || termId === '2') return { x: -w * 0.35, y: h / 2, dir: 'bottom' };
+    if (termId === '0') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === 'AUTO' || termId === '3') return { x: w * 0.35, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'PHOTOCELL') {
+    if (termId === 'F') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'R') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'PIR_SENSOR') {
+    if (termId === 'L') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'OUT') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'LIMIT') {
+    if (termId === '1' || func === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === '2' || func === 'NC' || func === 'OUT') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'FLOAT') {
+    if (termId === 'COM' || termId === '1' || func === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'NA' || termId === '2') return { x: -w * 0.26, y: h / 2, dir: 'bottom' };
+    if (termId === 'NF' || termId === '3') return { x: w * 0.26, y: h / 2, dir: 'bottom' };
+  }
+
+  // --------------------------------------------------------------------------
+  // DISJUNTORES, FUSÍVEIS E PROTEÇÃO DIN
+  // --------------------------------------------------------------------------
+  if (comp.code === 'MCB_1P' || d.kind === 'breaker_1p') {
+    if (termId === '1' || func === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === '2' || func === 'OUT') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'MPCB' || d.kind === 'motor_breaker') {
+    if (termId === '1') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === '3') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === '5') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === '2') return { x: -w * 0.30, y: h / 2, dir: 'bottom' };
+    if (termId === '4') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === '6') return { x: w * 0.30, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'MCB1' || d.kind === 'breaker' || d.kind === 'rcbo') {
+    if (termId === '1' || termId === 'L' || func === 'IN') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
+    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.22, y: -h / 2, dir: 'top' };
+    if (termId === '2' || func === 'OUT') return { x: -w * 0.22, y: h / 2, dir: 'bottom' };
+    if (termId === 'N_OUT') return { x: w * 0.22, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'MCB2' || d.kind === 'breaker2') {
+    if (termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === '3') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === '2') return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
+    if (termId === '4') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'MCB3' || comp.code === 'MCCB' || d.kind === 'breaker3' || d.kind === 'mccb') {
+    if (termId === '1') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === '3') return { x: -w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === '5') return { x: w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.36, y: -h / 2, dir: 'top' };
+
+    if (termId === '2') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === '4') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === '6') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'N_OUT') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+  }
+
+  if (d.kind === 'rcd' || d.kind === 'rcd4') {
+    if (comp.code === 'RCD4' || (d.terminals && d.terminals.length >= 8)) {
+      if (termId === '1') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
+      if (termId === '3') return { x: -w * 0.12, y: -h / 2, dir: 'top' };
+      if (termId === '5') return { x: w * 0.12, y: -h / 2, dir: 'top' };
+      if (termId === 'N' || termId === 'N_IN') return { x: w * 0.36, y: -h / 2, dir: 'top' };
+
+      if (termId === '2') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+      if (termId === '4') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+      if (termId === '6') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+      if (termId === 'N_OUT') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+    } else {
+      if (termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+      if (termId === 'N' || termId === 'N_IN') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+      if (termId === '2') return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
+      if (termId === 'N_OUT') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
     }
   }
 
-  // E. Dimmer Rotativo: Entrada 'IN', Neutro 'N' e Saída 'OUT'
-  if (comp.code === 'DIMMER' || d.kind === 'dimmer') {
-    if (termId === 'IN' || termId === '1') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
-    if (termId === 'N') return { x: w * 0.22, y: -h / 2, dir: 'top' };
-    if (termId === 'OUT' || termId === '2') return { x: 0, y: h / 2, dir: 'bottom' };
+  if (d.kind === 'fuse') {
+    if (termId === '1' || func === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === '2' || func === 'OUT') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (d.kind === 'fuse3') {
+    if (termId === '1') return { x: -w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === '3') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === '5') return { x: w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === '2') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === '4') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === '6') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+  }
+
+  if (d.kind === 'spd') {
+    if (termId === 'L' || termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (d.kind === 'spd3' || comp.code === 'SPD3') {
+    if (termId === 'L1') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'L2') return { x: -w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === 'L3') return { x: w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  // --------------------------------------------------------------------------
+  // GERAÇÃO E TRANSFERÊNCIA (GMG, ATS, MTS)
+  // --------------------------------------------------------------------------
+  if (comp.code === 'GEN_DIESEL') {
+    if (termId === 'L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'REMOTE_START') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'ATS_SWITCH') {
+    // Entradas Concessionária
+    if (termId === 'N_L1') return { x: -w * 0.42, y: -h / 2, dir: 'top' };
+    if (termId === 'N_L2') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'N_L3') return { x: -w * 0.18, y: -h / 2, dir: 'top' };
+    if (termId === 'N_N') return { x: -w * 0.06, y: -h / 2, dir: 'top' };
+    // Entradas Gerador
+    if (termId === 'G_L1') return { x: w * 0.06, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L2') return { x: w * 0.18, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'G_N') return { x: w * 0.42, y: -h / 2, dir: 'top' };
+    // Saídas Carga
+    if (termId === 'LOAD_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'LOAD_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'LOAD_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'LOAD_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'GEN_START') return { x: w / 2, y: 0, dir: 'right' };
+  }
+
+  if (comp.code === 'MTS_SWITCH') {
+    if (termId === 'R_L1') return { x: -w * 0.42, y: -h / 2, dir: 'top' };
+    if (termId === 'R_L2') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'R_L3') return { x: -w * 0.18, y: -h / 2, dir: 'top' };
+    if (termId === 'R_N') return { x: -w * 0.06, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L1') return { x: w * 0.06, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L2') return { x: w * 0.18, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'G_N') return { x: w * 0.42, y: -h / 2, dir: 'top' };
+    if (termId === 'OUT_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'OUT_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'OUT_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'OUT_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+  }
+
+  // --------------------------------------------------------------------------
+  // ENERGIA SOLAR & ARMAZENAMENTO
+  // --------------------------------------------------------------------------
+  if (comp.code === 'PV_PANEL') {
+    if (termId === '+') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === '-') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'PV_INVERTER_ONGRID') {
+    // Entradas DC MPPT
+    if (termId === 'DC1+') return { x: -w * 0.38, y: -h / 2, dir: 'top' };
+    if (termId === 'DC1-') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
+    if (termId === 'DC2+') return { x: w * 0.22, y: -h / 2, dir: 'top' };
+    if (termId === 'DC2-') return { x: w * 0.38, y: -h / 2, dir: 'top' };
+    // Saídas AC Trifásicas
+    if (termId === 'AC_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'AC_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'AC_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'AC_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'PV_INVERTER_OFFGRID') {
+    if (termId === 'PV+') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'PV-') return { x: -w * 0.14, y: -h / 2, dir: 'top' };
+    if (termId === 'BAT+') return { x: w * 0.14, y: -h / 2, dir: 'top' };
+    if (termId === 'BAT-') return { x: w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'AC_L') return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
+    if (termId === 'AC_N') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'PV_INVERTER_HYBRID') {
+    if (termId === 'PV1+') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'PV1-') return { x: -w * 0.14, y: -h / 2, dir: 'top' };
+    if (termId === 'BAT+') return { x: w * 0.14, y: -h / 2, dir: 'top' };
+    if (termId === 'BAT-') return { x: w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'GRID_L') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'GRID_N') return { x: -w * 0.14, y: h / 2, dir: 'bottom' };
+    if (termId === 'EPS_L') return { x: w * 0.14, y: h / 2, dir: 'bottom' };
+    if (termId === 'EPS_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'BAT_LIFEPO4') {
+    if (termId === '+') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === '-') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'SMART_METER') {
+    if (termId === 'L_IN') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'N_IN') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'L_OUT') return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
+    if (termId === 'N_OUT') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
   }
 
   // --------------------------------------------------------------------------
   // MOTORES ELÉTRICOS (IEC 60034)
   // --------------------------------------------------------------------------
-  if (d.kind === 'motor3') {
+  if (comp.code === 'M3PH_6L') {
+    // 6 Pontas Estrela-Triângulo
+    if (termId === 'U1') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'V1') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'W1') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'W2') return { x: -w * 0.30, y: h / 2, dir: 'bottom' };
+    if (termId === 'U2') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === 'V2') return { x: w * 0.30, y: h / 2, dir: 'bottom' };
+  }
+
+  if (d.kind === 'motor3' || comp.code === 'PUMP') {
     if (termId === 'U') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
     if (termId === 'V') return { x: 0, y: -h / 2, dir: 'top' };
     if (termId === 'W') return { x: w * 0.25, y: -h / 2, dir: 'top' };
   }
-  if (d.kind === 'motor1') {
+
+  if (d.kind === 'motor1' || comp.code === 'FAN') {
     if (termId === 'L') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
     if (termId === 'N') return { x: w * 0.22, y: -h / 2, dir: 'top' };
   }
+
   if (d.kind === 'motorDC') {
     if (termId === '+') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
     if (termId === '-') return { x: w * 0.22, y: -h / 2, dir: 'top' };
   }
 
   // --------------------------------------------------------------------------
-  // CONTACTORES DE POTÊNCIA (IEC 60947-4-1)
+  // CONTACTORES DE POTÊNCIA E BLOCOS AUXILIARES
   // --------------------------------------------------------------------------
   if (d.kind === 'contactor') {
     if (termId === 'A1') return { x: -w * 0.38, y: -h / 2, dir: 'top' };
@@ -153,14 +370,97 @@ export function getNormativeTerminalOffset(
     if (termId === '3') return { x: 0, y: -h / 2, dir: 'top' };
     if (termId === '5') return { x: w * 0.18, y: -h / 2, dir: 'top' };
     if (termId === '13') return { x: w * 0.33, y: -h / 2, dir: 'top' };
-    if (termId === '21') return { x: w * 0.42, y: -h / 2, dir: 'top' };
+    if (termId === '21') return { x: w * 0.44, y: -h / 2, dir: 'top' };
 
     if (termId === 'A2') return { x: -w * 0.38, y: h / 2, dir: 'bottom' };
     if (termId === '2') return { x: -w * 0.18, y: h / 2, dir: 'bottom' };
     if (termId === '4') return { x: 0, y: h / 2, dir: 'bottom' };
     if (termId === '6') return { x: w * 0.18, y: h / 2, dir: 'bottom' };
     if (termId === '14') return { x: w * 0.33, y: h / 2, dir: 'bottom' };
-    if (termId === '22') return { x: w * 0.42, y: h / 2, dir: 'bottom' };
+    if (termId === '22') return { x: w * 0.44, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'AUX_BLOCK_2NA2NF') {
+    if (termId === '53') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === '61') return { x: -w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === '71') return { x: w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === '83') return { x: w * 0.36, y: -h / 2, dir: 'top' };
+
+    if (termId === '54') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === '62') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === '72') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === '84') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+  }
+
+  // --------------------------------------------------------------------------
+  // RELÉS TEMPORIZADORES, TERMOSTATOS E AUTOMAÇÃO
+  // --------------------------------------------------------------------------
+  if (comp.code === 'TIMER_STAR_DELTA') {
+    if (termId === 'A1') return { x: -w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === '15') return { x: w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === 'A2') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === '18') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === '28') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'TIMER_TOF') {
+    if (termId === 'A1') return { x: -w * 0.32, y: -h / 2, dir: 'top' };
+    if (termId === 'Y1') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'A2') return { x: w * 0.32, y: -h / 2, dir: 'top' };
+    if (termId === '15') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === '16') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === '18') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'TIMER_DIGITAL') {
+    if (termId === 'L') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === '15') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === '16') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === '18') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'THERMOSTAT_DIGITAL') {
+    if (termId === 'L') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: -w * 0.14, y: -h / 2, dir: 'top' };
+    if (termId === 'S1') return { x: w * 0.14, y: -h / 2, dir: 'top' };
+    if (termId === 'S2') return { x: w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'COM') return { x: -w * 0.28, y: h / 2, dir: 'bottom' };
+    if (termId === 'NO') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === 'NC') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
+  }
+
+  if (d.kind === 'timer' || d.kind === 'relay') {
+    if (termId === 'A1') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
+    if (termId === '15' || termId === '11' || termId === 'COM') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'A2') return { x: -w * 0.35, y: h / 2, dir: 'bottom' };
+    if (termId === '16' || termId === '12' || termId === 'NC') return { x: -w * 0.15, y: h / 2, dir: 'bottom' };
+    if (termId === '18' || termId === '14' || termId === 'NO') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
+  }
+
+  // --------------------------------------------------------------------------
+  // ATERRAMENTO E CAIXAS DE PASSAGEM
+  // --------------------------------------------------------------------------
+  if (comp.code === 'EARTH_ROD') {
+    return { x: 0, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'EARTH_PIT') {
+    if (termId === 'BEP1') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'BEP2') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'BEP3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'GND') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'JUNCTION_BOX') {
+    if (termId === 'L_IN') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'N_IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'PE_IN') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'L2') return { x: -w * 0.20, y: h / 2, dir: 'bottom' };
+    if (termId === 'N1') return { x: -w * 0.04, y: h / 2, dir: 'bottom' };
+    if (termId === 'N2') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'PE1') return { x: w * 0.30, y: h / 2, dir: 'bottom' };
   }
 
   // --------------------------------------------------------------------------
@@ -181,93 +481,7 @@ export function getNormativeTerminalOffset(
   }
 
   // --------------------------------------------------------------------------
-  // DISJUNTORES TETRAPOLARES / TRIPOLARES (MCB3, MCCB, FU3)
-  // --------------------------------------------------------------------------
-  if (d.kind === 'breaker3' || d.kind === 'fuse3') {
-    if (termId === '1') return { x: -w * 0.33, y: -h / 2, dir: 'top' };
-    if (termId === '3') return { x: -w * 0.11, y: -h / 2, dir: 'top' };
-    if (termId === '5') return { x: w * 0.11, y: -h / 2, dir: 'top' };
-    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.33, y: -h / 2, dir: 'top' };
-
-    if (termId === '2') return { x: -w * 0.33, y: h / 2, dir: 'bottom' };
-    if (termId === '4') return { x: -w * 0.11, y: h / 2, dir: 'bottom' };
-    if (termId === '6') return { x: w * 0.11, y: h / 2, dir: 'bottom' };
-    if (termId === 'N_OUT') return { x: w * 0.33, y: h / 2, dir: 'bottom' };
-  }
-
-  // --------------------------------------------------------------------------
-  // DISJUNTOR BIPOLAR (MCB2)
-  // --------------------------------------------------------------------------
-  if (d.kind === 'breaker2') {
-    if (termId === '1') return { x: -w * 0.3, y: -h / 2, dir: 'top' };
-    if (termId === '3') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.3, y: -h / 2, dir: 'top' };
-
-    if (termId === '2') return { x: -w * 0.3, y: h / 2, dir: 'bottom' };
-    if (termId === '4') return { x: 0, y: h / 2, dir: 'bottom' };
-    if (termId === 'N_OUT') return { x: w * 0.3, y: h / 2, dir: 'bottom' };
-  }
-
-  // --------------------------------------------------------------------------
-  // DISJUNTORES UNIPOLARES (MCB1, RCBO) E FUSÍVEIS
-  // --------------------------------------------------------------------------
-  if (d.kind === 'breaker' || d.kind === 'rcbo') {
-    if (termId === '1' || termId === 'L' || func === 'IN') {
-      return { x: -w * 0.22, y: -h / 2, dir: 'top' };
-    }
-    if (termId === 'N' || termId === 'N_IN') {
-      return { x: w * 0.22, y: -h / 2, dir: 'top' };
-    }
-    if (termId === '2' || func === 'OUT') {
-      return { x: -w * 0.22, y: h / 2, dir: 'bottom' };
-    }
-    if (termId === 'N_OUT') {
-      return { x: w * 0.22, y: h / 2, dir: 'bottom' };
-    }
-    return { x: 0, y: h / 2, dir: 'bottom' };
-  }
-
-  if (d.kind === 'fuse') {
-    if (termId === '1' || func === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
-    return { x: 0, y: h / 2, dir: 'bottom' };
-  }
-
-  // --------------------------------------------------------------------------
-  // DISPOSITIVO CONTRA SURTOS (DPS / SPD)
-  // --------------------------------------------------------------------------
-  if (d.kind === 'spd') {
-    if (termId === 'L' || termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
-    if (termId === 'L1') return { x: -w * 0.33, y: -h / 2, dir: 'top' };
-    if (termId === 'L2') return { x: -w * 0.11, y: -h / 2, dir: 'top' };
-    if (termId === 'L3') return { x: w * 0.11, y: -h / 2, dir: 'top' };
-    if (termId === 'N' || termId === 'N_IN') return { x: w * 0.3, y: -h / 2, dir: 'top' };
-    if (termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
-  }
-
-  // --------------------------------------------------------------------------
-  // INTERRUPTORES DIFERENCIAIS RESIDUAIS (IDR / RCD)
-  // --------------------------------------------------------------------------
-  if (d.kind === 'rcd' || d.kind === 'rcd4') {
-    if (d.kind === 'rcd4' || (d.terminals && d.terminals.length >= 8)) {
-      if (termId === '1') return { x: -w * 0.33, y: -h / 2, dir: 'top' };
-      if (termId === '3') return { x: -w * 0.11, y: -h / 2, dir: 'top' };
-      if (termId === '5') return { x: w * 0.11, y: -h / 2, dir: 'top' };
-      if (termId === 'N' || termId === 'N_IN') return { x: w * 0.33, y: -h / 2, dir: 'top' };
-
-      if (termId === '2') return { x: -w * 0.33, y: h / 2, dir: 'bottom' };
-      if (termId === '4') return { x: -w * 0.11, y: h / 2, dir: 'bottom' };
-      if (termId === '6') return { x: w * 0.11, y: h / 2, dir: 'bottom' };
-      if (termId === 'N_OUT') return { x: w * 0.33, y: h / 2, dir: 'bottom' };
-    } else {
-      if (termId === '1') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
-      if (termId === 'N' || termId === 'N_IN') return { x: w * 0.22, y: -h / 2, dir: 'top' };
-      if (termId === '2') return { x: -w * 0.22, y: h / 2, dir: 'bottom' };
-      if (termId === 'N_OUT') return { x: w * 0.22, y: h / 2, dir: 'bottom' };
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // BOTOEIRAS E CHAVES SELETORAS
+  // BOTOEIRAS
   // --------------------------------------------------------------------------
   if (d.kind === 'push' || d.kind === 'pushbutton' || d.kind === 'estop') {
     if (termId === '1' || termId === '3' || termId === '13' || termId === '11') {
@@ -276,22 +490,6 @@ export function getNormativeTerminalOffset(
     if (termId === '2' || termId === '4' || termId === '14' || termId === '12') {
       return { x: w * 0.28, y: h / 2, dir: 'bottom' };
     }
-  }
-  if (d.kind === 'selector') {
-    if (termId === '1' || termId === 'COM') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === '2' || termId === 'NO') return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
-    if (termId === '3' || termId === 'NC') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
-  }
-
-  // --------------------------------------------------------------------------
-  // RELÉS TEMPORIZADORES (TON) E AUXILIARES
-  // --------------------------------------------------------------------------
-  if (d.kind === 'timer' || d.kind === 'relay') {
-    if (termId === 'A1') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
-    if (termId === '15' || termId === '11' || termId === 'COM') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === 'A2') return { x: -w * 0.35, y: h / 2, dir: 'bottom' };
-    if (termId === '16' || termId === '12' || termId === 'NC') return { x: -w * 0.15, y: h / 2, dir: 'bottom' };
-    if (termId === '18' || termId === '14' || termId === 'NO') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
   }
 
   // --------------------------------------------------------------------------
@@ -322,12 +520,12 @@ export function getNormativeTerminalOffset(
     return { x: 0, y: h / 2, dir: 'bottom' };
   }
 
-  // Fallback Normativo
+  // Fallback Normativo Proporcional
   const idx = d.terminals ? d.terminals.findIndex(x => x[0] === termId) : 0;
   const isInput = func === 'IN' || func === 'COM' || idx % 2 === 0;
   const colRatio = Math.max(1, Math.ceil((d.terminals?.length || 2) / 2));
   const colIndex = Math.floor(idx / 2);
-  const xOffset = colRatio > 1 ? ((colIndex / (colRatio - 1)) - 0.5) * (w * 0.7) : 0;
+  const xOffset = colRatio > 1 ? ((colIndex / (colRatio - 1)) - 0.5) * (w * 0.72) : 0;
 
   return {
     x: xOffset,
@@ -336,9 +534,6 @@ export function getNormativeTerminalOffset(
   };
 }
 
-/**
- * Retorna as coordenadas mundiais de um terminal com rotação geométrica
- */
 export function getTerminalWorldPos(comp: any, termId: string): TerminalPosition {
   if (!comp) return { x: 0, y: 0, dir: 'bottom', normId: termId };
   const offset = getNormativeTerminalOffset(comp, termId);
@@ -373,9 +568,6 @@ export function getTerminalWorldPos(comp: any, termId: string): TerminalPosition
   };
 }
 
-/**
- * Resolução de Coordenadas de Terminais (Componente ou Barramento)
- */
 export function getNodeWorldPos(
   nodeId: string,
   termId: string,
@@ -405,9 +597,6 @@ export interface FilletManhattanPath {
   radius: number;
 }
 
-/**
- * Roteamento industrial retilíneo com dobras curvas suaves nos vértices
- */
 export function calculateFilletManhattanPath(
   posA: TerminalPosition,
   posB: TerminalPosition,
@@ -507,9 +696,8 @@ export function calculateFilletManhattanPath(
   };
 }
 
-/**
- * Converte os pontos ortogonais em comando SVG 'd' com cantos arredondados (fillet)
- */
+export const calculateCurvedPath = calculateFilletManhattanPath;
+
 export function getFilletSvgPathString(points: { x: number; y: number }[], radius: number = 12): string {
   if (!points || points.length < 2) return '';
   let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
@@ -536,6 +724,16 @@ export function getFilletSvgPathString(points: { x: number; y: number }[], radiu
 
   d += ` L ${points[points.length - 1].x.toFixed(1)} ${points[points.length - 1].y.toFixed(1)}`;
   return d;
+}
+
+export const getCurvedSvgPathString = (path: FilletManhattanPath) => getFilletSvgPathString(path.points, path.radius);
+
+export function getBezierPoints(
+  filletPath: FilletManhattanPath,
+  numSamples: number = 20
+): { x: number; y: number }[] {
+  if (!filletPath || !filletPath.points) return [];
+  return filletPath.points;
 }
 
 export function traceFilletPathCanvas(
@@ -573,9 +771,6 @@ export interface WireRenderOptions {
   toScreen: (p: { x: number; y: number }) => { x: number; y: number };
 }
 
-/**
- * CAMADA Z-INDEX 2: CONDUTORES NO FUNDO DO ARMÁRIO
- */
 export function renderCurvedWireBack(
   ctx: CanvasRenderingContext2D,
   filletPath: FilletManhattanPath,
@@ -674,9 +869,6 @@ export function renderCurvedWireBack(
   ctx.restore();
 }
 
-/**
- * CAMADA Z-INDEX 5: TERMINAIS ILHÓS TUBULARES (FERRULES) COM PARAFUSO DE APERTO
- */
 export function renderFerruleTerminal(
   ctx: CanvasRenderingContext2D,
   screenPos: { x: number; y: number },
@@ -707,7 +899,7 @@ export function renderFerruleTerminal(
   const tubeHalfW = 1.6 * z * scaleByGauge;
   const collarEndHalfW = 2.8 * z * scaleByGauge;
 
-  // 1. Alvéolo do Borne
+  // Alvéolo do Borne
   ctx.fillStyle = '#060a12';
   ctx.beginPath();
   ctx.roundRect(-3.2 * z, -3.6 * z, 4.0 * z, 7.2 * z, 1.0 * z);
@@ -716,7 +908,7 @@ export function renderFerruleTerminal(
   ctx.lineWidth = 0.9 * z;
   ctx.stroke();
 
-  // 2. Cabeça do Parafuso de Fixação
+  // Cabeça do Parafuso de Fixação Pozidriv
   ctx.fillStyle = '#94a3b8';
   ctx.beginPath();
   ctx.arc(-1.2 * z, 0, 2.2 * z, 0, Math.PI * 2);
@@ -734,11 +926,11 @@ export function renderFerruleTerminal(
   ctx.lineTo(-1.2 * z, 1.2 * z);
   ctx.stroke();
 
-  // 3. Ponta de Cobre Multifilar
+  // Ponta de Cobre Multifilar
   ctx.fillStyle = isOverheated ? '#ea580c' : '#b45309';
   ctx.fillRect(-0.4 * z, -tubeHalfW * 0.7, 2.8 * z, tubeHalfW * 1.4);
 
-  // 4. Luva Metálica Estanhada Crimpada
+  // Luva Metálica Estanhada Crimpada
   const metalGrad = ctx.createLinearGradient(0, -tubeHalfW, 0, tubeHalfW);
   metalGrad.addColorStop(0, '#64748b');
   metalGrad.addColorStop(0.2, '#ffffff');
@@ -754,26 +946,7 @@ export function renderFerruleTerminal(
   ctx.lineWidth = 0.6 * z;
   ctx.stroke();
 
-  const drawCrimpIndent = (xPos: number) => {
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 0.8 * z;
-    ctx.beginPath();
-    ctx.moveTo(xPos, -tubeHalfW + 0.3 * z);
-    ctx.lineTo(xPos, tubeHalfW - 0.3 * z);
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.lineWidth = 0.5 * z;
-    ctx.beginPath();
-    ctx.moveTo(xPos + 0.5 * z, -tubeHalfW + 0.3 * z);
-    ctx.lineTo(xPos + 0.5 * z, tubeHalfW - 0.3 * z);
-    ctx.stroke();
-  };
-
-  drawCrimpIndent(3.2 * z);
-  drawCrimpIndent(6.5 * z);
-
-  // 5. Capa Cônica Isolante Plástica
+  // Capa Cônica Isolante Plástica Normativa
   const collarStartX = tubeLen - 0.5 * z;
   const collarEndX = collarStartX + collarLen;
   const collarStartHalfW = tubeHalfW + 0.4 * z;
@@ -872,17 +1045,6 @@ export function renderCurvedWireWithFerrules(
     options.isOverheated
   );
 }
-
-export function getBezierPoints(
-  filletPath: FilletManhattanPath,
-  numSamples: number = 20
-): { x: number; y: number }[] {
-  if (!filletPath || !filletPath.points) return [];
-  return filletPath.points;
-}
-
-export const calculateCurvedPath = calculateFilletManhattanPath;
-export const getCurvedSvgPathString = (path: FilletManhattanPath) => getFilletSvgPathString(path.points, path.radius);
 
 export function findJunctionDots(
   components: any[],

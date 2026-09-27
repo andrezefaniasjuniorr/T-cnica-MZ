@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CadCircuitProject } from '../../types';
 import { soundFX } from '../../utils/audio';
 import {
@@ -114,7 +114,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const ghostTextRef = useRef<HTMLSpanElement | null>(null);
-  const dragOverlayRef = useRef<HTMLDivElement | null>(null);
 
   const isDraggingRef = useRef<boolean>(false);
   const hasPendingDragChangesRef = useRef<boolean>(false);
@@ -387,18 +386,27 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   const handleFit = useCallback(() => {
     const canvas = canvasRef.current;
     const curProj = projectRef.current;
-    if (!canvas || (curProj.components.length === 0 && (!curProj.busbars || curProj.busbars.length === 0))) {
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    if (curProj.components.length === 0 && (!curProj.busbars || curProj.busbars.length === 0)) {
       cameraRef.current.zoom = 1;
-      cameraRef.current.pan = { x: canvas ? canvas.width / 4 : 0, y: canvas ? canvas.height / 4 : 0 };
+      cameraRef.current.pan = { x: rect.width / 4, y: rect.height / 4 };
       return;
     }
+
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     curProj.components.forEach(c => {
-      minX = Math.min(minX, c.x - c.w / 2);
-      maxX = Math.max(maxX, c.x + c.w / 2);
-      minY = Math.min(minY, c.y - c.h / 2);
-      maxY = Math.max(maxY, c.y + c.h / 2);
+      const w = c.w || 90;
+      const h = c.h || 75;
+      minX = Math.min(minX, c.x - w / 2);
+      maxX = Math.max(maxX, c.x + w / 2);
+      minY = Math.min(minY, c.y - h / 2);
+      maxY = Math.max(maxY, c.y + h / 2);
     });
+
     (curProj.busbars || []).forEach(b => {
       const isH = b.orientation === 'horizontal';
       const halfL = (b.length || 600) / 2;
@@ -420,11 +428,11 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       maxY = Math.max(maxY, py + halfH);
     }
 
-    const padding = 120;
-    const w = Math.max(200, maxX - minX + padding * 2);
-    const h = Math.max(200, maxY - minY + padding * 2);
-    const rect = canvas.getBoundingClientRect();
-    const z = Math.max(0.2, Math.min(1.5, Math.min(rect.width / w, rect.height / h)));
+    const padding = 100;
+    const w = Math.max(250, maxX - minX + padding * 2);
+    const h = Math.max(250, maxY - minY + padding * 2);
+    const z = Math.max(0.25, Math.min(1.4, Math.min(rect.width / w, rect.height / h)));
+
     cameraRef.current.zoom = z;
     cameraRef.current.pan = {
       x: rect.width / 2 - ((minX + maxX) / 2) * z,
@@ -527,20 +535,58 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       spawnY = Math.round((cy - cameraRef.current.pan.y) / (cameraRef.current.zoom * cameraRef.current.grid)) * cameraRef.current.grid;
     }
 
+    let defaultW = 90;
+    let defaultH = 75;
+    if (code === 'MCB_1P') defaultW = 50;
+    else if (code === 'MCB2') defaultW = 75;
+    else if (code === 'MPCB') { defaultW = 95; defaultH = 85; }
+    else if (code === 'MCCB') { defaultW = 120; defaultH = 92; }
+    else if (code === 'CONTACTOR') { defaultW = 110; defaultH = 88; }
+    else if (code === 'AUX_BLOCK_2NA2NF') { defaultW = 85; defaultH = 70; }
+    else if (code === 'OLR') { defaultW = 105; defaultH = 88; }
+    else if (code === 'PBNO' || code === 'PBNC') { defaultW = 75; defaultH = 78; }
+    else if (code === 'FUSE') { defaultW = 46; defaultH = 75; }
+    else if (code === 'FU3') { defaultW = 88; defaultH = 75; }
+    else if (code === 'SPD') { defaultW = 60; defaultH = 75; }
+    else if (code === 'SPD3') { defaultW = 110; defaultH = 75; }
+    else if (code.startsWith('SRC_')) { defaultW = 120; defaultH = 85; }
+    else if (code === 'GEN_DIESEL') { defaultW = 145; defaultH = 95; }
+    else if (code === 'ATS_SWITCH') { defaultW = 150; defaultH = 95; }
+    else if (code === 'MTS_SWITCH') { defaultW = 130; defaultH = 90; }
+    else if (code === 'PV_PANEL') { defaultW = 110; defaultH = 100; }
+    else if (code === 'PV_INVERTER_ONGRID') { defaultW = 145; defaultH = 100; }
+    else if (code === 'PV_INVERTER_OFFGRID') { defaultW = 135; defaultH = 95; }
+    else if (code === 'PV_INVERTER_HYBRID') { defaultW = 140; defaultH = 100; }
+    else if (code === 'BAT_LIFEPO4') { defaultW = 125; defaultH = 85; }
+    else if (code === 'SMART_METER') { defaultW = 80; defaultH = 80; }
+    else if (code === 'M3PH_6L' || code === 'M3PH') { defaultW = 125; defaultH = 95; }
+    else if (code === 'M1PH' || code === 'PUMP' || code === 'FAN') { defaultW = 110; defaultH = 85; }
+    else if (code === 'PHOTOCELL') { defaultW = 75; defaultH = 80; }
+    else if (code === 'PIR_SENSOR') { defaultW = 80; defaultH = 80; }
+    else if (code === 'TIMER_DIGITAL' || code === 'TIMER_STAR_DELTA' || code === 'TIMER_TOF') { defaultW = 85; defaultH = 80; }
+    else if (code === 'THERMOSTAT_DIGITAL') { defaultW = 95; defaultH = 80; }
+    else if (code === 'EARTH_ROD') { defaultW = 40; defaultH = 90; }
+    else if (code === 'EARTH_PIT') { defaultW = 90; defaultH = 75; }
+    else if (code === 'JUNCTION_BOX') { defaultW = 105; defaultH = 80; }
+    else if (code === 'LAMP') { defaultW = 85; defaultH = 85; }
+
     const newComp = {
       id: `${code}_${Math.random().toString(36).substring(2, 7)}`,
       code,
       x: spawnX,
       y: spawnY,
       rot: 0,
-      w: 100,
-      h: 70,
+      w: defaultW,
+      h: defaultH,
       params: JSON.parse(JSON.stringify(cdef.params || {})),
       state: {
         closed: cdef.params?.closed ?? false,
+        closed1: false,
+        closed2: false,
         energized: false,
         running: false,
         tripped: false,
+        position: cdef.params?.position ?? 0,
         rpm: 0
       },
       label: cdef.name
@@ -909,100 +955,201 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   /**
    * ACIONAMENTO FÍSICO DIRETO DE COMPONENTES E INTERRUPTORES (LÓGICA REAL NBR/IEC)
    */
-  const triggerComponentCommand = useCallback((compId: string, action: 'toggle' | 'on' | 'off' | 'pulse' | 'reset' | 'test_rcd') => {
-    setProject(prev => {
-      const updated = {
-        ...prev,
-        components: prev.components.map(c => {
-          if (c.id === compId) {
-            const d = getComponentDef(c.code);
-            const st = { ...c.state };
-            const params = { ...(c.params || {}) };
+  const triggerComponentCommand = useCallback(
+    (compId: string, action: 'toggle' | 'on' | 'off' | 'pulse' | 'reset' | 'test_rcd', clickRelX: number = 0) => {
+      setProject(prev => {
+        const updated = {
+          ...prev,
+          components: prev.components.map(c => {
+            if (c.id === compId) {
+              const d = getComponentDef(c.code);
+              const st = { ...c.state };
+              const params = { ...(c.params || {}) };
 
-            if (action === 'test_rcd') {
-              params.testPressed = true;
-              soundFX?.playClick?.();
-              setTimeout(() => {
-                c.params.testPressed = false;
-              }, 200);
-            } else if (action === 'reset') {
-              st.tripped = false;
-              st.fault = false;
-              st.faultCause = '';
-              st.burned = false;
-              st.closed = d.params?.closed ?? false;
-              st.energized = false;
-              st.running = false;
-              st.rpm = 0;
-              simRef.current.trippedSet.delete(compId);
-              addEvent(`${d.name}: Proteção resetada.`, 'info');
-            } else if (action === 'pulse') {
-              const isNC = c.code === 'PBNC' || (d.params?.closed === true && Boolean(d.momentary));
-              st.pressed = true;
-              st.closed = isNC ? false : true;
-              soundFX?.playClick?.();
+              if (action === 'test_rcd') {
+                params.testPressed = true;
+                soundFX?.playClick?.();
+                setTimeout(() => {
+                  c.params.testPressed = false;
+                }, 200);
+              } else if (action === 'reset') {
+                st.tripped = false;
+                st.fault = false;
+                st.faultCause = '';
+                st.burned = false;
+                st.closed = d.params?.closed ?? false;
+                st.energized = false;
+                st.running = false;
+                st.rpm = 0;
+                simRef.current.trippedSet.delete(compId);
+                addEvent(`${d.name}: Proteção resetada.`, 'info');
+              } else if (action === 'pulse') {
+                const isNC = c.code === 'PBNC' || (d.params?.closed === true && Boolean(d.momentary));
+                st.pressed = true;
+                st.closed = isNC ? false : true;
+                soundFX?.playClick?.();
 
-              setTimeout(() => {
-                setProject(curr => {
-                  const currUpdated = {
-                    ...curr,
-                    components: curr.components.map(item =>
-                      item.id === compId
-                        ? {
-                            ...item,
-                            state: {
-                              ...item.state,
-                              pressed: false,
-                              closed: isNC ? true : false
+                setTimeout(() => {
+                  setProject(curr => {
+                    const currUpdated = {
+                      ...curr,
+                      components: curr.components.map(item =>
+                        item.id === compId
+                          ? {
+                              ...item,
+                              state: {
+                                ...item.state,
+                                pressed: false,
+                                closed: isNC ? true : false
+                              }
                             }
-                          }
-                        : item
-                    ),
-                    updated: Date.now()
-                  };
-                  projectRef.current = currUpdated;
-                  return currUpdated;
-                });
-              }, 400);
-            } else {
-              // COMUTAÇÃO REAL DE INTERRUPTORES (3-WAY, 4-WAY, SW, SW2, SEL)
-              if (c.code === 'THREE_WAY') {
-                const nextPos = (params.position ?? 0) === 0 ? 1 : 0;
-                params.position = nextPos;
-                st.rockerAngle = nextPos;
-                st.closed = nextPos === 1;
-                soundFX?.playClick?.();
-                addEvent(`Three-Way comutado para rota ${nextPos === 0 ? 'R1' : 'R2'}.`, 'info');
-              } else if (c.code === 'FOUR_WAY') {
-                const nextCrossed = !Boolean(params.crossed);
-                params.crossed = nextCrossed;
-                st.rockerAngle = nextCrossed ? 1 : 0;
-                st.closed = nextCrossed;
-                soundFX?.playClick?.();
-                addEvent(`Four-Way comutado para modo ${nextCrossed ? 'Cruzado' : 'Direto'}.`, 'info');
-              } else if (c.code === 'SEL') {
-                const nextPos = (params.position ?? 0) === 0 ? 1 : 0;
-                params.position = nextPos;
-                st.rockerAngle = nextPos;
-                soundFX?.playClick?.();
+                          : item
+                      ),
+                      updated: Date.now()
+                    };
+                    projectRef.current = currUpdated;
+                    return currUpdated;
+                  });
+                }, 350);
               } else {
-                const nextOn = action === 'toggle' ? !st.closed : action === 'on';
-                st.closed = nextOn;
-                st.rockerAngle = nextOn ? 1 : 0;
-                params.closed = nextOn;
+                // ================================================================
+                // COMUTAÇÃO REAL E INTERATIVA DE DISPOSITIVOS
+                // ================================================================
+                if (c.code === 'GEN_DIESEL') {
+                  const nextGenState = !Boolean(st.running || params.running);
+                  st.running = nextGenState;
+                  params.running = nextGenState;
+                  soundFX?.playClick?.();
+                  addEvent(nextGenState ? 'GMG DIESEL: Grupo Gerador acionado com sucesso (400V 50Hz).' : 'GMG DIESEL: Motor desligado.', nextGenState ? 'info' : 'warn');
+                } else if (c.code === 'ATS_SWITCH') {
+                  const curGrid = params.gridHealthy !== false;
+                  params.gridHealthy = !curGrid;
+                  soundFX?.playClick?.();
+                  addEvent(!curGrid ? 'ATS: Rede restabelecida. Transferindo para Concessionária...' : 'ATS: Falha na Rede detectada! Acionando GMG e transferindo carga...', 'warn');
+                } else if (c.code === 'MTS_SWITCH') {
+                  const curPos = Number(params.position ?? 1);
+                  let nextPos = 1;
+                  if (curPos === 1) nextPos = 0;
+                  else if (curPos === 0) nextPos = 2;
+                  else nextPos = 1;
+                  params.position = nextPos;
+                  soundFX?.playClick?.();
+                  const posLabel = nextPos === 1 ? 'I (REDE)' : nextPos === 2 ? 'II (GERADOR)' : '0 (DESLIGADO)';
+                  addEvent(`MTS: Chave de transferência manual manobrada para ${posLabel}.`, 'info');
+                } else if (c.code === 'PHOTOCELL') {
+                  const curLux = params.ambientLux ?? 100;
+                  const nextLux = curLux <= 20 ? 120 : 10;
+                  params.ambientLux = nextLux;
+                  st.closed = nextLux <= 20;
+                  soundFX?.playClick?.();
+                  addEvent(nextLux <= 20 ? 'Fotocélula: Anoitecer detectado (<20 lux). Contato fechado.' : 'Fotocélula: Luz solar detectada (>20 lux). Contato aberto.', 'info');
+                } else if (c.code === 'PIR_SENSOR') {
+                  params.presenceDetected = true;
+                  soundFX?.playClick?.();
+                  addEvent('Sensor PIR: Presença detectada! Contato ativado.', 'info');
+                  setTimeout(() => {
+                    setProject(curr => ({
+                      ...curr,
+                      components: curr.components.map(item => item.id === compId ? { ...item, params: { ...item.params, presenceDetected: false } } : item)
+                    }));
+                  }, 4000);
+                } else if (c.code === 'PV_PANEL') {
+                  const curIrr = params.irradiance ?? 1000;
+                  params.irradiance = curIrr === 0 ? 1000 : 0;
+                  soundFX?.playClick?.();
+                  addEvent(params.irradiance === 1000 ? 'Painel Solar: Radiação solar nominal (1000 W/m²).' : 'Painel Solar: Sem radiação solar (0 W/m² - Noite).', 'info');
+                } else if (c.code === 'ESTOP') {
+                  const isLocked = Boolean(st.pressed || st.tripped || !st.closed);
+                  const nextLocked = !isLocked;
+                  st.pressed = nextLocked;
+                  st.tripped = nextLocked;
+                  st.closed = !nextLocked;
+                  params.closed = !nextLocked;
+                  soundFX?.playClick?.();
+                  addEvent(nextLocked ? 'E-STOP TRAVADO: Circuito desarmado!' : 'E-STOP DESTRAVADO: Circuito em serviço.', nextLocked ? 'warn' : 'info');
+                } else if (c.code === 'LIMIT') {
+                  const nextActuated = !Boolean(st.actuated || st.pressed);
+                  st.actuated = nextActuated;
+                  st.pressed = nextActuated;
+                  st.closed = !nextActuated;
+                  soundFX?.playClick?.();
+                  addEvent(`Fim de curso ${nextActuated ? 'ATUADO (haste defletida)' : 'em REPOUSO'}.`, 'info');
+                } else if (c.code === 'FLOAT') {
+                  const nextHigh = !Boolean(st.high || st.closed);
+                  st.high = nextHigh;
+                  st.closed = nextHigh;
+                  params.closed = nextHigh;
+                  soundFX?.playClick?.();
+                  addEvent(nextHigh ? 'Bóia de nível: NÍVEL ALTO (contato NA fechado).' : 'Bóia de nível: NÍVEL BAIXO (contato NF fechado).', 'info');
+                } else if (c.code === 'SEL') {
+                  const curPos = Number(params.position ?? st.position ?? 0);
+                  let nextPos = 0;
+                  if (curPos === 0) nextPos = 1;
+                  else if (curPos === 1) nextPos = 2;
+                  else nextPos = 0;
+
+                  params.position = nextPos;
+                  st.position = nextPos;
+                  st.rockerAngle = nextPos;
+                  soundFX?.playClick?.();
+                  const posName = nextPos === 1 ? 'MARCHA 1 (MAN)' : nextPos === 2 ? 'MARCHA 2 (AUTO)' : 'CENTRO (DESLIGADO)';
+                  addEvent(`Chave Seletora comutada para ${posName}.`, 'info');
+                } else if (c.code === 'SW_DOUBLE') {
+                  if (clickRelX < 0) {
+                    const nextK1 = !Boolean(st.closed1 ?? st.closed);
+                    st.closed1 = nextK1;
+                    st.closed = nextK1;
+                    params.closed1 = nextK1;
+                    soundFX?.playClick?.();
+                    addEvent(`Interruptor duplo Tecla 1 (R1): ${nextK1 ? 'LIGADA' : 'DESLIGADA'}.`, 'info');
+                  } else {
+                    const nextK2 = !Boolean(st.closed2);
+                    st.closed2 = nextK2;
+                    params.closed2 = nextK2;
+                    soundFX?.playClick?.();
+                    addEvent(`Interruptor duplo Tecla 2 (R2): ${nextK2 ? 'LIGADA' : 'DESLIGADA'}.`, 'info');
+                  }
+                } else if (c.code === 'DIMMER') {
+                  const curPct = Number(params.percent ?? 100);
+                  const nextPct = curPct >= 100 ? 0 : curPct + 25;
+                  params.percent = nextPct;
+                  st.percent = nextPct;
+                  soundFX?.playClick?.();
+                  addEvent(`Dimmer ajustado para ${nextPct}% (modulação de tensão eficaz).`, 'info');
+                } else if (c.code === 'THREE_WAY') {
+                  const nextPos = (params.position ?? 0) === 0 ? 1 : 0;
+                  params.position = nextPos;
+                  st.rockerAngle = nextPos;
+                  st.closed = nextPos === 1;
+                  soundFX?.playClick?.();
+                  addEvent(`Three-Way comutado para rota ${nextPos === 0 ? 'R1' : 'R2'}.`, 'info');
+                } else if (c.code === 'FOUR_WAY') {
+                  const nextCrossed = !Boolean(params.crossed);
+                  params.crossed = nextCrossed;
+                  st.rockerAngle = nextCrossed ? 1 : 0;
+                  st.closed = nextCrossed;
+                  soundFX?.playClick?.();
+                  addEvent(`Four-Way comutado para modo ${nextCrossed ? 'Cruzado' : 'Direto'}.`, 'info');
+                } else {
+                  const nextOn = action === 'toggle' ? !st.closed : action === 'on';
+                  st.closed = nextOn;
+                  st.rockerAngle = nextOn ? 1 : 0;
+                  params.closed = nextOn;
+                }
               }
+              return { ...c, state: st, params };
             }
-            return { ...c, state: st, params };
-          }
-          return c;
-        }),
-        updated: Date.now()
-      };
-      projectRef.current = updated;
-      return updated;
-    });
-    soundFX.playClick();
-  }, [addEvent]);
+            return c;
+          }),
+          updated: Date.now()
+        };
+        projectRef.current = updated;
+        return updated;
+      });
+      soundFX.playClick();
+    },
+    [addEvent]
+  );
 
   const handleExportJSON = () => {
     const dataStr = JSON.stringify(projectRef.current, null, 2);
@@ -1143,7 +1290,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   }, []);
 
   // ==========================================================================
-  // LOOP DE RENDERIZAÇÃO DO CANVAS 2D (5 CAMADAS FÍSICAS REAIS)
+  // LOOP DE RENDERIZAÇÃO DO CANVAS 2D (PROTEGIDO CONTRA CONGELAMENTO)
   // ==========================================================================
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1167,261 +1314,201 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     window.addEventListener('resize', resizeCanvas, { passive: true });
 
     const render = (now: number) => {
-      const dt = Math.min(0.1, (now - simRef.current.lastTick) / 1000);
-      simRef.current.lastTick = now;
+      try {
+        const dt = Math.min(0.1, (now - simRef.current.lastTick) / 1000);
+        simRef.current.lastTick = now;
 
-      const rect = canvas.getBoundingClientRect();
-      const w = rect.width;
-      const h = rect.height;
-      if (w === 0 || h === 0) {
-        animationFrameId = requestAnimationFrame(render);
-        return;
-      }
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
+        if (w === 0 || h === 0) return;
 
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const targetW = Math.round(w * dpr);
-      const targetH = Math.round(h * dpr);
-      if (canvas.width !== targetW || canvas.height !== targetH) {
-        canvas.width = targetW;
-        canvas.height = targetH;
-      }
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const targetW = Math.round(w * dpr);
+        const targetH = Math.round(h * dpr);
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
+        }
 
-      ctx.save();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.save();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const cam = cameraRef.current;
-      const currentProj = projectRef.current;
-      const isSimRunning = isRunningRef.current;
+        const cam = cameraRef.current;
+        const currentProj = projectRef.current;
+        const isSimRunning = isRunningRef.current;
 
-      // 1. Limpar Fundo
-      ctx.fillStyle = '#060D1A';
-      ctx.fillRect(0, 0, w, h);
+        // Fundo
+        ctx.fillStyle = '#060D1A';
+        ctx.fillRect(0, 0, w, h);
 
-      // 2. Grade CAD Técnica
-      ctx.save();
-      const baseGrid = cam.grid || 20;
-      const step = baseGrid * cam.zoom;
-      const ox = ((cam.pan.x % step) + step) % step;
-      const oy = ((cam.pan.y % step) + step) % step;
+        // Grade técnica
+        ctx.save();
+        const baseGrid = cam.grid || 20;
+        const step = baseGrid * cam.zoom;
+        const ox = ((cam.pan.x % step) + step) % step;
+        const oy = ((cam.pan.y % step) + step) % step;
 
-      if (cam.zoom > 1.8) {
-        const subStep = step / 4;
-        const subOx = ((cam.pan.x % subStep) + subStep) % subStep;
-        const subOy = ((cam.pan.y % subStep) + subStep) % subStep;
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.035)';
-        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.07)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        for (let x = subOx; x < w; x += subStep) {
+        for (let x = ox; x < w; x += step) {
           ctx.moveTo(x, 0);
           ctx.lineTo(x, h);
         }
-        for (let y = subOy; y < h; y += subStep) {
+        for (let y = oy; y < h; y += step) {
           ctx.moveTo(0, y);
           ctx.lineTo(w, y);
         }
         ctx.stroke();
-      }
-
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.07)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let x = ox; x < w; x += step) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
-      }
-      for (let y = oy; y < h; y += step) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
-      }
-      ctx.stroke();
-
-      const macroStep = step * 5;
-      const macroOx = ((cam.pan.x % macroStep) + macroStep) % macroStep;
-      const macroOy = ((cam.pan.y % macroStep) + macroStep) % macroStep;
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      for (let x = macroOx; x < w; x += macroStep) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
-      }
-      for (let y = macroOy; y < h; y += macroStep) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
-      }
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      for (let x = macroOx; x < w; x += macroStep) {
-        for (let y = macroOy; y < h; y += macroStep) {
-          ctx.moveTo(x - 4, y);
-          ctx.lineTo(x + 4, y);
-          ctx.moveTo(x, y - 4);
-          ctx.lineTo(x + 4, y);
-        }
-      }
-      ctx.stroke();
-      ctx.restore();
-
-      const toScreen = (p: { x: number; y: number }) => ({
-        x: p.x * cam.zoom + cam.pan.x,
-        y: p.y * cam.zoom + cam.pan.y
-      });
-
-      // ======================================================================
-      // Z-INDEX REGRA 1 & 2: ORDEM FÍSICA ESTRITA
-      // 1. Chapa de Montagem do Armário (Enclosure)
-      // 2. Fiação Retilínea de Canaleta Traseira (Dobras Curvas nos Vértices)
-      // 3. Trilhos DIN 35mm e Barramentos Elétricos
-      // 4. Dispositivos Elétricos (Carcaça sobrepõe a fiação de fundo)
-      // 5. Terminais Ilhós Tubulares / Ferrules e Parafusos de Fixação
-      // ======================================================================
-
-      // CAMADA 1: Moldura, Chapa Laranja e Canaletas
-      if (currentProj.panelConfig?.enabled) {
-        drawPanelEnclosure(ctx, cam, currentProj.panelConfig);
-      }
-
-      // CAMADA 2: CONDUTORES RETOS COM DOBRAS CURVAS (PASSAM POR TRÁS)
-      (currentProj.wires || []).forEach((wire: any, wireIdx: number) => {
-        const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, currentProj.components, currentProj.busbars || []);
-        const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, currentProj.components, currentProj.busbars || []);
-        const filletPath = calculateFilletManhattanPath(posA, posB, wireIdx, wire.waypoints);
-        const isSelected = wire.id === selectedWireIdRef.current;
-
-        renderCurvedWireBack(ctx, filletPath, {
-          wireType: wire.type || 'L1',
-          gauge: Number(wire.gauge || 2.5),
-          cam,
-          isLive: isRunningRef.current && Boolean(wire.live),
-          isSelected,
-          isOverheated: Boolean(wire.overheated),
-          animTick: simRef.current.time * 60,
-          toScreen
-        });
-      });
-
-      const activeLiveBusbars = new Set<string>();
-      if (isRunningRef.current) {
-        activeLiveBusbars.add('phase_l1');
-        activeLiveBusbars.add('phase_l2');
-        activeLiveBusbars.add('phase_l3');
-        activeLiveBusbars.add('neutral');
-        activeLiveBusbars.add('earth');
-      }
-
-      // CAMADA 3: TRILHOS DIN 35mm E BARRAMENTOS (DESENHADOS SOBRE OS CABOS DE FUNDO)
-      drawBusbars(
-        ctx,
-        cam,
-        currentProj.busbars || [],
-        selectedBusbarIdRef.current,
-        hoveredTerminalIdRef.current,
-        activeLiveBusbars
-      );
-
-      // CAMADA 4: DISPOSITIVOS ELÉTRICOS (DESENHADOS SOBRE OS FIOS E TRILHOS)
-      currentProj.components.forEach(c => {
-        const s = toScreen({ x: c.x, y: c.y });
-        ctx.save();
-        ctx.translate(s.x, s.y);
-        ctx.rotate(((c.rot || 0) * Math.PI) / 180);
-
-        renderDevice(ctx, {
-          component: c,
-          camera: cam,
-          isSelected: c.id === selectedCompIdRef.current,
-          time: simRef.current.time,
-          simRunning: isRunningRef.current
-        });
-
         ctx.restore();
-      });
 
-      // CAMADA 5: TERMINAIS ILHÓS TUBULARES (FERRULES) E PARAFUSOS DE APERTO
-      (currentProj.wires || []).forEach((wire: any) => {
-        const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, currentProj.components, currentProj.busbars || []);
-        const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, currentProj.components, currentProj.busbars || []);
-        const isLive = isRunningRef.current && Boolean(wire.live);
-        const isOverheated = Boolean(wire.overheated);
-        const wireGauge = Number(wire.gauge || 2.5);
-
-        renderFerruleTerminal(
-          ctx,
-          toScreen(posA),
-          posA.dir || 'bottom',
-          wire.type || 'L1',
-          wireGauge,
-          cam,
-          isLive,
-          isOverheated
-        );
-
-        renderFerruleTerminal(
-          ctx,
-          toScreen(posB),
-          posB.dir || 'top',
-          wire.type || 'L1',
-          wireGauge,
-          cam,
-          isLive,
-          isOverheated
-        );
-      });
-
-      // 6. Linha de Pré-visualização de Fio em Criação
-      if (simRef.current.wireStart) {
-        const startPos = getNodeWorldPos(
-          simRef.current.wireStart.c,
-          simRef.current.wireStart.t,
-          currentProj.components,
-          currentProj.busbars || []
-        );
-        const curWorld = simRef.current.pointerWorld || { x: startPos.x, y: startPos.y + 60 };
-        const targetPos: TerminalPosition = {
-          x: curWorld.x,
-          y: curWorld.y,
-          dir: startPos.dir === 'top' ? 'bottom' : 'top',
-          normId: 'cursor'
-        };
-
-        const previewPath = calculateFilletManhattanPath(startPos, targetPos, 0);
-        renderCurvedWireBack(ctx, previewPath, {
-          wireType: selectedWireTypeRef.current,
-          gauge: 2.5,
-          cam,
-          isLive: false,
-          isSelected: true,
-          isOverheated: false,
-          animTick: simRef.current.time * 60,
-          toScreen
+        const toScreen = (p: { x: number; y: number }) => ({
+          x: p.x * cam.zoom + cam.pan.x,
+          y: p.y * cam.zoom + cam.pan.y
         });
 
-        renderFerruleTerminal(
+        // CAMADA 1: Moldura do Quadro
+        if (currentProj.panelConfig?.enabled) {
+          drawPanelEnclosure(ctx, cam, currentProj.panelConfig);
+        }
+
+        // CAMADA 2: CONDUTORES
+        (currentProj.wires || []).forEach((wire: any, wireIdx: number) => {
+          const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, currentProj.components, currentProj.busbars || []);
+          const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, currentProj.components, currentProj.busbars || []);
+          const filletPath = calculateFilletManhattanPath(posA, posB, wireIdx, wire.waypoints);
+          const isSelected = wire.id === selectedWireIdRef.current;
+
+          renderCurvedWireBack(ctx, filletPath, {
+            wireType: wire.type || 'L1',
+            gauge: Number(wire.gauge || 2.5),
+            cam,
+            isLive: isRunningRef.current && Boolean(wire.live),
+            isSelected,
+            isOverheated: Boolean(wire.overheated),
+            animTick: simRef.current.time * 60,
+            toScreen
+          });
+        });
+
+        const activeLiveBusbars = new Set<string>();
+        if (isRunningRef.current) {
+          activeLiveBusbars.add('phase_l1');
+          activeLiveBusbars.add('phase_l2');
+          activeLiveBusbars.add('phase_l3');
+          activeLiveBusbars.add('neutral');
+          activeLiveBusbars.add('earth');
+        }
+
+        // CAMADA 3: TRILHOS DIN E BARRAMENTOS
+        drawBusbars(
           ctx,
-          toScreen(startPos),
-          startPos.dir || 'bottom',
-          selectedWireTypeRef.current,
-          2.5,
           cam,
-          false,
-          false
+          currentProj.busbars || [],
+          selectedBusbarIdRef.current,
+          hoveredTerminalIdRef.current,
+          activeLiveBusbars
         );
-      }
 
-      if (svgGroupRef.current) {
-        svgGroupRef.current.setAttribute('transform', `translate(${cam.pan.x}, ${cam.pan.y}) scale(${cam.zoom})`);
-      }
+        // CAMADA 4: DISPOSITIVOS ELÉTRICOS (PROTEGIDO INDIVIDUALMENTE)
+        currentProj.components.forEach(c => {
+          const s = toScreen({ x: c.x, y: c.y });
+          ctx.save();
+          ctx.translate(s.x, s.y);
+          ctx.rotate(((c.rot || 0) * Math.PI) / 180);
 
-      // ======================================================================
-      // 7. MOTOR DE FÍSICA NODAL REAL-TIME (CÁLCULO DINÂMICO IEC 60947/60364)
-      // ======================================================================
-      try {
-        simRef.current.time += dt;
+          try {
+            renderDevice(ctx, {
+              component: c,
+              camera: cam,
+              isSelected: c.id === selectedCompIdRef.current,
+              time: simRef.current.time,
+              simRunning: isRunningRef.current
+            });
+          } catch (renderErr) {
+            console.error(`Erro ao renderizar componente ${c.id}:`, renderErr);
+          }
 
-        // Executa a iteração física do grafo
+          ctx.restore();
+        });
+
+        // CAMADA 5: TERMINAIS FERRULES
+        (currentProj.wires || []).forEach((wire: any) => {
+          const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, currentProj.components, currentProj.busbars || []);
+          const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, currentProj.components, currentProj.busbars || []);
+          const isLive = isRunningRef.current && Boolean(wire.live);
+          const isOverheated = Boolean(wire.overheated);
+          const wireGauge = Number(wire.gauge || 2.5);
+
+          renderFerruleTerminal(
+            ctx,
+            toScreen(posA),
+            posA.dir || 'bottom',
+            wire.type || 'L1',
+            wireGauge,
+            cam,
+            isLive,
+            isOverheated
+          );
+
+          renderFerruleTerminal(
+            ctx,
+            toScreen(posB),
+            posB.dir || 'top',
+            wire.type || 'L1',
+            wireGauge,
+            cam,
+            isLive,
+            isOverheated
+          );
+        });
+
+        // Fio em criação
+        if (simRef.current.wireStart) {
+          const startPos = getNodeWorldPos(
+            simRef.current.wireStart.c,
+            simRef.current.wireStart.t,
+            currentProj.components,
+            currentProj.busbars || []
+          );
+          const curWorld = simRef.current.pointerWorld || { x: startPos.x, y: startPos.y + 60 };
+          const targetPos: TerminalPosition = {
+            x: curWorld.x,
+            y: curWorld.y,
+            dir: startPos.dir === 'top' ? 'bottom' : 'top',
+            normId: 'cursor'
+          };
+
+          const previewPath = calculateFilletManhattanPath(startPos, targetPos, 0);
+          renderCurvedWireBack(ctx, previewPath, {
+            wireType: selectedWireTypeRef.current,
+            gauge: 2.5,
+            cam,
+            isLive: false,
+            isSelected: true,
+            isOverheated: false,
+            animTick: simRef.current.time * 60,
+            toScreen
+          });
+
+          renderFerruleTerminal(
+            ctx,
+            toScreen(startPos),
+            startPos.dir || 'bottom',
+            selectedWireTypeRef.current,
+            2.5,
+            cam,
+            false,
+            false
+          );
+        }
+
+        if (svgGroupRef.current) {
+          svgGroupRef.current.setAttribute('transform', `translate(${cam.pan.x}, ${cam.pan.y}) scale(${cam.zoom})`);
+        }
+
+        // MOTOR FÍSICO MNA
         const physResult = solveCircuitPhysicsStep(
           currentProj,
           dt,
@@ -1429,7 +1516,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           isSimRunning
         );
 
-        // Tratamento de curto-circuito físico
         if (physResult.hasDirectShort) {
           const faultKey = 'short_circuit_direct';
           if (!simRef.current.firedAlertsSet.has(faultKey)) {
@@ -1437,13 +1523,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             soundFX.playShortCircuitSpark();
             soundFX.playBreakerSwitch(true);
             setFaultAlert(physResult.shortCause || 'Curto-Circuito Fase-Neutro Detectado!');
-            simulatorDiagnostics.speakCustomAlert(
-              'Curto-Circuito',
-              'Atenção: Curto-circuito detectado! Proteção desarmada imediatamente.',
-              'sparks',
-              1,
-              faultKey
-            );
             addEvent(physResult.shortCause || 'Curto-circuito detectado.', 'trip');
           }
         } else {
@@ -1453,7 +1532,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           }
         }
 
-        // Áudio e animação de contatores
         const kmComp = currentProj.components.find(c => c.code === 'CONTACTOR');
         const kmEnergized = Boolean(kmComp?.state?.energized);
         if (kmEnergized !== simRef.current.lastContactorState) {
@@ -1461,8 +1539,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           simRef.current.lastContactorState = kmEnergized;
         }
 
-        // Áudio e inércia do motor trifásico
-        const motorComp = currentProj.components.find(c => c.code === 'M3PH' || c.code === 'M1PH');
+        const motorComp = currentProj.components.find(c => ['M3PH', 'M1PH', 'M3PH_6L', 'PUMP'].includes(c.code));
         if (motorComp && motorComp.state) {
           const targetRpm = motorComp.state.running ? Number(motorComp.state.rpm || 2920) : 0;
           if (targetRpm > (simRef.current.motorRpm || 0)) {
@@ -1472,20 +1549,18 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           }
 
           if (simRef.current.motorRpm > 0) {
-            soundFX.updateMotorSound(true, simRef.current.motorRpm / 2920, motorComp.code === 'M3PH');
+            soundFX.updateMotorSound(true, simRef.current.motorRpm / 2920, motorComp.code.includes('3PH') || motorComp.code === 'PUMP');
           } else {
             soundFX.stopMotorSound();
           }
         }
 
-        // Atualização dos medidores da interface
         setMeterV(physResult.mainVoltageRMS);
         setMeterA(physResult.totalLineCurrent);
         setMeterW(Math.round(physResult.totalActivePower));
         setMeterHz(physResult.activeFrequency);
         setMeterPF(physResult.activePF);
 
-        // Amostragem para o Osciloscópio Digital
         if (isSimRunning) {
           simRef.current.scopeHistory.push({
             t: simRef.current.time,
@@ -1497,6 +1572,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           }
         }
 
+        // Render do Osciloscópio
         if (showScopeRef.current && scopeCanvasRef.current && !isDraggingRef.current) {
           const sCanvas = scopeCanvasRef.current;
           const sCtx = sCanvas.getContext('2d');
@@ -1532,11 +1608,14 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             const hist = simRef.current.scopeHistory;
             const n = hist.length;
 
-            if ((scopeChannel === 'CH1' || scopeChannel === 'DUAL') && n > 1) {
+            const curChannel = scopeChannelRef.current;
+            const curVDiv = scopeVoltsDivRef.current;
+
+            if ((curChannel === 'CH1' || curChannel === 'DUAL') && n > 1) {
               sCtx.strokeStyle = '#38bdf8';
               sCtx.lineWidth = 2;
               sCtx.beginPath();
-              const vScale = (sh / 2.2) / (scopeVoltsDiv * 4);
+              const vScale = (sh / 2.2) / (curVDiv * 4);
               for (let i = 0; i < n; i++) {
                 const px = (i / Math.max(1, n - 1)) * sw;
                 const py = sh / 2 - hist[i].v * vScale;
@@ -1546,7 +1625,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               sCtx.stroke();
             }
 
-            if ((scopeChannel === 'CH2' || scopeChannel === 'DUAL') && n > 1) {
+            if ((curChannel === 'CH2' || curChannel === 'DUAL') && n > 1) {
               sCtx.strokeStyle = '#f59e0b';
               sCtx.lineWidth = 2;
               sCtx.beginPath();
@@ -1562,18 +1641,21 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           }
         }
 
-        const currentLiveSummary = currentProj.wires.map((w: any) => (w.live ? '1' : '0')).join('') +
+        const currentLiveSummary =
+          currentProj.wires.map((w: any) => (w.live ? '1' : '0')).join('') +
           currentProj.components.map((c: any) => (c.state?.energized ? '1' : '0')).join('');
         if (currentLiveSummary !== lastLiveSummaryRef.current) {
           lastLiveSummaryRef.current = currentLiveSummary;
           setSimVersion(v => v + 1);
         }
-      } catch (simErr) {
-        console.error('Erro ciclo simulação:', simErr);
-      }
 
-      ctx.restore();
-      animationFrameId = requestAnimationFrame(render);
+        ctx.restore();
+      } catch (loopErr) {
+        console.error('Erro no loop do simulador:', loopErr);
+        try { ctx.restore(); } catch {}
+      } finally {
+        animationFrameId = requestAnimationFrame(render);
+      }
     };
 
     animationFrameId = requestAnimationFrame(render);
@@ -1583,7 +1665,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     };
   }, [isOpen, terminalPos]);
 
-  // Hit-test de seleção dos condutores
   const getHitWireId = (
     worldX: number,
     worldY: number,
@@ -1635,35 +1716,9 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
 
-    if (simRef.current.touchMap.size === 2) {
-      const touches = Array.from(simRef.current.touchMap.values());
-      const t1 = touches[0];
-      const t2 = touches[1];
-      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      const mid = { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
-
-      simRef.current.pinch = {
-        initialDist: Math.max(10, dist),
-        initialMid: mid,
-        startZoom: cameraRef.current.zoom,
-        startPan: { ...cameraRef.current.pan }
-      };
-      simRef.current.drag = null;
-      if (simRef.current.longPressTimer) {
-        clearTimeout(simRef.current.longPressTimer);
-        simRef.current.longPressTimer = null;
-      }
-      return;
-    }
-
     const cam = cameraRef.current;
     const worldX = (px - cam.pan.x) / cam.zoom;
     const worldY = (py - cam.pan.y) / cam.zoom;
-
-    if (simRef.current.longPressTimer) {
-      clearTimeout(simRef.current.longPressTimer);
-      simRef.current.longPressTimer = null;
-    }
 
     simRef.current.drag = {
       id: e.pointerId,
@@ -1675,6 +1730,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       mouse: { x: worldX, y: worldY }
     };
 
+    // Conexão em bornes de barramento
     const nearestBusbarTerm = findNearestBusbarTerminal(
       projectRef.current.busbars || [],
       { x: worldX, y: worldY },
@@ -1714,6 +1770,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       return;
     }
 
+    // Conexão em bornes de componentes
     for (const c of projectRef.current.components) {
       const d = getComponentDef(c.code);
       for (const t of d.terminals) {
@@ -1764,6 +1821,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
+    // Clique no corpo do componente
     for (let i = projectRef.current.components.length - 1; i >= 0; i--) {
       const c = projectRef.current.components[i];
       const rad = (-c.rot * Math.PI) / 180;
@@ -1772,7 +1830,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
       const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
 
-      if (Math.abs(rx) <= c.w / 2 && Math.abs(ry) <= c.h / 2) {
+      const w = c.w || 90;
+      const h = c.h || 75;
+
+      if (Math.abs(rx) <= w / 2 && Math.abs(ry) <= h / 2) {
         setSelectedCompId(c.id);
         setSelectedWireId(null);
         setSelectedBusbarId(null);
@@ -1780,22 +1841,17 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         simRef.current.drag.compId = c.id;
         simRef.current.drag.offsetX = worldX - c.x;
         simRef.current.drag.offsetY = worldY - c.y;
+        simRef.current.drag.clickRelX = rx;
 
         const d = getComponentDef(c.code);
         if (Boolean(d.momentary) || d.kind === 'push' || c.code === 'PBNO' || c.code === 'PBNC') {
           triggerComponentCommand(c.id, 'pulse');
         }
-
-        if (simRef.current.longPressTimer) clearTimeout(simRef.current.longPressTimer);
-        simRef.current.longPressTimer = setTimeout(() => {
-          setShowProps(true);
-          soundFX?.playClick?.();
-          simRef.current.longPressTimer = null;
-        }, 500);
         return;
       }
     }
 
+    // Clique no barramento
     for (let i = (projectRef.current.busbars || []).length - 1; i >= 0; i--) {
       const b = projectRef.current.busbars[i];
       const isH = b.orientation === 'horizontal';
@@ -1813,17 +1869,11 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         simRef.current.drag.offsetX = worldX - b.x;
         simRef.current.drag.offsetY = worldY - b.y;
         soundFX?.playClick?.();
-
-        if (simRef.current.longPressTimer) clearTimeout(simRef.current.longPressTimer);
-        simRef.current.longPressTimer = setTimeout(() => {
-          setShowProps(true);
-          soundFX?.playClick?.();
-          simRef.current.longPressTimer = null;
-        }, 500);
         return;
       }
     }
 
+    // Clique no fio
     const hitWireId = getHitWireId(
       worldX,
       worldY,
@@ -1862,42 +1912,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     const worldY = (py - cam.pan.y) / cam.zoom;
     simRef.current.pointerWorld = { x: worldX, y: worldY };
 
-    if (simRef.current.touchMap.has(e.pointerId)) {
-      simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
-    }
-
-    if (simRef.current.pinch && simRef.current.touchMap.size >= 2) {
-      const touches = Array.from(simRef.current.touchMap.values());
-      const t1 = touches[0];
-      const t2 = touches[1];
-      const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      const currentMid = { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
-
-      const scale = currentDist / simRef.current.pinch.initialDist;
-      const newZoom = Math.max(0.1, Math.min(5.0, simRef.current.pinch.startZoom * scale));
-
-      const midCanvasX = currentMid.x - rect.left;
-      const midCanvasY = currentMid.y - rect.top;
-      const initMidCanvasX = simRef.current.pinch.initialMid.x - rect.left;
-      const initMidCanvasY = simRef.current.pinch.initialMid.y - rect.top;
-
-      const worldMidX = (initMidCanvasX - simRef.current.pinch.startPan.x) / simRef.current.pinch.startZoom;
-      const worldMidY = (initMidCanvasY - simRef.current.pinch.startPan.y) / simRef.current.pinch.startZoom;
-
-      cam.zoom = newZoom;
-      cam.pan.x = midCanvasX - worldMidX * newZoom;
-      cam.pan.y = midCanvasY - worldMidY * newZoom;
-      return;
-    }
-
     const drag = simRef.current.drag;
     if (!drag) return;
-
-    const moveDist = Math.hypot(e.clientX - drag.screenStartX, e.clientY - drag.screenStartY);
-    if (moveDist > 6 && simRef.current.longPressTimer) {
-      clearTimeout(simRef.current.longPressTimer);
-      simRef.current.longPressTimer = null;
-    }
 
     drag.mouse = { x: worldX, y: worldY };
 
@@ -1952,12 +1968,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     simRef.current.touchMap.delete(e.pointerId);
-    if (simRef.current.touchMap.size < 2) simRef.current.pinch = null;
-
-    if (simRef.current.longPressTimer) {
-      clearTimeout(simRef.current.longPressTimer);
-      simRef.current.longPressTimer = null;
-    }
 
     const canvas = canvasRef.current;
     if (canvas) {
@@ -1986,7 +1996,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       setIsCadDragging(false);
     }
 
-    // DISPARO IMEDIATO DE CLIQUE TÁTIL EM INTERRUPTORES, DISJUNTORES E BOTÕES (MARGEM 8PX)
+    // Clique e atuação imediata em todos os dispositivos (exceto push buttons momentâneos que já atuam no down)
     if (moveDist < 8 && drag.mode === 'comp' && drag.compId) {
       const c = projectRef.current.components.find((item: any) => item.id === drag.compId);
       if (c) {
@@ -1996,13 +2006,29 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           c.code === 'FOUR_WAY' ||
           c.code === 'SW' ||
           c.code === 'SW2' ||
+          c.code === 'SW_DOUBLE' ||
           c.code === 'SEL' ||
+          c.code === 'ESTOP' ||
+          c.code === 'LIMIT' ||
+          c.code === 'FLOAT' ||
+          c.code === 'DIMMER' ||
+          c.code === 'GEN_DIESEL' ||
+          c.code === 'ATS_SWITCH' ||
+          c.code === 'MTS_SWITCH' ||
+          c.code === 'PV_PANEL' ||
+          c.code === 'PHOTOCELL' ||
+          c.code === 'PIR_SENSOR' ||
           d.kind === 'breaker' ||
+          d.kind === 'breaker_1p' ||
+          d.kind === 'breaker2' ||
           d.kind === 'breaker3' ||
+          d.kind === 'motor_breaker' ||
+          d.kind === 'mccb' ||
           d.kind === 'switch' ||
+          d.kind === 'switch_double' ||
           d.kind === 'selector'
         ) {
-          triggerComponentCommand(c.id, 'toggle');
+          triggerComponentCommand(c.id, 'toggle', drag.clickRelX || 0);
         } else if (d.kind === 'rcd' || d.kind === 'rcd4' || d.kind === 'rcbo') {
           triggerComponentCommand(c.id, 'test_rcd');
         }
@@ -2034,13 +2060,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   };
 
   const selectedComponent = project.components.find((c: any) => c.id === selectedCompId);
-  const selectedBusbar = (project.busbars || []).find((b: any) => b.id === selectedBusbarId);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[99999] bg-[#050A14] flex flex-col justify-between overflow-hidden select-none text-slate-200 font-sans" style={{ touchAction: 'none' }}>
-      {/* 1. TOP HEADER / TOOLBAR */}
+      {/* 1. BARRA SUPERIOR (HEADER) */}
       <header className="h-14 landscape:h-10 px-3 sm:px-4 bg-[#0B132B] border-b border-blue-900/50 flex items-center justify-between gap-2 shrink-0 z-30 shadow-xl">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-blue-900/40">
@@ -2050,7 +2075,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             <h1 className="text-xs sm:text-sm font-black text-white tracking-wide flex items-center gap-1.5">
               <span>TécnicaMZ Pro</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 font-mono border border-blue-800">
-                CAD V14
+                CAD V17
               </span>
             </h1>
             <p className="text-[10px] text-slate-400 hidden md:block">
@@ -2059,7 +2084,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         </div>
 
-        {/* Barra Central de Comandos */}
+        {/* Comandos Centrais do Header */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
           <button
             type="button"
@@ -2121,26 +2146,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             <option value="L3">L3 (Cinza)</option>
             <option value="N">N (Neutro)</option>
             <option value="PE">PE (Terra)</option>
-            <option value="24+">+24V DC</option>
-            <option value="24-">0V DC</option>
+            <option value="24+">+24V DC / +PV</option>
+            <option value="24-">0V DC / -PV</option>
             <option value="CTRL">Comando (Amarelo)</option>
           </select>
-
-          <button
-            type="button"
-            onClick={() => {
-              pushHistory();
-              const organized = autoOrganizeCircuitWiring(projectRef.current);
-              projectRef.current = organized;
-              setProject(organized);
-              soundFX.playSuccess();
-              showToast('Canaletas e condutores alinhados');
-            }}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-800"
-          >
-            <span>📐</span>
-            <span className="hidden md:inline">Auto-Organizar</span>
-          </button>
 
           <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />
 
@@ -2175,17 +2184,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           >
             <span>☀️ Solar FV</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setIsPanelConfigOpen(prev => !prev)}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
-              isPanelConfigOpen ? 'bg-amber-600/30 text-amber-300 border-amber-500/60' : 'bg-slate-900 text-slate-300 border-slate-800'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Quadro Geral</span>
-          </button>
         </div>
 
         {/* Ações da Direita */}
@@ -2198,7 +2196,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             }`}
           >
             {diagnosticState.isSpeaking ? <Radio className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{diagnosticState.isSpeaking ? 'Aviso em Execução...' : 'Voz & Diagnósticos'}</span>
+            <span className="hidden sm:inline">{diagnosticState.isSpeaking ? 'Voz Ativa...' : 'Diagnósticos'}</span>
           </button>
 
           <button
@@ -2223,15 +2221,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             <span className="hidden lg:inline">PDF</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setIsPublishDialogOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-blue-900/40 cursor-pointer"
-          >
-            <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-            <span className="hidden sm:inline">Publicar</span>
-          </button>
-
           <button type="button" onClick={handleExportImage} className="p-2 rounded-xl bg-slate-900 text-slate-300 border border-slate-800">
             <ImageIcon className="w-4 h-4" />
           </button>
@@ -2251,7 +2240,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         </div>
       </header>
 
-      {/* 2. ÁREA DE TRABALHO */}
+      {/* 2. ÁREA DE TRABALHO DO DIAGRAMA */}
       <div className="relative flex-1 w-full min-h-0 overflow-hidden touch-none select-none">
         <canvas
           ref={canvasRef}
@@ -2322,87 +2311,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {selectedWireId && (() => {
-          const selWire = project.wires.find(w => w.id === selectedWireId);
-          return (
-            <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-30 flex flex-wrap items-center justify-center gap-2 bg-[#0F172A]/95 border border-sky-500/60 shadow-2xl backdrop-blur-md px-3.5 py-2 rounded-2xl">
-              <span className="text-xs font-black text-sky-200">
-                Condutor: <strong className="text-white font-mono">{selWire?.type || 'L1'}</strong>
-                {selWire?.voltageDrop ? ` (ΔV: ${selWire.voltageDrop}V)` : ''}
-              </span>
-
-              <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
-                {(['L1', 'L2', 'L3', 'N', 'PE'] as const).map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      const updated = {
-                        ...projectRef.current,
-                        wires: projectRef.current.wires.map(w => (w.id === selectedWireId ? { ...w, type: t } : w)),
-                        updated: Date.now()
-                      };
-                      projectRef.current = updated;
-                      setProject(updated);
-                      soundFX?.playClick?.();
-                    }}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      selWire?.type === t ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800 text-xs">
-                <span className="text-[10px] text-slate-400">Bitola:</span>
-                <select
-                  value={Number(selWire?.gauge || 2.5)}
-                  onChange={e => {
-                    const g = Number(e.target.value);
-                    const updated = {
-                      ...projectRef.current,
-                      wires: projectRef.current.wires.map(w => (w.id === selectedWireId ? { ...w, gauge: g } : w)),
-                      updated: Date.now()
-                    };
-                    projectRef.current = updated;
-                    setProject(updated);
-                    showToast(`Bitola alterada para ${g} mm²`);
-                  }}
-                  className="bg-transparent text-amber-300 font-mono text-[11px] font-bold outline-none"
-                >
-                  <option value={1.5} className="bg-slate-900 text-white">1.5 mm²</option>
-                  <option value={2.5} className="bg-slate-900 text-white">2.5 mm²</option>
-                  <option value={4.0} className="bg-slate-900 text-white">4.0 mm²</option>
-                  <option value={6.0} className="bg-slate-900 text-white">6.0 mm²</option>
-                  <option value={10.0} className="bg-slate-900 text-white">10.0 mm²</option>
-                </select>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => deleteWire(selectedWireId)}
-                className="px-2.5 py-1 rounded-xl bg-rose-600/30 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Excluir</span>
-              </button>
-
-              <button type="button" onClick={() => setSelectedWireId(null)} className="p-1 rounded-lg text-slate-400 hover:text-white">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          );
-        })()}
-
-        {/* BIBLIOTECA LATERAL ESQUERDA */}
+        {/* PAINEL LATERAL: BIBLIOTECA EXPANSIVA */}
         {showLibrary && (
-          <div className="absolute left-3 top-3 bottom-16 sm:bottom-4 w-72 max-w-[calc(100vw-24px)] bg-[#0A1224]/95 border border-blue-900/50 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden">
+          <div className="absolute left-3 top-3 bottom-3 w-76 max-w-[calc(100vw-24px)] bg-[#0A1224]/95 border border-blue-900/50 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-[#0E1A33]">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-black text-white">Biblioteca Técnica</span>
+                <span className="text-xs font-black text-white">Biblioteca Técnica MZ</span>
               </div>
               <button type="button" onClick={() => setShowLibrary(false)} className="p-1 rounded text-slate-400 hover:text-white">
                 <X className="w-3.5 h-3.5" />
@@ -2416,7 +2331,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Pesquisar..."
+                  placeholder="Pesquisar componentes..."
                   className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white"
                 />
               </div>
@@ -2438,31 +2353,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-              {(selectedCategory === 'busbars' || selectedCategory === 'all') && (
-                <div className="space-y-1.5 pb-2 border-b border-slate-800/80">
-                  <button
-                    type="button"
-                    onClick={() => addBusbar('din', undefined, undefined, 680, 'horizontal')}
-                    className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700/60 flex items-center justify-between text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-xs">DIN</div>
-                      <div className="text-xs font-bold text-slate-200">Trilho DIN 35mm</div>
-                    </div>
-                    <Plus className="w-3.5 h-3.5 text-slate-500" />
-                  </button>
-                  <div className="grid grid-cols-3 gap-1">
-                    <button type="button" onClick={() => addBusbar('phase_l1')} className="p-1 rounded bg-red-950 text-[10px] text-red-300 font-bold">+ Barr. L1</button>
-                    <button type="button" onClick={() => addBusbar('phase_l2')} className="p-1 rounded bg-slate-800 text-[10px] text-slate-300 font-bold">+ Barr. L2</button>
-                    <button type="button" onClick={() => addBusbar('phase_l3')} className="p-1 rounded bg-amber-950 text-[10px] text-amber-300 font-bold">+ Barr. L3</button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 pt-1">
-                    <button type="button" onClick={() => addBusbar('neutral')} className="p-1 rounded bg-sky-950 text-[10px] text-sky-300 font-bold">+ Neutro (N)</button>
-                    <button type="button" onClick={() => addBusbar('earth')} className="p-1 rounded bg-emerald-950 text-[10px] text-emerald-300 font-bold">+ Terra (PE)</button>
-                  </div>
-                </div>
-              )}
-
               {COMPONENT_CATALOG.filter(c => {
                 const matchCat = selectedCategory === 'all' || c.cat === selectedCategory;
                 const matchSearch = !searchQuery.trim() || c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.code.toLowerCase().includes(searchQuery.toLowerCase());
@@ -2491,9 +2381,126 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* PAINEL FLUTUANTE DE INSTRUMENTAÇÃO TRUE-RMS REAL */}
+        {/* PAINEL LATERAL: PROPRIEDADES */}
+        {showProps && selectedComponent && (
+          <div className="absolute right-3 top-3 bottom-3 w-72 max-w-[calc(100vw-24px)] bg-[#0A1224]/95 border border-blue-900/50 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden">
+            <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-[#0E1A33]">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-black text-white">Propriedades</span>
+              </div>
+              <button type="button" onClick={() => setShowProps(false)} className="p-1 rounded text-slate-400 hover:text-white">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">Rótulo Técnico</label>
+                <input
+                  type="text"
+                  value={selectedComponent.label || ''}
+                  onChange={e => {
+                    const nextVal = e.target.value;
+                    setProject(prev => ({
+                      ...prev,
+                      components: prev.components.map(c => c.id === selectedCompId ? { ...c, label: nextVal } : c),
+                      updated: Date.now()
+                    }));
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold"
+                />
+              </div>
+
+              {selectedComponent.params?.current !== undefined && (
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Corrente Nominal (In)</label>
+                  <select
+                    value={selectedComponent.params.current}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      setProject(prev => ({
+                        ...prev,
+                        components: prev.components.map(c => c.id === selectedCompId ? { ...c, params: { ...c.params, current: v } } : c),
+                        updated: Date.now()
+                      }));
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono font-bold"
+                  >
+                    {[6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100].map(val => (
+                      <option key={val} value={val}>{val} A</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                <button
+                  type="button"
+                  onClick={rotateSelectedComponent}
+                  className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>Girar 90°</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={duplicateSelectedComponent}
+                  className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Duplicar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={deleteSelected}
+                  className="w-full py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-800 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remover</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* OSCILOSCÓPIO DIGITAL FLUTUANTE */}
+        {showScope && (
+          <div className="absolute right-3 top-3 w-80 bg-[#0A1224]/95 border border-blue-900/60 rounded-2xl shadow-2xl p-3 z-20 backdrop-blur-md space-y-2">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-sky-400" />
+                <span className="text-xs font-black text-white">Osciloscópio Digital</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <select
+                  value={scopeChannel}
+                  onChange={e => setScopeChannel(e.target.value as any)}
+                  className="bg-slate-900 text-[10px] font-bold text-slate-300 border border-slate-700 rounded px-1.5 py-0.5"
+                >
+                  <option value="DUAL">DUAL</option>
+                  <option value="CH1">CH1 (V)</option>
+                  <option value="CH2">CH2 (I)</option>
+                </select>
+                <button type="button" onClick={() => setShowScope(false)} className="p-0.5 rounded text-slate-400 hover:text-white">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <canvas ref={scopeCanvasRef} width={296} height={140} className="w-full h-36 bg-[#040D1A] rounded-xl border border-slate-800" />
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+              <div><span className="text-sky-400 font-bold">CH1:</span> {scopeVoltsDiv} V/div</div>
+              <div><span className="text-amber-400 font-bold">CH2:</span> 5 A/div</div>
+              <div>TB: 5 ms/div</div>
+            </div>
+          </div>
+        )}
+
+        {/* PAINEL FLUTUANTE DE MEDIÇÕES TRUE-RMS */}
         {showMeters && (
-          <div className="absolute left-3 bottom-16 sm:bottom-3 z-10 px-3.5 py-2.5 rounded-2xl bg-[#0A1224]/90 border border-blue-900/40 shadow-xl backdrop-blur-md flex items-center gap-4 text-xs font-mono">
+          <div className="absolute left-3 bottom-3 z-10 px-3.5 py-2.5 rounded-2xl bg-[#0A1224]/90 border border-blue-900/40 shadow-xl backdrop-blur-md flex items-center gap-4 text-xs font-mono">
             <div>Tensão: <strong className="text-amber-400">{meterV.toFixed(1)} V</strong></div>
             <div className="h-4 w-px bg-slate-800" />
             <div>Corrente: <strong className="text-emerald-400">{meterA.toFixed(2)} A</strong></div>
@@ -2504,60 +2511,125 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* CONTROLE DE ZOOM & FIT */}
-        <div className="absolute right-3 bottom-16 sm:bottom-3 z-10 flex items-center gap-1.5 p-1.5 rounded-xl bg-[#0A1224]/90 border border-blue-900/40 shadow-xl backdrop-blur-md">
+        {/* CONTROLES DE ZOOM E FIT */}
+        <div className="absolute right-3 bottom-3 z-10 flex items-center gap-1.5 p-1.5 rounded-xl bg-[#0A1224]/90 border border-blue-900/40 shadow-xl backdrop-blur-md">
           <button
             type="button"
             onClick={() => { cameraRef.current.zoom = Math.max(0.1, cameraRef.current.zoom * 0.85); }}
-            className="w-7 h-7 rounded-lg bg-slate-900 text-slate-300 font-bold text-xs"
+            className="w-7 h-7 rounded-lg bg-slate-900 text-slate-300 font-bold text-xs cursor-pointer"
           >
             −
           </button>
           <button
             type="button"
             onClick={() => { cameraRef.current.zoom = 1.0; }}
-            className="text-[11px] font-mono px-1.5 py-0.5 text-slate-300 font-bold"
+            className="text-[11px] font-mono px-1.5 py-0.5 text-slate-300 font-bold cursor-pointer"
           >
             {Math.round((cameraRef.current?.zoom || 1) * 100)}%
           </button>
           <button
             type="button"
             onClick={() => { cameraRef.current.zoom = Math.min(5.0, cameraRef.current.zoom * 1.15); }}
-            className="w-7 h-7 rounded-lg bg-slate-900 text-slate-300 font-bold text-xs"
+            className="w-7 h-7 rounded-lg bg-slate-900 text-slate-300 font-bold text-xs cursor-pointer"
           >
             +
           </button>
           <button
             type="button"
             onClick={handleFit}
-            className="px-2 py-1 rounded-lg bg-slate-900 text-slate-300 text-[11px] font-bold"
+            className="px-2 py-1 rounded-lg bg-slate-900 text-slate-300 text-[11px] font-bold cursor-pointer"
           >
             ⌗ Fit
           </button>
         </div>
       </div>
 
-      {/* 3. DOCK DE NAVEGAÇÃO RÁPIDA (RODAPÉ RESPONSIVO) */}
-      <footer className="flex lg:hidden h-11 bg-[#070D1B]/95 border-t border-slate-800 items-center justify-around px-2 z-40">
-        <button type="button" onClick={() => setShowLibrary(!showLibrary)} className="text-[10px] text-slate-400 font-bold flex flex-col items-center">
-          <Layers className="w-4 h-4" />
-          <span>Biblioteca</span>
-        </button>
-        <button type="button" onClick={() => setShowProps(!showProps)} className="text-[10px] text-slate-400 font-bold flex flex-col items-center">
-          <Sliders className="w-4 h-4" />
-          <span>Propriedades</span>
-        </button>
-        <button type="button" onClick={handleFit} className="text-[10px] text-slate-400 font-bold flex flex-col items-center">
-          <Maximize2 className="w-4 h-4" />
-          <span>Enquadrar</span>
-        </button>
-        <button type="button" onClick={() => setIsPublishDialogOpen(true)} className="text-[10px] text-amber-300 font-bold flex flex-col items-center">
-          <Zap className="w-4 h-4 fill-amber-300" />
-          <span>Publicar</span>
-        </button>
+      {/* 3. DOCK INFERIOR DE CONTROLES (SEMPRE VISÍVEL NO PC E NO CELULAR) */}
+      <footer className="h-12 bg-[#0B132B] border-t border-blue-900/50 flex items-center justify-between px-3 sm:px-5 z-40 shrink-0 shadow-2xl select-none">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => setShowLibrary(!showLibrary)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+              showLibrary ? 'bg-blue-600 text-white border-blue-400' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Biblioteca</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowProps(!showProps)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+              showProps ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Propriedades</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowScope(!showScope)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+              showScope ? 'bg-sky-600 text-white border-sky-400' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Osciloscópio</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowMeters(!showMeters)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+              showMeters ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Medições</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              pushHistory();
+              const organized = autoOrganizeCircuitWiring(projectRef.current);
+              projectRef.current = organized;
+              setProject(organized);
+              soundFX.playSuccess();
+              showToast('Canaletas e condutores alinhados');
+            }}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 text-amber-300 border border-slate-700 hover:bg-slate-800 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <span>📐</span>
+            <span className="hidden md:inline">Auto-Organizar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleFit}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-700 hover:bg-slate-800 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Enquadrar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPublishDialogOpen(true)}
+            className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-blue-900/40 cursor-pointer border border-blue-400/40"
+          >
+            <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+            <span>Publicar</span>
+          </button>
+        </div>
       </footer>
 
-      {/* 4. MODAL DE PUBLICAÇÃO NO MURAL */}
+      {/* 4. MODAL DE PUBLICAÇÃO */}
       {isPublishDialogOpen && (
         <div className="fixed inset-0 z-[100000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#0D152A] rounded-3xl border border-blue-900/60 p-6 max-w-lg w-full space-y-4">

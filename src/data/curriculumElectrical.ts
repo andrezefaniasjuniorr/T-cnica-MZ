@@ -1,271 +1,34 @@
 import { AcademyModule } from '../types/academy';
+import { MODULE_1_FISICA } from './curriculumModule1';
+import { MODULE_2_INSTRUMENTACAO } from './curriculumModule2';
+import { MODULE_3_CONDUTORES } from './curriculumModule3';
+import { MODULE_4_APARELHAGEM_PROTECAO } from './curriculumModule4';
+
+export { MODULE_1_FISICA } from './curriculumModule1';
+export { MODULE_2_INSTRUMENTACAO } from './curriculumModule2';
+export { MODULE_3_CONDUTORES } from './curriculumModule3';
+export { MODULE_4_APARELHAGEM_PROTECAO } from './curriculumModule4';
 
 // ============================================================================
-// GRADE CURRICULAR COMPLETA: ELETRICISTA / ELETROTÉCNICA (PADRÃO EUROPEU IEC)
-// CURSO PROFISSIONALIZANTE DO ZERO AO AVANÇADO - 11 MÓDULOS NORMATIZADOS
+// GRADE CURRICULAR COMPLETA: ELETRICISTA / ELETROTÉCNICA
+// Boas Práticas de Engenharia e Padrões Industriais de Mercado
 // ============================================================================
 
 export const ELECTRICAL_MODULES: AcademyModule[] = [
-  // ==========================================================================
-  // MÓDULO 1: PRINCÍPIOS DA FÍSICA ELÉTRICA & LEIS FUNDAMENTAIS
-  // ==========================================================================
-  {
-    id: 'elec_mod_1_fisica',
-    area: 'eletrotecnica',
-    order: 1,
-    title: 'Módulo 1: Princípios da Física Elétrica & Leis Fundamentais',
-    description: 'Grandezas fundamentais (V, I, R, P, Q, S), Leis de Ohm e Kirchhoff, triângulo de potências e balanceamento de fases.',
-    icon: 'Zap',
-    normasReferencia: ['IEC 60027', 'IEC 60038', 'IEC 60364-1'],
-    lessons: [
-      {
-        id: 'elec_m1_ec1_grandezas_ohm',
-        moduleId: 'elec_mod_1_fisica',
-        moduleTitle: 'Módulo 1: Princípios da Física Elétrica & Leis Fundamentais',
-        order: 1,
-        code: 'EC 1.1',
-        title: 'Grandezas Fundamentais e Lei de Ohm Aplicada',
-        norma: 'IEC 60038 / IEC 60364-1',
-        level: 'Básico',
-        durationMinutes: 12,
-        theory: {
-          conceito: 'A corrente elétrica (I, em Amperes) é o fluxo ordenado de elétrons impulsionado pela Tensão (V, em Volts) através da oposição exercida pela Resistência (R, em Ohms). Em qualquer condutor, a intensidade da corrente é diretamente proporcional à diferença de potencial e inversamente proporcional à resistência do circuito.',
-          formulas: [
-            { label: 'Lei de Ohm Fundamental', formula: 'V = I × R', explicacao: 'Tensão (V) = Corrente (A) multiplicada pela Resistência (Ω)' },
-            { label: 'Corrente de Circuito', formula: 'I = V / R', explicacao: 'Cálculo direto da corrente de carga em função da resistência' },
-            { label: 'Resistência do Condutor', formula: 'R = ρ × (L / S)', explicacao: 'ρ cobre = 0,0178 Ω·mm²/m a 20°C (ajustado para 0,0225 a 70°C)' },
-            { label: 'Potência Elétrica Ativa', formula: 'P = V × I = R × I²', explicacao: 'Potência dissipada por efeito Joule em cargas puramente resistivas' }
-          ],
-          pontosOperacionais: [
-            'Diferença crítica entre circuito fechado (corrente normal), circuito aberto (R = ∞, I = 0) e curto-circuito (R ≈ 0, I atinge milhares de amperes gerando arco elétrico).',
-            'Sempre medir resistência com o circuito 100% DESENERGIZADO e descarregado; injetar tensão no ohmímetro queima o fusível interno do instrumento.',
-            'Aumento de temperatura eleva a resistência do cobre (coeficiente α = +0,00393/°C), reduzindo a capacidade de condução de corrente de cabos em climas quentes.',
-            'Instrumentação recomendada: Multímetro Digital com categoria de sobretensão mínima CAT III 600V / CAT IV 300V segundo a IEC 61010.'
-          ],
-          fieldCase: {
-            localizacao: 'Manhiça, Província de Maputo',
-            cenario: 'Bomba submersível monofásica de 230V 1,5 kW instalada a 90 metros do quadro geral operando com cabo paralelo flexível de apenas 1,5 mm².',
-            diagnostico: 'A resistência do cabo (R = 2 × 90m × 0,0225 / 1,5 = 2,7 Ω) provocava uma queda de tensão de 26V sob corrente de 9,5A. O motor recebia apenas 204V nos bornes, superaquecia e desarmava o protetor térmico após 8 minutos de bombeamento.',
-            solucaoNormativa: 'Substituição do condutor por cabo subterrâneo de 4 mm² (R = 1,01 Ω). A tensão nos bornes subiu para 221V (queda inferior a 4%), normalizando a corrente e cessando os desarmes.'
-          },
-          funcionamento: 'A Lei de Ohm governa todos os condutores elétricos lineares. Em Moçambique, a rede de distribuição pública da EDM opera em 230V monofásico e 400V trifásico 50Hz (IEC 60038). A resistência específica dos condutores gera perdas térmicas contínuas por efeito Joule (P = R·I²), exigindo dimensionamento rigoroso da seção transversal (S em mm²).',
-          aplicacaoMocambique: 'Com temperaturas ambiente superiores a 38°C em regiões como Tete, Chimoio e Gaza, a resistência ôhmica dos cabos aumenta significativamente, acentuando a queda de tensão e acelerando o ressecamento do isolamento em PVC.',
-          exemploPratico: 'Verificação de resistência de aquecedor elétrico industrial de 4600W 230V: R = V² / P = 230² / 4600 = 11,5 Ω. Se o multímetro ler 0 Ω, há curto-circuito interno; se ler infinito (OL), o elemento resistivo está rompido.',
-          calculationSnippet: 'V = I × R | P = V × I = R × I²'
-        },
-        quiz: {
-          question: 'Um aquecedor de água industrial opera em 230 V monofásico 50 Hz com corrente nominal de 10 A. Se a resistência do elemento de aquecimento for medida em bancada com multímetro desligado, qual valor ôhmico teórico deve ser encontrado segundo a Lei de Ohm?',
-          options: [
-            { id: 'A', text: '2,3 Ω', isCorrect: false, feedback: '2,3 Ω resultaria em uma corrente catastrófica de 100 A (curto-circuito).' },
-            { id: 'B', text: '23 Ω', isCorrect: true, feedback: 'Correto! Pela Lei de Ohm: R = V / I = 230 V / 10 A = 23 Ω.' },
-            { id: 'C', text: '2300 Ω', isCorrect: false, feedback: '2300 Ω limitaria a corrente a apenas 0,1 A, gerando apenas 23 W de calor.' },
-            { id: 'D', text: '0 Ω', isCorrect: false, feedback: '0 Ω indica curto-circuito pleno entre os polos do resistor.' }
-          ],
-          explanation: 'Pela 1ª Lei de Ohm (V = I × R), isolando a resistência obtemos R = V / I. Substituindo os valores nominais: R = 230 V / 10 A = 23 Ω. A potência dissipada é P = V × I = 230 × 10 = 2300 W (2,3 kW).',
-          keyTakeaway: 'R = V / I: Resistência nominal de 230V a 10A é exatamente 23 Ohms.',
-          xpReward: 50
-        }
-      },
-      {
-        id: 'elec_m1_ec2_potencia_ac_fator',
-        moduleId: 'elec_mod_1_fisica',
-        moduleTitle: 'Módulo 1: Princípios da Física Elétrica & Leis Fundamentais',
-        order: 2,
-        code: 'EC 1.2',
-        title: 'Potência em Corrente Alternada (P, Q, S) e Fator de Potência',
-        norma: 'IEC 60038 / IEC 60831',
-        level: 'Básico',
-        durationMinutes: 14,
-        theory: {
-          conceito: 'Em corrente alternada (50 Hz), existem três tipos de potência interligadas pelo Triângulo de Potências: Potência Ativa (P, em Watts/kW - realiza trabalho mecânico e luz), Potência Reativa (Q, em VAr/kVAr - magnetiza núcleos de motores e transformadores) e Potência Aparente (S, em VA/kVA - potência total fornecida pela rede e suportada por cabos e geradores).',
-          formulas: [
-            { label: 'Potência Ativa Monofásica', formula: 'P = V × I × cos φ', explicacao: 'Potência real consumida (W ou kW)' },
-            { label: 'Potência Ativa Trifásica', formula: 'P = √3 × V_L × I_L × cos φ', explicacao: 'V_L = 400V entre fases na rede EDM' },
-            { label: 'Potência Aparente Total', formula: 'S = √(P² + Q²)', explicacao: 'Dimensão total exigida de transformadores e cabos (VA ou kVA)' },
-            { label: 'Fator de Potência', formula: 'FP = cos φ = P / S', explicacao: 'Relação entre trabalho útil e energia total movimentada' }
-          ],
-          pontosOperacionais: [
-            'O Fator de Potência (cos φ) varia de 0 a 1. Valores abaixo de 0,92 geram multas pesadas da EDM para consumidores industriais e comerciais.',
-            'Cargas indutivas (motores, transformadores, reatores eletromagnéticos) atrasam a corrente em relação à tensão, demandando reativos indutivos (+Q).',
-            'Capacitores adiantam a corrente em 90°, fornecendo reativos capacitivos (-Q) que anulam a corrente indutiva nos condutores montante.',
-            'Nunca sobrecorrigir para FP capacitivo (cos φ adiantado > 1,00), pois isso causa sobretensões perigosas em vazio na rede de baixa tensão.'
-          ],
-          fieldCase: {
-            localizacao: 'Chimoio, Província de Manica',
-            cenario: 'Serralharia industrial com três motores trifásicos de 7,5 kW operando com fator de potência medido de 0,71. O disjuntor geral de 63A desarmava frequentemente por sobrecorrente térmica sem aumento de produção.',
-            diagnostico: 'Com FP = 0,71, a potência aparente era S = 22,5 kW / 0,71 = 31,7 kVA, exigindo uma corrente de linha de I = 31700 / (√3 × 400) = 45,7 A contínuos por fase, operando no limite térmico do cabo e disparando o disjuntor nos dias quentes.',
-            solucaoNormativa: 'Instalação de um banco de capacitores fixo de 12,5 kVAr próximo aos motores. O FP subiu para 0,95, reduzindo a corrente de linha para 34,2 A (alívio de 25% na carga dos cabos), eliminando desarmes e evitando multas da concessionária.'
-          },
-          funcionamento: 'A energia reativa não realiza trabalho útil, mas é indispensável para criar os campos magnéticos dos motores de indução. Como ela sobrecarrega transformadores e cabos com corrente inútil, a correção do FP é uma exigência técnica e econômica fundamental em qualquer instalação industrial.',
-          aplicacaoMocambique: 'A EDM monitora a potência reativa através de contadores eletrônicos de 4 quadrantes. Instalações que não corrigem o fator de potência pagam faturas com tarifas agravadas de energia reativa indutiva consumida fora das horas de ponta.',
-          exemploPratico: 'Um transformador de 100 kVA operando com FP = 0,70 só consegue entregar 70 kW de potência ativa antes de queimar por sobrecorrente. Corrigindo o FP para 0,95, o mesmo transformador passa a entregar 95 kW com a mesma corrente térmica.',
-          calculationSnippet: 'P = V × I × cos φ | S = √(P² + Q²) | FP = P / S'
-        },
-        quiz: {
-          question: 'Em uma instalação trifásica alimentada a 400V 50Hz, um motor consome 16 kW de potência ativa com potência aparente de 20 kVA. Qual é o fator de potência (cos φ) da carga e qual ação corretiva é indicada segundo a norma IEC 60831?',
-          options: [
-            { id: 'A', text: 'FP = 1,25 (excelente, não requer nenhuma ação).', isCorrect: false, feedback: 'O fator de potência nunca pode ultrapassar 1,00. Dividiu S por P invertido.' },
-            { id: 'B', text: 'FP = 0,80 (indutivo baixo; requer instalação de banco de capacitores para elevar acima de 0,92).', isCorrect: true, feedback: 'Exato! FP = P / S = 16 kW / 20 kVA = 0,80. Abaixo do limite de 0,92 exigido pela concessionária, necessitando capacitores.' },
-            { id: 'C', text: 'FP = 0,50 (motor em curto-circuito).', isCorrect: false, feedback: 'O cálculo correto resulta em 0,80, não 0,50.' },
-            { id: 'D', text: 'FP = 0,98 (não necessita de correção).', isCorrect: false, feedback: 'O valor real medido de 16/20 resulta em 0,80.' }
-          ],
-          explanation: 'O Fator de Potência é a razão entre a potência ativa e a potência aparente: FP = P / S = 16 kW / 20 kVA = 0,80. Estando abaixo de 0,92, a instalação sofre penalizações tarifárias e sobrecarga de corrente, sendo necessária a instalação de capacitores de correção.',
-          keyTakeaway: 'FP = P / S: Fator de potência abaixo de 0,92 sobrecarrega condutores e exige compensação capacitiva.',
-          xpReward: 50
-        }
-      },
-      {
-        id: 'elec_m1_ec3_kirchhoff_circuitos',
-        moduleId: 'elec_mod_1_fisica',
-        moduleTitle: 'Módulo 1: Princípios da Física Elétrica & Leis Fundamentais',
-        order: 3,
-        code: 'EC 1.3',
-        title: 'Leis de Kirchhoff e Corrente no Neutro em Redes Trifásicas',
-        norma: 'IEC 60364-5-52 / IEC 60038',
-        level: 'Básico',
-        durationMinutes: 14,
-        theory: {
-          conceito: 'A 1ª Lei de Kirchhoff (Lei dos Nós) estipula que a soma algébrica das correntes que convergem para um nó é igual a zero (a corrente total que entra é igual à que sai). Em sistemas trifásicos estrela (Y) com neutro a 400V/230V, o neutro é o nó de retorno das correntes de fase: I_N = -(I_R + I_S + I_T).',
-          formulas: [
-            { label: 'Lei dos Nós de Kirchhoff', formula: 'Σ I_entra = Σ I_sai', explicacao: 'Conservação da carga elétrica em qualquer ponto de junção' },
-            { label: 'Lei das Malhas de Kirchhoff', formula: 'Σ V_fontes = Σ V_quedas', explicacao: 'A soma das quedas de tensão em qualquer circuito fechado é nula' },
-            { label: 'Corrente no Neutro (Cargas Lineares)', formula: 'I_N = √(I_R² + I_S² + I_T² - I_R·I_S - I_S·I_T - I_T·I_R)', explicacao: 'Em carga perfeitamente equilibrada (I_R = I_S = I_T), I_N = 0 A' }
-          ],
-          pontosOperacionais: [
-            'Em sistemas perfeitamente equilibrados, a corrente no neutro é zero. Contudo, em edifícios comerciais com iluminação LED e computadores, o desbalanceamento e a 3ª harmônica (150 Hz) se somam no neutro.',
-            'A norma IEC 60364-5-52 proíbe reduzir a seção do neutro quando o desbalanceamento ou taxa de harmônicos de 3ª ordem ultrapassa 33%.',
-            'NUNCA interromper ou instalar disjuntor unipolar no condutor de neutro sem corte simultâneo das fases; romper o neutro causa flutuação de tensão até 400V em cargas monofásicas, queimando eletrodomésticos.',
-            'Sempre usar barramento de neutro com parafusos de aperto firme; neutro solto é a causa número 1 de queima em massa de aparelhos eletroeletrônicos.'
-          ],
-          fieldCase: {
-            localizacao: 'Zimpeto, Maputo',
-            cenario: 'Edifício de escritórios alimentado por ramal trifásico 400V/230V. Em uma tarde, lâmpadas começaram a explodir e computadores queimaram em um andar, enquanto no outro as luzes ficaram fracas e trêmulas.',
-            diagnostico: 'O condutor de neutro no QGBT estava mal apertado e sofreu queima e desconexão por arco elétrico. Com o neutro rompido, as cargas monofásicas de 230V ficaram ligadas em série entre fases a 400V. A fase com menor carga recebeu mais de 340V, queimando fontes e circuitos.',
-            solucaoNormativa: 'Reconstrução do barramento de neutro com terminal de compressão estanhado e instalação de Relé de Monitoramento de Falta de Fase e Neutro intertravado com a bobina de disparo do disjuntor geral.'
-          },
-          funcionamento: 'A Lei dos Nós explica por que o condutor de neutro conduz a corrente residual de desequilíbrio das três fases. Quando as correntes são desiguais, o vetor resultante flui pelo neutro de volta para a estrela do transformador da EDM.',
-          aplicacaoMocambique: 'Em centros comerciais de Maputo e Matola, o uso massivo de ares-condicionados monofásicos distribuídos sem critério de balanceamento faz o neutro esquentar mais do que as fases, gerando risco de incêndio silencioso em bandejas de cabos.',
-          exemploPratico: 'Num quadro de distribuição com Fase R = 40A, Fase S = 38A e Fase T = 41A, a corrente no neutro medida com alicate amperímetro foi de apenas 2,8A. O balanceamento está excelente e o neutro opera frio.',
-          calculationSnippet: 'Σ I_nó = 0 | Neutro flutuante = sobretensão catastrófica até 400V'
-        },
-        quiz: {
-          question: 'Em uma instalação comercial trifásica com neutro (400V / 230V 50Hz), o que acontece se o condutor de neutro for acidentalmente rompido enquanto cargas monofásicas desbalanceadas permanecem ligadas?',
-          options: [
-            { id: 'A', text: 'Todos os equipamentos desligam com segurança e a tensão cai para zero em todas as tomadas.', isCorrect: false, feedback: 'As fases continuam ativas a 400V entre si, gerando divisor de tensão não nulo.' },
-            { id: 'B', text: 'Cria-se um neutro flutuante: a fase com menor carga sofre sobretensão destrutiva (até quase 400V) queimando aparelhos, enquanto a fase mais carregada sofre subtensão.', isCorrect: true, feedback: 'Perfeito! Sem a referência de zero do neutro, as cargas ficam em série entre duas fases de 400V. A menor impedância recebe menos tensão e a maior impedância recebe sobretensão destrutiva.' },
-            { id: 'C', text: 'A frequência da rede sobe de 50 Hz para 100 Hz imediatamente.', isCorrect: false, feedback: 'A frequência é gerada na central hidrelétrica de Cahora Bassa e não se altera com o neutro.' },
-            { id: 'D', text: 'O transformador da EDM desarma instantaneamente por corrente reversa.', isCorrect: false, feedback: 'O transformador não detecta o rompimento do neutro local na instalação do cliente.' }
-          ],
-          explanation: 'Com a interrupção do neutro em sistema trifásico desequilibrado, o ponto estrela flutua. O circuito monofásico de menor potência (maior resistência) recebe a maior parcela da tensão de linha (400V), superando 300V a 350V e queimando imediatamente fontes eletrônicas, lâmpadas e motores.',
-          keyTakeaway: 'Neutro rompido em rede trifásica = sobretensão catastrófica nas cargas leves por deslocamento do neutro.',
-          xpReward: 50
-        }
-      },
-      {
-        id: 'elec_m1_ec4_triangulo_potencias_rendimento',
-        moduleId: 'elec_mod_1_fisica',
-        moduleTitle: 'Módulo 1: Princípios da Física Elétrica & Leis Fundamentais',
-        order: 4,
-        code: 'EC 1.4',
-        title: 'Triângulo de Potências, Eficiência Energética e Rendimento (η)',
-        norma: 'IEC 60034-2-1 / IEC 60038',
-        level: 'Básico',
-        durationMinutes: 13,
-        theory: {
-          conceito: 'Nenhum motor ou transformador entrega 100% da potência elétrica que absorve da rede. A eficiência ou rendimento (η) é a razão entre a potência mecânica útil entregue no eixo (P_mec em Watts ou CV) e a potência elétrica ativa consumida (P_elec em Watts). A diferença é dissipada em calor nos enrolamentos (perdas Joule), perdas magnéticas no ferro (histerese e correntes de Foucault) e atrito.',
-          formulas: [
-            { label: 'Rendimento Eletromecânico', formula: 'η = P_util / P_absorvida', explicacao: 'Rendimento decimal (ex: 0,85 = 85% de eficiência)' },
-            { label: 'Conversão CV para Watts', formula: '1 CV = 735,5 W (1 HP = 746 W)', explicacao: 'Potência indicada na placa de motores comerciais em Moçambique' },
-            { label: 'Potência Elétrica Absorvida', formula: 'P_elec = (P_cv × 735,5) / η', explicacao: 'Potência real faturada e dimensionada para a proteção' }
-          ],
-          pontosOperacionais: [
-            'A potência gravada na placa de identificação do motor (ex: 5,5 kW ou 7,5 CV) é a potência MECÂNICA na ponta do eixo, NUNCA a elétrica.',
-            'Para dimensionar disjuntores, cabos e contatores, deve-se sempre calcular a potência elétrica total absorvida da rede dividindo pelo rendimento e fator de potência.',
-            'Motores com classe de rendimento IE3 (Premium) operam significativamente mais frios do que motores antigos IE1, aumentando a vida útil dos rolamentos e enrolamentos.',
-            'Verifique sempre se a ventoinha traseira do motor não está obstruída por poeira ou cavacos de madeira em oficinas.'
-          ],
-          fieldCase: {
-            localizacao: 'Matola Rio, Província de Maputo',
-            cenario: 'Moagem de farinha com motor de 10 CV trifásico 400V onde os cabos de alimentação de 2,5 mm² derretiam a isolação após 3 horas contínuas de operação.',
-            diagnostico: 'O instalador calculou a corrente considerando apenas 10 CV = 7355 W sem levar em conta o rendimento de 82% (η = 0,82) e o fator de potência cos φ = 0,78 da máquina em carga. A corrente real de operação era de 18,2 A, superando o limite seguro do condutor.',
-            solucaoNormativa: 'Substituição da fiação por cabos de 4 mm² em cobre e ajuste do relé de proteção bimetálico para 18,5 A com disjuntor-motor coordenado.'
-          },
-          funcionamento: 'Ao projetar instalações industriais e prediais, calcular a demanda exata exige conhecer a placa da máquina. Em Moçambique, onde as oscilações de tensão são frequentes, motores com baixo rendimento trabalham sobrecarregados e aquecem perigosamente.',
-          aplicacaoMocambique: 'Moinhos de milho, bombas de irrigação em Gaza e oficinas de serralharia operam diariamente com motores pesados. Compreender o rendimento evita queimar equipamentos e garante orçamentos elétricos corretos.',
-          exemploPratico: 'Motor de 5 CV (3677 W útil) com rendimento η = 0,85 e cos φ = 0,80 em 400V trifásico: Potência absorvida P = 3677 / 0,85 = 4325 W. Corrente I = 4325 / (1,732 × 400 × 0,80) = 7,8 A por fase.',
-          calculationSnippet: 'P_absorvida = P_util / η | 1 CV = 735,5 W'
-        },
-        quiz: {
-          question: 'Um motor trifásico de 400 V 50 Hz aciona um compressor de ar com potência mecânica de 7,35 kW no eixo (aprox. 10 CV). A placa indica rendimento η = 0,85 e cos φ = 0,82. Qual é a potência elétrica ativa (P_elec) absorvida da rede pela máquina?',
-          options: [
-            { id: 'A', text: '6,24 kW', isCorrect: false, feedback: 'O motor não pode absorver menos energia do que entrega no eixo; isso violaria o princípio de conservação de energia.' },
-            { id: 'B', text: '7,35 kW', isCorrect: false, feedback: '7,35 kW é a potência mecânica pura entregue no eixo, desconsiderando as perdas de calor e atrito.' },
-            { id: 'C', text: '8,65 kW', isCorrect: true, feedback: 'Perfeito! P_elec = P_mec / η = 7,35 kW / 0,85 = 8,647 kW (aprox. 8,65 kW absorvidos da rede).' },
-            { id: 'D', text: '12,50 kW', isCorrect: false, feedback: 'Valor muito elevado, incompatível com o rendimento de 85%.' }
-          ],
-          explanation: 'O rendimento de uma máquina é dado por η = P_util / P_absorvida. Portanto, a potência elétrica ativa que o motor drena da rede da EDM é: P_absorvida = P_util / η = 7350 W / 0,85 = 8647 W ≈ 8,65 kW.',
-          keyTakeaway: 'Potência absorvida da rede = Potência no eixo / Rendimento (η). Sempre maior que a potência nominal útil.',
-          xpReward: 50
-        }
-      },
-      {
-        id: 'elec_m1_ec5_balanceamento_trifasico_campo',
-        moduleId: 'elec_mod_1_fisica',
-        moduleTitle: 'Módulo 1: Princípios da Física Elétrica & Leis Fundamentais',
-        order: 5,
-        code: 'EC 1.5',
-        title: 'Balanceamento de Fases na Prática e Eliminação de Desequilíbrios',
-        norma: 'IEC 60364-5-52 / IEC 60038',
-        level: 'Básico',
-        durationMinutes: 14,
-        theory: {
-          conceito: 'O balanceamento de fases consiste em distribuir as cargas monofásicas (iluminação, tomadas, pequenos motores e ares condicionados) de forma tão homogênea quanto possível entre as três fases L1, L2 e L3. Uma instalação equilibrada minimiza a corrente que retorna pelo condutor de neutro, reduz perdas Joule em até 30% e impede que o disjuntor principal dispare por sobrecorrente em apenas uma das fases.',
-          formulas: [
-            { label: 'Taxa de Desequilíbrio de Corrente', formula: 'Deseq (%) = [(I_max - I_med) / I_med] × 100', explicacao: 'Norma IEC recomenda manter o desequilíbrio abaixo de 10%' },
-            { label: 'Corrente Média das Fases', formula: 'I_med = (I_L1 + I_L2 + I_L3) / 3', explicacao: 'Base de referência para o cálculo do equilíbrio de correntes' },
-            { label: 'Potência por Fase Alvo', formula: 'P_fase = P_total_monofasica / 3', explicacao: 'Meta de potência conectada para cada uma das 3 fases do quadro' }
-          ],
-          pontosOperacionais: [
-            'Medir as correntes das três fases no horário de pico (ex: entre 18h e 20h para residências, ou 10h e 14h para comércio) com alicate amperímetro True-RMS.',
-            'Se a Fase L1 registrar 55 A e a Fase L3 registrar 18 A, o disjuntor geral de 63 A desarmará prematuramente, mesmo que a carga média total seja de apenas 36 A.',
-            'A redistribuição deve ser feita fisicamente nos disjuntores do quadro parcial, alternando a conexão dos pentes ou fios de entrada dos disjuntores monofásicos.',
-            'Nunca compense desequilíbrio aumentando a capacidade do disjuntor geral além do limite nominal do cabo de entrada da EDM.'
-          ],
-          fieldCase: {
-            localizacao: 'Bairro Central, Maputo',
-            cenario: 'Restaurante comercial com entrada trifásica 63A cujo disjuntor geral caía todos os dias ao meio-dia durante o preparo do almoço.',
-            diagnostico: 'Com alicate amperímetro, o técnico mediu: Fase L1 = 61 A, Fase L2 = 22 A e Fase L3 = 19 A. Três fritadeiras elétricas e dois freezers estavam todos ligados em tomadas conectadas à mesma Fase L1.',
-            solucaoNormativa: 'Remanejamento de circuitos no quadro: duas fritadeiras foram transferidas para L2 e os freezers para L3. Correntes resultantes: L1 = 34 A, L2 = 33 A, L3 = 35 A. Corrente de neutro caiu de 44 A para apenas 3 A. Desarmes totalmente solucionados.'
-          },
-          funcionamento: 'Quando as três fases carregam correntes de mesmo módulo defasadas de 120°, a soma fasorial no ponto comum de neutro cancela-se matematicamente. Menos corrente no neutro significa menos calor nos eletrodutos e menor queda de tensão em todas as tomadas.',
-          aplicacaoMocambique: 'Em Moçambique, onde muitos quadros antigos não possuem projeto unifilar atualizado, é rotina eletricistas ligarem novas cargas na primeira fase que encontram com borne vago. O balanceamento é o serviço mais rápido e valorizado para solucionar desarmes misteriosos.',
-          exemploPratico: 'Quadro comercial: Total de 15 ares condicionados split de 12000 BTU (6A cada). Divisão correta: exatamente 5 aparelhos na Fase L1 (30A), 5 na Fase L2 (30A) e 5 na Fase L3 (30A). Equilíbrio perfeito com corrente de neutro nula.',
-          calculationSnippet: 'Deseq < 10% | P_fase = P_total / 3 | I_neutro ≈ 0 A em equilíbrio'
-        },
-        quiz: {
-          question: 'Um técnico mede as correntes de entrada de um quadro de distribuição trifásico em horário de trabalho: Fase L1 = 48 A, Fase L2 = 14 A e Fase L3 = 16 A. O disjuntor geral é de 50 A e desarma com frequência. Qual é o diagnóstico correto e a ação normativa indicada?',
-          options: [
-            { id: 'A', text: 'Substituir imediatamente o disjuntor de 50 A por um de 100 A para evitar desarmes.', isCorrect: false, feedback: 'Totalmente incorreto e perigoso! Trocar o disjuntor sem trocar os cabos pode queimar a tubulação por sobrecarga contínua.' },
-            { id: 'B', text: 'A instalação está com grave desbalanceamento de fases; deve-se remanejar circuitos monofásicos de L1 para L2 e L3, equalizando as correntes em torno de 26 A por fase.', isCorrect: true, feedback: 'Exato! A corrente total é 48 + 14 + 16 = 78 A. Distribuída igualmente dá 26 A por fase, operando com folga de quase 50% no disjuntor de 50 A!' },
-            { id: 'C', text: 'O desarmamento ocorre por fuga de terra no condutor de neutro.', isCorrect: false, feedback: 'Disjuntor termomagnético comum desarma por sobrecorrente na Fase L1 (48 A muito próximo de 50 A térmico).' },
-            { id: 'D', text: 'Instalar um motor trifásico na fase L2 para puxar corrente.', isCorrect: false, feedback: 'Não se adiciona carga desnecessária para corrigir desbalanceamento.' }
-          ],
-          explanation: 'A soma das correntes é 48 + 14 + 16 = 78 A. A corrente média ideal por fase seria 78 / 3 = 26 A. A Fase L1 está operando em 48 A (96% da capacidade do disjuntor de 50 A), desarmando por sobrecarga térmica. Remanejando circuitos de L1 para L2 e L3, todas as fases operam frias em ~26 A.',
-          keyTakeaway: 'Balanceamento de fases divide o consumo igualmente, evita desarmes falsos e reduz drasticamente a corrente no neutro.',
-          xpReward: 50
-        }
-      }
-    ]
-  },
+  // Módulos 1, 2, 3 e 4 Estruturados com Padrão Pedagógico Rigoroso
+  MODULE_1_FISICA,
+  MODULE_2_INSTRUMENTACAO,
+  MODULE_3_CONDUTORES,
+  MODULE_4_APARELHAGEM_PROTECAO,
 
   // ==========================================================================
-  // MÓDULO 2: INSTALAÇÕES ELÉTRICAS PREDIAIS & PRÁTICAS BÁSICAS
+  // MÓDULO PRESERVADO: INSTALAÇÕES ELÉTRICAS PREDIAIS & PRÁTICAS BÁSICAS
   // ==========================================================================
   {
     id: 'elec_mod_2_predial',
     area: 'eletrotecnica',
-    order: 2,
-    title: 'Módulo 2: Instalações Elétricas Prediais & Práticas Básicas',
+    order: 3,
+    title: 'Módulo de Instalações Elétricas Prediais & Práticas Básicas',
     description: 'Comandos de iluminação (Simples, Diverter/Three-Way, Intermediate/Four-Way), tomadas TUG/TUE, quadros parciais e normas IEC 60364-5-52.',
     icon: 'Layers',
     normasReferencia: ['IEC 60364-5-52', 'IEC 60364-4-41', 'IEC 60898-1'],
@@ -509,13 +272,13 @@ export const ELECTRICAL_MODULES: AcademyModule[] = [
   },
 
   // ==========================================================================
-  // MÓDULO 3: PROTEÇÕES ELÉTRICAS & NORMAS IEC (IEC 60364)
+  // MÓDULO PRESERVADO: PROTEÇÕES ELÉTRICAS & NORMAS IEC (IEC 60364)
   // ==========================================================================
   {
     id: 'elec_mod_3_protecoes_iec',
     area: 'eletrotecnica',
-    order: 3,
-    title: 'Módulo 3: Proteções Elétricas & Normas IEC (IEC 60364)',
+    order: 4,
+    title: 'Módulo de Proteções Elétricas & Normas IEC (IEC 60364)',
     description: 'Dimensionamento de MCB (Curvas B, C, D), capacidade de corte Icn, dispositivos diferenciais RCD/RCBO (Tipos AC, A, B), esquemas de aterramento TT/TN/IT e SPDs.',
     icon: 'ShieldCheck',
     normasReferencia: ['IEC 60364-4-41', 'IEC 60898-1', 'IEC 61008-1', 'IEC 61643-11'],
