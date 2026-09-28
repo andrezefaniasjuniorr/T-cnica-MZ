@@ -584,7 +584,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
       ['REMOTE_START', 'IN', 'CTRL']
     ],
     kind: 'generator_diesel',
-    params: { kva: 25, voltage: 400, frequency: 50, running: false, rpm: 1500 }
+    params: { kva: 25, voltage: 400, frequency: 50, running: false, rpm: 1500, fuelPercent: 95 }
   },
   {
     code: 'ATS_SWITCH',
@@ -598,7 +598,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
       ['GEN_START', 'OUT', 'CTRL']
     ],
     kind: 'ats_switch',
-    params: { sourceInUse: 'GRID', gridHealthy: true }
+    params: { sourceInUse: 'GRID', gridHealthy: true, autoMode: true }
   },
   {
     code: 'MTS_SWITCH',
@@ -611,7 +611,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
       ['OUT_L1', 'OUT', 'L1'], ['OUT_L2', 'OUT', 'L2'], ['OUT_L3', 'OUT', 'L3'], ['OUT_N', 'OUT', 'N']
     ],
     kind: 'mts_switch',
-    params: { position: 1 }
+    params: { position: 1 } // 1: Rede (I), 0: Desligado/Neutro (0), 2: Gerador (II)
   },
 
   // ==========================================================================
@@ -748,7 +748,7 @@ export const COMPONENT_CATALOG: ComponentDef[] = [
     icon: '💧',
     terminals: [['U', 'IN', 'L1'], ['V', 'IN', 'L2'], ['W', 'IN', 'L3'], ['PE', 'PE', 'PE']],
     kind: 'pump',
-    params: { power: 3000, rpm: 2880, voltage: 400, pf: 0.85 }
+    params: { power: 3000, rpm: 2880, voltage: 400, pf: 0.85, flowM3h: 18.5, headMeters: 32 }
   },
 
   // ==========================================================================
@@ -1117,7 +1117,7 @@ export function solveCircuitPhysicsStep(
   });
 
   // 2. CONVERGÊNCIA ITERATIVA ELETROMECÂNICA
-  const maxIterations = 5;
+  const maxIterations = 6;
   let pass = 0;
   let stateChanged = true;
 
@@ -1184,6 +1184,23 @@ export function solveCircuitPhysicsStep(
         }
       }
 
+      // DPS (Protetores contra Surtos Atmosféricos - Monofásico SPD e Tetrapolar SPD3)
+      if (c.code === 'SPD' || c.code === 'SPD3') {
+        const isCartridgeOk = c.params?.health === undefined || c.params.health > 0;
+        c.state.status = isCartridgeOk ? 'green' : 'red';
+        // Sob regime normal, apresenta impedância elevada ao condutor de proteção PE (fuga residual < 1mA)
+        // Sob surto transitório desvia a energia ao aterramento
+        if (c.code === 'SPD') {
+          addGraphEdge(`${c.id}:L`, `${c.id}:PE`, 50000.0);
+          addGraphEdge(`${c.id}:N`, `${c.id}:PE`, 50000.0);
+        } else if (c.code === 'SPD3') {
+          addGraphEdge(`${c.id}:L1`, `${c.id}:PE`, 50000.0);
+          addGraphEdge(`${c.id}:L2`, `${c.id}:PE`, 50000.0);
+          addGraphEdge(`${c.id}:L3`, `${c.id}:PE`, 50000.0);
+          addGraphEdge(`${c.id}:N`, `${c.id}:PE`, 50000.0);
+        }
+      }
+
       // Contator de Potência (KM)
       if (d.kind === 'contactor') {
         if (c.state.energized) {
@@ -1222,6 +1239,7 @@ export function solveCircuitPhysicsStep(
       }
 
       // Chave de Transferência Manual (MTS I-0-II)
+      // 1: REDE (I), 0: ISOLADO/DESLIGADO (0), 2: GERADOR (II)
       if (c.code === 'MTS_SWITCH') {
         const pos = Number(c.params?.position ?? 1);
         if (pos === 1) {
@@ -1235,12 +1253,13 @@ export function solveCircuitPhysicsStep(
           addGraphEdge(`${c.id}:G_L3`, `${c.id}:OUT_L3`, 0.002);
           addGraphEdge(`${c.id}:G_N`, `${c.id}:OUT_N`, 0.002);
         }
+        // Na posição 0, absolutamente nenhum contato fecha (corte total de segurança)
       }
 
-      // Quadro de Transferência Automática (ATS)
+      // Quadro de Transferência Automática (ATS Rede / Gerador)
       if (c.code === 'ATS_SWITCH') {
-        const gridAvail = c.params?.gridHealthy !== false;
-        if (gridAvail) {
+        const gridHealthy = c.params?.gridHealthy !== false;
+        if (gridHealthy) {
           c.params.sourceInUse = 'GRID';
           addGraphEdge(`${c.id}:N_L1`, `${c.id}:LOAD_L1`, 0.002);
           addGraphEdge(`${c.id}:N_L2`, `${c.id}:LOAD_L2`, 0.002);
@@ -1248,6 +1267,7 @@ export function solveCircuitPhysicsStep(
           addGraphEdge(`${c.id}:N_N`, `${c.id}:LOAD_N`, 0.002);
         } else {
           c.params.sourceInUse = 'GEN';
+          // Quando a rede falha, o ATS aciona o contato seco GEN_START para dar partida no GMG
           addGraphEdge(`${c.id}:G_L1`, `${c.id}:LOAD_L1`, 0.002);
           addGraphEdge(`${c.id}:G_L2`, `${c.id}:LOAD_L2`, 0.002);
           addGraphEdge(`${c.id}:G_L3`, `${c.id}:LOAD_L3`, 0.002);
@@ -1326,7 +1346,7 @@ export function solveCircuitPhysicsStep(
       const isClosed = c.params?.closed !== false && c.state?.closed !== false && !c.state?.tripped && !c.state?.isBurned;
       if (!isSrc || !isClosed) return;
 
-      const vNom = Number(c.params?.voltage || (c.code === 'BAT_LIFEPO4' ? (c.params?.voltage ?? 51.2) : c.code === 'PV_PANEL' ? (c.state?.voltage || 41.8) : 230));
+      const vNom = Number(c.params?.voltage || (c.code === 'GEN_DIESEL' ? 400 : c.code === 'BAT_LIFEPO4' ? (c.params?.voltage ?? 51.2) : c.code === 'PV_PANEL' ? (c.state?.voltage || 41.8) : 230));
       result.activeFrequency = Number(c.params?.frequency || 50);
 
       if (c.code === 'SRC_AC3') {
@@ -1337,12 +1357,30 @@ export function solveCircuitPhysicsStep(
         sourcePoles.push({ id: `${c.id}:PE`, net: 'PE', v: 0, angle: 0, sourceId: c.id });
         result.mainVoltageRMS = vNom;
       } else if (c.code === 'GEN_DIESEL') {
-        if (c.params?.running !== false || c.state?.running) {
+        // Gerador diesel trifásico gera tensão quando ativado manualmente ou por partida remota
+        const isGenRunning = Boolean(c.state?.running || c.params?.running);
+        if (isGenRunning) {
           sourcePoles.push({ id: `${c.id}:L1`, net: 'L1', v: vNom / Math.sqrt(3), angle: 0, sourceId: c.id });
           sourcePoles.push({ id: `${c.id}:L2`, net: 'L2', v: vNom / Math.sqrt(3), angle: -120, sourceId: c.id });
           sourcePoles.push({ id: `${c.id}:L3`, net: 'L3', v: vNom / Math.sqrt(3), angle: 120, sourceId: c.id });
           sourcePoles.push({ id: `${c.id}:N`, net: 'N', v: 0, angle: 0, sourceId: c.id });
           sourcePoles.push({ id: `${c.id}:PE`, net: 'PE', v: 0, angle: 0, sourceId: c.id });
+
+          c.state.voltage = vNom;
+          c.state.rpm = 1500;
+          c.state.frequency = 50;
+          c.state.energized = true;
+
+          if (result.mainVoltageRMS === 0) {
+            result.mainVoltageRMS = vNom;
+          }
+          if (result.activeFrequency === 0) {
+            result.activeFrequency = 50;
+          }
+        } else {
+          c.state.voltage = 0;
+          c.state.rpm = 0;
+          c.state.energized = false;
         }
       } else if (c.code === 'SRC_AC1') {
         sourcePoles.push({ id: `${c.id}:L`, net: 'L1', v: vNom, angle: 0, sourceId: c.id });
@@ -1394,6 +1432,31 @@ export function solveCircuitPhysicsStep(
             poleMap.set(edge.target, { rPath: totalR, vFactor: nextVFactor, sourcePole: sp, pathEdges: nextPath });
             queue.push({ node: edge.target, rPath: totalR, vFactor: nextVFactor, path: nextPath });
           }
+        }
+      }
+    });
+
+    // Lógica de Partida Remota do Gerador (ATS -> GMG REMOTE_START)
+    comps.forEach(gmg => {
+      if (gmg.code === 'GEN_DIESEL') {
+        const remoteNode = `${gmg.id}:REMOTE_START`;
+        let remoteSignalActive = false;
+
+        sourcePoles.forEach(sp => {
+          const map = reachMap.get(sp.id);
+          if (map && map.has(remoteNode)) {
+            remoteSignalActive = true;
+          }
+        });
+
+        // Se o ATS comutou para modo de emergência ou enviou sinal para REMOTE_START, inicia o GMG
+        const atsActiveEmergency = comps.some(ats => ats.code === 'ATS_SWITCH' && ats.params?.sourceInUse === 'GEN');
+        const shouldRun = Boolean(gmg.params?.running || remoteSignalActive || atsActiveEmergency);
+
+        if (gmg.state?.running !== shouldRun) {
+          gmg.state.running = shouldRun;
+          gmg.params.running = shouldRun;
+          stateChanged = true;
         }
       }
     });
@@ -1582,7 +1645,7 @@ export function solveCircuitPhysicsStep(
   comps.forEach(load => {
     load.state = load.state || {};
     const d = getComponentDef(load.code);
-    const isMotor = ['motor3', 'motor1', 'motor3_6lead', 'fan', 'pump'].includes(d.kind);
+    const isMotor = ['motor3', 'motor1', 'motor3_6lead', 'fan', 'pump'].includes(d.kind) || load.code === 'PUMP';
     const isAppliance = ['HEATER', 'LAMP', 'PILOT_GREEN', 'PILOT_RED', 'PILOT_YELLOW', 'BUZZ', 'LOAD_AC', 'LOAD_COOKTOP'].includes(load.code);
 
     if (!isMotor && !isAppliance) return;
@@ -1642,7 +1705,7 @@ export function solveCircuitPhysicsStep(
       return;
     }
 
-    // MOTOR TRIFÁSICO PADRÃO / BOMBA CENTRÍFUGA
+    // MOTOR TRIFÁSICO PADRÃO / ELETROBOMBA CENTRÍFUGA (PUMP)
     if (d.kind === 'motor3' || load.code === 'PUMP') {
       const nodeU = `${load.id}:U`;
       const nodeV = `${load.id}:V`;
@@ -1663,9 +1726,9 @@ export function solveCircuitPhysicsStep(
       const is3PhaseClosed = hasL1 && hasL2 && hasL3 && !result.hasDirectShort && !load.state.isBurned;
 
       if (is3PhaseClosed) {
-        const pNom = Number(load.params?.power || 7500);
+        const pNom = Number(load.params?.power || (load.code === 'PUMP' ? 3000 : 7500));
         const vNom = 400;
-        const pf = Number(load.params?.pf || 0.86);
+        const pf = Number(load.params?.pf || 0.85);
 
         const iEstimated = pNom / (Math.sqrt(3) * vNom * pf);
         const deltaV = Math.sqrt(3) * (totalRPath / 3) * iEstimated;
@@ -1678,7 +1741,7 @@ export function solveCircuitPhysicsStep(
         load.state.voltage = Math.round(vReal);
         load.state.current = Number(iReal.toFixed(2));
         load.state.powerKW = Number((pReal / 1000).toFixed(2));
-        load.state.rpm = Math.round(Number(load.params?.rpm || 2920) * (vReal / vNom));
+        load.state.rpm = Math.round(Number(load.params?.rpm || (load.code === 'PUMP' ? 2880 : 2920)) * (vReal / vNom));
 
         result.totalActivePower += pReal;
         result.totalLineCurrent += iReal;

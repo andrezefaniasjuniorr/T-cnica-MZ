@@ -76,7 +76,8 @@ import {
   Flame,
   Power,
   RotateCcw,
-  ZapOff
+  ZapOff,
+  Shield
 } from 'lucide-react';
 import { CadVoiceDiagnosticPanel } from './CadVoiceDiagnosticPanel';
 import { simulatorDiagnostics, DiagnosticEngineState } from '../../services/simulatorVoiceDiagnostics';
@@ -563,12 +564,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     else if (code === 'PBNO' || code === 'PBNC') { defaultW = 75; defaultH = 78; }
     else if (code === 'FUSE') { defaultW = 46; defaultH = 75; }
     else if (code === 'FU3') { defaultW = 88; defaultH = 75; }
-    else if (code === 'SPD') { defaultW = 60; defaultH = 75; }
-    else if (code === 'SPD3') { defaultW = 110; defaultH = 75; }
+    else if (code === 'SPD') { defaultW = 55; defaultH = 80; }
+    else if (code === 'SPD3') { defaultW = 110; defaultH = 80; }
     else if (code.startsWith('SRC_')) { defaultW = 120; defaultH = 85; }
-    else if (code === 'GEN_DIESEL') { defaultW = 145; defaultH = 95; }
-    else if (code === 'ATS_SWITCH') { defaultW = 150; defaultH = 95; }
-    else if (code === 'MTS_SWITCH') { defaultW = 130; defaultH = 90; }
+    else if (code === 'GEN_DIESEL') { defaultW = 150; defaultH = 100; }
+    else if (code === 'ATS_SWITCH') { defaultW = 155; defaultH = 100; }
+    else if (code === 'MTS_SWITCH') { defaultW = 135; defaultH = 95; }
     else if (code === 'PV_PANEL') { defaultW = 110; defaultH = 100; }
     else if (code === 'PV_INVERTER_ONGRID') { defaultW = 145; defaultH = 100; }
     else if (code === 'PV_INVERTER_OFFGRID') { defaultW = 135; defaultH = 95; }
@@ -576,7 +577,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     else if (code === 'BAT_LIFEPO4') { defaultW = 125; defaultH = 85; }
     else if (code === 'SMART_METER') { defaultW = 80; defaultH = 80; }
     else if (code === 'M3PH_6L' || code === 'M3PH') { defaultW = 125; defaultH = 95; }
-    else if (code === 'M1PH' || code === 'PUMP' || code === 'FAN') { defaultW = 110; defaultH = 85; }
+    else if (code === 'M1PH' || code === 'FAN') { defaultW = 110; defaultH = 85; }
+    else if (code === 'PUMP') { defaultW = 125; defaultH = 95; }
     else if (code === 'PHOTOCELL') { defaultW = 75; defaultH = 80; }
     else if (code === 'PIR_SENSOR') { defaultW = 80; defaultH = 80; }
     else if (code === 'TIMER_DIGITAL' || code === 'TIMER_STAR_DELTA' || code === 'TIMER_TOF') { defaultW = 85; defaultH = 80; }
@@ -1076,30 +1078,65 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   const nextGenState = !Boolean(st.running || params.running);
                   st.running = nextGenState;
                   params.running = nextGenState;
+                  st.voltage = nextGenState ? 400 : 0;
+                  st.rpm = nextGenState ? 1500 : 0;
+                  st.frequency = nextGenState ? 50 : 0;
+                  st.energized = nextGenState;
                   soundFX?.playClick?.();
-                  addEvent(nextGenState ? 'GMG DIESEL: Grupo Gerador acionado com sucesso (400V 50Hz).' : 'GMG DIESEL: Motor desligado.', nextGenState ? 'info' : 'warn');
+                  addEvent(
+                    nextGenState
+                      ? 'GMG DIESEL: Grupo Gerador acionado com sucesso (400V 50Hz, 1500 RPM).'
+                      : 'GMG DIESEL: Motor desligado.',
+                    nextGenState ? 'info' : 'warn'
+                  );
                 } else if (c.code === 'ATS_SWITCH') {
                   const curGrid = params.gridHealthy !== false;
                   params.gridHealthy = !curGrid;
                   soundFX?.playClick?.();
-                  addEvent(!curGrid ? 'ATS: Rede restabelecida. Transferindo para Concessionária...' : 'ATS: Falha na Rede detectada! Acionando GMG e transferindo carga...', 'warn');
+                  addEvent(
+                    !curGrid
+                      ? 'ATS: Rede restabelecida. Transferindo para Concessionária...'
+                      : 'ATS: Falha na Rede detectada! Acionando GMG e transferindo carga...',
+                    'warn'
+                  );
                 } else if (c.code === 'MTS_SWITCH') {
+                  // Manobra sequencial rotativa: 1 (Rede) -> 0 (Desligado/Isolado) -> 2 (Gerador) -> 1
                   const curPos = Number(params.position ?? 1);
                   let nextPos = 1;
                   if (curPos === 1) nextPos = 0;
                   else if (curPos === 0) nextPos = 2;
                   else nextPos = 1;
+
                   params.position = nextPos;
+                  st.position = nextPos;
                   soundFX?.playClick?.();
-                  const posLabel = nextPos === 1 ? 'I (REDE)' : nextPos === 2 ? 'II (GERADOR)' : '0 (DESLIGADO)';
+                  const posLabel =
+                    nextPos === 1 ? 'I (REDE)' : nextPos === 0 ? '0 (DESLIGADO/ISOLADO)' : 'II (GERADOR)';
                   addEvent(`MTS: Chave de transferência manual manobrada para ${posLabel}.`, 'info');
+                } else if (c.code === 'SPD' || c.code === 'SPD3') {
+                  const curHealth = params.health !== 0;
+                  params.health = curHealth ? 0 : 100;
+                  st.status = curHealth ? 'red' : 'green';
+                  soundFX?.playClick?.();
+                  addEvent(
+                    `DPS: Cartucho ${curHealth ? 'DESARMADO / QUEIMADO (Vermelho)' : 'SUBSTITUÍDO / OK (Verde)'}.`,
+                    curHealth ? 'warn' : 'info'
+                  );
+                } else if (c.code === 'PUMP') {
+                  soundFX?.playClick?.();
+                  addEvent(`Eletrobomba: Status operacional ${st.running ? 'EM MARCHA (2880 RPM)' : 'EM REPOUSO'}.`, 'info');
                 } else if (c.code === 'PHOTOCELL') {
                   const curLux = params.ambientLux ?? 100;
                   const nextLux = curLux <= 20 ? 120 : 10;
                   params.ambientLux = nextLux;
                   st.closed = nextLux <= 20;
                   soundFX?.playClick?.();
-                  addEvent(nextLux <= 20 ? 'Fotocélula: Anoitecer detectado (<20 lux). Contato fechado.' : 'Fotocélula: Luz solar detectada (>20 lux). Contato aberto.', 'info');
+                  addEvent(
+                    nextLux <= 20
+                      ? 'Fotocélula: Anoitecer detectado (<20 lux). Contato fechado.'
+                      : 'Fotocélula: Luz solar detectada (>20 lux). Contato aberto.',
+                    'info'
+                  );
                 } else if (c.code === 'PIR_SENSOR') {
                   params.presenceDetected = true;
                   soundFX?.playClick?.();
@@ -1107,14 +1144,23 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   setTimeout(() => {
                     setProject(curr => ({
                       ...curr,
-                      components: curr.components.map(item => item.id === compId ? { ...item, params: { ...item.params, presenceDetected: false } } : item)
+                      components: curr.components.map(item =>
+                        item.id === compId
+                          ? { ...item, params: { ...item.params, presenceDetected: false } }
+                          : item
+                      )
                     }));
                   }, 4000);
                 } else if (c.code === 'PV_PANEL') {
                   const curIrr = params.irradiance ?? 1000;
                   params.irradiance = curIrr === 0 ? 1000 : 0;
                   soundFX?.playClick?.();
-                  addEvent(params.irradiance === 1000 ? 'Painel Solar: Radiação solar nominal (1000 W/m²).' : 'Painel Solar: Sem radiação solar (0 W/m² - Noite).', 'info');
+                  addEvent(
+                    params.irradiance === 1000
+                      ? 'Painel Solar: Radiação solar nominal (1000 W/m²).'
+                      : 'Painel Solar: Sem radiação solar (0 W/m² - Noite).',
+                    'info'
+                  );
                 } else if (c.code === 'ESTOP') {
                   const isLocked = Boolean(st.pressed || st.tripped || !st.closed);
                   const nextLocked = !isLocked;
@@ -1123,7 +1169,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   st.closed = !nextLocked;
                   params.closed = !nextLocked;
                   soundFX?.playClick?.();
-                  addEvent(nextLocked ? 'E-STOP TRAVADO: Circuito desarmado!' : 'E-STOP DESTRAVADO: Circuito em serviço.', nextLocked ? 'warn' : 'info');
+                  addEvent(
+                    nextLocked ? 'E-STOP TRAVADO: Circuito desarmado!' : 'E-STOP DESTRAVADO: Circuito em serviço.',
+                    nextLocked ? 'warn' : 'info'
+                  );
                 } else if (c.code === 'LIMIT') {
                   const nextActuated = !Boolean(st.actuated || st.pressed);
                   st.actuated = nextActuated;
@@ -1137,7 +1186,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   st.closed = nextHigh;
                   params.closed = nextHigh;
                   soundFX?.playClick?.();
-                  addEvent(nextHigh ? 'Bóia de nível: NÍVEL ALTO (contato NA fechado).' : 'Bóia de nível: NÍVEL BAIXO (contato NF fechado).', 'info');
+                  addEvent(
+                    nextHigh
+                      ? 'Bóia de nível: NÍVEL ALTO (contato NA fechado).'
+                      : 'Bóia de nível: NÍVEL BAIXO (contato NF fechado).',
+                    'info'
+                  );
                 } else if (c.code === 'SEL') {
                   const curPos = Number(params.position ?? st.position ?? 0);
                   let nextPos = 0;
@@ -1149,7 +1203,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   st.position = nextPos;
                   st.rockerAngle = nextPos;
                   soundFX?.playClick?.();
-                  const posName = nextPos === 1 ? 'MARCHA 1 (MAN)' : nextPos === 2 ? 'MARCHA 2 (AUTO)' : 'CENTRO (DESLIGADO)';
+                  const posName =
+                    nextPos === 1 ? 'MARCHA 1 (MAN)' : nextPos === 2 ? 'MARCHA 2 (AUTO)' : 'CENTRO (DESLIGADO)';
                   addEvent(`Chave Seletora comutada para ${posName}.`, 'info');
                 } else if (c.code === 'SW_DOUBLE') {
                   if (clickRelX < 0) {
@@ -1449,7 +1504,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           });
         });
 
-        // CAMADA 3: TRILHOS DIN E BARRAMENTOS (SÓ BRILHAM SE EFETIVAMENTE ENERGIZADOS)
+        // CAMADA 3: TRILHOS DIN E BARRAMENTOS
         drawBusbars(
           ctx,
           cam,
@@ -1592,7 +1647,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
         const motorComp = currentProj.components.find(c => ['M3PH', 'M1PH', 'M3PH_6L', 'PUMP'].includes(c.code));
         if (motorComp && motorComp.state) {
-          const targetRpm = motorComp.state.running ? Number(motorComp.state.rpm || 2920) : 0;
+          const targetRpm = motorComp.state.running ? Number(motorComp.state.rpm || (motorComp.code === 'PUMP' ? 2880 : 2920)) : 0;
           if (targetRpm > (simRef.current.motorRpm || 0)) {
             simRef.current.motorRpm = Math.min(targetRpm, (simRef.current.motorRpm || 0) + 120);
           } else {
@@ -1724,7 +1779,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     busbars: any[],
     zoom: number
   ): string | null => {
-    // 1. Se estiver dentro da área de um dispositivo, NÃO seleciona condutor
     for (const comp of components) {
       const rad = (-comp.rot * Math.PI) / 180;
       const dx = worldX - comp.x;
@@ -1738,7 +1792,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 2. Se estiver dentro de um barramento, NÃO seleciona condutor
     for (const bb of busbars) {
       const isH = bb.orientation === 'horizontal';
       const halfL = ((bb.length || 600) + 12) / 2;
@@ -1750,7 +1803,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 3. Se estiver próximo a algum terminal, NÃO seleciona condutor
     for (const comp of components) {
       const d = getComponentDef(comp.code);
       for (const t of d.terminals) {
@@ -1869,7 +1921,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       return;
     }
 
-    // 2. PRIORIDADE MÁXIMA: Bornes de Dispositivos (Múltiplos condutores no mesmo borne)
+    // 2. PRIORIDADE MÁXIMA: Bornes de Dispositivos
     for (const c of projectRef.current.components) {
       const d = getComponentDef(c.code);
       for (const t of d.terminals) {
@@ -1952,7 +2004,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         simRef.current.drag.offsetY = worldY - c.y;
         simRef.current.drag.clickRelX = rx;
 
-        // Long-Press para abrir gaveta de propriedades
         simRef.current.longPressTimer = setTimeout(() => {
           simRef.current.isLongPressTriggered = true;
           setShowProps(true);
@@ -1990,7 +2041,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 5. APENAS SE NADA FOI ATINGIDO: Seleciona Condutor
+    // 5. SELEÇÃO DE CONDUTOR
     if (simRef.current.wireStart === null) {
       const hitWireId = getHitWireId(
         worldX,
@@ -2147,6 +2198,9 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           c.code === 'PV_PANEL' ||
           c.code === 'PHOTOCELL' ||
           c.code === 'PIR_SENSOR' ||
+          c.code === 'SPD' ||
+          c.code === 'SPD3' ||
+          c.code === 'PUMP' ||
           d.kind === 'breaker' ||
           d.kind === 'breaker_1p' ||
           d.kind === 'breaker2' ||
@@ -2385,7 +2439,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           style={{ willChange: 'transform' }}
         />
 
-        {/* CAMADA SVG TOTALMENTE PASSIVA */}
+        {/* CAMADA SVG PASSIVA */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
           <g ref={svgGroupRef} transform={`translate(${cameraRef.current.pan.x}, ${cameraRef.current.pan.y}) scale(${cameraRef.current.zoom})`} style={{ pointerEvents: 'none' }}>
             {(project.wires || []).map((wire: any, wireIdx: number) => {
@@ -2433,9 +2487,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* ================================================================= */}
-        {/* JANELA HORIZONTAL FLUTUANTE DE EDIÇÃO DO CONDUTOR SELECIONADO      */}
-        {/* ================================================================= */}
+        {/* JANELA FLUTUANTE DE EDIÇÃO DO CONDUTOR SELECIONADO */}
         {selectedWire && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-3 py-2 rounded-2xl bg-[#091226]/95 border border-blue-500/60 shadow-2xl backdrop-blur-xl flex items-center gap-2 text-xs animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-1.5 pr-2 border-r border-slate-700 font-mono text-slate-300 font-bold">
@@ -2446,7 +2498,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               )}
             </div>
 
-            {/* Alternância de Tipo de Condutor (L1, L2, L3, N, PE, NU, CTRL) */}
             <div className="flex items-center gap-1">
               {(['L1', 'L2', 'L3', 'N', 'PE', 'NU', 'CTRL'] as const).map(wType => {
                 const isActive = (selectedWire.type || 'L1') === wType;
@@ -2471,7 +2522,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
             <div className="h-5 w-px bg-slate-700 mx-0.5" />
 
-            {/* Alternância de Secção / Bitola do Cabo */}
             <div className="flex items-center gap-1">
               <Gauge className="w-3.5 h-3.5 text-amber-400" />
               <select
@@ -2489,7 +2539,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
             <div className="h-5 w-px bg-slate-700 mx-0.5" />
 
-            {/* Botão de Excluir Condutor */}
             <button
               type="button"
               onClick={() => deleteWire(selectedWire.id)}
@@ -2499,7 +2548,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               <Trash2 className="w-3.5 h-3.5" />
             </button>
 
-            {/* Fechar Janela Flutuante */}
             <button
               type="button"
               onClick={() => setSelectedWireId(null)}
@@ -2581,9 +2629,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* ================================================================= */}
-        {/* PAINEL LATERAL: PROPRIEDADES PARAMÉTRICAS DO DISPOSITIVO           */}
-        {/* ================================================================= */}
+        {/* PAINEL LATERAL: PROPRIEDADES PARAMÉTRICAS DO DISPOSITIVO */}
         {showProps && selectedComponent && (
           <div className="absolute right-3 top-3 bottom-3 w-88 max-w-[calc(100vw-24px)] bg-[#0A1224]/95 border border-blue-900/50 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden animate-in slide-in-from-right duration-200">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-[#0E1A33]">
@@ -2664,7 +2710,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 )}
               </div>
 
-              {/* 1. PARÂMETROS DE MÓDULO SOLAR (PV_PANEL) */}
+              {/* PARÂMETROS DE MÓDULO SOLAR (PV_PANEL) */}
               {selectedComponent.code === 'PV_PANEL' && (
                 <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-900/40 space-y-2.5">
                   <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
@@ -2752,7 +2798,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 </div>
               )}
 
-              {/* 2. PARÂMETROS DE BATERIA LiFePO4 */}
+              {/* PARÂMETROS DE BATERIA LiFePO4 */}
               {selectedComponent.code === 'BAT_LIFEPO4' && (
                 <div className="p-2.5 rounded-xl bg-slate-950/80 border border-sky-900/40 space-y-2.5">
                   <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
@@ -2813,7 +2859,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 </div>
               )}
 
-              {/* 3. PARÂMETROS DE DISJUNTORES, FUSÍVEIS E IDRs */}
+              {/* PARÂMETROS DE DISJUNTORES, FUSÍVEIS E IDRs */}
               {selectedComponent.params?.current !== undefined && (
                 <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                   <div className="flex items-center gap-1.5 text-blue-400 font-bold text-[11px]">
@@ -2866,7 +2912,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 </div>
               )}
 
-              {/* 4. PARÂMETROS DE CONTATORES */}
+              {/* PARÂMETROS DE CONTATORES */}
               {selectedComponent.code === 'CONTACTOR' && (
                 <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                   <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
@@ -2903,7 +2949,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 </div>
               )}
 
-              {/* 5. PARÂMETROS DE MOTORES E BOMBAS */}
+              {/* PARÂMETROS DE MOTORES E BOMBAS */}
               {['motor3', 'motor1', 'motor3_6lead', 'pump', 'fan'].some(k => selectedComponent.code.includes('M') || selectedComponent.code === 'PUMP' || selectedComponent.code === 'FAN') && (
                 <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                   <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
@@ -2915,7 +2961,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                     <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
                       <span>Potência Nominal</span>
                       <span className="text-amber-400 font-mono">
-                        {((selectedComponent.params?.power || 7500) / 735.5).toFixed(1)} CV ({((selectedComponent.params?.power || 7500) / 1000).toFixed(1)} kW)
+                        {((selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)) / 735.5).toFixed(1)} CV ({((selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)) / 1000).toFixed(1)} kW)
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -2924,7 +2970,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                         min="250"
                         max="75000"
                         step="250"
-                        value={selectedComponent.params?.power || 7500}
+                        value={selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)}
                         onChange={e => updateComponentProperty('power', Number(e.target.value))}
                         className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-amber-300 font-mono font-bold"
                       />
@@ -2936,12 +2982,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                     <div>
                       <label className="text-[10px] text-slate-400 font-bold block mb-1">Rotação (RPM)</label>
                       <select
-                        value={selectedComponent.params?.rpm || 2920}
+                        value={selectedComponent.params?.rpm || (selectedComponent.code === 'PUMP' ? 2880 : 2920)}
                         onChange={e => updateComponentProperty('rpm', Number(e.target.value))}
                         className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white font-mono font-bold cursor-pointer"
                       >
                         <option value="960">960 RPM (6 Polos)</option>
                         <option value="1450">1450 RPM (4 Polos)</option>
+                        <option value="2880">2880 RPM (Bomba Centrífuga)</option>
                         <option value="2920">2920 RPM (2 Polos)</option>
                       </select>
                     </div>
@@ -2952,55 +2999,11 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                         min="0.7"
                         max="0.98"
                         step="0.01"
-                        value={selectedComponent.params?.pf || 0.86}
+                        value={selectedComponent.params?.pf || 0.85}
                         onChange={e => updateComponentProperty('pf', Number(e.target.value))}
                         className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-emerald-300 font-mono font-bold"
                       />
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 6. PARÂMETROS DE CARGAS RESISTIVAS (AQUECEDOR / LÂMPADA) */}
-              {['HEATER', 'LAMP'].includes(selectedComponent.code) && (
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
-                    <Flame className="w-3.5 h-3.5" />
-                    <span>Potência da Carga</span>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Potência Nominal (Watts)</label>
-                    <input
-                      type="number"
-                      min="10"
-                      max="10000"
-                      step="50"
-                      value={selectedComponent.params?.power || 100}
-                      onChange={e => updateComponentProperty('power', Number(e.target.value))}
-                      className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-amber-300 font-mono font-bold"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* 7. PARÂMETROS DE INTERRUPTORES (3-WAY, 4-WAY, SW) */}
-              {['SW', 'SW2', 'SW_DOUBLE', 'THREE_WAY', 'FOUR_WAY'].includes(selectedComponent.code) && (
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                  <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
-                    <Power className="w-3.5 h-3.5" />
-                    <span>Especificação do Comutador</span>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Corrente Nominal Suportada</label>
-                    <select
-                      value={selectedComponent.params?.current || 10}
-                      onChange={e => updateComponentProperty('current', Number(e.target.value))}
-                      className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-white font-mono font-bold cursor-pointer"
-                    >
-                      <option value="10">10 A (Padrão Iluminação)</option>
-                      <option value="16">16 A (Serviço Pesado)</option>
-                      <option value="20">20 A (Industrial)</option>
-                    </select>
                   </div>
                 </div>
               )}

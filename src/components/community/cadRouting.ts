@@ -1,11 +1,13 @@
 // ============================================================================
-// TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO DE CONDUTORES, FÍSICA E ANATOMIA IEC/DIN (V18)
+// TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO DE CONDUTORES, FÍSICA E ANATOMIA IEC/DIN (V19)
 // Normas: IEC 60669, NBR 14136, IEC 60947, IEC 60898, IEC 60034, IEC 62109, DIN 46228-4
 // Mapeamento Normativo e Coordenadas Espaciais sem Sobreposição:
 // - Condutores Isolados: L1, L2, L3, N, PE, 24+, 24-, CTRL
 // - Condutor Nu de Cobre (NU) para Malhas de Aterramento e Equipotencialização
 // - Motor 6 Pontas (U1, V1, W1 / W2, U2, V2)
 // - ATS / MTS (Entradas Rede, Entradas Gerador e Saídas Carga)
+// - DPS Monofásico (SPD) e Tetrapolar (SPD3) com bornes Top/Bottom reais
+// - Eletrobomba Centrífuga em Caracol (U, V, W, PE na caixa de ligação)
 // - Inversores Solares On-Grid, Off-Grid, Híbrido, Módulos FV e Bateria LiFePO4
 // - Timers Estrela-Triângulo (Y-Δ), TOF, Temporizador Digital e Termostato
 // - Fotocélula Crepuscular e Sensor PIR de Presença
@@ -77,7 +79,136 @@ export function getNormativeTerminalOffset(
   const termEntry = d.terminals ? d.terminals.find(x => x[0] === termId) : null;
   const func = termEntry ? termEntry[1] : '';
 
-  // 1. Terra de Proteção (PE / GND): Exclusivamente Lateral Direita
+  // --------------------------------------------------------------------------
+  // DISPOSITIVOS DE PROTEÇÃO CONTRA SURTOS DPS (SPD / SPD3) - TOP/BOTTOM
+  // --------------------------------------------------------------------------
+  if (comp.code === 'SPD' || d.kind === 'spd') {
+    if (termId === 'L' || termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'SPD3' || d.kind === 'spd3') {
+    if (termId === 'L1') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'L2') return { x: -w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === 'L3') return { x: w * 0.12, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.36, y: -h / 2, dir: 'top' };
+    if (termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  // --------------------------------------------------------------------------
+  // ATERRAMENTO E INFRAESTRUTURA (HASTE, CAIXA BEP, WAGO)
+  // --------------------------------------------------------------------------
+  if (comp.code === 'EARTH_ROD') {
+    return { x: 0, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'EARTH_PIT') {
+    if (termId === 'BEP1') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'BEP2') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'BEP3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'GND' || termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'JUNCTION_BOX') {
+    if (termId === 'L_IN') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'N_IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'PE_IN') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'L2') return { x: -w * 0.20, y: h / 2, dir: 'bottom' };
+    if (termId === 'N1') return { x: -w * 0.04, y: h / 2, dir: 'bottom' };
+    if (termId === 'N2') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'PE1') return { x: w * 0.30, y: h / 2, dir: 'bottom' };
+  }
+
+  // --------------------------------------------------------------------------
+  // GERAÇÃO E TRANSFERÊNCIA (GMG DIESEL, ATS, MTS)
+  // --------------------------------------------------------------------------
+  if (comp.code === 'GEN_DIESEL' || d.kind === 'generator_diesel') {
+    if (termId === 'L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'PE') return { x: w / 2, y: 0, dir: 'right' };
+    if (termId === 'REMOTE_START') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'ATS_SWITCH' || d.kind === 'ats_switch') {
+    // Entradas Concessionária (Rede Normal)
+    if (termId === 'N_L1') return { x: -w * 0.42, y: -h / 2, dir: 'top' };
+    if (termId === 'N_L2') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'N_L3') return { x: -w * 0.18, y: -h / 2, dir: 'top' };
+    if (termId === 'N_N') return { x: -w * 0.06, y: -h / 2, dir: 'top' };
+    // Entradas Grupo Gerador
+    if (termId === 'G_L1') return { x: w * 0.06, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L2') return { x: w * 0.18, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'G_N') return { x: w * 0.42, y: -h / 2, dir: 'top' };
+    // Saídas Carga Alimentada
+    if (termId === 'LOAD_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'LOAD_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'LOAD_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'LOAD_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+    // Contato Seco de Partida Remota do Gerador
+    if (termId === 'GEN_START') return { x: w / 2, y: 0, dir: 'right' };
+  }
+
+  if (comp.code === 'MTS_SWITCH' || d.kind === 'mts_switch') {
+    // Entradas Rede (Lado Superior Esquerdo)
+    if (termId === 'R_L1') return { x: -w * 0.40, y: -h / 2, dir: 'top' };
+    if (termId === 'R_L2') return { x: -w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === 'R_L3') return { x: -w * 0.16, y: -h / 2, dir: 'top' };
+    if (termId === 'R_N') return { x: -w * 0.04, y: -h / 2, dir: 'top' };
+    // Entradas Gerador (Lado Superior Direito)
+    if (termId === 'G_L1') return { x: w * 0.08, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L2') return { x: w * 0.20, y: -h / 2, dir: 'top' };
+    if (termId === 'G_L3') return { x: w * 0.32, y: -h / 2, dir: 'top' };
+    if (termId === 'G_N') return { x: w * 0.44, y: -h / 2, dir: 'top' };
+    // Saídas Carga (Lado Inferior)
+    if (termId === 'OUT_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
+    if (termId === 'OUT_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'OUT_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
+    if (termId === 'OUT_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
+  }
+
+  // --------------------------------------------------------------------------
+  // MOTORES ELÉTRICOS E ELETROBOMBAS CENTRÍFUGAS (IEC 60034)
+  // --------------------------------------------------------------------------
+  if (comp.code === 'PUMP' || d.kind === 'pump') {
+    // Caixa de ligação superior do motor acoplado à voluta
+    if (termId === 'U') return { x: w * 0.08, y: -h / 2, dir: 'top' };
+    if (termId === 'V') return { x: w * 0.18, y: -h / 2, dir: 'top' };
+    if (termId === 'W') return { x: w * 0.28, y: -h / 2, dir: 'top' };
+    if (termId === 'PE') return { x: w * 0.40, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'M3PH_6L' || d.kind === 'motor3_6lead') {
+    // 6 Pontas Estrela-Triângulo
+    if (termId === 'U1') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'V1') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'W1') return { x: w * 0.30, y: -h / 2, dir: 'top' };
+    if (termId === 'W2') return { x: -w * 0.30, y: h / 2, dir: 'bottom' };
+    if (termId === 'U2') return { x: 0, y: h / 2, dir: 'bottom' };
+    if (termId === 'V2') return { x: w * 0.30, y: h / 2, dir: 'bottom' };
+  }
+
+  if (d.kind === 'motor3') {
+    if (termId === 'U') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'V') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'W') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+  }
+
+  if (d.kind === 'motor1' || comp.code === 'FAN') {
+    if (termId === 'L') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.22, y: -h / 2, dir: 'top' };
+  }
+
+  if (d.kind === 'motorDC') {
+    if (termId === '+') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
+    if (termId === '-') return { x: w * 0.22, y: -h / 2, dir: 'top' };
+  }
+
+  // Terra de Proteção padrão (PE / GND): Lateral Direita para demais equipamentos
   if (termId === 'PE' || termId === 'G' || func === 'PE') {
     return { x: w / 2, y: 0, dir: 'right' };
   }
@@ -228,65 +359,6 @@ export function getNormativeTerminalOffset(
     if (termId === '6') return { x: w * 0.28, y: h / 2, dir: 'bottom' };
   }
 
-  if (d.kind === 'spd') {
-    if (termId === 'L' || termId === '1') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
-    if (termId === 'N') return { x: w * 0.25, y: -h / 2, dir: 'top' };
-    if (termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
-  }
-
-  if (d.kind === 'spd3' || comp.code === 'SPD3') {
-    if (termId === 'L1') return { x: -w * 0.36, y: -h / 2, dir: 'top' };
-    if (termId === 'L2') return { x: -w * 0.12, y: -h / 2, dir: 'top' };
-    if (termId === 'L3') return { x: w * 0.12, y: -h / 2, dir: 'top' };
-    if (termId === 'N') return { x: w * 0.36, y: -h / 2, dir: 'top' };
-    if (termId === 'PE') return { x: 0, y: h / 2, dir: 'bottom' };
-  }
-
-  // --------------------------------------------------------------------------
-  // GERAÇÃO E TRANSFERÊNCIA (GMG, ATS, MTS)
-  // --------------------------------------------------------------------------
-  if (comp.code === 'GEN_DIESEL') {
-    if (termId === 'L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
-    if (termId === 'L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === 'L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === 'N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
-    if (termId === 'REMOTE_START') return { x: -w * 0.35, y: -h / 2, dir: 'top' };
-  }
-
-  if (comp.code === 'ATS_SWITCH') {
-    // Entradas Concessionária
-    if (termId === 'N_L1') return { x: -w * 0.42, y: -h / 2, dir: 'top' };
-    if (termId === 'N_L2') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'N_L3') return { x: -w * 0.18, y: -h / 2, dir: 'top' };
-    if (termId === 'N_N') return { x: -w * 0.06, y: -h / 2, dir: 'top' };
-    // Entradas Gerador
-    if (termId === 'G_L1') return { x: w * 0.06, y: -h / 2, dir: 'top' };
-    if (termId === 'G_L2') return { x: w * 0.18, y: -h / 2, dir: 'top' };
-    if (termId === 'G_L3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'G_N') return { x: w * 0.42, y: -h / 2, dir: 'top' };
-    // Saídas Carga
-    if (termId === 'LOAD_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
-    if (termId === 'LOAD_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === 'LOAD_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === 'LOAD_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
-    if (termId === 'GEN_START') return { x: w / 2, y: 0, dir: 'right' };
-  }
-
-  if (comp.code === 'MTS_SWITCH') {
-    if (termId === 'R_L1') return { x: -w * 0.42, y: -h / 2, dir: 'top' };
-    if (termId === 'R_L2') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'R_L3') return { x: -w * 0.18, y: -h / 2, dir: 'top' };
-    if (termId === 'R_N') return { x: -w * 0.06, y: -h / 2, dir: 'top' };
-    if (termId === 'G_L1') return { x: w * 0.06, y: -h / 2, dir: 'top' };
-    if (termId === 'G_L2') return { x: w * 0.18, y: -h / 2, dir: 'top' };
-    if (termId === 'G_L3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'G_N') return { x: w * 0.42, y: -h / 2, dir: 'top' };
-    if (termId === 'OUT_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
-    if (termId === 'OUT_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === 'OUT_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === 'OUT_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
-  }
-
   // --------------------------------------------------------------------------
   // ENERGIA SOLAR & ARMAZENAMENTO
   // --------------------------------------------------------------------------
@@ -338,35 +410,6 @@ export function getNormativeTerminalOffset(
     if (termId === 'N_IN') return { x: w * 0.25, y: -h / 2, dir: 'top' };
     if (termId === 'L_OUT') return { x: -w * 0.25, y: h / 2, dir: 'bottom' };
     if (termId === 'N_OUT') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
-  }
-
-  // --------------------------------------------------------------------------
-  // MOTORES ELÉTRICOS (IEC 60034)
-  // --------------------------------------------------------------------------
-  if (comp.code === 'M3PH_6L') {
-    // 6 Pontas Estrela-Triângulo
-    if (termId === 'U1') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'V1') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === 'W1') return { x: w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'W2') return { x: -w * 0.30, y: h / 2, dir: 'bottom' };
-    if (termId === 'U2') return { x: 0, y: h / 2, dir: 'bottom' };
-    if (termId === 'V2') return { x: w * 0.30, y: h / 2, dir: 'bottom' };
-  }
-
-  if (d.kind === 'motor3' || comp.code === 'PUMP') {
-    if (termId === 'U') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
-    if (termId === 'V') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === 'W') return { x: w * 0.25, y: -h / 2, dir: 'top' };
-  }
-
-  if (d.kind === 'motor1' || comp.code === 'FAN') {
-    if (termId === 'L') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
-    if (termId === 'N') return { x: w * 0.22, y: -h / 2, dir: 'top' };
-  }
-
-  if (d.kind === 'motorDC') {
-    if (termId === '+') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
-    if (termId === '-') return { x: w * 0.22, y: -h / 2, dir: 'top' };
   }
 
   // --------------------------------------------------------------------------
@@ -444,31 +487,6 @@ export function getNormativeTerminalOffset(
     if (termId === 'A2') return { x: -w * 0.35, y: h / 2, dir: 'bottom' };
     if (termId === '16' || termId === '12' || termId === 'NC') return { x: -w * 0.15, y: h / 2, dir: 'bottom' };
     if (termId === '18' || termId === '14' || termId === 'NO') return { x: w * 0.25, y: h / 2, dir: 'bottom' };
-  }
-
-  // --------------------------------------------------------------------------
-  // ATERRAMENTO E CAIXAS DE PASSAGEM
-  // --------------------------------------------------------------------------
-  if (comp.code === 'EARTH_ROD') {
-    return { x: 0, y: -h / 2, dir: 'top' };
-  }
-
-  if (comp.code === 'EARTH_PIT') {
-    if (termId === 'BEP1') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'BEP2') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === 'BEP3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'GND') return { x: 0, y: h / 2, dir: 'bottom' };
-  }
-
-  if (comp.code === 'JUNCTION_BOX') {
-    if (termId === 'L_IN') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'N_IN') return { x: 0, y: -h / 2, dir: 'top' };
-    if (termId === 'PE_IN') return { x: w * 0.30, y: -h / 2, dir: 'top' };
-    if (termId === 'L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
-    if (termId === 'L2') return { x: -w * 0.20, y: h / 2, dir: 'bottom' };
-    if (termId === 'N1') return { x: -w * 0.04, y: h / 2, dir: 'bottom' };
-    if (termId === 'N2') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
-    if (termId === 'PE1') return { x: w * 0.30, y: h / 2, dir: 'bottom' };
   }
 
   // --------------------------------------------------------------------------
