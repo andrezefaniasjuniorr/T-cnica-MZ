@@ -1,7 +1,7 @@
 // ============================================================================
-// TÉCNICAMZ PRO — MOTOR CAD ELÉTRICO, FÍSICA NODAL & MATRIZ DE COMUTAÇÃO (V18)
-// Modelagem Física Real: Fotovoltaico (Série/Paralelo MPPT), Baterias LiFePO4,
-// Inversores On-Grid / Off-Grid / Híbrido, Smart Meter, Geradores e Motores
+// TÉCNICAMZ PRO — MOTOR CAD ELÉTRICO, FÍSICA NODAL & MATRIZ DE COMUTAÇÃO (V21)
+// Modelagem Paramétrica Dinâmica: Fotovoltaico (pMax, Vmpp, Impp), Baterias LiFePO4
+// (Tensão, Ah, SOC), Inversores, Motores e Proteções Ajustáveis em Tempo Real
 // ============================================================================
 
 export type ComponentCategory =
@@ -23,7 +23,7 @@ export type ComponentCategory =
 export interface TerminalDef {
   0: string; // Terminal ID
   1: string; // Função: 'IN' | 'OUT' | 'COIL' | 'COM' | 'NO' | 'NC' | 'PWR' | 'PE' | etc.
-  2: string; // Tipo Condutor: 'L1' | 'L2' | 'L3' | 'N' | 'PE' | '24+' | '24-' | 'CTRL'
+  2: string; // Tipo Condutor: 'L1' | 'L2' | 'L3' | 'N' | 'PE' | 'NU' | '24+' | '24-' | 'CTRL'
 }
 
 export interface Busbar {
@@ -72,6 +72,7 @@ export const WIRE_COLORS: Record<string, string> = {
   L3: '#64748b', // Cinzento / Fase 3
   N: '#0284c7',  // Azul Claro / Neutro
   PE: '#10b981', // Verde-Amarelo / Terra PE
+  NU: '#b45309', // Cobre Nu / Aterramento Nu
   '24+': '#ef4444', // Vermelho / DC Positivo (+24V / +48V / +PV)
   '24-': '#3b82f6', // Azul Escuro / DC Negativo (0V / -PV)
   CTRL: '#f59e0b' // Amarelo / Comando & Intertravamento
@@ -1001,6 +1002,7 @@ export interface SimulationStepResult {
   mainVoltageRMS: number;
   trippedIds: string[];
   burnedIds: string[];
+  energizedBusbarIds: string[];
 }
 
 interface InternalEdge {
@@ -1025,7 +1027,8 @@ export function solveCircuitPhysicsStep(
     activePF: 1.0,
     mainVoltageRMS: 0,
     trippedIds: [],
-    burnedIds: []
+    burnedIds: [],
+    energizedBusbarIds: []
   };
 
   const comps = project.components || [];
@@ -1068,7 +1071,7 @@ export function solveCircuitPhysicsStep(
     graph.get(v)!.push({ target: u, r, wireId, attenuation });
   };
 
-  // A. Arestas de Condutores com Resistência Real R = ρ * L / S
+  // A. Arestas de Condutores com Resistência Real R = ρ * L / S (inclui Cobre Nu / NU)
   wires.forEach(w => {
     if (w.fault || w.burned) return;
     const u = `${w.a.c}:${w.a.t}`;
@@ -1079,7 +1082,7 @@ export function solveCircuitPhysicsStep(
     addGraphEdge(u, v, r, w.id);
   });
 
-  // B. Arestas Internas dos Barramentos DIN
+  // B. Arestas Internas dos Barramentos (Pentes condutores de baixa impedância)
   busbars.forEach(bb => {
     if (bb.type === 'din' || !bb.terminals) return;
     const spine = `${bb.id}:SPINE`;
@@ -1089,22 +1092,28 @@ export function solveCircuitPhysicsStep(
   });
 
   // ==========================================================================
-  // RESOLUÇÃO DE CADEIA SOLAR DC (SÉRIE E PARALELO REAL)
+  // RESOLUÇÃO DE CADEIA SOLAR DC (SÉRIE E PARALELO REAL TOTALMENTE PARAMÉTRICA)
   // ==========================================================================
   const pvPanels = comps.filter(c => c.code === 'PV_PANEL');
   pvPanels.forEach(pv => {
     pv.state = pv.state || {};
     const irr = Number(pv.params?.irradiance ?? 1000);
-    const vocNom = Number(pv.params?.voc ?? 49.8);
+    const pMaxNom = Number(pv.params?.pMax ?? 550);
     const vmppNom = Number(pv.params?.vmpp ?? 41.8);
-    const imppNom = Number(pv.params?.impp ?? 13.15);
+    const vocNom = Number(pv.params?.voc ?? (vmppNom * 1.19));
+    const imppNom = Number(pv.params?.impp ?? (pMaxNom / Math.max(1, vmppNom)));
 
-    // Física fotovoltaica com proporcionalidade de irradiância real
     const effRatio = Math.max(0, Math.min(1.2, irr / 1000));
-    pv.state.voltage = effRatio > 0.05 ? Number((vmppNom * (0.95 + 0.05 * Math.log(effRatio + 0.1))).toFixed(1)) : 0;
-    pv.state.current = Number((imppNom * effRatio).toFixed(2));
-    pv.state.powerKW = Number(((pv.state.voltage * pv.state.current) / 1000).toFixed(3));
-    pv.state.energized = pv.state.voltage > 5;
+    const vGenerated = effRatio > 0.05
+      ? Number((vmppNom * (0.95 + 0.05 * Math.log(effRatio + 0.1))).toFixed(1))
+      : 0;
+    const iGenerated = Number((imppNom * effRatio).toFixed(2));
+    const pKwGenerated = Number(((vGenerated * iGenerated) / 1000).toFixed(3));
+
+    pv.state.voltage = vGenerated;
+    pv.state.current = iGenerated;
+    pv.state.powerKW = pKwGenerated;
+    pv.state.energized = vGenerated > 5;
   });
 
   // 2. CONVERGÊNCIA ITERATIVA ELETROMECÂNICA
@@ -1114,7 +1123,10 @@ export function solveCircuitPhysicsStep(
 
   type SourcePole = { id: string; net: string; v: number; angle: number; sourceId: string };
   let sourcePoles: SourcePole[] = [];
-  let reachMap = new Map<string, Map<string, { rPath: number; vFactor: number; sourcePole: SourcePole }>>();
+  let reachMap = new Map<
+    string,
+    Map<string, { rPath: number; vFactor: number; sourcePole: SourcePole; pathEdges: InternalEdge[] }>
+  >();
 
   while (stateChanged && pass < maxIterations) {
     pass++;
@@ -1126,7 +1138,7 @@ export function solveCircuitPhysicsStep(
       const isBurned = Boolean(c.state.isBurned || c.state.damaged);
       const isTripped = Boolean(c.state.tripped);
 
-      // Disjuntores Termomagnéticos e Caixa Moldada
+      // Disjuntores Termomagnéticos e Caixa Moldada (Se desligado, isola completamente a saída)
       if (['breaker', 'breaker_1p', 'breaker2', 'breaker3', 'mccb', 'motor_breaker', 'rcbo'].includes(d.kind)) {
         const isClosed = c.state.closed !== false && !isTripped && !isBurned;
         c.state.flagColor = isTripped ? 'yellow' : isClosed ? 'red' : 'green';
@@ -1307,14 +1319,14 @@ export function solveCircuitPhysicsStep(
       }
     });
 
-    // Fontes de Tensão Primárias
+    // Fontes de Tensão Primárias Reais (Valores lidos dinamicamente de c.params)
     sourcePoles = [];
     comps.forEach(c => {
       const isSrc = c.code.startsWith('SRC_') || c.code === 'BAT' || c.code === 'GEN_DIESEL' || c.code === 'BAT_LIFEPO4' || c.code === 'PV_PANEL';
       const isClosed = c.params?.closed !== false && c.state?.closed !== false && !c.state?.tripped && !c.state?.isBurned;
       if (!isSrc || !isClosed) return;
 
-      const vNom = Number(c.params?.voltage || (c.code === 'BAT_LIFEPO4' ? 51.2 : c.code === 'PV_PANEL' ? (c.state?.voltage || 41.8) : 230));
+      const vNom = Number(c.params?.voltage || (c.code === 'BAT_LIFEPO4' ? (c.params?.voltage ?? 51.2) : c.code === 'PV_PANEL' ? (c.state?.voltage || 41.8) : 230));
       result.activeFrequency = Number(c.params?.frequency || 50);
 
       if (c.code === 'SRC_AC3') {
@@ -1326,9 +1338,9 @@ export function solveCircuitPhysicsStep(
         result.mainVoltageRMS = vNom;
       } else if (c.code === 'GEN_DIESEL') {
         if (c.params?.running !== false || c.state?.running) {
-          sourcePoles.push({ id: `${c.id}:L1`, net: 'L1', v: 230, angle: 0, sourceId: c.id });
-          sourcePoles.push({ id: `${c.id}:L2`, net: 'L2', v: 230, angle: -120, sourceId: c.id });
-          sourcePoles.push({ id: `${c.id}:L3`, net: 'L3', v: 230, angle: 120, sourceId: c.id });
+          sourcePoles.push({ id: `${c.id}:L1`, net: 'L1', v: vNom / Math.sqrt(3), angle: 0, sourceId: c.id });
+          sourcePoles.push({ id: `${c.id}:L2`, net: 'L2', v: vNom / Math.sqrt(3), angle: -120, sourceId: c.id });
+          sourcePoles.push({ id: `${c.id}:L3`, net: 'L3', v: vNom / Math.sqrt(3), angle: 120, sourceId: c.id });
           sourcePoles.push({ id: `${c.id}:N`, net: 'N', v: 0, angle: 0, sourceId: c.id });
           sourcePoles.push({ id: `${c.id}:PE`, net: 'PE', v: 0, angle: 0, sourceId: c.id });
         }
@@ -1347,27 +1359,30 @@ export function solveCircuitPhysicsStep(
       }
     });
 
-    busbars.forEach(bb => {
-      if (bb.type === 'phase_l1') sourcePoles.push({ id: `${bb.id}:SPINE`, net: 'L1', v: 230, angle: 0, sourceId: bb.id });
-      else if (bb.type === 'phase_l2') sourcePoles.push({ id: `${bb.id}:SPINE`, net: 'L2', v: 230, angle: -120, sourceId: bb.id });
-      else if (bb.type === 'phase_l3') sourcePoles.push({ id: `${bb.id}:SPINE`, net: 'L3', v: 230, angle: 120, sourceId: bb.id });
-      else if (bb.type === 'neutral') sourcePoles.push({ id: `${bb.id}:SPINE`, net: 'N', v: 0, angle: 0, sourceId: bb.id });
-      else if (bb.type === 'earth') sourcePoles.push({ id: `${bb.id}:SPINE`, net: 'PE', v: 0, angle: 0, sourceId: bb.id });
+    // Fontes de Aterramento Real
+    comps.forEach(c => {
+      if (c.code === 'EARTH_ROD') {
+        sourcePoles.push({ id: `${c.id}:PE`, net: 'PE', v: 0, angle: 0, sourceId: c.id });
+      } else if (c.code === 'EARTH_PIT') {
+        sourcePoles.push({ id: `${c.id}:GND`, net: 'PE', v: 0, angle: 0, sourceId: c.id });
+      }
     });
 
-    // BFS Nodal
+    // BFS Nodal com Rastreamento de Caminho Físico
     reachMap = new Map();
 
     sourcePoles.forEach(sp => {
-      const queue: { node: string; rPath: number; vFactor: number }[] = [{ node: sp.id, rPath: 0, vFactor: 1.0 }];
+      const queue: { node: string; rPath: number; vFactor: number; path: InternalEdge[] }[] = [
+        { node: sp.id, rPath: 0, vFactor: 1.0, path: [] }
+      ];
       const visited = new Set<string>([sp.id]);
 
       if (!reachMap.has(sp.id)) reachMap.set(sp.id, new Map());
       const poleMap = reachMap.get(sp.id)!;
-      poleMap.set(sp.id, { rPath: 0, vFactor: 1.0, sourcePole: sp });
+      poleMap.set(sp.id, { rPath: 0, vFactor: 1.0, sourcePole: sp, pathEdges: [] });
 
       while (queue.length > 0) {
-        const { node, rPath, vFactor } = queue.shift()!;
+        const { node, rPath, vFactor, path } = queue.shift()!;
         const edges = graph.get(node) || [];
 
         for (const edge of edges) {
@@ -1375,25 +1390,21 @@ export function solveCircuitPhysicsStep(
             visited.add(edge.target);
             const totalR = rPath + edge.r;
             const nextVFactor = vFactor * (edge.attenuation ?? 1.0);
-            poleMap.set(edge.target, { rPath: totalR, vFactor: nextVFactor, sourcePole: sp });
-            queue.push({ node: edge.target, rPath: totalR, vFactor: nextVFactor });
+            const nextPath = [...path, edge];
+            poleMap.set(edge.target, { rPath: totalR, vFactor: nextVFactor, sourcePole: sp, pathEdges: nextPath });
+            queue.push({ node: edge.target, rPath: totalR, vFactor: nextVFactor, path: nextPath });
           }
         }
       }
     });
 
-    // ========================================================================
-    // CONVERGÊNCIA DOS INVERSORES SOLARES (OFF-GRID, ON-GRID E HÍBRIDO)
-    // ========================================================================
+    // Inversores Solares
     comps.forEach(inv => {
       inv.state = inv.state || {};
 
       if (inv.code === 'PV_INVERTER_OFFGRID') {
         const nBatP = `${inv.id}:BAT+`;
-        const nBatM = `${inv.id}:BAT-`;
         const nPvP = `${inv.id}:PV+`;
-        const nPvM = `${inv.id}:PV-`;
-
         let batConnected = false;
         let vBat = 0;
         let pvConnected = false;
@@ -1406,9 +1417,7 @@ export function solveCircuitPhysicsStep(
           if (m.has(nPvP) && sp.net === '24+') { pvConnected = true; vPv += sp.v; }
         });
 
-        // Inversor Off-Grid precisa de bateria conectada (>42V) ou PV ativo (>60V)
-        const isPowered = (batConnected && vBat >= 42) || (pvConnected && vPv >= 60);
-
+        const isPowered = (batConnected && vBat >= 40) || (pvConnected && vPv >= 50);
         if (isPowered !== inv.state.running) {
           inv.state.running = isPowered;
           inv.state.energized = isPowered;
@@ -1419,17 +1428,15 @@ export function solveCircuitPhysicsStep(
         inv.state.pvVoltage = vPv > 0 ? Number(vPv.toFixed(1)) : 0;
 
         if (isPowered) {
-          inv.state.voltage = 230.0;
-          sourcePoles.push({ id: `${inv.id}:AC_L`, net: 'L1', v: 230, angle: 0, sourceId: inv.id });
+          const acOutV = Number(inv.params?.acOutVoltage || 230);
+          inv.state.voltage = acOutV;
+          sourcePoles.push({ id: `${inv.id}:AC_L`, net: 'L1', v: acOutV, angle: 0, sourceId: inv.id });
           sourcePoles.push({ id: `${inv.id}:AC_N`, net: 'N', v: 0, angle: 0, sourceId: inv.id });
           addGraphEdge(`${inv.id}:AC_L`, `${inv.id}:AC_N_VIRT`, 0.001);
         }
-      }
-
-      else if (inv.code === 'PV_INVERTER_ONGRID') {
+      } else if (inv.code === 'PV_INVERTER_ONGRID') {
         const nDc1P = `${inv.id}:DC1+`;
         const nGridL1 = `${inv.id}:AC_L1`;
-
         let vString = 0;
         let gridPresent = false;
 
@@ -1440,24 +1447,23 @@ export function solveCircuitPhysicsStep(
           if (m.has(nGridL1) && sp.net === 'L1') gridPresent = true;
         });
 
-        // On-Grid precisa de tensão de string dentro do MPPT (160V-850V) e REDE CA PRESENTE
-        const inMpptWindow = vString >= 160 && vString <= 850;
+        const mpptMin = Number(inv.params?.mpptMinV || 160);
+        const mpptMax = Number(inv.params?.mpptMaxV || 850);
+        const inMpptWindow = vString >= mpptMin && vString <= mpptMax;
         const isSync = inMpptWindow && gridPresent;
-
         inv.state.running = isSync;
         inv.state.energized = isSync;
         inv.state.pvVoltage = Number(vString.toFixed(1));
-        inv.params.syncActive = isSync;
+        if (inv.params) inv.params.syncActive = isSync;
 
         if (isSync) {
-          inv.state.powerKW = Number(Math.min(10, (vString * 11) / 1000).toFixed(2));
+          const pInvNom = Number(inv.params?.powerKW || 10);
+          inv.state.powerKW = Number(Math.min(pInvNom, (vString * 12) / 1000).toFixed(2));
           inv.state.voltage = 400.0;
         } else {
           inv.state.powerKW = 0;
         }
-      }
-
-      else if (inv.code === 'PV_INVERTER_HYBRID') {
+      } else if (inv.code === 'PV_INVERTER_HYBRID') {
         const nBatP = `${inv.id}:BAT+`;
         const nPvP = `${inv.id}:PV1+`;
         let hasDC = false;
@@ -1469,7 +1475,7 @@ export function solveCircuitPhysicsStep(
           if ((m.has(nBatP) || m.has(nPvP)) && sp.net === '24+') { hasDC = true; vDC = Math.max(vDC, sp.v); }
         });
 
-        const isRunning = hasDC && vDC >= 42;
+        const isRunning = hasDC && vDC >= 40;
         inv.state.running = isRunning;
         inv.state.energized = isRunning;
         inv.state.pvVoltage = Number(vDC.toFixed(1));
@@ -1482,7 +1488,7 @@ export function solveCircuitPhysicsStep(
       }
     });
 
-    // Validação de Bobinas (KM, KA, Timers)
+    // Bobinas (KM, KA, Timers)
     comps.forEach(c => {
       if (['CONTACTOR', 'RELAY', 'TIMER', 'TIMER_STAR_DELTA', 'TIMER_TOF'].includes(c.code)) {
         const nodeA1 = `${c.id}:A1`;
@@ -1536,8 +1542,42 @@ export function solveCircuitPhysicsStep(
     });
   }
 
-  // 4. RESOLUÇÃO REAL DAS CARGAS & MOTORES
-  const activeWireIds = new Set<string>();
+  // 4. IDENTIFICAR QUAIS BARRAMENTOS ESTÃO EFETIVAMENTE ENERGIZADOS
+  const energizedBusbarsSet = new Set<string>();
+  busbars.forEach(bb => {
+    if (bb.type === 'din') return;
+    const spineNode = `${bb.id}:SPINE`;
+
+    sourcePoles.forEach(sp => {
+      const map = reachMap.get(sp.id);
+      if (!map) return;
+      if (map.has(spineNode)) {
+        if (bb.type.startsWith('phase') && sp.net.startsWith('L')) {
+          energizedBusbarsSet.add(bb.id);
+          energizedBusbarsSet.add(bb.type);
+        } else if (bb.type === 'neutral' && sp.net === 'N') {
+          energizedBusbarsSet.add(bb.id);
+          energizedBusbarsSet.add(bb.type);
+        } else if (bb.type === 'earth' && (sp.net === 'PE' || sp.net === 'GND')) {
+          energizedBusbarsSet.add(bb.id);
+          energizedBusbarsSet.add(bb.type);
+        }
+      }
+    });
+  });
+  result.energizedBusbarIds = Array.from(energizedBusbarsSet);
+
+  // 5. RESOLUÇÃO REAL DAS CARGAS & PROPAGAÇÃO DE CORRENTE POR TODA A CADEIA
+  const wireCurrentMap = new Map<string, number>();
+
+  const addPathCurrent = (pathEdges: InternalEdge[], currentVal: number) => {
+    pathEdges.forEach(edge => {
+      if (edge.wireId) {
+        const cur = wireCurrentMap.get(edge.wireId) || 0;
+        wireCurrentMap.set(edge.wireId, cur + currentVal);
+      }
+    });
+  };
 
   comps.forEach(load => {
     load.state = load.state || {};
@@ -1547,7 +1587,7 @@ export function solveCircuitPhysicsStep(
 
     if (!isMotor && !isAppliance) return;
 
-    // MOTOR TRIFÁSICO DE 6 PONTAS (PARTIDA ESTRELA-TRIÂNGULO)
+    // MOTOR TRIFÁSICO DE 6 PONTAS (Y-Δ)
     if (load.code === 'M3PH_6L') {
       const nU1 = `${load.id}:U1`;
       const nV1 = `${load.id}:V1`;
@@ -1557,12 +1597,14 @@ export function solveCircuitPhysicsStep(
       const nW2 = `${load.id}:W2`;
 
       let hasL1 = false, hasL2 = false, hasL3 = false;
+      let pathL1: InternalEdge[] = [], pathL2: InternalEdge[] = [], pathL3: InternalEdge[] = [];
+
       sourcePoles.forEach(sp => {
         const m = reachMap.get(sp.id);
         if (!m) return;
-        if (sp.net === 'L1' && m.has(nU1)) hasL1 = true;
-        if (sp.net === 'L2' && m.has(nV1)) hasL2 = true;
-        if (sp.net === 'L3' && m.has(nW1)) hasL3 = true;
+        if (sp.net === 'L1' && m.has(nU1)) { hasL1 = true; pathL1 = m.get(nU1)!.pathEdges; }
+        if (sp.net === 'L2' && m.has(nV1)) { hasL2 = true; pathL2 = m.get(nV1)!.pathEdges; }
+        if (sp.net === 'L3' && m.has(nW1)) { hasL3 = true; pathL3 = m.get(nW1)!.pathEdges; }
       });
 
       const starShorted = graph.get(nU2)?.some(e => e.target === nV2 || e.target === nW2);
@@ -1586,12 +1628,9 @@ export function solveCircuitPhysicsStep(
         result.totalActivePower += pNom;
         result.totalLineCurrent += iReal;
 
-        wires.forEach(w => {
-          if (w.a.c === load.id || w.b.c === load.id) {
-            activeWireIds.add(w.id);
-            w.current = Number(iReal.toFixed(2));
-          }
-        });
+        addPathCurrent(pathL1, iReal);
+        addPathCurrent(pathL2, iReal);
+        addPathCurrent(pathL3, iReal);
       } else {
         load.state.running = false;
         load.state.energized = false;
@@ -1611,13 +1650,14 @@ export function solveCircuitPhysicsStep(
 
       let hasL1 = false, hasL2 = false, hasL3 = false;
       let totalRPath = 0;
+      let pathL1: InternalEdge[] = [], pathL2: InternalEdge[] = [], pathL3: InternalEdge[] = [];
 
       sourcePoles.forEach(sp => {
         const m = reachMap.get(sp.id);
         if (!m) return;
-        if (sp.net === 'L1' && m.has(nodeU)) { hasL1 = true; totalRPath += m.get(nodeU)!.rPath; }
-        if (sp.net === 'L2' && m.has(nodeV)) { hasL2 = true; totalRPath += m.get(nodeV)!.rPath; }
-        if (sp.net === 'L3' && m.has(nodeW)) { hasL3 = true; totalRPath += m.get(nodeW)!.rPath; }
+        if (sp.net === 'L1' && m.has(nodeU)) { hasL1 = true; totalRPath += m.get(nodeU)!.rPath; pathL1 = m.get(nodeU)!.pathEdges; }
+        if (sp.net === 'L2' && m.has(nodeV)) { hasL2 = true; totalRPath += m.get(nodeV)!.rPath; pathL2 = m.get(nodeV)!.pathEdges; }
+        if (sp.net === 'L3' && m.has(nodeW)) { hasL3 = true; totalRPath += m.get(nodeW)!.rPath; pathL3 = m.get(nodeW)!.pathEdges; }
       });
 
       const is3PhaseClosed = hasL1 && hasL2 && hasL3 && !result.hasDirectShort && !load.state.isBurned;
@@ -1643,13 +1683,9 @@ export function solveCircuitPhysicsStep(
         result.totalActivePower += pReal;
         result.totalLineCurrent += iReal;
 
-        wires.forEach(w => {
-          if (w.a.c === load.id || w.b.c === load.id) {
-            activeWireIds.add(w.id);
-            w.current = Number(iReal.toFixed(2));
-            w.voltageDrop = Number(deltaV.toFixed(1));
-          }
-        });
+        addPathCurrent(pathL1, iReal);
+        addPathCurrent(pathL2, iReal);
+        addPathCurrent(pathL3, iReal);
       } else {
         load.state.running = false;
         load.state.energized = false;
@@ -1660,7 +1696,7 @@ export function solveCircuitPhysicsStep(
       return;
     }
 
-    // CARGAS MONOFÁSICAS, EXAUSTORES E ILUMINAÇÃO
+    // CARGAS MONOFÁSICAS, EXAUSTORES, LÂMPADAS E SINALIZADORES
     const tL = ['L', '1', '+', 'L_IN'].find(t => load.terminals?.some((x: any) => x[0] === t)) || 'L';
     const tN = ['N', '2', '-', 'N_IN'].find(t => load.terminals?.some((x: any) => x[0] === t)) || 'N';
 
@@ -1671,6 +1707,8 @@ export function solveCircuitPhysicsStep(
     let neutralPole: SourcePole | null = null;
     let rPhase = 0, rNeutral = 0;
     let vAttenuation = 1.0;
+    let pathL: InternalEdge[] = [];
+    let pathN: InternalEdge[] = [];
 
     sourcePoles.forEach(sp => {
       const m = reachMap.get(sp.id);
@@ -1680,10 +1718,13 @@ export function solveCircuitPhysicsStep(
         const entry = m.get(nodeL)!;
         rPhase = entry.rPath;
         vAttenuation = entry.vFactor;
+        pathL = entry.pathEdges;
       }
       if ((sp.net === 'N' || sp.net === '24-') && m.has(nodeN)) {
         neutralPole = sp;
-        rNeutral = m.get(nodeN)!.rPath;
+        const entry = m.get(nodeN)!;
+        rNeutral = entry.rPath;
+        pathN = entry.pathEdges;
       }
     });
 
@@ -1713,13 +1754,8 @@ export function solveCircuitPhysicsStep(
       result.totalActivePower += pReal;
       result.totalLineCurrent += iReal;
 
-      wires.forEach(w => {
-        if (w.a.c === load.id || w.b.c === load.id) {
-          activeWireIds.add(w.id);
-          w.current = Number(iReal.toFixed(2));
-          w.voltageDrop = Number(deltaV.toFixed(1));
-        }
-      });
+      addPathCurrent(pathL, iReal);
+      addPathCurrent(pathN, iReal);
     } else {
       load.state.energized = false;
       load.state.running = false;
@@ -1730,32 +1766,58 @@ export function solveCircuitPhysicsStep(
     }
   });
 
-  // Atualização dos Condutores
-  wires.forEach(w => {
-    const isCarryingCurrent = activeWireIds.has(w.id);
-    w.live = isCarryingCurrent;
+  // Bobinas de Contatores e Relés
+  comps.forEach(c => {
+    if (['CONTACTOR', 'RELAY', 'TIMER', 'TIMER_STAR_DELTA', 'TIMER_TOF'].includes(c.code) && c.state.energized) {
+      const nodeA1 = `${c.id}:A1`;
+      const nodeA2 = `${c.id}:A2`;
+      sourcePoles.forEach(sp => {
+        const m = reachMap.get(sp.id);
+        if (!m) return;
+        if (m.has(nodeA1)) addPathCurrent(m.get(nodeA1)!.pathEdges, 0.08);
+        if (m.has(nodeA2)) addPathCurrent(m.get(nodeA2)!.pathEdges, 0.08);
+      });
+    }
+  });
 
-    if (isCarryingCurrent) {
+  // 6. ATUALIZAÇÃO FINAL DOS CONDUTORES: TENSÃO PRESENTE (LIVE) E FLUXO REAL DE CORRENTE
+  wires.forEach(w => {
+    const nodeA = `${w.a.c}:${w.a.t}`;
+    const nodeB = `${w.b.c}:${w.b.t}`;
+
+    let isConnectedToLivePotential = false;
+
+    sourcePoles.forEach(sp => {
+      const map = reachMap.get(sp.id);
+      if (!map) return;
+      if (map.has(nodeA) || map.has(nodeB)) {
+        isConnectedToLivePotential = true;
+      }
+    });
+
+    const currentCarried = wireCurrentMap.get(w.id) || 0;
+    w.current = Number(currentCarried.toFixed(2));
+    w.live = isConnectedToLivePotential;
+
+    if (currentCarried > 0) {
       const gauge = Number(w.gauge || 2.5);
       const capacity = GAUGE_AMPACITY[gauge] || 21.0;
-      const iThrough = Number(w.current || 0);
 
-      if (iThrough > capacity * 1.05) {
+      if (currentCarried > capacity * 1.05) {
         w.overheated = true;
-        w.temp = (w.temp || AMBIENT_TEMPERATURE) + (iThrough * 0.15 * dt);
+        w.temp = (w.temp || AMBIENT_TEMPERATURE) + (currentCarried * 0.15 * dt);
       } else {
         w.overheated = false;
         w.temp = Math.max(AMBIENT_TEMPERATURE, (w.temp || AMBIENT_TEMPERATURE) - dt * 2.0);
       }
     } else {
-      w.current = 0;
       w.voltageDrop = 0;
       w.overheated = false;
       w.temp = Math.max(AMBIENT_TEMPERATURE, (w.temp || AMBIENT_TEMPERATURE) - dt * 3.0);
     }
   });
 
-  // Disparo de Proteções
+  // 7. DISPARO DE PROTEÇÕES TÉRMICAS E MAGNÉTICAS
   comps.forEach(prot => {
     prot.state = prot.state || {};
     if (prot.state.tripped || prot.state.burned) return;
@@ -1804,8 +1866,7 @@ export function solveCircuitPhysicsStep(
     if (m.code === 'VM') {
       const nodeA = `${m.id}:+`;
       const nodeB = `${m.id}:-`;
-      let vA = 0;
-      let vB = 0;
+      let vA = 0, vB = 0;
 
       sourcePoles.forEach(sp => {
         const map = reachMap.get(sp.id);
@@ -2243,18 +2304,13 @@ export function generateSolarPVIsoCircuit(): { components: any[]; wires: any[] }
   ];
 
   const wires = [
-    // Ligação dos painéis em SÉRIE (+ do PV1 no - do PV2 para somar tensões)
     { id: 'W_SERIE', a: { c: 'PV1', t: '+' }, b: { c: 'PV2', t: '-' }, type: '24+', gauge: 4.0, length: 1.5, live: true },
-    // String ligada na entrada PV do inversor
     { id: 'W_PV_P', a: { c: 'PV2', t: '+' }, b: { c: 'INV1', t: 'PV+' }, type: '24+', gauge: 4.0, length: 3.0, live: true },
     { id: 'W_PV_M', a: { c: 'PV1', t: '-' }, b: { c: 'INV1', t: 'PV-' }, type: '24-', gauge: 4.0, length: 4.5, live: true },
-    // Bateria ligada aos bornes BAT do inversor
     { id: 'W_BAT_P', a: { c: 'BAT1', t: '+' }, b: { c: 'INV1', t: 'BAT+' }, type: '24+', gauge: 16.0, length: 2.0, live: true },
     { id: 'W_BAT_M', a: { c: 'BAT1', t: '-' }, b: { c: 'INV1', t: 'BAT-' }, type: '24-', gauge: 16.0, length: 2.0, live: true },
-    // Saída CA 230V do inversor passando pelo Smart Meter
     { id: 'W_AC_L', a: { c: 'INV1', t: 'AC_L' }, b: { c: 'METER1', t: 'L_IN' }, type: 'L1', gauge: 2.5, length: 2.0, live: true },
     { id: 'W_AC_N', a: { c: 'INV1', t: 'AC_N' }, b: { c: 'METER1', t: 'N_IN' }, type: 'N', gauge: 2.5, length: 2.0, live: true },
-    // Smart Meter alimentando as cargas AC
     { id: 'W_OUT_L', a: { c: 'METER1', t: 'L_OUT' }, b: { c: 'LAMP1', t: 'L' }, type: 'L1', gauge: 2.5, length: 2.0, live: true },
     { id: 'W_OUT_N', a: { c: 'METER1', t: 'N_OUT' }, b: { c: 'LAMP1', t: 'N' }, type: 'N', gauge: 2.5, length: 2.0, live: true }
   ];

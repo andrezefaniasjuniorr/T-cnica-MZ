@@ -1,7 +1,9 @@
 // ============================================================================
-// TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO DE CONDUTORES, FÍSICA E ANATOMIA IEC/DIN (V17)
+// TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO DE CONDUTORES, FÍSICA E ANATOMIA IEC/DIN (V18)
 // Normas: IEC 60669, NBR 14136, IEC 60947, IEC 60898, IEC 60034, IEC 62109, DIN 46228-4
 // Mapeamento Normativo e Coordenadas Espaciais sem Sobreposição:
+// - Condutores Isolados: L1, L2, L3, N, PE, 24+, 24-, CTRL
+// - Condutor Nu de Cobre (NU) para Malhas de Aterramento e Equipotencialização
 // - Motor 6 Pontas (U1, V1, W1 / W2, U2, V2)
 // - ATS / MTS (Entradas Rede, Entradas Gerador e Saídas Carga)
 // - Inversores Solares On-Grid, Off-Grid, Híbrido, Módulos FV e Bateria LiFePO4
@@ -20,16 +22,22 @@ export interface TerminalPosition {
   normId: string;
 }
 
-export const WIRE_NORM_COLORS: Record<string, { base: string; highlight: string; name: string; isStriped?: boolean }> = {
+export const WIRE_NORM_COLORS: Record<
+  string,
+  { base: string; highlight: string; name: string; isStriped?: boolean; isBare?: boolean }
+> = {
   L1: { base: '#991b1b', highlight: '#f87171', name: 'L1 • Castanho/Vermelho' },
   L2: { base: '#0f172a', highlight: '#475569', name: 'L2 • Preto' },
   L3: { base: '#57534e', highlight: '#a8a29e', name: 'L3 • Cinza' },
   N: { base: '#0284c7', highlight: '#38bdf8', name: 'N • Neutro Azul' },
   PE: { base: '#15803d', highlight: '#eab308', name: 'PE • Terra Verde/Amarelo', isStriped: true },
-  '24+': { base: '#dc2626', highlight: '#fca5a5', name: 'DC+ • Vermelho' },
-  '24-': { base: '#1e3a8a', highlight: '#60a5fa', name: 'DC- • Azul Escuro' },
+  NU: { base: '#b45309', highlight: '#f59e0b', name: 'NU • Condutor de Cobre Nu', isBare: true },
+  '24+': { base: '#dc2626', highlight: '#fca5a5', name: 'DC+ • Vermelho (+PV/+24V)' },
+  '24-': { base: '#1e3a8a', highlight: '#60a5fa', name: 'DC- • Azul Escuro (-PV/0V)' },
   CTRL: { base: '#d97706', highlight: '#fde047', name: 'Comando • Âmbar' }
 };
+
+export const AVAILABLE_GAUGES: number[] = [1.5, 2.5, 4.0, 6.0, 10.0, 16.0, 25.0, 35.0];
 
 export function getWireGaugeThickness(gauge: number = 2.5, zoom: number = 1.0): number {
   const z = Math.max(0.35, Math.min(2.5, zoom));
@@ -797,8 +805,9 @@ export function renderCurvedWireBack(
 
   ctx.save();
 
+  // Glow de seleção quando clicado
   if (isSelected) {
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
     ctx.lineWidth = wireW + 9 * z;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -806,6 +815,7 @@ export function renderCurvedWireBack(
     ctx.stroke();
   }
 
+  // Sombra de profundidade no fundo do painel
   ctx.save();
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
   ctx.lineWidth = wireW + 2 * z;
@@ -816,6 +826,7 @@ export function renderCurvedWireBack(
   ctx.stroke();
   ctx.restore();
 
+  // Borda escura do condutor
   ctx.strokeStyle = '#050a14';
   ctx.lineWidth = wireW + 1.2 * z;
   ctx.lineCap = 'round';
@@ -823,14 +834,28 @@ export function renderCurvedWireBack(
   traceFilletPathCanvas(ctx, screenPoints, radius);
   ctx.stroke();
 
+  // Cor Base do Condutor (ou cobre brilhante se for NU)
   if (isOverheated) {
     const pulse = (Math.sin(animTick * 0.18) + 1) * 0.5;
     ctx.strokeStyle = `rgb(${Math.round(235 + pulse * 20)}, ${Math.round(50 + pulse * 80)}, 15)`;
     ctx.shadowColor = '#ef4444';
     ctx.shadowBlur = (12 + pulse * 14) * z;
+  } else if (norm.isBare) {
+    // Efeito metálico de cordoalha de cobre nu
+    const copperGrad = ctx.createLinearGradient(
+      screenPoints[0].x,
+      screenPoints[0].y,
+      screenPoints[screenPoints.length - 1].x,
+      screenPoints[screenPoints.length - 1].y
+    );
+    copperGrad.addColorStop(0, '#b45309');
+    copperGrad.addColorStop(0.5, '#d97706');
+    copperGrad.addColorStop(1, '#92400e');
+    ctx.strokeStyle = copperGrad;
   } else {
     ctx.strokeStyle = norm.base;
   }
+
   ctx.lineWidth = wireW;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -838,6 +863,7 @@ export function renderCurvedWireBack(
   ctx.stroke();
   ctx.shadowColor = 'transparent';
 
+  // Listra Verde-Amarela para PE
   if (norm.isStriped && !isOverheated) {
     ctx.strokeStyle = '#eab308';
     ctx.lineWidth = wireW * 0.82;
@@ -847,6 +873,17 @@ export function renderCurvedWireBack(
     ctx.setLineDash([]);
   }
 
+  // Estrias metálicas de cordoalha trançada para Condutor Nu (NU)
+  if (norm.isBare && !isOverheated) {
+    ctx.strokeStyle = 'rgba(254, 215, 170, 0.45)';
+    ctx.lineWidth = Math.max(1, wireW * 0.7);
+    ctx.setLineDash([3 * z, 3 * z]);
+    traceFilletPathCanvas(ctx, screenPoints, radius);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Filete de brilho superior 3D
   ctx.strokeStyle = isOverheated ? '#fef08a' : norm.highlight;
   ctx.lineWidth = Math.max(0.8, wireW * 0.28);
   ctx.lineCap = 'round';
@@ -856,6 +893,7 @@ export function renderCurvedWireBack(
   ctx.stroke();
   ctx.globalAlpha = 1.0;
 
+  // Pulso de corrente elétrica quando em simulação (RUN e Live)
   if (isLive) {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = Math.max(1.1, wireW * 0.35);
@@ -946,42 +984,59 @@ export function renderFerruleTerminal(
   ctx.lineWidth = 0.6 * z;
   ctx.stroke();
 
-  // Capa Cônica Isolante Plástica Normativa
-  const collarStartX = tubeLen - 0.5 * z;
-  const collarEndX = collarStartX + collarLen;
-  const collarStartHalfW = tubeHalfW + 0.4 * z;
+  // Se for Condutor Nu (NU), desenha o conector olhal/metálico sem capa plástica
+  if (norm.isBare) {
+    const lugGrad = ctx.createLinearGradient(0, -collarEndHalfW, 0, collarEndHalfW);
+    lugGrad.addColorStop(0, '#78350f');
+    lugGrad.addColorStop(0.3, '#f59e0b');
+    lugGrad.addColorStop(0.7, '#b45309');
+    lugGrad.addColorStop(1, '#451a03');
 
-  const collarGrad = ctx.createLinearGradient(0, -collarEndHalfW, 0, collarEndHalfW);
-  collarGrad.addColorStop(0, '#020617');
-  collarGrad.addColorStop(0.25, norm.highlight || '#ffffff');
-  collarGrad.addColorStop(0.55, norm.base);
-  collarGrad.addColorStop(0.85, norm.base);
-  collarGrad.addColorStop(1, '#050b14');
+    ctx.fillStyle = lugGrad;
+    ctx.beginPath();
+    ctx.roundRect(tubeLen, -tubeHalfW * 1.2, collarLen * 0.8, tubeHalfW * 2.4, 0.8 * z);
+    ctx.fill();
+    ctx.strokeStyle = '#451a03';
+    ctx.lineWidth = 0.6 * z;
+    ctx.stroke();
+  } else {
+    // Capa Cônica Isolante Plástica Normativa
+    const collarStartX = tubeLen - 0.5 * z;
+    const collarEndX = collarStartX + collarLen;
+    const collarStartHalfW = tubeHalfW + 0.4 * z;
 
-  ctx.fillStyle = collarGrad;
-  ctx.beginPath();
-  ctx.moveTo(collarStartX, -collarStartHalfW);
-  ctx.lineTo(collarEndX, -collarEndHalfW);
-  ctx.arcTo(collarEndX + 1.2 * z, -collarEndHalfW, collarEndX + 1.2 * z, -1.8 * z, 1.0 * z);
-  ctx.lineTo(collarEndX + 1.2 * z, 1.8 * z);
-  ctx.arcTo(collarEndX + 1.2 * z, collarEndHalfW, collarEndX, collarEndHalfW, 1.0 * z);
-  ctx.lineTo(collarStartX, collarStartHalfW);
-  ctx.closePath();
-  ctx.fill();
+    const collarGrad = ctx.createLinearGradient(0, -collarEndHalfW, 0, collarEndHalfW);
+    collarGrad.addColorStop(0, '#020617');
+    collarGrad.addColorStop(0.25, norm.highlight || '#ffffff');
+    collarGrad.addColorStop(0.55, norm.base);
+    collarGrad.addColorStop(0.85, norm.base);
+    collarGrad.addColorStop(1, '#050b14');
 
-  ctx.strokeStyle = 'rgba(15, 23, 42, 0.75)';
-  ctx.lineWidth = 0.7 * z;
-  ctx.stroke();
+    ctx.fillStyle = collarGrad;
+    ctx.beginPath();
+    ctx.moveTo(collarStartX, -collarStartHalfW);
+    ctx.lineTo(collarEndX, -collarEndHalfW);
+    ctx.arcTo(collarEndX + 1.2 * z, -collarEndHalfW, collarEndX + 1.2 * z, -1.8 * z, 1.0 * z);
+    ctx.lineTo(collarEndX + 1.2 * z, 1.8 * z);
+    ctx.arcTo(collarEndX + 1.2 * z, collarEndHalfW, collarEndX, collarEndHalfW, 1.0 * z);
+    ctx.lineTo(collarStartX, collarStartHalfW);
+    ctx.closePath();
+    ctx.fill();
 
-  if (norm.isStriped) {
-    ctx.fillStyle = '#eab308';
-    ctx.fillRect(collarStartX + 2.5 * z, -collarEndHalfW * 0.9, 1.8 * z, collarEndHalfW * 1.8);
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.75)';
+    ctx.lineWidth = 0.7 * z;
+    ctx.stroke();
+
+    if (norm.isStriped) {
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(collarStartX + 2.5 * z, -collarEndHalfW * 0.9, 1.8 * z, collarEndHalfW * 1.8);
+    }
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath();
+    ctx.ellipse(collarEndX + 0.8 * z, 0, 0.8 * z, collarEndHalfW * 0.85, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
-
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-  ctx.beginPath();
-  ctx.ellipse(collarEndX + 0.8 * z, 0, 0.8 * z, collarEndHalfW * 0.85, 0, 0, Math.PI * 2);
-  ctx.fill();
 
   if (isLive) {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
