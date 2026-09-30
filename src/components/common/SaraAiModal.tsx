@@ -33,55 +33,7 @@ import {
 import { SaraAcademyCard } from '../sara/SaraAcademyCard';
 import { subscribeToAcademyContext, ActiveAcademyContext } from '../../services/saraAcademyContext';
 
-// Leitura direta estática exigida pelo Vite + supressão de linha vermelha do TypeScript
-// @ts-ignore
-const STATIC_VITE_KEY = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : '';
-// @ts-ignore
-const STATIC_BACKUP_KEY = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY_BACKUP : '';
-// @ts-ignore
-const STATIC_FALLBACK_KEY = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.GEMINI_API_KEY : '';
-
-// Pool inteligente de chaves com suporte a chave reserva automática
-const resolveGeminiKeyPool = (): string[] => {
-  const pool: string[] = [];
-
-  const addKeys = (raw: any) => {
-    if (typeof raw === 'string' && raw.trim().length > 10) {
-      raw.split(',').forEach(part => {
-        const cleaned = part.replace(/["';\s]/g, '').trim();
-        if (cleaned.length > 10 && !pool.includes(cleaned)) {
-          pool.push(cleaned);
-        }
-      });
-    }
-  };
-
-  addKeys(STATIC_VITE_KEY);
-  addKeys(STATIC_BACKUP_KEY);
-  addKeys(STATIC_FALLBACK_KEY);
-
-  try {
-    const metaEnv = (import.meta as any)?.env;
-    addKeys(metaEnv?.VITE_GEMINI_API_KEY);
-    addKeys(metaEnv?.VITE_GEMINI_API_KEY_BACKUP);
-    addKeys(metaEnv?.VITE_GEMINI_BACKUP_KEY);
-  } catch {}
-
-  try {
-    const proc = (globalThis as any)?.process?.env;
-    addKeys(proc?.VITE_GEMINI_API_KEY);
-    addKeys(proc?.VITE_GEMINI_API_KEY_BACKUP);
-  } catch {}
-
-  try {
-    if (typeof localStorage !== 'undefined') {
-      addKeys(localStorage.getItem('VITE_GEMINI_API_KEY'));
-      addKeys(localStorage.getItem('gemini_api_key'));
-    }
-  } catch {}
-
-  return pool;
-};
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.VITE_GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY : '') || '';
 
 interface SaraAiModalProps {
   isOpen: boolean;
@@ -299,7 +251,7 @@ interface ChatMessageItemProps {
   fontSize?: number;
 }
 
-// Item de Mensagem: Sara Ampla / Usuário Compacto
+// Item de Mensagem com tipagem estrita (Sara Expandida / Usuário Compacto)
 const ChatMessageItem = memo(function ChatMessageItem({
   message,
   isThinkingThisMessage,
@@ -388,7 +340,7 @@ const ChatMessageItem = memo(function ChatMessageItem({
             ) : isThinkingThisMessage ? (
               <div className="flex items-center gap-3 py-3 text-[#00F5FF] font-mono text-xs sm:text-sm">
                 <Loader2 className="w-4 h-4 animate-spin text-[#00F5FF] shrink-0" />
-                <span className="tracking-wide">Processando cálculo técnico e parecer de engenharia...</span>
+                <span className="tracking-wide">Processando análise termodinâmica e cálculos de malha...</span>
               </div>
             ) : null}
           </div>
@@ -427,6 +379,7 @@ interface ChatMessagesListProps {
   fontSize: number;
 }
 
+// Lista de mensagens tipada corretamente, eliminando erro de compilação
 const ChatMessagesList = memo(function ChatMessagesList({
   messages,
   isThinking,
@@ -649,6 +602,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   const { currentUser, isClient, isTechnician, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
   const [showSeloModal, setShowSeloModal] = useState(false);
 
+  // Cast seguro de usuário para garantir ausência de erros de TS
   const authUser = currentUser as any;
   const roleStr = String(authUser?.role || '');
   const tipoStr = String(authUser?.tipoConta || authUser?.tipo || authUser?.userType || '');
@@ -873,7 +827,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   };
 
-  // Motor Multi-Modelo Inteligente com Rotação Anti-Quota (429 Bypass)
   const handleSend = async (userText: string, currentImg: { base64: string; mimeType: string; preview: string } | null) => {
     const trimmedText = userText.trim();
     if ((!trimmedText && !currentImg) || isThinking) return;
@@ -905,24 +858,9 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setIsThinking(true);
 
     try {
-      const keyPool = resolveGeminiKeyPool();
+      const recentHistory = updatedHistory.slice(-6);
 
-      if (keyPool.length === 0) {
-        throw new Error('A variável VITE_GEMINI_API_KEY não foi detectada. Verifique se o arquivo .env existe e reinicie o servidor com "npm run dev".');
-      }
-
-      // ISOLAÇÃO RIGOROSA DE TURNOS:
-      // Remove 'init_msg' e alertas para manter conformidade total com o Google AI Studio
-      const realConversation = updatedHistory.filter(m => {
-        if (m.id === 'init_msg' || m.id.startsWith('init_msg_')) return false;
-        if (!m.text || !m.text.trim()) return false;
-        if (m.text.startsWith('⚠️')) return false;
-        return true;
-      });
-
-      const contentsPayload: Array<{ role: 'user' | 'model'; parts: any[] }> = [];
-
-      for (const m of realConversation) {
+      const contentsPayload = recentHistory.map((m) => {
         const role = m.sender === 'user' ? 'user' : 'model';
         const parts: any[] = [{ text: m.text }];
 
@@ -936,30 +874,8 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
           });
         }
 
-        if (contentsPayload.length === 0 && role !== 'user') {
-          continue;
-        }
-
-        if (contentsPayload.length > 0 && contentsPayload[contentsPayload.length - 1].role === role) {
-          contentsPayload[contentsPayload.length - 1].parts[0].text += `\n\n${m.text}`;
-        } else {
-          contentsPayload.push({ role, parts });
-        }
-      }
-
-      if (contentsPayload.length === 0 || contentsPayload[contentsPayload.length - 1].role !== 'user') {
-        const fallbackParts: any[] = [{ text: trimmedText || 'Analise a imagem técnica.' }];
-        if (currentImg) {
-          const pureBase64 = currentImg.base64.replace(/^data:image\/\w+;base64,/, '');
-          fallbackParts.unshift({
-            inline_data: {
-              mime_type: currentImg.mimeType,
-              data: pureBase64
-            }
-          });
-        }
-        contentsPayload.push({ role: 'user', parts: fallbackParts });
-      }
+        return { role, parts };
+      });
 
       let systemInstructionText = `Você é a Eng. Sara IA da TécnicaMZ Pro em Moçambique. Sempre formate suas respostas técnicas utilizando tabelas em Markdown, destaques em negrito usando asteriscos (**exemplo**), listas organizadas e equações em LaTeX para fórmulas e cálculos de engenharia.
 Você está conversando com o usuário: ${userName} (Perfil: ${authUser?.role || 'Técnico'}).
@@ -983,52 +899,69 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
       }
 
       let fullText = '';
-      let isRateLimitExceeded = false;
-      let waitSeconds = 30;
 
-      // 5 Baldes de Modelos com Cotas Separadas na Google Cloud
-      const independentQuotaModels = [
-        'gemini-2.0-flash',       // Cota Independente 1 (Mais rápido e moderno)
-        'gemini-1.5-flash-8b',    // Cota Independente 2 (Ultra leve, quase nunca satura)
-        'gemini-1.5-flash',       // Cota Independente 3
-        'gemini-2.0-flash-lite',  // Cota Independente 4
-        'gemini-1.5-pro'          // Cota Independente 5
-      ];
+      if (GEMINI_API_KEY) {
+        const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
+        let streamSuccess = false;
 
-      // Tenta cruzar chaves disponíveis com os modelos independentes
-      keyLoop: for (const currentApiKey of keyPool) {
-        for (const model of independentQuotaModels) {
+        for (const modelName of candidateModels) {
+          if (streamSuccess) break;
+          const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
+
           try {
-            const DIRECT_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentApiKey}`;
-            const directRes = await fetch(DIRECT_URL, {
+            const response = await fetch(STREAM_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contents: contentsPayload,
                 system_instruction: {
                   parts: [{ text: systemInstructionText }]
-                },
-                generationConfig: {
-                  temperature: 0.35,
-                  maxOutputTokens: 2048
                 }
               })
             });
 
-            if (directRes.ok) {
-              const data = await directRes.json();
-              fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-              if (fullText.trim()) break keyLoop;
-            } else if (directRes.status === 429) {
-              // Se bateu no limite do minuto, continua para o próximo modelo de cota separada
-              isRateLimitExceeded = true;
-              const errData = await directRes.json().catch(() => ({}));
-              const msg = errData?.error?.message || '';
-              const match = msg.match(/retry in ([\d\.]+)s/);
-              if (match && match[1]) {
-                waitSeconds = Math.ceil(parseFloat(match[1]));
-              }
+            if (!response.ok) {
               continue;
+            }
+
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder('utf-8');
+
+            if (reader) {
+              setIsThinking(false);
+              let buffer = '';
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const jsonString = line.replace('data: ', '').trim();
+                    if (!jsonString) continue;
+
+                    try {
+                      const parsed = JSON.parse(jsonString);
+                      const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                      if (chunkText) {
+                        fullText += chunkText;
+
+                        setMessages(prev =>
+                          prev.map(msg =>
+                            msg.id === saraMessageId ? { ...msg, text: fullText } : msg
+                          )
+                        );
+                      }
+                    } catch {}
+                  }
+                }
+              }
+              streamSuccess = true;
+              break;
             }
           } catch {
             continue;
@@ -1036,8 +969,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         }
       }
 
-      // Contingência via backend proxy se existir
-      if (!fullText.trim()) {
+      if (!fullText) {
         try {
           const proxyRes = await fetch('/api/sara', {
             method: 'POST',
@@ -1057,14 +989,11 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
             fullText = proxyData.reply || proxyData.candidates?.[0]?.content?.parts?.[0]?.text || '';
           }
         } catch {}
+        setIsThinking(false);
       }
 
-      if (!fullText.trim()) {
-        if (isRateLimitExceeded) {
-          fullText = `⚡ **Limite de Velocidade Temporário da Google Atingido.**\n\nComo foram enviadas várias mensagens seguidas, a conta gratuita do Gemini entrou em pausa preventiva.\n\n* **Tempo para liberação:** Cerca de **${waitSeconds} segundos**.\n* **Dica Pro:** Para nunca mais ter pausas em campo, crie uma chave secundária gratuita no Google AI Studio e adicione no arquivo \`.env\` como \`VITE_GEMINI_API_KEY_BACKUP=sua_outra_chave\`.`;
-        } else {
-          fullText = 'A ligação com o barramento técnico oscilou. Por favor, aguarde alguns segundos e envie novamente.';
-        }
+      if (!fullText) {
+        fullText = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
       }
 
       const finalSaraMsg: Message = {
@@ -1098,13 +1027,13 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           console.warn('Erro ao salvar conversa no Firestore:', fireErr);
         }
       }
-    } catch (err: any) {
-      const errorText = `⚠️ ${err?.message || 'Erro ao carregar chave do .env'}`;
+    } catch {
+      const friendlyErrorMsgText = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
 
       const finalErrorMsg: Message = {
         id: saraMessageId,
         sender: 'sara',
-        text: errorText,
+        text: friendlyErrorMsgText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
