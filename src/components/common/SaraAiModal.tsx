@@ -33,22 +33,30 @@ import {
 import { SaraAcademyCard } from '../sara/SaraAcademyCard';
 import { subscribeToAcademyContext, ActiveAcademyContext } from '../../services/saraAcademyContext';
 
-// Leitura 100% segura da chave API sem nenhuma linha vermelha de TypeScript
-const getGeminiApiKey = (): string => {
-  try {
-    const metaEnv = (import.meta as any)?.env;
-    if (metaEnv?.VITE_GEMINI_API_KEY) return String(metaEnv.VITE_GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
-    if (metaEnv?.GEMINI_API_KEY) return String(metaEnv.GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
-    if (metaEnv?.VITE_API_KEY) return String(metaEnv.VITE_API_KEY).replace(/["';\s]/g, '').trim();
-  } catch {}
+// Leitura direta estática exigida pelo Vite + supressão de linha vermelha do TypeScript
+// @ts-ignore
+const STATIC_VITE_KEY = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : '';
+// @ts-ignore
+const STATIC_FALLBACK_KEY = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.GEMINI_API_KEY : '';
 
+const resolveGeminiKey = (): string => {
+  if (STATIC_VITE_KEY && typeof STATIC_VITE_KEY === 'string') {
+    return STATIC_VITE_KEY.replace(/["';\s]/g, '').trim();
+  }
+  if (STATIC_FALLBACK_KEY && typeof STATIC_FALLBACK_KEY === 'string') {
+    return STATIC_FALLBACK_KEY.replace(/["';\s]/g, '').trim();
+  }
   try {
-    const proc = typeof globalThis !== 'undefined' ? (globalThis as any)?.process?.env : undefined;
+    const proc = (globalThis as any)?.process?.env;
     if (proc?.VITE_GEMINI_API_KEY) return String(proc.VITE_GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
     if (proc?.REACT_APP_GEMINI_API_KEY) return String(proc.REACT_APP_GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
-    if (proc?.GEMINI_API_KEY) return String(proc.GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
   } catch {}
-
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const savedKey = localStorage.getItem('VITE_GEMINI_API_KEY') || localStorage.getItem('gemini_api_key');
+      if (savedKey) return savedKey.replace(/["';\s]/g, '').trim();
+    }
+  } catch {}
   return '';
 };
 
@@ -842,7 +850,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   };
 
-  // Motor de envio corrigido: Idêntico ao Google AI Studio, sem mensagens falsas e sem travar
+  // Motor de envio com Vite Static Binding e execução idêntica ao Google AI Studio
   const handleSend = async (userText: string, currentImg: { base64: string; mimeType: string; preview: string } | null) => {
     const trimmedText = userText.trim();
     if ((!trimmedText && !currentImg) || isThinking) return;
@@ -874,15 +882,14 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setIsThinking(true);
 
     try {
-      const apiKey = getGeminiApiKey();
+      const apiKey = resolveGeminiKey();
 
-      // Se a chave não estiver no .env, avisa com precisão imediata
       if (!apiKey) {
-        throw new Error('A variável VITE_GEMINI_API_KEY não foi encontrada no arquivo .env. Configure a sua chave para ativar a Sara IA.');
+        throw new Error('A variável VITE_GEMINI_API_KEY não foi carregada pelo Vite. Por favor, reinicie o servidor do projeto no terminal (Ctrl+C e depois "npm run dev") para ler o novo arquivo .env.');
       }
 
-      // 1. ISOLAÇÃO IDÊNTICA AO GOOGLE AI STUDIO:
-      // Remove mensagens de erro anteriores e NUNCA envia a saudação 'init_msg' para a Google
+      // ISOLAÇÃO IDÊNTICA AO GOOGLE AI STUDIO:
+      // Remove 'init_msg' e avisos anteriores para manter turnos 100% válidos
       const realConversation = updatedHistory.filter(m => {
         if (m.id === 'init_msg' || m.id.startsWith('init_msg_')) return false;
         if (!m.text || !m.text.trim()) return false;
@@ -890,7 +897,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         return true;
       });
 
-      // Monta turnos estritos: sempre começa com 'user' e alterna estritamente
       const contentsPayload: Array<{ role: 'user' | 'model'; parts: any[] }> = [];
 
       for (const m of realConversation) {
@@ -907,12 +913,10 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
           });
         }
 
-        // Ignora até o primeiro turno do utilizador
         if (contentsPayload.length === 0 && role !== 'user') {
           continue;
         }
 
-        // Funde mensagens repetidas consecutivas para jamais gerar o erro 400 da Google
         if (contentsPayload.length > 0 && contentsPayload[contentsPayload.length - 1].role === role) {
           contentsPayload[contentsPayload.length - 1].parts[0].text += `\n\n${m.text}`;
         } else {
@@ -920,7 +924,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         }
       }
 
-      // Garante que o turno final é a mensagem enviada agora
       if (contentsPayload.length === 0 || contentsPayload[contentsPayload.length - 1].role !== 'user') {
         const fallbackParts: any[] = [{ text: trimmedText || 'Analise a imagem técnica.' }];
         if (currentImg) {
@@ -959,7 +962,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
       let fullText = '';
       let lastErrorMessage = '';
 
-      // Modelos oficiais do Google AI Studio ordenados por velocidade
       const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
 
       for (const model of models) {
@@ -1020,9 +1022,8 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         } catch {}
       }
 
-      // Se falhar, exibe a verdade técnica em vez de frases repetidas
       if (!fullText.trim()) {
-        fullText = `⚠️ Não foi possível obter resposta da Google API. Detalhe: ${lastErrorMessage || 'Verifique se a sua chave VITE_GEMINI_API_KEY no arquivo .env está correta e com cota ativa.'}`;
+        fullText = `⚠️ Erro retornado pela Google API: ${lastErrorMessage || 'Verifique se a sua chave no .env está ativa no Google AI Studio e com cotas disponíveis.'}`;
       }
 
       const finalSaraMsg: Message = {
@@ -1057,7 +1058,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         }
       }
     } catch (err: any) {
-      const errorText = `⚠️ Erro de Configuração: ${err?.message || 'Chave da API não encontrada ou inválida no .env'}`;
+      const errorText = `⚠️ ${err?.message || 'Erro ao carregar chave do .env'}`;
 
       const finalErrorMsg: Message = {
         id: saraMessageId,
