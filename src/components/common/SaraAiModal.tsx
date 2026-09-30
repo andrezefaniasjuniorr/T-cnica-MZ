@@ -33,7 +33,24 @@ import {
 import { SaraAcademyCard } from '../sara/SaraAcademyCard';
 import { subscribeToAcademyContext, ActiveAcademyContext } from '../../services/saraAcademyContext';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.VITE_GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY : '') || '';
+// Leitura 100% segura da chave API sem nenhuma linha vermelha de TypeScript
+const getGeminiApiKey = (): string => {
+  try {
+    const metaEnv = (import.meta as any)?.env;
+    if (metaEnv?.VITE_GEMINI_API_KEY) return String(metaEnv.VITE_GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
+    if (metaEnv?.GEMINI_API_KEY) return String(metaEnv.GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
+    if (metaEnv?.VITE_API_KEY) return String(metaEnv.VITE_API_KEY).replace(/["';\s]/g, '').trim();
+  } catch {}
+
+  try {
+    const proc = typeof globalThis !== 'undefined' ? (globalThis as any)?.process?.env : undefined;
+    if (proc?.VITE_GEMINI_API_KEY) return String(proc.VITE_GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
+    if (proc?.REACT_APP_GEMINI_API_KEY) return String(proc.REACT_APP_GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
+    if (proc?.GEMINI_API_KEY) return String(proc.GEMINI_API_KEY).replace(/["';\s]/g, '').trim();
+  } catch {}
+
+  return '';
+};
 
 interface SaraAiModalProps {
   isOpen: boolean;
@@ -825,7 +842,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   };
 
-  // Motor de envio rápido, direto e blindado contra erros da API Gemini
+  // Motor de envio corrigido: Idêntico ao Google AI Studio, sem mensagens falsas e sem travar
   const handleSend = async (userText: string, currentImg: { base64: string; mimeType: string; preview: string } | null) => {
     const trimmedText = userText.trim();
     if ((!trimmedText && !currentImg) || isThinking) return;
@@ -857,18 +874,26 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setIsThinking(true);
 
     try {
-      // 1. HIGIENIZAÇÃO RIGOROSA DE TURNOS:
-      // A Google proíbe começar com 'model' e proíbe dois 'user' seguidos.
-      // Esta função monta a estrutura perfeita aceita pelo Gemini 100% das vezes:
-      const cleanHistory = updatedHistory
-        .filter(m => m.text && m.text.trim().length > 0 && !m.text.includes('demorou a responder') && !m.text.includes('Por favor, envie'));
+      const apiKey = getGeminiApiKey();
 
-      const firstUserIdx = cleanHistory.findIndex(m => m.sender === 'user');
-      const usableHistory = firstUserIdx !== -1 ? cleanHistory.slice(firstUserIdx) : [userMsg];
+      // Se a chave não estiver no .env, avisa com precisão imediata
+      if (!apiKey) {
+        throw new Error('A variável VITE_GEMINI_API_KEY não foi encontrada no arquivo .env. Configure a sua chave para ativar a Sara IA.');
+      }
 
+      // 1. ISOLAÇÃO IDÊNTICA AO GOOGLE AI STUDIO:
+      // Remove mensagens de erro anteriores e NUNCA envia a saudação 'init_msg' para a Google
+      const realConversation = updatedHistory.filter(m => {
+        if (m.id === 'init_msg' || m.id.startsWith('init_msg_')) return false;
+        if (!m.text || !m.text.trim()) return false;
+        if (m.text.startsWith('⚠️')) return false;
+        return true;
+      });
+
+      // Monta turnos estritos: sempre começa com 'user' e alterna estritamente
       const contentsPayload: Array<{ role: 'user' | 'model'; parts: any[] }> = [];
 
-      for (const m of usableHistory) {
+      for (const m of realConversation) {
         const role = m.sender === 'user' ? 'user' : 'model';
         const parts: any[] = [{ text: m.text }];
 
@@ -882,20 +907,32 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
           });
         }
 
-        // Se houver dois turnos iguais consecutivos, funde os textos para nunca gerar erro 400
+        // Ignora até o primeiro turno do utilizador
+        if (contentsPayload.length === 0 && role !== 'user') {
+          continue;
+        }
+
+        // Funde mensagens repetidas consecutivas para jamais gerar o erro 400 da Google
         if (contentsPayload.length > 0 && contentsPayload[contentsPayload.length - 1].role === role) {
-          contentsPayload[contentsPayload.length - 1].parts[0].text += `\n${m.text}`;
+          contentsPayload[contentsPayload.length - 1].parts[0].text += `\n\n${m.text}`;
         } else {
           contentsPayload.push({ role, parts });
         }
       }
 
-      // Garante que o último turno é sempre a mensagem atual do utilizador
+      // Garante que o turno final é a mensagem enviada agora
       if (contentsPayload.length === 0 || contentsPayload[contentsPayload.length - 1].role !== 'user') {
-        contentsPayload.push({
-          role: 'user',
-          parts: [{ text: trimmedText || 'Analise a imagem.' }]
-        });
+        const fallbackParts: any[] = [{ text: trimmedText || 'Analise a imagem técnica.' }];
+        if (currentImg) {
+          const pureBase64 = currentImg.base64.replace(/^data:image\/\w+;base64,/, '');
+          fallbackParts.unshift({
+            inline_data: {
+              mime_type: currentImg.mimeType,
+              data: pureBase64
+            }
+          });
+        }
+        contentsPayload.push({ role: 'user', parts: fallbackParts });
       }
 
       let systemInstructionText = `Você é a Eng. Sara IA da TécnicaMZ Pro em Moçambique. Sempre formate suas respostas técnicas utilizando tabelas em Markdown, destaques em negrito usando asteriscos (**exemplo**), listas organizadas e equações em LaTeX para fórmulas e cálculos de engenharia.
@@ -920,44 +957,47 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
       }
 
       let fullText = '';
+      let lastErrorMessage = '';
 
-      if (GEMINI_API_KEY) {
-        // Modelos oficiais mais velozes do Google AI Studio
-        const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+      // Modelos oficiais do Google AI Studio ordenados por velocidade
+      const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
 
-        // 2. DISPARO DIRETO ULTRA-RÁPIDO (SEM TRAVAMENTO DE STREAMING EM DADOS MÓVEIS):
-        for (const model of models) {
-          if (fullText.trim()) break;
+      for (const model of models) {
+        if (fullText.trim()) break;
 
-          try {
-            const DIRECT_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-            const directRes = await fetch(DIRECT_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: contentsPayload,
-                system_instruction: {
-                  parts: [{ text: systemInstructionText }]
-                },
-                generationConfig: {
-                  temperature: 0.35,
-                  maxOutputTokens: 2048
-                }
-              })
-            });
+        try {
+          const DIRECT_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          const directRes = await fetch(DIRECT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: contentsPayload,
+              system_instruction: {
+                parts: [{ text: systemInstructionText }]
+              },
+              generationConfig: {
+                temperature: 0.35,
+                maxOutputTokens: 2048
+              }
+            })
+          });
 
-            if (directRes.ok) {
-              const data = await directRes.json();
-              fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-              if (fullText.trim()) break;
-            }
-          } catch {
-            continue;
+          if (directRes.ok) {
+            const data = await directRes.json();
+            fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (fullText.trim()) break;
+          } else {
+            const errData = await directRes.json().catch(() => ({}));
+            lastErrorMessage = errData?.error?.message || `Status HTTP ${directRes.status}`;
+            console.warn(`[Sara IA] Falha no modelo ${model}:`, lastErrorMessage);
           }
+        } catch (fetchErr: any) {
+          lastErrorMessage = fetchErr?.message || 'Falha de conexão com a Google API';
+          continue;
         }
       }
 
-      // 3. Fallback de contingência local se o acesso direto não responder
+      // Contingência via backend proxy se existir
       if (!fullText.trim()) {
         try {
           const proxyRes = await fetch('/api/sara', {
@@ -980,8 +1020,9 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         } catch {}
       }
 
+      // Se falhar, exibe a verdade técnica em vez de frases repetidas
       if (!fullText.trim()) {
-        fullText = 'Eng.ª Sara IA pronta. Por favor, envie novamente a sua dúvida técnica para análise imediata.';
+        fullText = `⚠️ Não foi possível obter resposta da Google API. Detalhe: ${lastErrorMessage || 'Verifique se a sua chave VITE_GEMINI_API_KEY no arquivo .env está correta e com cota ativa.'}`;
       }
 
       const finalSaraMsg: Message = {
@@ -1015,13 +1056,13 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           console.warn('Erro ao salvar conversa no Firestore:', fireErr);
         }
       }
-    } catch {
-      const friendlyErrorMsgText = 'Eng.ª Sara IA pronta. Por favor, envie novamente a sua dúvida técnica para análise imediata.';
+    } catch (err: any) {
+      const errorText = `⚠️ Erro de Configuração: ${err?.message || 'Chave da API não encontrada ou inválida no .env'}`;
 
       const finalErrorMsg: Message = {
         id: saraMessageId,
         sender: 'sara',
-        text: friendlyErrorMsgText,
+        text: errorText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
