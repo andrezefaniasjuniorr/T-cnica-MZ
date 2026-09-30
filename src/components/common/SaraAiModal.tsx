@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { SaraAcademyCard } from '../sara/SaraAcademyCard';
 import { subscribeToAcademyContext, ActiveAcademyContext } from '../../services/saraAcademyContext';
+import { generateSaraTechnicalReply } from '../../services/saraTechnicalEngine';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.VITE_GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY : '') || '';
 
@@ -992,8 +993,17 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         setIsThinking(false);
       }
 
-      if (!fullText) {
-        fullText = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
+      // Se por qualquer razão (quota do Gemini esgotada, offline ou executando fora do Google Studio) não houve texto:
+      if (!fullText || fullText.includes('instabilidade temporária')) {
+        fullText = generateSaraTechnicalReply({
+          message: trimmedText,
+          history: updatedHistory,
+          userName,
+          userRole: authUser?.role || 'Técnico',
+          activeAcademyContext,
+          imageBase64: currentImg?.base64,
+          mimeType: currentImg?.mimeType,
+        });
       }
 
       const finalSaraMsg: Message = {
@@ -1028,12 +1038,20 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         }
       }
     } catch {
-      const friendlyErrorMsgText = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
+      const generatedReply = generateSaraTechnicalReply({
+        message: trimmedText,
+        history: updatedHistory,
+        userName,
+        userRole: authUser?.role || 'Técnico',
+        activeAcademyContext,
+        imageBase64: currentImg?.base64,
+        mimeType: currentImg?.mimeType,
+      });
 
       const finalErrorMsg: Message = {
         id: saraMessageId,
         sender: 'sara',
-        text: friendlyErrorMsgText,
+        text: generatedReply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 

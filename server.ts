@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import { generateSaraTechnicalReply } from './src/services/saraTechnicalEngine';
 
 dotenv.config();
 
@@ -174,26 +175,38 @@ Responda de forma direta, clara, técnica e precisa em português de Moçambique
     }
 
     // Execução resiliente com Retry e Exponential Backoff contra 503 / 429
-    const response: any = await executeWithBackoffRetry(
-      async (modelName) => {
-        return await ai.models.generateContent({
-          model: modelName,
-          contents: geminiContents,
-          config: {
-            systemInstruction: finalInstruction,
-            temperature: 0.6,
-          }
-        });
-      },
-      ['gemini-2.5-flash', 'gemini-flash-latest'],
-      3
-    );
+    let replyText = '';
+    try {
+      const response: any = await executeWithBackoffRetry(
+        async (modelName) => {
+          return await ai.models.generateContent({
+            model: modelName,
+            contents: geminiContents,
+            config: {
+              systemInstruction: finalInstruction,
+              temperature: 0.6,
+            }
+          });
+        },
+        ['gemini-2.5-flash', 'gemini-flash-latest'],
+        2
+      );
 
-    if (!response || !response.text) {
-      throw new Error('Não foi possível obter resposta de texto válida da Sara IA.');
+      if (response && response.text) {
+        replyText = toPlainText(response.text);
+      }
+    } catch (apiErr: any) {
+      console.warn('[Sara Server] Gemini indisponível ou quota excedida, ativando motor de engenharia técnica local:', apiErr?.message || apiErr);
     }
 
-    const replyText = toPlainText(response.text || 'Resposta processada pela Sara IA.');
+    if (!replyText || replyText.includes('instabilidade temporária')) {
+      const latestMsg = message || (Array.isArray(contents) && contents.length > 0 ? (contents[contents.length - 1]?.parts?.[0]?.text || '') : '');
+      replyText = generateSaraTechnicalReply({
+        message: latestMsg,
+        userName: userName || 'Colega Técnico',
+        userRole: userRole || 'Técnico'
+      });
+    }
 
     // Retorna resposta em formato compatível tanto com o padrão Gemini quanto com o chat da aplicação
     return res.json({
@@ -208,9 +221,13 @@ Responda de forma direta, clara, técnica e precisa em português de Moçambique
       reply: replyText
     });
   } catch (error: any) {
-    console.error('Erro no endpoint /api/sara:', error?.message || error);
+    console.error('Erro no endpoint /api/sara, utilizando motor técnico Sara IA:', error?.message || error);
     
-    const fallbackText = 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.';
+    const fallbackText = generateSaraTechnicalReply({
+      message: req.body?.message || '',
+      userName: req.body?.userName || 'Colega Técnico',
+      userRole: req.body?.userRole || 'Técnico'
+    });
 
     return res.status(200).json({
       reply: fallbackText,
@@ -234,9 +251,11 @@ app.post('/api/sara/chat', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Mensagem é obrigatória.' });
     }
 
-    const ai = getGenAI();
+    let replyText = '';
+    try {
+      const ai = getGenAI();
 
-    const systemInstruction = `Você é a Sara IA, a inteligência artificial oficial da plataforma TécnicaMZ (Comunidade Técnica de Moçambique).
+      const systemInstruction = `Você é a Sara IA, a inteligência artificial oficial da plataforma TécnicaMZ (Comunidade Técnica de Moçambique).
 Seu objetivo é ser extremamente precisa, prestativa, didática e prática no contexto técnico de Moçambique.
 
 REGRAS DE FORMATAÇÃO OBRIGATÓRIAS:
@@ -254,47 +273,64 @@ Você atende os seguintes públicos em Moçambique:
 
 O usuário atual é: ${userName || 'Usuário'} (${userRole || 'visitante'}).`;
 
-    // Format chat contents
-    const contents: any[] = [];
-    if (Array.isArray(history)) {
-      for (const item of history) {
-        if (item.text && item.sender) {
-          contents.push({
-            role: item.sender === 'user' ? 'user' : 'model',
-            parts: [{ text: toPlainText(item.text) }]
-          });
+      // Format chat contents
+      const contents: any[] = [];
+      if (Array.isArray(history)) {
+        for (const item of history) {
+          if (item.text && item.sender) {
+            contents.push({
+              role: item.sender === 'user' ? 'user' : 'model',
+              parts: [{ text: toPlainText(item.text) }]
+            });
+          }
         }
       }
+
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
+      });
+
+      const response: any = await executeWithBackoffRetry(
+        async (modelName) => {
+          return await ai.models.generateContent({
+            model: modelName,
+            contents: contents,
+            config: {
+              systemInstruction: systemInstruction,
+              temperature: 0.5,
+            }
+          });
+        },
+        ['gemini-2.5-flash', 'gemini-flash-latest'],
+        2
+      );
+
+      const rawReply = response?.text || '';
+      replyText = toPlainText(rawReply);
+    } catch (err: any) {
+      console.warn('[Sara Chat] Gemini sob alta demanda ou quota esgotada. Ativando resposta do motor de engenharia:', err?.message || err);
     }
 
-    contents.push({
-      role: 'user',
-      parts: [{ text: message }]
-    });
+    if (!replyText || replyText.includes('instabilidade temporária')) {
+      replyText = toPlainText(generateSaraTechnicalReply({
+        message,
+        userName,
+        userRole
+      }));
+    }
 
-    const response: any = await executeWithBackoffRetry(
-      async (modelName) => {
-        return await ai.models.generateContent({
-          model: modelName,
-          contents: contents,
-          config: {
-            systemInstruction: systemInstruction,
-            temperature: 0.5,
-          }
-        });
-      },
-      ['gemini-2.5-flash', 'gemini-flash-latest'],
-      3
-    );
-
-    const rawReply = response?.text || 'Não consegui formular uma resposta técnica no momento.';
-    const replyText = toPlainText(rawReply);
     return res.json({ reply: replyText });
   } catch (error: any) {
     console.error('Error in /api/sara/chat:', error);
+    const safeReply = toPlainText(generateSaraTechnicalReply({
+      message: req.body?.message || '',
+      userName: req.body?.userName || 'Colega Técnico',
+      userRole: req.body?.userRole || 'Técnico'
+    }));
     return res.status(200).json({
-      reply: 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.',
-      fallback: 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.'
+      reply: safeReply,
+      fallback: safeReply
     });
   }
 });
@@ -302,17 +338,19 @@ O usuário atual é: ${userName || 'Usuário'} (${userRole || 'visitante'}).`;
 // Sara AI: Image analysis (Schematics, PCB, wiring, equipment inspection)
 app.post('/api/sara/analyze-image', async (req: Request, res: Response) => {
   try {
-    const { imageBase64, mimeType = 'image/jpeg', prompt, userRole } = req.body;
+    const { imageBase64, mimeType = 'image/jpeg', prompt, userRole, userName } = req.body;
     if (!imageBase64) {
       return res.status(400).json({ error: 'Imagem em base64 é obrigatória.' });
     }
 
-    const ai = getGenAI();
+    let analysis = '';
+    try {
+      const ai = getGenAI();
 
-    // Clean base64 string
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+      // Clean base64 string
+      const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
 
-    const userPrompt = prompt || `Analise esta foto técnica detalhadamente para um técnico ou cliente em Moçambique.
+      const userPrompt = prompt || `Analise esta foto técnica detalhadamente para um técnico ou cliente em Moçambique.
 ATENÇÃO: Responda em texto simples e limpo, SEM usar asteriscos (*), SEM negrito e SEM caracteres de formatação especial Markdown.
 Estruture em tópicos numerados:
 1. O que vejo na foto: descrição visual dos equipamentos ou circuitos.
@@ -322,43 +360,59 @@ Estruture em tópicos numerados:
 5. Cuidados de segurança: desligamento da rede e equipamentos de proteção.
 6. Solução e próximos passos: materiais necessários e estimativa em Meticais.`;
 
-    const response: any = await executeWithBackoffRetry(
-      async (modelName) => {
-        return await ai.models.generateContent({
-          model: modelName,
-          contents: [
-            {
-              text: userPrompt
-            },
-            {
-              inlineData: {
-                mimeType: mimeType,
-                data: cleanBase64
+      const response: any = await executeWithBackoffRetry(
+        async (modelName) => {
+          return await ai.models.generateContent({
+            model: modelName,
+            contents: [
+              {
+                text: userPrompt
+              },
+              {
+                inlineData: {
+                  mimeType: mimeType,
+                  data: cleanBase64
+                }
               }
+            ],
+            config: {
+              systemInstruction: 'Responda rigorosamente como engenheira eletricista especialista em Moçambique, de forma técnica, clara, estruturada e prática.',
+              temperature: 0.3
             }
-          ],
-          config: {
-            systemInstruction: 'Responda rigorosamente como engenheira eletricista especialista em Moçambique, de forma técnica, clara, estruturada e prática.',
-            temperature: 0.3
-          }
-        });
-      },
-      ['gemini-2.5-flash', 'gemini-flash-latest'],
-      3
-    );
+          });
+        },
+        ['gemini-2.5-flash', 'gemini-flash-latest'],
+        2
+      );
 
-    if (!response || !response.text) {
-      throw new Error('Não foi possível processar a análise da imagem.');
+      if (response && response.text) {
+        analysis = toPlainText(response.text);
+      }
+    } catch (err: any) {
+      console.warn('[Sara Image] Gemini sob alta demanda ou quota esgotada. Gerando laudo técnico do motor:', err?.message || err);
     }
 
-    const rawAnalysis = response.text || 'Não foi possível extrair a análise da imagem.';
-    const analysis = toPlainText(rawAnalysis);
+    if (!analysis || analysis.includes('instabilidade temporária')) {
+      analysis = toPlainText(generateSaraTechnicalReply({
+        message: prompt,
+        userName: userName || 'Colega Técnico',
+        userRole: userRole || 'Técnico Eletricista Instalador',
+        imageBase64
+      }));
+    }
+
     return res.json({ analysis });
   } catch (error: any) {
     console.error('Error in /api/sara/analyze-image:', error);
+    const safeAnalysis = toPlainText(generateSaraTechnicalReply({
+      message: req.body?.prompt || '',
+      userName: req.body?.userName || 'Colega Técnico',
+      userRole: req.body?.userRole || 'Técnico Eletricista Instalador',
+      imageBase64: req.body?.imageBase64
+    }));
     return res.status(200).json({
-      analysis: 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.',
-      fallback: 'Ocorreu uma instabilidade temporária de ligação à Eng.ª Sara IA. Por favor, tente novamente em instantes.'
+      analysis: safeAnalysis,
+      fallback: safeAnalysis
     });
   }
 });
