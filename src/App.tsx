@@ -41,7 +41,7 @@ import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
 import { UserRole } from './types';
 import { Wrench, Phone, Mail, ShieldCheck, Heart, Sparkles } from 'lucide-react';
 import { soundFX } from './utils/audio';
-import { hasActiveModals, setupModalHistoryListener } from './utils/modalHistory';
+import { hasActiveModals, setupModalHistoryListener, dismissModalWithoutHistory, fecharModalAtivo } from './utils/modalHistory';
 import {
   getSavedCompanyLogoSync,
   getSavedCompanyLogoAsync,
@@ -354,9 +354,9 @@ const AppContent: React.FC = () => {
     const handlePopState = (event: PopStateEvent) => {
       // 1. INTERCEPTAÇÃO ESTRITA: Se houver qualquer modal ou gaveta ativa na pilha,
       // a navegação histórica pertence exclusivamente ao fechamento do modal!
-      // É ESTRITAMENTE PROIBIDO mudar de aba ou saltar para o Painel Principal!
-      if (hasActiveModals() || event.state?.activeModal) {
+      if (hasActiveModals()) {
         event.preventDefault?.();
+        fecharModalAtivo();
         return;
       }
 
@@ -453,7 +453,7 @@ const AppContent: React.FC = () => {
 
     // If Company (tipo === 'empresa' or tipoConta === 'empresa' or role === 'company')
     if (isCompany || currentUser.tipo === 'empresa' || currentUser.tipoConta === 'empresa' || currentUser.role === 'company') {
-      if (detected && ['company', 'jobs', 'company_directory', 'technicians_directory', 'market', 'community', 'settings'].includes(detected)) {
+      if (detected && ['company', 'jobs', 'company_directory', 'technicians_directory', 'market', 'community', 'settings', 'academy'].includes(detected)) {
         setActiveTab(detected);
       } else {
         // Strict redirection: Company is NEVER sent to client dashboard
@@ -580,6 +580,10 @@ const AppContent: React.FC = () => {
       }
     }
 
+    // Fecha gaveta mobile sem conflito de popstate
+    setIsMobileMenuOpen(false);
+    dismissModalWithoutHistory('mobile_menu');
+
     setActiveTab(targetTab);
     try {
       localStorage.setItem('tecnicamz_last_route', targetTab);
@@ -589,7 +593,11 @@ const AppContent: React.FC = () => {
     if (addToHistory && typeof window !== 'undefined' && window.history) {
       try {
         const hashName = targetTab === 'technician' ? 'tecnico' : targetTab === 'community' ? 'feed' : targetTab === 'gestao-pro-mz' ? 'gestao-pro-mz' : targetTab;
-        window.history.pushState({ tab: targetTab }, '', `#${hashName}`);
+        if (window.history.state?.activeModal) {
+          window.history.replaceState({ tab: targetTab }, '', `#${hashName}`);
+        } else {
+          window.history.pushState({ tab: targetTab }, '', `#${hashName}`);
+        }
       } catch {
         try {
           window.location.hash = `#${targetTab}`;

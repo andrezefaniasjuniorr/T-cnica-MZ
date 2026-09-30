@@ -12,15 +12,12 @@ import {
   MessageSquare,
   Send,
   Search,
-  Check,
   CheckCheck,
-  CheckCircle2,
-  Clock,
   User,
-  Building2,
   Wrench,
+  Building2,
   Shield,
-  Phone
+  Sparkles
 } from 'lucide-react';
 
 interface MessagesModalProps {
@@ -31,6 +28,40 @@ interface MessagesModalProps {
   initialTargetRole?: string;
 }
 
+// Formatador seguro de data e hora para evitar RangeError: Invalid time value
+function formatSafeTime(dateVal: any): string {
+  if (!dateVal) return '';
+  try {
+    let d: Date;
+    if (typeof dateVal?.toDate === 'function') {
+      d = dateVal.toDate();
+    } else if (dateVal?.seconds && typeof dateVal.seconds === 'number') {
+      d = new Date(dateVal.seconds * 1000);
+    } else if (typeof dateVal === 'number') {
+      d = new Date(dateVal);
+    } else if (typeof dateVal === 'string') {
+      d = new Date(dateVal);
+    } else {
+      return '';
+    }
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+// Extrai texto puro de forma segura sem lançar 'Objects are not valid as a React child'
+function renderSafeText(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    return val.text || val.content || val.message || '';
+  }
+  return String(val);
+}
+
 export const MessagesModal: React.FC<MessagesModalProps> = ({
   isOpen,
   onClose,
@@ -39,7 +70,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
   initialTargetRole
 }) => {
   const { currentUser } = useAuth();
-  const { conversations, messages, sendMessage, markConversationAsRead, startOrGetConversation } = useData();
+  const { conversations = [], messages = [], sendMessage, markConversationAsRead, startOrGetConversation } = useData();
 
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
@@ -48,64 +79,50 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
 
   // Initialize or select conversation when target is passed
   useEffect(() => {
-    if (isOpen && currentUser && initialTargetUserId) {
-      const convId = startOrGetConversation(
-        initialTargetUserId,
-        initialTargetUserName || 'Utilizador',
-        initialTargetRole || 'client',
-        { type: 'direct', title: 'Contato Direto' }
-      );
-      setActiveConvId(convId);
-    } else if (isOpen && currentUser && !activeConvId) {
+    if (!isOpen || !currentUser) return;
+
+    if (initialTargetUserId && startOrGetConversation) {
+      try {
+        const convId = startOrGetConversation(
+          initialTargetUserId,
+          initialTargetUserName || 'Utilizador',
+          initialTargetRole || 'client',
+          { type: 'direct', title: 'Contato Direto' }
+        );
+        if (convId) {
+          setActiveConvId(convId);
+        }
+      } catch (err) {
+        console.warn('Erro ao inicializar conversa:', err);
+      }
+    } else if (!activeConvId) {
       // Pick first conversation user is part of
       const userConvs = (conversations || []).filter(
-        c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid)
+        c => c && Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid)
       );
-      if (userConvs.length > 0) {
+      if (userConvs.length > 0 && userConvs[0]?.id) {
         setActiveConvId(userConvs[0].id);
       }
     }
   }, [isOpen, initialTargetUserId, currentUser]);
 
-  // Ao abrir ou receber mensagem na conversa ativa, marca como lida e remove os badges
+  // Ao abrir ou receber mensagem na conversa ativa, marca como lida
   useEffect(() => {
     if (activeConvId && markConversationAsRead) {
-      markConversationAsRead(activeConvId);
+      try {
+        markConversationAsRead(activeConvId);
+      } catch {}
     }
-  }, [activeConvId, messages.length]);
+  }, [activeConvId, messages?.length]);
 
   // Scroll to bottom of message list on updates (auto-scroll suave)
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      } catch {}
     }
-  }, [messages.length, activeConvId]);
-
-  // Bloqueio de rolagem do fundo (body scroll lock)
-  useBodyScrollLock(isOpen);
-
-  if (!isOpen || !currentUser) return null;
-
-  // Conversations user participates in
-  const userConversations = (conversations || []).filter(
-    c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid)
-  );
-
-  const filteredConversations = userConversations.filter(c => {
-    const participantsList = Array.isArray(c?.participants) ? c.participants : [];
-    const other = participantsList.find(p => p?.id !== currentUser.uid);
-    if (!other) return false;
-    return (
-      (other.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.lastMessage && c.lastMessage.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  });
-
-  const activeConversation = (conversations || []).find(c => c.id === activeConvId);
-  const otherParticipant = Array.isArray(activeConversation?.participants)
-    ? activeConversation.participants.find(p => p?.id !== currentUser.uid)
-    : null;
-  const activeMessages = messages.filter(m => m.conversationId === activeConvId);
+  }, [messages?.length, activeConvId]);
 
   const handleClose = () => {
     soundFX.playModalClose();
@@ -120,12 +137,66 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
     }
   });
 
+  // Bloqueio de rolagem do fundo (body scroll lock)
+  useBodyScrollLock(isOpen);
+
+  if (!isOpen || !currentUser) return null;
+
+  // Conversations user participates in
+  const userConversations = (conversations || []).filter(
+    c => c && Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid)
+  );
+
+  const filteredConversations = userConversations.filter(c => {
+    const participantsList = Array.isArray(c?.participants) ? c.participants.filter(Boolean) : [];
+    const other = participantsList.find(p => p && p.id !== currentUser.uid);
+    const otherName = other?.name || (c as any)?.targetName || 'Utilizador';
+    const lastMsg = renderSafeText(c?.lastMessage);
+    const search = searchTerm.trim().toLowerCase();
+    if (!search) return true;
+    return (
+      otherName.toLowerCase().includes(search) ||
+      lastMsg.toLowerCase().includes(search)
+    );
+  });
+
+  // Resolução robusta da conversa ativa
+  const activeConversation: ConversationItem | null = (conversations || []).find(c => c && c.id === activeConvId) || (
+    activeConvId && initialTargetUserId ? {
+      id: activeConvId,
+      participantIds: [currentUser.uid, initialTargetUserId],
+      participants: [
+        { id: currentUser.uid, name: currentUser.name || 'Eu', role: currentUser.role || 'client' },
+        { id: initialTargetUserId, name: initialTargetUserName || 'Utilizador', role: (initialTargetRole as any) || 'client' }
+      ],
+      lastMessage: 'Conversa iniciada',
+      lastMessageAt: new Date().toISOString()
+    } as ConversationItem : null
+  );
+
+  const otherParticipant = (() => {
+    if (!activeConversation) return null;
+    const participantsList = Array.isArray(activeConversation.participants)
+      ? activeConversation.participants.filter(Boolean)
+      : [];
+    const found = participantsList.find(p => p && p.id !== currentUser.uid);
+    if (found) return found;
+    if (initialTargetUserId && initialTargetUserName) {
+      return { id: initialTargetUserId, name: initialTargetUserName, role: initialTargetRole || 'client' };
+    }
+    return { id: 'outro', name: 'Utilizador', role: 'client' };
+  })();
+
+  const activeMessages = (messages || []).filter(m => m && m.conversationId === activeConvId);
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !activeConvId) return;
 
     soundFX.playComment();
-    sendMessage(activeConvId, inputText.trim());
+    if (sendMessage) {
+      sendMessage(activeConvId, inputText.trim());
+    }
     setInputText('');
   };
 
@@ -140,7 +211,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
     <div id="messages_modal_overlay" className="modal-useful-fullscreen-overlay">
       <div id="messages_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col md:flex-row animate-in fade-in duration-150">
         
-        {/* Left Sidebar: Conversations List (Hidden on mobile if a conversation is open) */}
+        {/* Left Sidebar: Conversations List */}
         <div className={`w-full md:w-80 bg-slate-50 border-r border-slate-200 flex flex-col h-full shrink-0 ${
           activeConvId ? 'hidden md:flex' : 'flex'
         }`}>
@@ -183,7 +254,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Buscar conversa..."
-                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -191,14 +262,25 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
           {/* List */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {filteredConversations.length === 0 ? (
-              <div className="text-center py-10 text-slate-400 space-y-1">
-                <MessageSquare className="w-6 h-6 mx-auto text-slate-300" />
-                <p className="text-xs font-semibold">Nenhuma conversa ativa</p>
+              <div className="text-center py-10 px-4 text-slate-400 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
+                  <MessageSquare className="w-6 h-6 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-black text-slate-700">Nenhuma conversa ativa</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Abra o perfil de um técnico ou empresa credenciada para iniciar uma conversa direta.
+                  </p>
+                </div>
               </div>
             ) : (
               filteredConversations.map(c => {
-                const other = c.participants.find(p => p.id !== currentUser.uid);
+                const pList = Array.isArray(c?.participants) ? c.participants.filter(Boolean) : [];
+                const other = pList.find(p => p && p.id !== currentUser.uid);
                 const isSelected = c.id === activeConvId;
+                const otherName = other?.name || (c as any)?.targetName || 'Usuário';
+                const lastMsgText = renderSafeText(c?.lastMessage) || 'Conversa iniciada';
+                const timeText = formatSafeTime(c?.lastMessageAt);
 
                 return (
                   <button
@@ -214,21 +296,23 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
                       isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                     }`}>
-                      {getInitial(other?.name)}
+                      {getInitial(otherName)}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
                         <p className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
-                          {other?.name || 'Usuário'}
+                          {otherName}
                         </p>
-                        <span className={`text-[10px] ${isSelected ? 'text-blue-200' : 'text-slate-400'}`}>
-                          {new Date(c.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                        {timeText && (
+                          <span className={`text-[10px] shrink-0 ${isSelected ? 'text-blue-200' : 'text-slate-400'}`}>
+                            {timeText}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-0.5">
                         <p className={`text-[11px] truncate flex-1 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                          {c.lastMessage}
+                          {lastMsgText}
                         </p>
                         {!isSelected && (c.unreadCount ?? 0) > 0 && (
                           <span className="min-w-[18px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center shrink-0">
@@ -244,7 +328,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
           </div>
         </div>
 
-        {/* Right Chat Area (Visible on mobile if active conversation exists or on desktop) */}
+        {/* Right Chat Area */}
         <div className={`flex-1 flex flex-col h-full bg-white ${
           !activeConvId ? 'hidden md:flex' : 'flex'
         }`}>
@@ -296,38 +380,53 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
 
               {/* Messages Flow */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 bg-slate-50/50">
-                {activeMessages.map(msg => {
-                  const isMe = msg.senderId === currentUser.uid;
+                {activeMessages.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 space-y-2">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
+                      <MessageSquare className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700">Início da conversa</p>
+                    <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                      Envie uma mensagem profissional para alinhar orçamentos, obras ou esclarecer dúvidas técnicas.
+                    </p>
+                  </div>
+                ) : (
+                  activeMessages.map(msg => {
+                    if (!msg) return null;
+                    const isMe = msg.senderId === currentUser.uid;
+                    const text = renderSafeText(msg.text);
+                    const time = formatSafeTime(msg.createdAt);
 
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                    >
+                    return (
                       <div
-                        className={`max-w-[85%] sm:max-w-[78%] p-3.5 rounded-2xl text-xs sm:text-sm space-y-1 shadow-xs ${
-                          isMe
-                            ? 'bg-blue-600 text-white rounded-br-none'
-                            : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
-                        }`}
+                        key={msg.id || `msg_${Math.random()}`}
+                        className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                       >
-                        <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                        <div className={`text-[10px] text-right flex items-center justify-end gap-1 ${
-                          isMe ? 'text-blue-200' : 'text-slate-400'
-                        }`}>
-                          <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          {isMe && (
-                            (msg.read || msg.status === 'read') ? (
-                              <span title="Mensagem lida"><CheckCheck className="w-3.5 h-3.5 text-sky-300 inline shrink-0" /></span>
-                            ) : (
-                              <span title="Mensagem enviada / entregue"><CheckCheck className="w-3.5 h-3.5 text-blue-200 inline shrink-0" /></span>
-                            )
-                          )}
+                        <div
+                          className={`max-w-[85%] sm:max-w-[78%] p-3.5 rounded-2xl text-xs sm:text-sm space-y-1 shadow-xs ${
+                            isMe
+                              ? 'bg-blue-600 text-white rounded-br-none'
+                              : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                          }`}
+                        >
+                          <p className="leading-relaxed whitespace-pre-wrap">{text}</p>
+                          <div className={`text-[10px] text-right flex items-center justify-end gap-1 ${
+                            isMe ? 'text-blue-200' : 'text-slate-400'
+                          }`}>
+                            {time && <span>{time}</span>}
+                            {isMe && (
+                              (msg.read || msg.status === 'read') ? (
+                                <span title="Mensagem lida"><CheckCheck className="w-3.5 h-3.5 text-sky-300 inline shrink-0" /></span>
+                              ) : (
+                                <span title="Mensagem enviada / entregue"><CheckCheck className="w-3.5 h-3.5 text-blue-200 inline shrink-0" /></span>
+                              )
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -343,7 +442,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 <button
                   type="submit"
                   disabled={!inputText.trim()}
-                  className="p-2.5 sm:px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl transition shadow-xs flex items-center gap-1 font-bold text-xs"
+                  className="p-2.5 sm:px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl transition shadow-xs flex items-center gap-1 font-bold text-xs shrink-0"
                 >
                   <Send className="w-4 h-4" />
                   <span className="hidden sm:inline">Enviar</span>
@@ -351,18 +450,22 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
               </form>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-2">
-              <MessageSquare className="w-12 h-12 text-slate-300" />
-              <p className="text-sm font-bold text-slate-700">Selecione uma conversa</p>
-              <p className="text-xs text-slate-400 max-w-xs">
-                Inicie contato com técnicos certificados, clientes ou empresas moçambicanas.
-              </p>
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                <MessageSquare className="w-7 h-7 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">Selecione uma conversa</p>
+                <p className="text-xs text-slate-400 max-w-xs mt-1">
+                  Inicie contato direto com técnicos certificados, clientes ou empresas moçambicanas.
+                </p>
+              </div>
               <button
-                onClick={onClose}
-                className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                onClick={handleClose}
+                className="mt-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Voltar ao Mural</span>
+                <span>Voltar à Aplicação</span>
               </button>
             </div>
           )}
@@ -371,4 +474,3 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
     </div>
   );
 };
-

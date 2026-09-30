@@ -613,7 +613,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const convsMap = new Map<string, ConversationItem>();
     // Pre-popular com conversas em cache para não sumir mensagens ou chats
-    conversations.forEach(c => convsMap.set(c.id, c));
+    (conversations || []).forEach(c => {
+      if (c && c.id) convsMap.set(c.id, c);
+    });
     const normalizeConvDoc = (docId: string, rawData: any): ConversationItem => {
       const data = rawData || {};
       let participantIds: string[] = [];
@@ -621,13 +623,36 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         participantIds = data.participantIds.map((id: any) => String(id || '')).filter(Boolean);
       } else if (Array.isArray(data.participants)) {
         participantIds = data.participants.map((p: any) => String(p?.id || p?.userId || '')).filter(Boolean);
+      } else if (data.participants && typeof data.participants === 'object') {
+        participantIds = Object.keys(data.participants).filter(Boolean);
       }
-      const participants = Array.isArray(data.participants) ? data.participants : [];
+
+      let participants: any[] = [];
+      if (Array.isArray(data.participants)) {
+        participants = data.participants.filter(Boolean);
+      } else if (data.participants && typeof data.participants === 'object') {
+        participants = Object.entries(data.participants).map(([id, val]: [string, any]) => ({
+          id,
+          name: val?.name || val?.nome || 'Usuário',
+          role: val?.role || 'client',
+          avatarUrl: val?.avatarUrl || val?.photoURL || ''
+        }));
+      }
+
+      const lastMessageText = typeof data.lastMessage === 'string'
+        ? data.lastMessage
+        : (typeof data.lastMessage?.text === 'string' ? data.lastMessage.text : 'Conversa iniciada');
+
+      const lastMessageAtIso = formatTimestampToIso(data.lastMessageAt || data.updatedAt || data.createdAt);
+
       return {
         ...data,
         id: docId,
         participantIds,
         participants,
+        lastMessage: lastMessageText,
+        lastMessageAt: lastMessageAtIso,
+        unreadCount: typeof data.unreadCount === 'number' ? data.unreadCount : 0
       } as ConversationItem;
     };
 
@@ -645,7 +670,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedConversations();
       },
-      (err) => console.warn("Erro Firestore ignorado:", err)
+      (err) => console.warn("Erro Firestore conversas ignorado:", err)
     );
 
     const unsubChats = onSnapshot(
@@ -656,11 +681,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         updateMergedConversations();
       },
-      (err) => console.warn("Erro Firestore ignorado:", err)
+      (err) => console.warn("Erro Firestore chats ignorado:", err)
     );
 
     const msgsMap = new Map<string, MessageItem>();
-    messages.forEach(m => msgsMap.set(m.id, m));
+    (messages || []).forEach(m => {
+      if (m && m.id) msgsMap.set(m.id, m);
+    });
     const updateMergedMessages = () => {
       const list = Array.from(msgsMap.values());
       list.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
@@ -671,22 +698,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       collection(db, 'messages'),
       (snapshot) => {
         snapshot.forEach((docSnap) => {
-          msgsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as MessageItem);
+          const d = docSnap.data() || {};
+          msgsMap.set(docSnap.id, {
+            ...d,
+            id: docSnap.id,
+            text: typeof d.text === 'string' ? d.text : (typeof d.content === 'string' ? d.content : String(d.text || '')),
+            createdAt: formatTimestampToIso(d.createdAt)
+          } as MessageItem);
         });
         updateMergedMessages();
       },
-      (err) => console.warn("Erro Firestore ignorado:", err)
+      (err) => console.warn("Erro Firestore mensagens ignorado:", err)
     );
 
     const unsubMensagensDiretas = onSnapshot(
       collection(db, 'mensagens_diretas'),
       (snapshot) => {
         snapshot.forEach((docSnap) => {
-          msgsMap.set(docSnap.id, { ...docSnap.data(), id: docSnap.id } as MessageItem);
+          const d = docSnap.data() || {};
+          msgsMap.set(docSnap.id, {
+            ...d,
+            id: docSnap.id,
+            text: typeof d.text === 'string' ? d.text : (typeof d.content === 'string' ? d.content : String(d.text || '')),
+            createdAt: formatTimestampToIso(d.createdAt)
+          } as MessageItem);
         });
         updateMergedMessages();
       },
-      (err) => console.warn("Erro Firestore ignorado:", err)
+      (err) => console.warn("Erro Firestore mensagens diretas ignorado:", err)
     );
 
     // 3. Technicians & Usuários real-time sync for "Técnicos MZ"
@@ -2985,10 +3024,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'messages', newMsg.id), { ...newMsg, deleteAt });
-        await setDoc(doc(db, 'mensagens_diretas', newMsg.id), { ...newMsg, deleteAt }).catch(() => {});
-        await setDoc(doc(db, 'conversations', conversationId), updatedConvData, { merge: true });
-        await setDoc(doc(db, 'chats', conversationId), updatedConvData, { merge: true }).catch(() => {});
+        const cleanMsg = sanitizeFirestorePayload({ ...newMsg, deleteAt });
+        const cleanConv = sanitizeFirestorePayload(updatedConvData);
+        await setDoc(doc(db, 'messages', newMsg.id), cleanMsg).catch(() => {});
+        await setDoc(doc(db, 'mensagens_diretas', newMsg.id), cleanMsg).catch(() => {});
+        await setDoc(doc(db, 'conversations', conversationId), cleanConv, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'chats', conversationId), cleanConv, { merge: true }).catch(() => {});
       } catch (err) {
         console.warn('Firestore send message error:', err);
       }
@@ -3062,21 +3103,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: newId,
       participantIds: [currentUser.uid, targetUserId],
       participants: [
-        { id: currentUser.uid, name: currentUser.name, role: currentUser.role, avatarUrl: currentUser.avatarUrl },
-        { id: targetUserId, name: targetUserName, role: targetUserRole }
+        {
+          id: currentUser.uid,
+          name: currentUser.name || 'Utilizador',
+          role: currentUser.role || 'client',
+          avatarUrl: currentUser.avatarUrl || currentUser.photoURL || ''
+        },
+        {
+          id: targetUserId,
+          name: targetUserName || 'Profissional',
+          role: targetUserRole || 'technician',
+          avatarUrl: ''
+        }
       ],
       lastMessage: 'Conversa iniciada',
       lastMessageAt: new Date().toISOString(),
       contextType: context?.type || 'direct',
-      contextTitle: context?.title
+      contextTitle: context?.title || 'Contato Direto',
+      unreadCount: 0
     };
 
-    setConversations(prev => [newConv, ...prev]);
+    setConversations(prev => [newConv, ...prev.filter(c => c.id !== newId)]);
 
     if (isFirebaseConfigured && db) {
       try {
-        setDoc(doc(db, 'conversations', newId), newConv);
-        setDoc(doc(db, 'chats', newId), newConv).catch(() => {});
+        const payload = sanitizeFirestorePayload(newConv);
+        setDoc(doc(db, 'conversations', newId), payload).catch(err => console.warn('Firestore create conv error:', err));
+        setDoc(doc(db, 'chats', newId), payload).catch(() => {});
       } catch (err) {
         console.warn('Firestore create conversation error:', err);
       }

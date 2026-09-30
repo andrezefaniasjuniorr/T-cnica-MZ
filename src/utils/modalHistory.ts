@@ -107,6 +107,21 @@ if (typeof window !== 'undefined') {
   setupModalHistoryListener();
 }
 
+export function dismissModalWithoutHistory(name?: string): void {
+  if (!name) {
+    modalStack.pop();
+    return;
+  }
+  const index = modalStack.findIndex(m => m.name === name);
+  if (index !== -1) {
+    modalStack.splice(index, 1);
+  }
+}
+
+export function dismissAllModalsWithoutHistory(): void {
+  modalStack.length = 0;
+}
+
 /**
  * Retorna true se houver algum modal ativo na pilha
  */

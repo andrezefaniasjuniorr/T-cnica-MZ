@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { useModalHistory } from '../../utils/modalHistory';
+import { useModalHistory, dismissModalWithoutHistory } from '../../utils/modalHistory';
 import { NetworkStatusIndicator } from '../common/NetworkStatusIndicator';
 
 interface MobileExtraMenuDrawerProps {
@@ -89,20 +89,22 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
     e.preventDefault();
     e.stopPropagation();
     soundFX.playClick();
+    dismissModalWithoutHistory('mobile_menu');
+    onClose();
     onNavigateTab(tabId);
-    setTimeout(() => {
-      onClose();
-    }, 50);
   };
 
   const handleCustomAction = (e: React.MouseEvent, actionFn?: () => void) => {
     e.preventDefault();
     e.stopPropagation();
     soundFX.playClick();
-    if (actionFn) actionFn();
-    setTimeout(() => {
-      onClose();
-    }, 50);
+    dismissModalWithoutHistory('mobile_menu');
+    onClose();
+    if (actionFn) {
+      setTimeout(() => {
+        actionFn();
+      }, 50);
+    }
   };
 
   const handleToggleSound = () => {
