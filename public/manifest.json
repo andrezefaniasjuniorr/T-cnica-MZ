@@ -1,38 +1,33 @@
 {
   "id": "/",
   "name": "TécnicaMZ Pro",
-  "short_name": "TécnicaMZ Pro",
-  "description": "A maior rede de profissionais técnicos e empresas de engenharia em Moçambique. Encontre especialistas em eletrônica, eletricidade, refrigeração e TI.",
-  "start_url": "/?mode=standalone",
+  "short_name": "TécnicaMZ",
+  "description": "Plataforma Técnica Eletrotécnica & Engenharia em Moçambique",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "fullscreen", "minimal-ui"],
-  "orientation": "unspecified",
-  "background_color": "#020617",
-  "theme_color": "#020617",
+  "orientation": "portrait-primary",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/pwa-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
-      "src": "/icon-512.png",
-      "type": "image/png",
+      "src": "/pwa-512x512.png",
       "sizes": "512x512",
-      "purpose": "any"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "/pwa-maskable-512x512.png",
+      "src": "/maskable-icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
     }
   ]
 }
+
