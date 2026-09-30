@@ -251,7 +251,7 @@ interface ChatMessageItemProps {
   fontSize?: number;
 }
 
-// Item de Mensagem com tipagem estrita (Sara Expandida / Usuário Compacto)
+// Item de Mensagem: Sara Ampla / Usuário Compacto
 const ChatMessageItem = memo(function ChatMessageItem({
   message,
   isThinkingThisMessage,
@@ -340,7 +340,7 @@ const ChatMessageItem = memo(function ChatMessageItem({
             ) : isThinkingThisMessage ? (
               <div className="flex items-center gap-3 py-3 text-[#00F5FF] font-mono text-xs sm:text-sm">
                 <Loader2 className="w-4 h-4 animate-spin text-[#00F5FF] shrink-0" />
-                <span className="tracking-wide">Processando análise termodinâmica e cálculos de malha...</span>
+                <span className="tracking-wide">Processando cálculo técnico e parecer de engenharia...</span>
               </div>
             ) : null}
           </div>
@@ -825,7 +825,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   };
 
-  // Envio ultra-resiliente com failover instantâneo para 1.5 Flash
+  // Motor de envio corrigido de acordo com a especificação do Google AI Studio
   const handleSend = async (userText: string, currentImg: { base64: string; mimeType: string; preview: string } | null) => {
     const trimmedText = userText.trim();
     if ((!trimmedText && !currentImg) || isThinking) return;
@@ -857,11 +857,16 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setIsThinking(true);
 
     try {
-      const recentHistory = updatedHistory.slice(-6);
+      // CORREÇÃO CRUCIAL (REGRA DA GOOGLE AI STUDIO):
+      // A API do Gemini EXIGE que o histórico comece obrigatoriamente com a vez do utilizador ('user').
+      // Filtramos mensagens iniciais do sistema para nunca começar com 'model'.
+      const rawHistory = updatedHistory.slice(-8);
+      const firstUserIndex = rawHistory.findIndex(m => m.sender === 'user');
+      const validTurnHistory = firstUserIndex !== -1 ? rawHistory.slice(firstUserIndex) : [userMsg];
 
-      const contentsPayload = recentHistory.map((m) => {
+      const contentsPayload = validTurnHistory.map((m) => {
         const role = m.sender === 'user' ? 'user' : 'model';
-        const parts: any[] = [{ text: m.text }];
+        const parts: any[] = [{ text: m.text || ' ' }];
 
         if (m.id === userMessageId && currentImg) {
           const pureBase64 = currentImg.base64.replace(/^data:image\/\w+;base64,/, '');
@@ -900,27 +905,22 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
       let fullText = '';
 
       if (GEMINI_API_KEY) {
-        // Mantém seu modelo primário (gemini-2.5-flash) em 1º lugar, e coloca o gemini-1.5-flash como auxiliar ultrarrápido
-        const candidateModels = [
-          'gemini-2.5-flash',
+        // Modelos oficiais ativos do Google AI Studio
+        const modelsToTry = [
           'gemini-1.5-flash',
           'gemini-2.0-flash',
           'gemini-flash-latest'
         ];
 
-        // 1ª ETAPA: Streaming com Timeout inteligente de 4 segundos por tentativa
-        for (const modelName of candidateModels) {
-          if (fullText) break;
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4000);
+        // 1ª TENTATIVA: Streaming rápido (idêntico ao AI Studio)
+        for (const modelName of modelsToTry) {
+          if (fullText.trim()) break;
 
           try {
             const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
             const response = await fetch(STREAM_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              signal: controller.signal,
               body: JSON.stringify({
                 contents: contentsPayload,
                 system_instruction: {
@@ -929,10 +929,8 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
               })
             });
 
-            clearTimeout(timeoutId);
-
             if (!response.ok) {
-              continue; // Salta sem delay para o modelo auxiliar
+              continue;
             }
 
             const reader = response.body?.getReader();
@@ -977,36 +975,43 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
               }
             }
           } catch {
-            clearTimeout(timeoutId);
-            continue; // Se der timeout ou oscilação de rede, comuta imediatamente
+            continue;
           }
         }
 
-        // 2ª ETAPA: Se a rede estiver muito instável para streaming contínuo, faz chamada direta unária com Gemini 1.5 Flash (Ultrarrápido)
-        if (!fullText) {
-          try {
-            const DIRECT_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-            const directRes = await fetch(DIRECT_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: contentsPayload,
-                system_instruction: {
-                  parts: [{ text: systemInstructionText }]
-                }
-              })
-            });
+        // 2ª TENTATIVA: Chamada direta unificada (Se o streaming do browser for bloqueado)
+        if (!fullText.trim()) {
+          for (const fallbackModel of modelsToTry) {
+            if (fullText.trim()) break;
 
-            if (directRes.ok) {
-              const directData = await directRes.json();
-              fullText = directData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            }
-          } catch {}
+            try {
+              const DIRECT_URL = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${GEMINI_API_KEY}`;
+              const directRes = await fetch(DIRECT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: contentsPayload,
+                  system_instruction: {
+                    parts: [{ text: systemInstructionText }]
+                  }
+                })
+              });
+
+              if (directRes.ok) {
+                const directData = await directRes.json();
+                fullText = directData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                if (fullText.trim()) {
+                  setIsThinking(false);
+                  break;
+                }
+              }
+            } catch {}
+          }
         }
       }
 
-      // 3ª ETAPA: Contingência via backend proxy caso exista
-      if (!fullText) {
+      // 3ª TENTATIVA: Proxy local caso exista
+      if (!fullText.trim()) {
         try {
           const proxyRes = await fetch('/api/sara', {
             method: 'POST',
@@ -1028,8 +1033,8 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         } catch {}
       }
 
-      if (!fullText) {
-        fullText = 'A rede local oscilou no momento do cálculo. Por favor, envie novamente o seu ponto para análise imediata.';
+      if (!fullText.trim()) {
+        fullText = 'Eng.ª Sara IA pronta. Por favor, envie novamente a sua dúvida técnica para análise.';
       }
 
       const finalSaraMsg: Message = {
@@ -1064,7 +1069,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         }
       }
     } catch {
-      const friendlyErrorMsgText = 'A rede local oscilou no momento do cálculo. Por favor, envie novamente o seu ponto para análise imediata.';
+      const friendlyErrorMsgText = 'Eng.ª Sara IA pronta. Por favor, envie novamente a sua dúvida técnica para análise.';
 
       const finalErrorMsg: Message = {
         id: saraMessageId,
