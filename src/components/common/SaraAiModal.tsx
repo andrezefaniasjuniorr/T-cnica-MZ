@@ -17,7 +17,6 @@ import {
   ArrowLeft,
   Sparkles,
   Send,
-  Bot,
   Camera,
   Image as ImageIcon,
   Loader2,
@@ -55,25 +54,17 @@ export interface ChatInputFormHandle {
   focus: () => void;
 }
 
-// Estilos Cyber-Elétricos e HUD embutidos de alta fidelidade
+// Estilos Cyber-Elétricos com bloqueio rígido horizontal e visual espaçoso
 const CYBER_ELECTRIC_STYLES = `
   .cyber-electric-viewport {
     background-color: #030712;
     background-image: 
-      radial-gradient(circle at 50% 0%, rgba(0, 245, 255, 0.12) 0%, transparent 60%),
-      radial-gradient(circle at 100% 100%, rgba(0, 119, 254, 0.08) 0%, transparent 50%),
-      linear-gradient(to right, rgba(0, 245, 255, 0.04) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(0, 245, 255, 0.04) 1px, transparent 1px);
+      radial-gradient(circle at 50% 0%, rgba(0, 245, 255, 0.10) 0%, transparent 60%),
+      radial-gradient(circle at 100% 100%, rgba(0, 119, 254, 0.06) 0%, transparent 50%),
+      linear-gradient(to right, rgba(0, 245, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 245, 255, 0.035) 1px, transparent 1px);
     background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
-  }
-  .hud-tech-box {
-    position: relative;
-    clip-path: polygon(
-      0 8px, 8px 0,
-      calc(100% - 8px) 0, 100% 8px,
-      100% calc(100% - 8px), calc(100% - 8px) 100%,
-      8px 100%, 0 calc(100% - 8px)
-    );
+    overflow-x: hidden !important;
   }
   .hud-bracket-sara {
     position: relative;
@@ -83,8 +74,8 @@ const CYBER_ELECTRIC_STYLES = `
     position: absolute;
     top: -2px;
     left: -2px;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-top: 2px solid #00F5FF;
     border-left: 2px solid #00F5FF;
     pointer-events: none;
@@ -94,91 +85,90 @@ const CYBER_ELECTRIC_STYLES = `
     position: absolute;
     bottom: -2px;
     right: -2px;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-bottom: 2px solid #00F5FF;
     border-right: 2px solid #00F5FF;
     pointer-events: none;
   }
   .cyber-custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   .cyber-custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(3, 7, 18, 0.7);
-    border-left: 1px solid rgba(0, 245, 255, 0.1);
+    background: rgba(3, 7, 18, 0.8);
   }
   .cyber-custom-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #0077FE 0%, #00F5FF 100%);
+    background: #00F5FF55;
     border-radius: 4px;
-    box-shadow: 0 0 10px rgba(0, 245, 255, 0.5);
+    box-shadow: 0 0 8px rgba(0, 245, 255, 0.4);
   }
   .katex-display {
     overflow-x: auto !important;
     overflow-y: hidden !important;
-    padding: 12px 16px !important;
-    margin: 12px 0 !important;
-    background: rgba(2, 6, 15, 0.9) !important;
-    border: 1px solid rgba(0, 245, 255, 0.3) !important;
+    padding: 14px 18px !important;
+    margin: 16px 0 !important;
+    background: rgba(2, 6, 15, 0.95) !important;
+    border: 1px solid rgba(0, 245, 255, 0.35) !important;
     border-left: 4px solid #00F5FF !important;
     border-radius: 8px !important;
-    box-shadow: inset 0 0 20px rgba(0, 245, 255, 0.08) !important;
+    box-shadow: inset 0 0 25px rgba(0, 245, 255, 0.08) !important;
   }
   .katex {
-    font-size: 1.08em !important;
+    font-size: 1.1em !important;
     color: #00F5FF !important;
   }
 `;
 
-// Definição estática e memoizada dos componentes do Markdown para o design 100% Elétrico
+// Renderizador Markdown espaçoso, amplo e com alta legibilidade técnica
 const MARKDOWN_COMPONENTS = {
   h1: ({ children }: any) => (
-    <h1 className="text-sm sm:text-base font-black text-white mt-4 mb-2 pb-1.5 border-b border-[#00F5FF]/30 flex items-center gap-2 tracking-wide font-mono uppercase">
+    <h1 className="text-sm sm:text-base font-black text-white mt-5 mb-3 pb-2 border-b border-[#00F5FF]/30 flex items-center gap-2 tracking-wide font-mono uppercase">
       <span className="w-2.5 h-2.5 bg-[#00F5FF] shadow-[0_0_8px_#00F5FF] rounded-none rotate-45 shrink-0" />
-      <span className="text-[#00F5FF] tracking-wider">[FASE_01]</span>
+      <span className="text-[#00F5FF] tracking-wider">[ETAPA]</span>
       <span>{children}</span>
     </h1>
   ),
   h2: ({ children }: any) => (
-    <h2 className="text-xs sm:text-sm font-black text-cyan-200 mt-3 mb-1.5 flex items-center gap-1.5 font-mono tracking-wide">
+    <h2 className="text-xs sm:text-sm font-black text-cyan-200 mt-4 mb-2 flex items-center gap-2 font-mono tracking-wide">
       <span className="text-[#FFB703] font-bold">⚡▸</span> {children}
     </h2>
   ),
   h3: ({ children }: any) => (
-    <h3 className="text-xs font-bold text-[#FFB703] mt-2.5 mb-1 uppercase tracking-wider font-mono flex items-center gap-1">
+    <h3 className="text-xs sm:text-sm font-bold text-[#FFB703] mt-3.5 mb-1.5 uppercase tracking-wider font-mono flex items-center gap-1.5">
       <span className="w-1.5 h-1.5 bg-[#FFB703] rounded-full inline-block" />
       {children}
     </h3>
   ),
   h4: ({ children }: any) => (
-    <h4 className="text-xs font-semibold text-cyan-300 mt-2 mb-0.5 font-mono">{children}</h4>
+    <h4 className="text-xs font-semibold text-cyan-300 mt-3 mb-1 font-mono">{children}</h4>
   ),
   p: ({ children }: any) => (
-    <p className="mb-2 last:mb-0 leading-relaxed text-slate-200 tracking-normal">{children}</p>
+    <p className="mb-3.5 last:mb-0 leading-[1.75] text-slate-100 font-normal tracking-wide">{children}</p>
   ),
   strong: ({ children }: any) => (
-    <strong className="font-extrabold text-white text-[#00F5FF] drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]">{children}</strong>
+    <strong className="font-extrabold text-white text-[#00F5FF] drop-shadow-[0_0_8px_rgba(0,245,255,0.4)]">{children}</strong>
   ),
   em: ({ children }: any) => <em className="italic text-cyan-200">{children}</em>,
   ul: ({ children }: any) => (
-    <ul className="list-none pl-2 my-2.5 space-y-1.5 text-slate-200">{children}</ul>
+    <ul className="list-none pl-1 my-3.5 space-y-2.5 text-slate-100">{children}</ul>
   ),
   ol: ({ children }: any) => (
-    <ol className="list-decimal pl-5 my-2.5 space-y-1.5 text-slate-200 marker:text-[#00F5FF] marker:font-mono">{children}</ol>
+    <ol className="list-decimal pl-5 my-3.5 space-y-2.5 text-slate-100 marker:text-[#00F5FF] marker:font-mono">{children}</ol>
   ),
   li: ({ children }: any) => (
-    <li className="leading-relaxed flex items-start gap-2">
-      <span className="text-[#00F5FF] font-mono text-[11px] select-none mt-0.5">◆</span>
+    <li className="leading-[1.75] flex items-start gap-2.5">
+      <span className="text-[#00F5FF] font-mono text-xs select-none mt-1">◆</span>
       <div className="flex-1">{children}</div>
     </li>
   ),
   blockquote: ({ children }: any) => (
-    <blockquote className="border-l-2 border-[#FFB703] bg-[#071326]/80 px-3.5 py-2.5 my-3 rounded-r-lg text-amber-200 text-xs sm:text-sm font-mono shadow-[inset_0_0_15px_rgba(255,183,3,0.06)] flex items-start gap-2">
+    <blockquote className="border-l-4 border-[#FFB703] bg-[#071326]/90 px-4 py-3 my-4 rounded-r-lg text-amber-200 text-xs sm:text-sm font-mono shadow-[inset_0_0_20px_rgba(255,183,3,0.08)] flex items-start gap-3">
       <Zap className="w-4 h-4 text-[#FFB703] shrink-0 mt-0.5 animate-pulse" />
-      <div className="flex-1 text-slate-200">{children}</div>
+      <div className="flex-1 leading-relaxed text-slate-100">{children}</div>
     </blockquote>
   ),
-  code: ({ className, children, ...props }: any) => {
+  code: ({ node, className, children, ...props }: any) => {
     const isInline = !className && typeof children === 'string' && !children.includes('\n');
     if (isInline) {
       return (
@@ -188,15 +178,15 @@ const MARKDOWN_COMPONENTS = {
       );
     }
     return (
-      <div className="my-3 rounded-lg overflow-hidden border border-[#00F5FF]/30 bg-[#020712] shadow-[0_4px_20px_rgba(0,0,0,0.6)]">
-        <div className="px-3 py-1 bg-[#061226] border-b border-[#00F5FF]/20 flex items-center justify-between text-[10px] font-mono text-cyan-300">
-          <span className="flex items-center gap-1.5">
-            <Terminal className="w-3 h-3 text-[#00F5FF]" />
-            DADOS TÉCNICOS / CÓDIGO
+      <div className="my-4 rounded-lg overflow-hidden border border-[#00F5FF]/30 bg-[#020712] shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+        <div className="px-3.5 py-1.5 bg-[#061226] border-b border-[#00F5FF]/20 flex items-center justify-between text-[10px] font-mono text-cyan-300">
+          <span className="flex items-center gap-1.5 font-bold">
+            <Terminal className="w-3.5 h-3.5 text-[#00F5FF]" />
+            DADOS TÉCNICOS & CÓDIGO
           </span>
-          <span className="text-[9px] text-[#00F5FF]/60 uppercase">IEC-STANDARD</span>
+          <span className="text-[9px] text-[#00F5FF]/70 uppercase tracking-wider">IEC STANDARD</span>
         </div>
-        <code className="block text-cyan-100 p-3.5 overflow-x-auto font-mono text-[11px] sm:text-xs leading-relaxed cyber-custom-scrollbar" {...props}>
+        <code className="block text-cyan-100 p-4 overflow-x-auto font-mono text-[11px] sm:text-xs leading-relaxed cyber-custom-scrollbar" {...props}>
           {children}
         </code>
       </div>
@@ -204,15 +194,15 @@ const MARKDOWN_COMPONENTS = {
   },
   pre: ({ children }: any) => children,
   table: ({ children }: any) => (
-    <div className="overflow-x-auto my-3.5 rounded-lg border-2 border-[#00F5FF]/30 bg-[#020714]/95 shadow-[0_0_25px_rgba(0,245,255,0.12)] cyber-custom-scrollbar">
-      <div className="px-3 py-1.5 bg-[#051429] border-b border-[#00F5FF]/30 flex items-center justify-between">
+    <div className="w-full overflow-x-auto my-4 rounded-lg border-2 border-[#00F5FF]/35 bg-[#020714]/95 shadow-[0_0_30px_rgba(0,245,255,0.14)] cyber-custom-scrollbar">
+      <div className="px-3.5 py-2 bg-[#051429] border-b border-[#00F5FF]/30 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Activity className="w-3.5 h-3.5 text-[#00F5FF] animate-pulse" />
-          <span className="text-[10px] font-mono font-black uppercase text-[#00F5FF] tracking-wider">
+          <Activity className="w-4 h-4 text-[#00F5FF] animate-pulse" />
+          <span className="text-[10px] sm:text-[11px] font-mono font-black uppercase text-[#00F5FF] tracking-wider">
             MATRIZ TÉCNICA QUANTITATIVA // EDM SPEC
           </span>
         </div>
-        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/40">
+        <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/40 font-bold">
           MZN / IEC
         </span>
       </div>
@@ -223,7 +213,7 @@ const MARKDOWN_COMPONENTS = {
     <thead className="bg-[#071933] text-[#00F5FF] border-b-2 border-[#00F5FF]/40 font-black">{children}</thead>
   ),
   th: ({ children }: any) => (
-    <th className="border border-[#00F5FF]/20 p-2.5 text-left font-black text-[#00F5FF] whitespace-nowrap tracking-wider text-[11px] uppercase bg-[#081C38]">
+    <th className="border border-[#00F5FF]/20 p-3 text-left font-black text-[#00F5FF] whitespace-nowrap tracking-wider text-[11px] uppercase bg-[#081C38]">
       {children}
     </th>
   ),
@@ -234,17 +224,17 @@ const MARKDOWN_COMPONENTS = {
     </tr>
   ),
   td: ({ children }: any) => (
-    <td className="border border-[#00F5FF]/15 p-2.5 text-slate-100 text-xs">
+    <td className="border border-[#00F5FF]/15 p-3 text-slate-100 text-xs sm:text-sm font-normal">
       {children}
     </td>
   ),
   hr: () => (
-    <div className="relative my-4">
+    <div className="relative my-5">
       <div className="absolute inset-0 flex items-center">
         <div className="w-full border-t border-[#00F5FF]/25" />
       </div>
       <div className="relative flex justify-center">
-        <span className="bg-[#030712] px-3 font-mono text-[9px] text-[#00F5FF]/60 uppercase tracking-widest border border-[#00F5FF]/20 rounded-full">
+        <span className="bg-[#030712] px-3 font-mono text-[9px] text-[#00F5FF]/70 uppercase tracking-widest border border-[#00F5FF]/20 rounded-full">
           CIRCUIT SECTION BREAK
         </span>
       </div>
@@ -255,43 +245,42 @@ const MARKDOWN_COMPONENTS = {
 const MARKDOWN_REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMath];
 const MARKDOWN_REHYPE_PLUGINS = [rehypeKatex];
 
-// Item individual da mensagem memoizado com Estética HUD Cyber-Elétrica
-const ChatMessageItem = memo<{
+interface ChatMessageItemProps {
   message: Message;
   isThinkingThisMessage?: boolean;
   fontSize?: number;
-}>(({ message, isThinkingThisMessage, fontSize = 15 }) => {
-  return (
-    <div className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-      {message.sender === 'sara' && (
-        <div className="relative shrink-0 mt-1">
-          <div className="w-9 h-9 rounded-lg bg-[#040C1A] border-2 border-[#00F5FF] flex items-center justify-center text-slate-950 shadow-[0_0_16px_rgba(0,245,255,0.4)]">
-            <Cpu className="w-5 h-5 text-[#00F5FF] animate-pulse" />
-          </div>
-          <span className="absolute -bottom-1 -right-1 w-3 h-3 bg-[#00F5FF] rounded-full border-2 border-[#030712] shadow-[0_0_8px_#00F5FF]" />
-        </div>
-      )}
+}
 
+// Item de Mensagem com tipagem estrita (Sara Expandida / Usuário Compacto)
+const ChatMessageItem = memo(function ChatMessageItem({
+  message,
+  isThinkingThisMessage,
+  fontSize = 15
+}: ChatMessageItemProps) {
+  const isUser = message.sender === 'user';
+
+  return (
+    <div className={`w-full flex ${isUser ? 'justify-end' : 'justify-start'} py-1`}>
       <div
-        className={`max-w-[90%] sm:max-w-[85%] relative p-4 rounded-xl text-xs sm:text-sm space-y-2.5 transition-all duration-200 ${
-          message.sender === 'user'
-            ? 'bg-[#06101E] text-white border border-[#0077FE]/40 rounded-tr-none shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_0_12px_rgba(0,119,254,0.15)]'
-            : 'hud-bracket-sara bg-[#040C1A]/95 backdrop-blur-xl text-slate-100 border-y border-r border-[#00F5FF]/30 border-l-[5px] border-l-[#00F5FF] shadow-[0_0_25px_rgba(0,245,255,0.12),inset_0_0_20px_rgba(0,245,255,0.04)] rounded-tl-none'
+        className={`relative transition-all duration-200 ${
+          isUser
+            ? 'w-fit max-w-[84%] sm:max-w-[72%] p-3.5 sm:p-4 rounded-2xl bg-[#06101E] text-white border border-[#0077FE]/40 shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_0_12px_rgba(0,119,254,0.15)] rounded-tr-none'
+            : 'w-full max-w-[98%] sm:max-w-[96%] p-4 sm:p-5 rounded-xl hud-bracket-sara bg-[#040C1A]/95 backdrop-blur-xl text-slate-100 border-y border-r border-[#00F5FF]/30 border-l-[5px] border-l-[#00F5FF] shadow-[0_0_30px_rgba(0,245,255,0.12),inset_0_0_20px_rgba(0,245,255,0.04)] rounded-tl-none'
         }`}
       >
-        {/* Micro-telemetria no topo da mensagem da Sara IA */}
-        {message.sender === 'sara' && (
-          <div className="flex items-center justify-between pb-2 mb-1 border-b border-[#00F5FF]/20 select-none">
+        {/* Cabeçalho da Mensagem da Sara IA */}
+        {!isUser && (
+          <div className="flex items-center justify-between pb-2.5 mb-2 border-b border-[#00F5FF]/20 select-none">
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00F5FF] opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00F5FF]" />
               </span>
-              <span className="font-mono text-[10px] font-black tracking-widest text-[#00F5FF] uppercase">
+              <span className="font-mono text-[10px] sm:text-[11px] font-black tracking-widest text-[#00F5FF] uppercase">
                 SARA IA // TELEMETRIA INDUSTRIAL
               </span>
             </div>
-            <div className="flex items-center gap-1.5 font-mono text-[9px] text-cyan-300/70 bg-[#061730] px-2 py-0.5 rounded border border-[#00F5FF]/25">
+            <div className="flex items-center gap-2 font-mono text-[9px] text-cyan-300/80 bg-[#061730] px-2 py-0.5 rounded border border-[#00F5FF]/25">
               <span>CORE 4.2</span>
               <span>•</span>
               <span className="text-[#FFB703]">IEC 60364</span>
@@ -299,22 +288,25 @@ const ChatMessageItem = memo<{
           </div>
         )}
 
-        {message.sender === 'user' && (
-          <div className="flex items-center justify-between pb-1.5 border-b border-[#0077FE]/20 select-none font-mono text-[10px] text-cyan-400">
-            <span className="flex items-center gap-1">
+        {/* Cabeçalho compacto da Mensagem do Usuário */}
+        {isUser && (
+          <div className="flex items-center justify-between gap-4 pb-1.5 mb-1.5 border-b border-[#0077FE]/20 select-none font-mono text-[9px] text-cyan-400">
+            <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#0077FE]" />
-              TERMINAL DO TÉCNICO
+              <span>TERMINAL TÉCNICO</span>
+            </div>
+            <span className="text-slate-400 uppercase tracking-wider bg-[#08182E] px-1.5 py-0.2 rounded border border-blue-500/20 text-[8px]">
+              SOLICITAÇÃO
             </span>
-            <span className="text-slate-400 text-[9px]">SOLICITAÇÃO</span>
           </div>
         )}
 
         {message.imageUrl && (
-          <div className="relative rounded-lg overflow-hidden border-2 border-[#00F5FF]/40 max-h-60 bg-[#02050E] flex items-center justify-center p-1 shadow-inner">
+          <div className="relative rounded-lg overflow-hidden border-2 border-[#00F5FF]/40 max-h-64 bg-[#02050E] flex items-center justify-center p-1.5 my-2 shadow-inner">
             <img
               src={message.imageUrl}
               alt="Upload técnico"
-              className="max-h-56 object-contain rounded"
+              className="max-h-60 object-contain rounded"
               referrerPolicy="no-referrer"
             />
             <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 font-mono text-[9px] text-[#00F5FF] border border-[#00F5FF]/40">
@@ -323,19 +315,19 @@ const ChatMessageItem = memo<{
           </div>
         )}
 
-        {message.sender === 'user' ? (
+        {isUser ? (
           <div
-            className="leading-relaxed whitespace-pre-wrap font-sans text-slate-100"
+            className="whitespace-pre-wrap font-sans text-slate-100 tracking-wide text-xs sm:text-sm"
             style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
           >
             {message.text}
           </div>
         ) : (
-          <div className="leading-relaxed text-slate-100">
+          <div className="text-slate-100">
             {message.text ? (
               <div
                 className="sara-markdown max-w-none text-slate-100"
-                style={{ fontSize: `${fontSize}px`, lineHeight: 1.65 }}
+                style={{ fontSize: `${fontSize}px`, lineHeight: 1.75 }}
               >
                 <ReactMarkdown
                   remarkPlugins={MARKDOWN_REMARK_PLUGINS}
@@ -346,20 +338,21 @@ const ChatMessageItem = memo<{
                 </ReactMarkdown>
               </div>
             ) : isThinkingThisMessage ? (
-              <div className="flex items-center gap-3 py-2 text-[#00F5FF] font-mono text-xs">
-                <Loader2 className="w-4 h-4 animate-spin text-[#00F5FF]" />
+              <div className="flex items-center gap-3 py-3 text-[#00F5FF] font-mono text-xs sm:text-sm">
+                <Loader2 className="w-4 h-4 animate-spin text-[#00F5FF] shrink-0" />
                 <span className="tracking-wide">Processando análise termodinâmica e cálculos de malha...</span>
               </div>
             ) : null}
           </div>
         )}
 
-        {/* Rodapé com timestamp e indicador de sinal elétrico */}
-        <div className="flex items-center justify-between text-[10px] font-mono text-cyan-400/60 pt-1 border-t border-[#00F5FF]/10">
-          <span className="text-[9px] tracking-tight text-[#00F5FF]/50 flex items-center gap-1">
-            <span className="w-1 h-1 bg-[#00F5FF]/60 rounded-full" />
-            SINAL ESTÁVEL
-          </span>
+        <div className={`flex items-center ${isUser ? 'justify-end' : 'justify-between'} text-[9px] font-mono text-cyan-400/60 pt-1.5 mt-1 border-t border-[#00F5FF]/10`}>
+          {!isUser && (
+            <span className="tracking-tight text-[#00F5FF]/60 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-[#00F5FF] rounded-full shadow-[0_0_6px_#00F5FF]" />
+              SINAL ESTÁVEL
+            </span>
+          )}
           <span>{message.timestamp}</span>
         </div>
       </div>
@@ -378,17 +371,23 @@ const ChatMessageItem = memo<{
 
 ChatMessageItem.displayName = 'ChatMessageItem';
 
-// Lista de mensagens isolada e memoizada com grid elétrico
-const ChatMessagesList = memo<{
+interface ChatMessagesListProps {
   messages: Message[];
   isThinking: boolean;
-  thinkingStatus?: string;
   userName: string;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   fontSize: number;
-}>(({ messages, isThinking, thinkingStatus, userName, messagesEndRef, fontSize }) => {
+}
+
+// Lista de mensagens tipada corretamente, eliminando erro de compilação
+const ChatMessagesList = memo(function ChatMessagesList({
+  messages,
+  isThinking,
+  messagesEndRef,
+  fontSize
+}: ChatMessagesListProps) {
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 cyber-electric-viewport cyber-custom-scrollbar">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 space-y-3 cyber-electric-viewport cyber-custom-scrollbar w-full max-w-full">
       {messages.map((m, idx) => {
         const isLastSara = m.sender === 'sara' && idx === messages.length - 1;
         return (
@@ -401,17 +400,6 @@ const ChatMessagesList = memo<{
         );
       })}
 
-      {isThinking && (
-        <div className="flex items-center gap-3 p-3.5 bg-[#030914]/95 border-2 border-[#00F5FF]/50 rounded-xl shadow-[0_0_20px_rgba(0,245,255,0.2)] text-xs text-cyan-200 max-w-md animate-pulse">
-          <Loader2 className="w-4 h-4 text-[#00F5FF] animate-spin shrink-0" />
-          <div className="font-mono flex-1">
-            <p className="text-[10px] text-[#00F5FF] font-black uppercase tracking-wider">A COMPUTAR RESPOSTA</p>
-            <p className="text-[11px] text-slate-300">{thinkingStatus || `Sara IA a processar para ${userName}...`}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Âncora invisível para o auto-scroll */}
       <div ref={messagesEndRef} />
     </div>
   );
@@ -419,7 +407,6 @@ const ChatMessagesList = memo<{
 
 ChatMessagesList.displayName = 'ChatMessagesList';
 
-// Barra de entrada isolada estilo Consola de Campo Eletrotécnica
 interface ChatInputFormProps {
   onSend: (text: string, image: { base64: string; mimeType: string; preview: string } | null) => void;
   isThinking: boolean;
@@ -486,10 +473,10 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
   };
 
   return (
-    <>
+    <div className="w-full shrink-0 overflow-x-hidden">
       {/* Imagem Técnica Anexada */}
       {selectedImage && (
-        <div className="px-4 py-2 bg-[#020610] border-t-2 border-[#00F5FF]/30 flex items-center justify-between">
+        <div className="px-4 py-2 bg-[#020610] border-t-2 border-[#00F5FF]/30 flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <div className="relative">
               <img
@@ -517,7 +504,7 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
 
       {/* Input de Comando ou Bloqueio por Selo */}
       {!hasAccess ? (
-        <div className="p-4 bg-[#030814] text-white border-t-2 border-[#00F5FF]/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="p-4 bg-[#030814] text-white border-t-2 border-[#00F5FF]/30 flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-3 text-xs text-slate-300">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
               <Lock className="w-5 h-5" />
@@ -546,7 +533,7 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="p-3 sm:p-4 bg-[#030814] border-t-2 border-[#00F5FF]/30 flex items-center gap-2 relative">
+        <form onSubmit={handleSubmit} className="p-3 sm:p-4 bg-[#030814] border-t-2 border-[#00F5FF]/30 flex items-center gap-2 relative w-full">
           <input
             type="file"
             ref={fileInputRef}
@@ -581,7 +568,7 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
             <ImageIcon className="w-4 h-4" />
           </button>
 
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#00F5FF]/60 font-mono text-xs font-bold pointer-events-none select-none">
               &gt;
             </span>
@@ -590,7 +577,7 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
               type="text"
               value={inputText}
               onChange={e => setInputText(e.target.value)}
-              placeholder={`Digite um comando, cálculo ou anexe foto, ${userName}...`}
+              placeholder={`Digite algo ou anexe uma foto, ${userName}...`}
               className="w-full pl-8 pr-4 py-2.5 bg-[#02050E] border-2 border-[#00F5FF]/25 focus:border-[#00F5FF] focus:ring-1 focus:ring-[#00F5FF] focus:shadow-[0_0_15px_rgba(0,245,255,0.25)] text-white placeholder-slate-400 rounded-lg text-xs sm:text-sm outline-none transition font-sans"
             />
           </div>
@@ -599,24 +586,26 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
             type="submit"
             disabled={(!inputText.trim() && !selectedImage) || isThinking}
             className="p-2.5 bg-gradient-to-r from-[#0077FE] to-[#00F5FF] hover:brightness-110 disabled:opacity-30 disabled:brightness-100 text-slate-950 font-black rounded-lg transition shadow-[0_0_15px_rgba(0,245,255,0.4)] shrink-0 cursor-pointer flex items-center justify-center"
-            title="Enviar para análise"
+            title="Enviar comando"
           >
             <Send className="w-4 h-4 stroke-[3]" />
           </button>
         </form>
       )}
-    </>
+    </div>
   );
 }));
 
 ChatInputForm.displayName = 'ChatInputForm';
 
 export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoToSettings }) => {
-  const { currentUser, isClient, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
+  const { currentUser, isClient, isTechnician, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
   const [showSeloModal, setShowSeloModal] = useState(false);
 
-  const roleStr = String(currentUser?.role || '');
-  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+  // Cast seguro de usuário para garantir ausência de erros de TS
+  const authUser = currentUser as any;
+  const roleStr = String(authUser?.role || '');
+  const tipoStr = String(authUser?.tipoConta || authUser?.tipo || authUser?.userType || '');
 
   const isClientUser = Boolean(
     isClient ||
@@ -635,9 +624,9 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     )
   );
 
-  const hasAccess = isAdmin || (isTechnicianUser && (temSeloMZ || isSubscriptionActive));
-  const userName = currentUser?.name || 'Técnico';
-  const storageKey = `sara_chat_history_${currentUser?.uid || 'guest'}`;
+  const hasAccess = Boolean(isAdmin || (isTechnicianUser && (temSeloMZ || authUser?.isSubscriptionActive || isSubscriptionActive)));
+  const userName = authUser?.name || 'Técnico';
+  const storageKey = `sara_chat_history_${authUser?.uid || 'guest'}`;
 
   const getInitialGreeting = useCallback(() => {
     return `Olá ${userName}, Sou Eng.Sara IA da TécnicaMZ Pro! Precisa de ajuda?`;
@@ -729,7 +718,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     return DEFAULT_FONT_SIZE;
   });
 
-  const [thinkingStatus, setThinkingStatus] = useState<string>('');
   const [activeAcademyContext, setActiveAcademyContext] = useState<ActiveAcademyContext | null>(null);
 
   useEffect(() => {
@@ -867,17 +855,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     ]);
 
     saveMessagesToStorage(updatedHistory);
-
     setIsThinking(true);
-    setThinkingStatus(`Eng. Sara IA a formular resposta técnica para ${userName}...`);
-
-    const delayTimer = setTimeout(() => {
-      setThinkingStatus('A consultar normas técnicas e cálculos em Meticais... Obrigado por aguardar um instante.');
-    }, 4500);
-
-    const highDemandTimer = setTimeout(() => {
-      setThinkingStatus('A rede está sob alta demanda momentânea. A Eng. Sara IA está a finalizar o seu parecer técnico...');
-    }, 9000);
 
     try {
       const recentHistory = updatedHistory.slice(-6);
@@ -900,7 +878,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
       });
 
       let systemInstructionText = `Você é a Eng. Sara IA da TécnicaMZ Pro em Moçambique. Sempre formate suas respostas técnicas utilizando tabelas em Markdown, destaques em negrito usando asteriscos (**exemplo**), listas organizadas e equações em LaTeX para fórmulas e cálculos de engenharia.
-Você está conversando com o usuário: ${userName} (Perfil: ${currentUser?.role || 'Técnico'}).
+Você está conversando com o usuário: ${userName} (Perfil: ${authUser?.role || 'Técnico'}).
 IMPORTANTE: Trate o usuário pelo nome real dele ("${userName}") durante a conversa de forma natural e amigável.
 Responda em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
 Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais longas a cada mensagem.`;
@@ -930,75 +908,63 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           if (streamSuccess) break;
           const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
 
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-              const response = await fetch(STREAM_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: contentsPayload,
-                  system_instruction: {
-                    parts: [{ text: systemInstructionText }]
-                  }
-                })
-              });
-
-              if (response.status === 503 || response.status === 429 || response.status === 500) {
-                if (attempt < 3) {
-                  const backoffMs = Math.min(800 * Math.pow(2, attempt - 1), 3000);
-                  await new Promise(r => setTimeout(r, backoffMs));
-                  continue;
+          try {
+            const response = await fetch(STREAM_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: contentsPayload,
+                system_instruction: {
+                  parts: [{ text: systemInstructionText }]
                 }
-              }
+              })
+            });
 
-              if (!response.ok) {
-                throw new Error('Falha temporária');
-              }
-
-              const reader = response.body?.getReader();
-              const decoder = new TextDecoder('utf-8');
-
-              if (reader) {
-                setIsThinking(false);
-                let buffer = '';
-
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-
-                  buffer += decoder.decode(value, { stream: true });
-                  const lines = buffer.split('\n');
-                  buffer = lines.pop() || '';
-
-                  for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                      const jsonString = line.replace('data: ', '').trim();
-                      if (!jsonString) continue;
-
-                      try {
-                        const parsed = JSON.parse(jsonString);
-                        const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                        if (chunkText) {
-                          fullText += chunkText;
-
-                          setMessages(prev =>
-                            prev.map(msg =>
-                              msg.id === saraMessageId ? { ...msg, text: fullText } : msg
-                            )
-                          );
-                        }
-                      } catch {}
-                    }
-                  }
-                }
-                streamSuccess = true;
-                break;
-              }
-            } catch {
-              if (attempt < 3) {
-                await new Promise(r => setTimeout(r, 1000 * attempt));
-              }
+            if (!response.ok) {
+              continue;
             }
+
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder('utf-8');
+
+            if (reader) {
+              setIsThinking(false);
+              let buffer = '';
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const jsonString = line.replace('data: ', '').trim();
+                    if (!jsonString) continue;
+
+                    try {
+                      const parsed = JSON.parse(jsonString);
+                      const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                      if (chunkText) {
+                        fullText += chunkText;
+
+                        setMessages(prev =>
+                          prev.map(msg =>
+                            msg.id === saraMessageId ? { ...msg, text: fullText } : msg
+                          )
+                        );
+                      }
+                    } catch {}
+                  }
+                }
+              }
+              streamSuccess = true;
+              break;
+            }
+          } catch {
+            continue;
           }
         }
       }
@@ -1014,7 +980,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
                 parts: [{ text: systemInstructionText }]
               },
               userName,
-              userRole: currentUser?.role || 'Técnico'
+              userRole: authUser?.role || 'Técnico'
             })
           });
 
@@ -1047,11 +1013,11 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
 
       if (isFirebaseConfigured && db) {
         try {
-          const convoId = `ai_chat_${currentUser?.uid || 'client'}_${Date.now()}`;
+          const convoId = `ai_chat_${authUser?.uid || 'client'}_${Date.now()}`;
           await setDoc(doc(db, 'ai_conversations', convoId), {
-            userId: currentUser?.uid || 'guest',
+            userId: authUser?.uid || 'guest',
             userName: userName,
-            userRole: currentUser?.role || 'client',
+            userRole: authUser?.role || 'client',
             userPrompt: trimmedText || 'Análise de Imagem Técnica',
             aiReply: fullText,
             hasImage: !!currentImg,
@@ -1079,17 +1045,14 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
 
       saveMessagesToStorage([...updatedHistory, finalErrorMsg]);
     } finally {
-      clearTimeout(delayTimer);
-      clearTimeout(highDemandTimer);
       setIsThinking(false);
-      setThinkingStatus('');
     }
   };
 
   return (
     <div
       id="sara_ai_modal_overlay"
-      className={`modal-useful-fullscreen-overlay dark-modal !bg-[#020610] ${
+      className={`modal-useful-fullscreen-overlay dark-modal !bg-[#020610] overflow-x-hidden ${
         isExpandedWorkbench ? 'sara-workbench-fullscreen' : ''
       }`}
     >
@@ -1097,22 +1060,22 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
 
       <div
         id="sara_ai_modal_window"
-        className="modal-useful-fullscreen-window cyber-electric-viewport text-slate-100 flex flex-col h-full overflow-hidden animate-in fade-in duration-200"
+        className="modal-useful-fullscreen-window cyber-electric-viewport text-slate-100 flex flex-col h-full overflow-x-hidden w-full max-w-full animate-in fade-in duration-200"
       >
         {/* Cabeçalho Terminal HUD Industrial Elétrico */}
-        <div className="bg-[#030914] text-white p-3 sm:p-4 flex items-center justify-between border-b-2 border-[#00F5FF]/40 shadow-[0_4px_25px_rgba(0,245,255,0.15)] shrink-0 sticky top-0 z-10">
-          <div className="flex items-center gap-2.5 sm:gap-3.5">
+        <div className="bg-[#030914] text-white p-3 sm:p-4 flex items-center justify-between border-b-2 border-[#00F5FF]/40 shadow-[0_4px_25px_rgba(0,245,255,0.15)] shrink-0 sticky top-0 z-10 w-full overflow-x-hidden">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
             <button
               onClick={handleClose}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-[#051429] hover:bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/40 transition flex items-center gap-1.5 text-xs font-mono font-bold cursor-pointer"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-[#051429] hover:bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/40 transition flex items-center gap-1.5 text-xs font-mono font-bold cursor-pointer shrink-0"
               title="Sair / Desconectar Terminal"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">SAIR</span>
             </button>
 
-            <div className="relative">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-gradient-to-br from-[#051124] to-[#0A254C] border-2 border-[#00F5FF] text-[#00F5FF] flex items-center justify-center shadow-[0_0_20px_rgba(0,245,255,0.4)] shrink-0">
+            <div className="relative shrink-0">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-gradient-to-br from-[#051124] to-[#0A254C] border-2 border-[#00F5FF] text-[#00F5FF] flex items-center justify-center shadow-[0_0_20px_rgba(0,245,255,0.4)]">
                 <Sparkles className="w-5 h-5 animate-pulse text-[#00F5FF]" />
               </div>
               <span className="absolute -top-1 -right-1 flex h-3 w-3">
@@ -1121,16 +1084,16 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
               </span>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black text-white tracking-wider font-mono uppercase flex items-center gap-1.5">
+                <h3 className="text-sm sm:text-base font-black text-white tracking-wider font-mono uppercase flex items-center gap-1.5 truncate">
                   Sara IA
-                  <span className="px-1.5 py-0.2 rounded bg-[#00F5FF] text-slate-950 font-mono text-[10px] font-black tracking-widest">
+                  <span className="px-1.5 py-[1px] rounded bg-[#00F5FF] text-slate-950 font-mono text-[10px] font-black tracking-widest shrink-0">
                     PRO
                   </span>
                 </h3>
               </div>
-              <div className="flex items-center gap-2 text-[10px] font-mono text-cyan-300">
+              <div className="flex items-center gap-2 text-[10px] font-mono text-cyan-300 truncate">
                 <span className="text-[#00F5FF] font-black animate-pulse">⚡ 230V / 50Hz</span>
                 <span>•</span>
                 <span className="text-slate-400">EDM GRID SYNCHRONIZED</span>
@@ -1138,7 +1101,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* BOTÃO BANCADA EXPANDIDA 100% / PAISAGEM */}
             <button
               type="button"
@@ -1209,7 +1172,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
 
         {/* Banner de Contexto Ativo da Academia Técnica */}
         {activeAcademyContext && (
-          <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-[#030914] via-[#081C38] to-[#030914] border-b border-[#00F5FF]/30 flex items-center justify-between gap-2 text-xs shrink-0 shadow-inner">
+          <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-[#030914] via-[#081C38] to-[#030914] border-b border-[#00F5FF]/30 flex items-center justify-between gap-2 text-xs shrink-0 shadow-inner w-full overflow-x-hidden">
             <div className="flex items-center gap-2 min-w-0 font-mono">
               <span className="w-2 h-2 rounded-full bg-[#00F5FF] shadow-[0_0_8px_#00F5FF] animate-pulse shrink-0" />
               <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/40 shrink-0">
@@ -1227,25 +1190,26 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
 
         {/* Minha Academia Técnica IEC / EN */}
         {isTechnicianUser && (
-          <SaraAcademyCard
-            currentUser={currentUser}
-            onAskSara={(promptText) => {
-              chatInputRef.current?.setInputText('');
-              chatInputRef.current?.focus();
-              scrollToBottom();
+          <div className="w-full shrink-0 overflow-x-hidden">
+            <SaraAcademyCard
+              currentUser={currentUser}
+              onAskSara={(promptText) => {
+                chatInputRef.current?.setInputText('');
+                chatInputRef.current?.focus();
+                scrollToBottom();
 
-              setTimeout(() => {
-                handleSend(promptText, null);
-              }, 100);
-            }}
-          />
+                setTimeout(() => {
+                  handleSend(promptText, null);
+                }, 50);
+              }}
+            />
+          </div>
         )}
 
-        {/* Feed de Mensagens com Grid Elétrico */}
+        {/* Feed de Mensagens Firme (Sara Ampla / Usuário Compacto) */}
         <ChatMessagesList
           messages={messages}
           isThinking={isThinking}
-          thinkingStatus={thinkingStatus}
           userName={userName}
           messagesEndRef={messagesEndRef}
           fontSize={chatFontSize}
