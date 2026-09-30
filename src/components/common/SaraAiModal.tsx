@@ -825,7 +825,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
   };
 
-  // Motor de envio corrigido de acordo com a especificação do Google AI Studio
+  // Motor de envio rápido, direto e blindado contra erros da API Gemini
   const handleSend = async (userText: string, currentImg: { base64: string; mimeType: string; preview: string } | null) => {
     const trimmedText = userText.trim();
     if ((!trimmedText && !currentImg) || isThinking) return;
@@ -857,16 +857,20 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     setIsThinking(true);
 
     try {
-      // CORREÇÃO CRUCIAL (REGRA DA GOOGLE AI STUDIO):
-      // A API do Gemini EXIGE que o histórico comece obrigatoriamente com a vez do utilizador ('user').
-      // Filtramos mensagens iniciais do sistema para nunca começar com 'model'.
-      const rawHistory = updatedHistory.slice(-8);
-      const firstUserIndex = rawHistory.findIndex(m => m.sender === 'user');
-      const validTurnHistory = firstUserIndex !== -1 ? rawHistory.slice(firstUserIndex) : [userMsg];
+      // 1. HIGIENIZAÇÃO RIGOROSA DE TURNOS:
+      // A Google proíbe começar com 'model' e proíbe dois 'user' seguidos.
+      // Esta função monta a estrutura perfeita aceita pelo Gemini 100% das vezes:
+      const cleanHistory = updatedHistory
+        .filter(m => m.text && m.text.trim().length > 0 && !m.text.includes('demorou a responder') && !m.text.includes('Por favor, envie'));
 
-      const contentsPayload = validTurnHistory.map((m) => {
+      const firstUserIdx = cleanHistory.findIndex(m => m.sender === 'user');
+      const usableHistory = firstUserIdx !== -1 ? cleanHistory.slice(firstUserIdx) : [userMsg];
+
+      const contentsPayload: Array<{ role: 'user' | 'model'; parts: any[] }> = [];
+
+      for (const m of usableHistory) {
         const role = m.sender === 'user' ? 'user' : 'model';
-        const parts: any[] = [{ text: m.text || ' ' }];
+        const parts: any[] = [{ text: m.text }];
 
         if (m.id === userMessageId && currentImg) {
           const pureBase64 = currentImg.base64.replace(/^data:image\/\w+;base64,/, '');
@@ -878,8 +882,21 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
           });
         }
 
-        return { role, parts };
-      });
+        // Se houver dois turnos iguais consecutivos, funde os textos para nunca gerar erro 400
+        if (contentsPayload.length > 0 && contentsPayload[contentsPayload.length - 1].role === role) {
+          contentsPayload[contentsPayload.length - 1].parts[0].text += `\n${m.text}`;
+        } else {
+          contentsPayload.push({ role, parts });
+        }
+      }
+
+      // Garante que o último turno é sempre a mensagem atual do utilizador
+      if (contentsPayload.length === 0 || contentsPayload[contentsPayload.length - 1].role !== 'user') {
+        contentsPayload.push({
+          role: 'user',
+          parts: [{ text: trimmedText || 'Analise a imagem.' }]
+        });
+      }
 
       let systemInstructionText = `Você é a Eng. Sara IA da TécnicaMZ Pro em Moçambique. Sempre formate suas respostas técnicas utilizando tabelas em Markdown, destaques em negrito usando asteriscos (**exemplo**), listas organizadas e equações em LaTeX para fórmulas e cálculos de engenharia.
 Você está conversando com o usuário: ${userName} (Perfil: ${authUser?.role || 'Técnico'}).
@@ -905,112 +922,42 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
       let fullText = '';
 
       if (GEMINI_API_KEY) {
-        // Modelos oficiais ativos do Google AI Studio
-        const modelsToTry = [
-          'gemini-1.5-flash',
-          'gemini-2.0-flash',
-          'gemini-flash-latest'
-        ];
+        // Modelos oficiais mais velozes do Google AI Studio
+        const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
 
-        // 1ª TENTATIVA: Streaming rápido (idêntico ao AI Studio)
-        for (const modelName of modelsToTry) {
+        // 2. DISPARO DIRETO ULTRA-RÁPIDO (SEM TRAVAMENTO DE STREAMING EM DADOS MÓVEIS):
+        for (const model of models) {
           if (fullText.trim()) break;
 
           try {
-            const STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
-            const response = await fetch(STREAM_URL, {
+            const DIRECT_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+            const directRes = await fetch(DIRECT_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contents: contentsPayload,
                 system_instruction: {
                   parts: [{ text: systemInstructionText }]
+                },
+                generationConfig: {
+                  temperature: 0.35,
+                  maxOutputTokens: 2048
                 }
               })
             });
 
-            if (!response.ok) {
-              continue;
-            }
-
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder('utf-8');
-
-            if (reader) {
-              setIsThinking(false);
-              let buffer = '';
-
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                  if (line.startsWith('data: ')) {
-                    const jsonString = line.replace('data: ', '').trim();
-                    if (!jsonString) continue;
-
-                    try {
-                      const parsed = JSON.parse(jsonString);
-                      const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                      if (chunkText) {
-                        fullText += chunkText;
-
-                        setMessages(prev =>
-                          prev.map(msg =>
-                            msg.id === saraMessageId ? { ...msg, text: fullText } : msg
-                          )
-                        );
-                      }
-                    } catch {}
-                  }
-                }
-              }
-
-              if (fullText.trim().length > 0) {
-                break;
-              }
+            if (directRes.ok) {
+              const data = await directRes.json();
+              fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              if (fullText.trim()) break;
             }
           } catch {
             continue;
           }
         }
-
-        // 2ª TENTATIVA: Chamada direta unificada (Se o streaming do browser for bloqueado)
-        if (!fullText.trim()) {
-          for (const fallbackModel of modelsToTry) {
-            if (fullText.trim()) break;
-
-            try {
-              const DIRECT_URL = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${GEMINI_API_KEY}`;
-              const directRes = await fetch(DIRECT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: contentsPayload,
-                  system_instruction: {
-                    parts: [{ text: systemInstructionText }]
-                  }
-                })
-              });
-
-              if (directRes.ok) {
-                const directData = await directRes.json();
-                fullText = directData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                if (fullText.trim()) {
-                  setIsThinking(false);
-                  break;
-                }
-              }
-            } catch {}
-          }
-        }
       }
 
-      // 3ª TENTATIVA: Proxy local caso exista
+      // 3. Fallback de contingência local se o acesso direto não responder
       if (!fullText.trim()) {
         try {
           const proxyRes = await fetch('/api/sara', {
@@ -1034,7 +981,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
       }
 
       if (!fullText.trim()) {
-        fullText = 'Eng.ª Sara IA pronta. Por favor, envie novamente a sua dúvida técnica para análise.';
+        fullText = 'Eng.ª Sara IA pronta. Por favor, envie novamente a sua dúvida técnica para análise imediata.';
       }
 
       const finalSaraMsg: Message = {
@@ -1069,7 +1016,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         }
       }
     } catch {
-      const friendlyErrorMsgText = 'Eng.ª Sara IA pronta. Por favor, envie novamente a sua dúvida técnica para análise.';
+      const friendlyErrorMsgText = 'Eng.ª Sara IA pronta. Por favor, envie novamente a sua dúvida técnica para análise imediata.';
 
       const finalErrorMsg: Message = {
         id: saraMessageId,
