@@ -1,3 +1,9 @@
+// ============================================================================
+// TÉCNICAMZ PRO — MOTOR WORKBENCH CAD SIMULATOR (V25)
+// Simulação Física MNA, Telemetria True-RMS, Animação Contínua & Fiação IEC/DIN
+// Suporte a Rotação de Tela Mobile (Horizontal/Landscape) e Telemetria em Tempo Real
+// ============================================================================
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CadCircuitProject } from '../../types';
 import { soundFX } from '../../utils/audio';
@@ -13,7 +19,10 @@ import {
   generateFourWayLightingCircuit,
   generateQgdProtectionCircuit,
   generateSolarPVIsoCircuit,
-  ComponentDef
+  ComponentDef,
+  OUTLET_APPLIANCES,
+  OutletApplianceType,
+  APPLIANCE_PRESETS
 } from './cadEngine';
 import {
   Busbar,
@@ -77,7 +86,8 @@ import {
   Power,
   RotateCcw,
   ZapOff,
-  Shield
+  Shield,
+  Thermometer
 } from 'lucide-react';
 import { CadVoiceDiagnosticPanel } from './CadVoiceDiagnosticPanel';
 import { simulatorDiagnostics, DiagnosticEngineState } from '../../services/simulatorVoiceDiagnostics';
@@ -157,6 +167,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   const [hoveredTerminalId, setHoveredTerminalId] = useState<string | null>(null);
   const [isPanelConfigOpen, setIsPanelConfigOpen] = useState<boolean>(false);
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [isThermalMode, setIsThermalMode] = useState<boolean>(false);
+
+  // ESTADO DE ROTAÇÃO HORIZONTAL (MOBILE / TABLET)
+  const [isLandscape, setIsLandscape] = useState<boolean>(false);
 
   const [showLibrary, setShowLibrary] = useState<boolean>(true);
   const [showProps, setShowProps] = useState<boolean>(false);
@@ -212,6 +226,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     firedAlertsSet: Set<string>;
     pointerWorld: { x: number; y: number } | null;
     energizedBusbars: Set<string>;
+    lastPhysResult: any;
   }>({
     time: 0,
     lastTick: performance.now(),
@@ -228,7 +243,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     motorRpm: 0,
     firedAlertsSet: new Set(),
     pointerWorld: null,
-    energizedBusbars: new Set()
+    energizedBusbars: new Set(),
+    lastPhysResult: null
   });
 
   const projectRef = useRef(project);
@@ -240,6 +256,11 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
+
+  const isThermalModeRef = useRef(isThermalMode);
+  useEffect(() => {
+    isThermalModeRef.current = isThermalMode;
+  }, [isThermalMode]);
 
   const selectedCompIdRef = useRef(selectedCompId);
   useEffect(() => {
@@ -328,6 +349,118 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
   const AUTOSAVE_STORAGE_KEY = 'tecnicamz_cad_autosave';
 
+  const handleFit = useCallback(() => {
+    const canvas = canvasRef.current;
+    const curProj = projectRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    if (curProj.components.length === 0 && (!curProj.busbars || curProj.busbars.length === 0)) {
+      cameraRef.current.zoom = 1;
+      cameraRef.current.pan = { x: rect.width / 4, y: rect.height / 4 };
+      return;
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    curProj.components.forEach(c => {
+      const w = c.w || 90;
+      const h = c.h || 75;
+      minX = Math.min(minX, c.x - w / 2);
+      maxX = Math.max(maxX, c.x + w / 2);
+      minY = Math.min(minY, c.y - h / 2);
+      maxY = Math.max(maxY, c.y + h / 2);
+    });
+
+    (curProj.busbars || []).forEach(b => {
+      const isH = b.orientation === 'horizontal';
+      const halfL = (b.length || 600) / 2;
+      const halfH = (b.type === 'din' ? 35 : 14) / 2;
+      minX = Math.min(minX, b.x - (isH ? halfL : halfH));
+      maxX = Math.max(maxX, b.x + (isH ? halfL : halfH));
+      minY = Math.min(minY, b.y - (isH ? halfH : halfL));
+      maxY = Math.max(maxY, b.y + (isH ? halfH : halfL));
+    });
+
+    if (curProj.panelConfig?.enabled) {
+      const halfW = curProj.panelConfig.width / 2;
+      const halfH = curProj.panelConfig.height / 2;
+      const px = curProj.panelConfig.x || 0;
+      const py = curProj.panelConfig.y || 0;
+      minX = Math.min(minX, px - halfW);
+      maxX = Math.max(maxX, px + halfW);
+      minY = Math.min(minY, py - halfH);
+      maxY = Math.max(maxY, py + halfH);
+    }
+
+    const padding = 100;
+    const w = Math.max(250, maxX - minX + padding * 2);
+    const h = Math.max(250, maxY - minY + padding * 2);
+    const z = Math.max(0.25, Math.min(1.4, Math.min(rect.width / w, rect.height / h)));
+
+    cameraRef.current.zoom = z;
+    cameraRef.current.pan = {
+      x: rect.width / 2 - ((minX + maxX) / 2) * z,
+      y: rect.height / 2 - ((minY + maxY) / 2) * z
+    };
+  }, []);
+
+  // FUNÇÃO DE ROTAÇÃO DA TELA (MOBILE LANDSCAPE)
+  const handleToggleOrientation = async () => {
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen().catch(() => {});
+      }
+
+      if (screen.orientation && typeof (screen.orientation as any).lock === 'function') {
+        const isCurrentLandscape = screen.orientation.type.includes('landscape');
+        if (!isCurrentLandscape) {
+          await (screen.orientation as any).lock('landscape').catch(() => {});
+          setIsLandscape(true);
+          showToast('Tela rotacionada para Horizontal (Paisagem)');
+        } else {
+          if (typeof (screen.orientation as any).unlock === 'function') {
+            (screen.orientation as any).unlock();
+          }
+          if (document.fullscreenElement && document.exitFullscreen) {
+            await document.exitFullscreen().catch(() => {});
+          }
+          setIsLandscape(false);
+          showToast('Tela retornada para Vertical');
+        }
+      } else {
+        const nextState = !isLandscape;
+        setIsLandscape(nextState);
+        showToast(nextState ? 'Modo Horizontal ativado' : 'Modo Vertical ativado');
+      }
+
+      setTimeout(handleFit, 300);
+    } catch (err) {
+      console.warn('Erro ao alternar orientação:', err);
+      showToast('Gire o dispositivo para tela cheia');
+    }
+  };
+
+  useEffect(() => {
+    const handleOrientationChange = () => {
+      const isLand = window.innerWidth > window.innerHeight || (screen.orientation && screen.orientation.type.includes('landscape'));
+      setIsLandscape(Boolean(isLand));
+      setTimeout(handleFit, 200);
+    };
+
+    window.addEventListener('resize', handleOrientationChange);
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', handleOrientationChange);
+    }
+    return () => {
+      window.removeEventListener('resize', handleOrientationChange);
+      if (screen.orientation) {
+        screen.orientation.removeEventListener('change', handleOrientationChange);
+      }
+    };
+  }, [handleFit]);
+
   useEffect(() => {
     if (initialCircuit?.cadData?.components && initialCircuit.cadData.components.length > 0) {
       const loadedProj = {
@@ -397,64 +530,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       console.warn('Falha no auto-save:', err);
     }
   }, [project]);
-
-  const handleFit = useCallback(() => {
-    const canvas = canvasRef.current;
-    const curProj = projectRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-
-    if (curProj.components.length === 0 && (!curProj.busbars || curProj.busbars.length === 0)) {
-      cameraRef.current.zoom = 1;
-      cameraRef.current.pan = { x: rect.width / 4, y: rect.height / 4 };
-      return;
-    }
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    curProj.components.forEach(c => {
-      const w = c.w || 90;
-      const h = c.h || 75;
-      minX = Math.min(minX, c.x - w / 2);
-      maxX = Math.max(maxX, c.x + w / 2);
-      minY = Math.min(minY, c.y - h / 2);
-      maxY = Math.max(maxY, c.y + h / 2);
-    });
-
-    (curProj.busbars || []).forEach(b => {
-      const isH = b.orientation === 'horizontal';
-      const halfL = (b.length || 600) / 2;
-      const halfH = (b.type === 'din' ? 35 : 14) / 2;
-      minX = Math.min(minX, b.x - (isH ? halfL : halfH));
-      maxX = Math.max(maxX, b.x + (isH ? halfL : halfH));
-      minY = Math.min(minY, b.y - (isH ? halfH : halfL));
-      maxY = Math.max(maxY, b.y + (isH ? halfH : halfL));
-    });
-
-    if (curProj.panelConfig?.enabled) {
-      const halfW = curProj.panelConfig.width / 2;
-      const halfH = curProj.panelConfig.height / 2;
-      const px = curProj.panelConfig.x || 0;
-      const py = curProj.panelConfig.y || 0;
-      minX = Math.min(minX, px - halfW);
-      maxX = Math.max(maxX, px + halfW);
-      minY = Math.min(minY, py - halfH);
-      maxY = Math.max(maxY, py + halfH);
-    }
-
-    const padding = 100;
-    const w = Math.max(250, maxX - minX + padding * 2);
-    const h = Math.max(250, maxY - minY + padding * 2);
-    const z = Math.max(0.25, Math.min(1.4, Math.min(rect.width / w, rect.height / h)));
-
-    cameraRef.current.zoom = z;
-    cameraRef.current.pan = {
-      x: rect.width / 2 - ((minX + maxX) / 2) * z,
-      y: rect.height / 2 - ((minY + maxY) / 2) * z
-    };
-    showToast('Circuito enquadrado');
-  }, [showToast]);
 
   const loadPreset = useCallback((type: 'motor' | 'four_way' | 'qgd' | 'solar' | 'new') => {
     pushHistory();
@@ -587,6 +662,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     else if (code === 'EARTH_PIT') { defaultW = 90; defaultH = 75; }
     else if (code === 'JUNCTION_BOX') { defaultW = 105; defaultH = 80; }
     else if (code === 'LAMP') { defaultW = 85; defaultH = 85; }
+    else if (['VM', 'AM', 'OHM', 'WM', 'FREQ', 'COS'].includes(code)) { defaultW = 92; defaultH = 82; }
 
     const newComp = {
       id: `${code}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1100,7 +1176,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                     'warn'
                   );
                 } else if (c.code === 'MTS_SWITCH') {
-                  // Manobra sequencial rotativa: 1 (Rede) -> 0 (Desligado/Isolado) -> 2 (Gerador) -> 1
                   const curPos = Number(params.position ?? 1);
                   let nextPos = 1;
                   if (curPos === 1) nextPos = 0;
@@ -1402,7 +1477,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   }, []);
 
   // ==========================================================================
-  // LOOP DE RENDERIZAÇÃO DO CANVAS 2D
+  // LOOP DE RENDERIZAÇÃO DO CANVAS 2D COM FÍSICA NODAL INTEGRADA
   // ==========================================================================
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1429,6 +1504,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       try {
         const dt = Math.min(0.1, (now - simRef.current.lastTick) / 1000);
         simRef.current.lastTick = now;
+
+        if (isRunningRef.current) {
+          simRef.current.time += dt;
+        }
 
         const rect = canvas.getBoundingClientRect();
         const w = rect.width;
@@ -1480,25 +1559,63 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           y: p.y * cam.zoom + cam.pan.y
         });
 
+        // 1. SOLUÇÃO DO MOTOR FÍSICO MNA NO INÍCIO DO FRAME
+        const physResult = solveCircuitPhysicsStep(
+          currentProj,
+          dt,
+          simRef.current.time,
+          isSimRunning
+        );
+        simRef.current.lastPhysResult = physResult;
+        simRef.current.energizedBusbars = new Set(physResult.energizedBusbarIds || []);
+
         // CAMADA 1: Moldura do Quadro
         if (currentProj.panelConfig?.enabled) {
           drawPanelEnclosure(ctx, cam, currentProj.panelConfig);
         }
 
-        // CAMADA 2: CONDUTORES (RENDERIZAÇÃO DE FLUXO REALISTA)
+        // CAMADA 2: CONDUTORES
+        const baseSystemV = physResult.mainVoltageRMS > 0 ? physResult.mainVoltageRMS : 230;
+
         (currentProj.wires || []).forEach((wire: any, wireIdx: number) => {
           const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, currentProj.components, currentProj.busbars || []);
           const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, currentProj.components, currentProj.busbars || []);
           const filletPath = calculateFilletManhattanPath(posA, posB, wireIdx, wire.waypoints);
           const isSelected = wire.id === selectedWireIdRef.current;
+          const isLive = isRunningRef.current && Boolean(wire.live);
+
+          let calculatedWireV = 0;
+          if (isLive) {
+            if (wire.type === 'PE' || wire.type === 'NU') {
+              calculatedWireV = 0;
+            } else if (wire.type === 'N') {
+              calculatedWireV = Number(wire.voltageDrop || 0.2);
+            } else if (wire.type === '24+' || wire.type === '24-') {
+              calculatedWireV = 24.0;
+            } else if (wire.type?.startsWith('L') || wire.type === 'CTRL') {
+              calculatedWireV = baseSystemV;
+            } else {
+              calculatedWireV = 230.0;
+            }
+          }
+          wire.voltage = calculatedWireV;
 
           renderCurvedWireBack(ctx, filletPath, {
             wireType: wire.type || 'L1',
             gauge: Number(wire.gauge || 2.5),
             cam,
-            isLive: isRunningRef.current && Boolean(wire.live),
-            isSelected,
+            isLive,
+            isSelected: isSelected || isThermalModeRef.current,
             isOverheated: Boolean(wire.overheated),
+            isSmoke: Boolean(wire.smoke),
+            isCarbonized: Boolean(wire.carbonized),
+            current: Number(wire.current || 0),
+            voltage: calculatedWireV,
+            temp: Number(wire.temp || 25),
+            smoke: Boolean(wire.smoke),
+            carbonized: Boolean(wire.carbonized),
+            voltageDrop: Number(wire.voltageDrop || 0),
+            frequency: Number(wire.frequency || (isLive ? (physResult.activeFrequency || 50.0) : 0.0)),
             animTick: simRef.current.time * 60,
             toScreen
           });
@@ -1514,7 +1631,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           simRef.current.energizedBusbars
         );
 
-        // CAMADA 4: DISPOSITIVOS ELÉTRICOS (Z-INDEX SUPERIOR AOS CONDUTORES)
+        // CAMADA 4: DISPOSITIVOS ELÉTRICOS
         currentProj.components.forEach(c => {
           const s = toScreen({ x: c.x, y: c.y });
           ctx.save();
@@ -1567,6 +1684,122 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           );
         });
 
+        // CAMADA 6: TELEMETRIA TÁTICA FLUTUANTE NO DISPOSITIVO SELECIONADO (ALTA RESOLUÇÃO)
+        if (selectedCompIdRef.current) {
+          const selectedC = (currentProj.components || []).find((item: any) => item.id === selectedCompIdRef.current);
+          if (selectedC) {
+            const s = toScreen({ x: selectedC.x, y: selectedC.y });
+            const sH = (selectedC.h || 75) * cam.zoom;
+            const hudY = s.y - sH / 2 - 18 * cam.zoom;
+
+            ctx.save();
+            const isEnergized = Boolean(selectedC.state?.energized || selectedC.state?.running);
+            const isTripped = Boolean(selectedC.state?.tripped);
+
+            let vValNum = Number(selectedC.state?.voltage || 0);
+            if (!vValNum && isEnergized) {
+              if (selectedC.code.includes('3PH') || selectedC.code === 'PUMP' || selectedC.code === 'GEN_DIESEL') {
+                vValNum = 400.0;
+              } else if (selectedC.code === 'BAT_LIFEPO4') {
+                vValNum = Number(selectedC.params?.voltage || 51.2);
+              } else if (selectedC.code === 'SRC_DC24') {
+                vValNum = 24.0;
+              } else {
+                vValNum = 230.0;
+              }
+            }
+
+            // CORRENTE REAL: Leitura com cálculo de contingência para motores e cargas
+            let currentNum = Number(selectedC.state?.current || 0);
+            if ((!currentNum || currentNum <= 0.001) && isEnergized) {
+              const pWatts = Number(selectedC.state?.powerW || (selectedC.state?.powerKW ? Number(selectedC.state.powerKW) * 1000 : 0) || selectedC.params?.power || 1500);
+              const pfRaw = selectedC.params?.pf ?? selectedC.params?.powerFactor ?? 0.85;
+              const pf = Number(String(pfRaw).replace(',', '.')) || 0.85;
+              const vEff = vValNum > 50 ? vValNum : 400;
+
+              if (selectedC.code.includes('3PH') || selectedC.code === 'PUMP' || selectedC.code === 'M3PH_6L' || selectedC.code === 'M3PH') {
+                currentNum = pWatts / (Math.sqrt(3) * vEff * pf);
+              } else if (selectedC.code === 'M1PH' || selectedC.code === 'FAN' || selectedC.code === 'LAMP' || selectedC.code === 'HEATER') {
+                currentNum = pWatts / (vValNum > 50 ? vValNum : 230);
+              } else if (selectedC.code === 'OUTLET') {
+                const outletP = Number(selectedC.params?.powerW || selectedC.params?.customPowerW || 0);
+                currentNum = outletP > 0 ? (outletP / 230) : Number(selectedC.params?.targetCurrent || 0);
+              }
+            }
+
+            if (selectedC.state && currentNum > 0) {
+              selectedC.state.current = Number(currentNum.toFixed(2));
+            }
+
+            let iFormatted = '0.00 A';
+            if (currentNum > 0 && currentNum < 1.0) {
+              iFormatted = `${(currentNum * 1000).toFixed(0)} mA (${currentNum.toFixed(3)}A)`;
+            } else {
+              iFormatted = `${currentNum.toFixed(2)} A`;
+            }
+
+            const pVal = selectedC.state?.powerW !== undefined
+              ? Number(selectedC.state.powerW).toFixed(0)
+              : selectedC.state?.powerKW !== undefined
+              ? (Number(selectedC.state.powerKW) * 1000).toFixed(0)
+              : (Number(selectedC.params?.power || 1500)).toFixed(0);
+
+            const hzVal = Number(selectedC.state?.frequency || (isEnergized ? (physResult.activeFrequency || 50.0) : 0)).toFixed(1);
+            const pfValRaw = selectedC.params?.pf ?? selectedC.params?.powerFactor ?? 0.85;
+            const pfVal = Number(String(pfValRaw).replace(',', '.')).toFixed(2);
+            const tempVal = Number(selectedC.state?.temp || 25.0).toFixed(1);
+
+            let statusTxt = `⚡ ${vValNum.toFixed(1)}V  |  ⌁ ${iFormatted}  |  ♨ ${pVal}W  |  ⏱ ${hzVal}Hz  |  cosφ ${pfVal}`;
+
+            if (isTripped) {
+              statusTxt = `⚠️ DISPARADO / BLOQUEADO  |  0.00 A  |  ${tempVal}°C`;
+            } else if (selectedC.state?.closed === false && !isEnergized) {
+              statusTxt = `○ CONTATO ABERTO  |  0.00 A  |  ${tempVal}°C`;
+            } else if (selectedC.code === 'M3PH' || selectedC.code === 'PUMP' || selectedC.code === 'M3PH_6L') {
+              const rpmVal = Math.round(Number(selectedC.state?.rpm) > 0 ? Number(selectedC.state?.rpm) : (isEnergized ? Number(selectedC.params?.rpm || 2920) : 0));
+              statusTxt = `⚡ ${vValNum.toFixed(0)}V 3~  |  ⌁ ${iFormatted}  |  ⚙ ${rpmVal} RPM  |  ♨ ${pVal}W  |  cosφ ${pfVal}`;
+            }
+
+            ctx.font = `bold ${Math.max(9, 11 * cam.zoom)}px 'Courier New', monospace`;
+            const textWidth = ctx.measureText(statusTxt).width;
+            const badgeW = textWidth + 18 * cam.zoom;
+            const badgeH = 22 * cam.zoom;
+
+            // Fundo holográfico escuro
+            ctx.fillStyle = 'rgba(3, 7, 18, 0.94)';
+            ctx.beginPath();
+            if (typeof (ctx as any).roundRect === 'function') {
+              (ctx as any).roundRect(s.x - badgeW / 2, hudY - badgeH / 2, badgeW, badgeH, 4 * cam.zoom);
+            } else {
+              ctx.rect(s.x - badgeW / 2, hudY - badgeH / 2, badgeW, badgeH);
+            }
+            ctx.fill();
+
+            // Borda com glow
+            ctx.strokeStyle = isTripped ? '#ef4444' : isEnergized ? '#10b981' : '#38bdf8';
+            ctx.lineWidth = 1.2 * cam.zoom;
+            ctx.shadowColor = ctx.strokeStyle;
+            ctx.shadowBlur = 8 * cam.zoom;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Ponta indicadora
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.beginPath();
+            ctx.moveTo(s.x - 4 * cam.zoom, hudY + badgeH / 2);
+            ctx.lineTo(s.x + 4 * cam.zoom, hudY + badgeH / 2);
+            ctx.lineTo(s.x, hudY + badgeH / 2 + 4 * cam.zoom);
+            ctx.fill();
+
+            // Texto de telemetria
+            ctx.fillStyle = '#f8fafc';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(statusTxt, s.x, hudY);
+            ctx.restore();
+          }
+        }
+
         // Fio em criação
         if (simRef.current.wireStart) {
           const startPos = getNodeWorldPos(
@@ -1591,6 +1824,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             isLive: false,
             isSelected: true,
             isOverheated: false,
+            voltage: 230,
             animTick: simRef.current.time * 60,
             toScreen
           });
@@ -1611,17 +1845,47 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           svgGroupRef.current.setAttribute('transform', `translate(${cam.pan.x}, ${cam.pan.y}) scale(${cam.zoom})`);
         }
 
-        // MOTOR FÍSICO MNA & PROPAGAÇÃO DE FLUXO
-        const physResult = solveCircuitPhysicsStep(
-          currentProj,
-          dt,
-          simRef.current.time,
-          isSimRunning
-        );
+        // MODO TERMOGRAFIA FLIR
+        if (isThermalModeRef.current) {
+          ctx.save();
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-        // Atualiza barramentos que estão realmente energizados pela fonte
-        simRef.current.energizedBusbars = new Set(physResult.energizedBusbarIds || []);
+          ctx.font = 'bold 12px "Courier New", monospace';
+          ctx.fillStyle = '#f97316';
+          ctx.shadowColor = '#ea580c';
+          ctx.shadowBlur = 6;
+          ctx.fillText('[ MODO TERMOGRAFIA FLIR ATIVO ]', 20, 28);
+          ctx.shadowBlur = 0;
 
+          const scaleX = w - 42;
+          const scaleY = 48;
+          const scaleW = 12;
+          const scaleH = 110;
+
+          const flirGrad = ctx.createLinearGradient(0, scaleY, 0, scaleY + scaleH);
+          flirGrad.addColorStop(0, '#ffffff');
+          flirGrad.addColorStop(0.2, '#ef4444');
+          flirGrad.addColorStop(0.5, '#f59e0b');
+          flirGrad.addColorStop(0.75, '#8b5cf6');
+          flirGrad.addColorStop(1, '#1e3a8a');
+
+          ctx.fillStyle = flirGrad;
+          ctx.fillRect(scaleX, scaleY, scaleW, scaleH);
+          ctx.strokeStyle = '#f97316';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(scaleX, scaleY, scaleW, scaleH);
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 8.5px monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText('150°C', scaleX - 4, scaleY + 8);
+          ctx.fillText('70°C', scaleX - 4, scaleY + scaleH * 0.5 + 3);
+          ctx.fillText('20°C', scaleX - 4, scaleY + scaleH);
+
+          ctx.restore();
+        }
+
+        // EVENTOS E ALERTAS
         if (physResult.hasDirectShort) {
           const faultKey = 'short_circuit_direct';
           if (!simRef.current.firedAlertsSet.has(faultKey)) {
@@ -1636,6 +1900,37 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           if (faultAlert && faultAlert.includes('Curto-Circuito')) {
             setFaultAlert(null);
           }
+        }
+
+        if (physResult.burnedIds && physResult.burnedIds.length > 0) {
+          physResult.burnedIds.forEach(id => {
+            const burnedKey = `burned_${id}`;
+            if (!simRef.current.firedAlertsSet.has(burnedKey)) {
+              simRef.current.firedAlertsSet.add(burnedKey);
+              soundFX.playShortCircuitSpark();
+              const comp = currentProj.components.find(c => c.id === id);
+              const compLabel = comp?.label || comp?.code || id;
+              const reason = comp?.state?.tripReason || 'Destruição por sobrecorrente / fusão';
+              setFaultAlert(`ALERTA: ${compLabel} QUEIMOU! (${reason})`);
+              addEvent(`${compLabel} QUEIMADO: ${reason}`, 'trip');
+            }
+          });
+        }
+
+        if (physResult.trippedIds && physResult.trippedIds.length > 0) {
+          physResult.trippedIds.forEach(id => {
+            const tripKey = `tripped_${id}`;
+            if (!simRef.current.firedAlertsSet.has(tripKey)) {
+              simRef.current.firedAlertsSet.add(tripKey);
+              soundFX.playBreakerSwitch(true);
+              const comp = currentProj.components.find(c => c.id === id);
+              const compLabel = comp?.label || comp?.code || id;
+              const reason = comp?.state?.tripReason === 'MAGNETIC_SHORT_CIRCUIT'
+                ? (comp?.state?.tripDetails || 'Disparo Magnético Instantâneo (Curto-Circuito)')
+                : (comp?.state?.tripReason || 'Disparo de proteção IEC 60898');
+              addEvent(`${compLabel} desarmou: ${reason}`, 'trip');
+            }
+          });
         }
 
         const kmComp = currentProj.components.find(c => c.code === 'CONTACTOR');
@@ -1678,7 +1973,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           }
         }
 
-        // Render do Osciloscópio
         if (showScopeRef.current && scopeCanvasRef.current && !isDraggingRef.current) {
           const sCanvas = scopeCanvasRef.current;
           const sCtx = sCanvas.getContext('2d');
@@ -1856,15 +2150,34 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
 
-    const cam = cameraRef.current;
-    const worldX = (px - cam.pan.x) / cam.zoom;
-    const worldY = (py - cam.pan.y) / cam.zoom;
-
+    // Cancela imediatamente qualquer temporizador anterior
     if (simRef.current.longPressTimer) {
       clearTimeout(simRef.current.longPressTimer);
       simRef.current.longPressTimer = null;
     }
     simRef.current.isLongPressTriggered = false;
+
+    // 1. PINCH-TO-ZOOM (2 DEDOS NO CELULAR)
+    if (simRef.current.touchMap.size === 2) {
+      setShowProps(false);
+      simRef.current.drag = null;
+      const touches = Array.from(simRef.current.touchMap.values());
+      const dist = Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY);
+      simRef.current.pinch = {
+        initialDist: dist,
+        initialMid: {
+          x: (touches[0].x + touches[1].x) / 2,
+          y: (touches[0].y + touches[1].y) / 2
+        },
+        startZoom: cameraRef.current.zoom,
+        startPan: { ...cameraRef.current.pan }
+      };
+      return;
+    }
+
+    const cam = cameraRef.current;
+    const worldX = (px - cam.pan.x) / cam.zoom;
+    const worldY = (py - cam.pan.y) / cam.zoom;
 
     simRef.current.drag = {
       id: e.pointerId,
@@ -1873,12 +2186,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       screenStartX: e.clientX,
       screenStartY: e.clientY,
       mode: 'pan',
-      mouse: { x: worldX, y: worldY }
+      mouse: { x: worldX, y: worldY },
+      compId: null
     };
 
     const terminalHitRadius = Math.max(16, 22 / cam.zoom);
 
-    // 1. PRIORIDADE MÁXIMA: Bornes de Barramento
+    // 2. Bornes de Barramento
     const nearestBusbarTerm = findNearestBusbarTerminal(
       projectRef.current.busbars || [],
       { x: worldX, y: worldY },
@@ -1886,6 +2200,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     );
 
     if (nearestBusbarTerm && (activeTool === 'wire' || simRef.current.wireStart !== null || e.shiftKey)) {
+      setShowProps(false);
       if (!simRef.current.wireStart) {
         simRef.current.wireStart = { c: nearestBusbarTerm.busbar.id, t: nearestBusbarTerm.terminal.id };
         showToast(`Iniciado no ${nearestBusbarTerm.busbar.type.toUpperCase()}. Toque no destino.`);
@@ -1921,7 +2236,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       return;
     }
 
-    // 2. PRIORIDADE MÁXIMA: Bornes de Dispositivos
+    // 3. Bornes de Dispositivos
     for (const c of projectRef.current.components) {
       const d = getComponentDef(c.code);
       for (const t of d.terminals) {
@@ -1929,6 +2244,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         const dist = Math.hypot(tp.x - worldX, tp.y - worldY);
         if (dist < terminalHitRadius) {
           if (activeTool === 'wire' || simRef.current.wireStart !== null || e.shiftKey) {
+            setShowProps(false);
             if (!simRef.current.wireStart) {
               simRef.current.wireStart = { c: c.id, t: t[0] };
               showToast(`Iniciado em ${c.label || d.name} [${t[0]}]. Toque no destino.`);
@@ -1962,6 +2278,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               simRef.current.wireStart = null;
             }
           } else {
+            setShowProps(false);
             setSelectedCompId(c.id);
             setSelectedWireId(null);
             setSelectedBusbarId(null);
@@ -1970,19 +2287,23 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             simRef.current.drag.offsetX = worldX - c.x;
             simRef.current.drag.offsetY = worldY - c.y;
 
+            const targetId = c.id;
             simRef.current.longPressTimer = setTimeout(() => {
-              simRef.current.isLongPressTriggered = true;
-              setShowProps(true);
-              soundFX?.playClick?.();
-              showToast('Propriedades abertas');
-            }, 450);
+              // TRAVA DE SEGURANÇA: só abre se o dedo AINDA estiver segurando o componente
+              if (simRef.current.drag && simRef.current.drag.compId === targetId) {
+                simRef.current.isLongPressTriggered = true;
+                setShowProps(true);
+                soundFX?.playClick?.();
+                showToast('Propriedades abertas');
+              }
+            }, 550);
           }
           return;
         }
       }
     }
 
-    // 3. PRIORIDADE: Corpo do Dispositivo
+    // 4. Corpo do Dispositivo
     for (let i = projectRef.current.components.length - 1; i >= 0; i--) {
       const c = projectRef.current.components[i];
       const rad = (-c.rot * Math.PI) / 180;
@@ -1995,6 +2316,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       const h = (c.h || 75) + 8;
 
       if (Math.abs(rx) <= w / 2 && Math.abs(ry) <= h / 2) {
+        setShowProps(false);
         setSelectedCompId(c.id);
         setSelectedWireId(null);
         setSelectedBusbarId(null);
@@ -2004,12 +2326,16 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         simRef.current.drag.offsetY = worldY - c.y;
         simRef.current.drag.clickRelX = rx;
 
+        const targetId = c.id;
         simRef.current.longPressTimer = setTimeout(() => {
-          simRef.current.isLongPressTriggered = true;
-          setShowProps(true);
-          soundFX?.playClick?.();
-          showToast('Propriedades abertas');
-        }, 450);
+          // TRAVA DE SEGURANÇA: só abre se o dedo AINDA estiver segurando o componente
+          if (simRef.current.drag && simRef.current.drag.compId === targetId) {
+            simRef.current.isLongPressTriggered = true;
+            setShowProps(true);
+            soundFX?.playClick?.();
+            showToast('Propriedades abertas');
+          }
+        }, 550);
 
         const d = getComponentDef(c.code);
         if (Boolean(d.momentary) || d.kind === 'push' || c.code === 'PBNO' || c.code === 'PBNC') {
@@ -2019,7 +2345,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 4. PRIORIDADE: Barramento Elétrico ou Trilho DIN
+    // 5. Barramento Elétrico ou Trilho DIN
     for (let i = (projectRef.current.busbars || []).length - 1; i >= 0; i--) {
       const b = projectRef.current.busbars[i];
       const isH = b.orientation === 'horizontal';
@@ -2029,6 +2355,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       const ry = isH ? halfH : halfL;
 
       if (Math.abs(worldX - b.x) <= rx && Math.abs(worldY - b.y) <= ry) {
+        setShowProps(false);
         setSelectedBusbarId(b.id);
         setSelectedCompId(null);
         setSelectedWireId(null);
@@ -2041,7 +2368,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 5. SELEÇÃO DE CONDUTOR
+    // 6. Seleção de Condutor
     if (simRef.current.wireStart === null) {
       const hitWireId = getHitWireId(
         worldX,
@@ -2052,6 +2379,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         cam.zoom
       );
       if (hitWireId) {
+        setShowProps(false);
         setSelectedWireId(hitWireId);
         setSelectedCompId(null);
         setSelectedBusbarId(null);
@@ -2061,7 +2389,8 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 6. Clique no Vazio
+    // 7. Clique no Vazio (fecha propriedades e desmarca tudo)
+    setShowProps(false);
     setSelectedCompId(null);
     setSelectedWireId(null);
     setSelectedBusbarId(null);
@@ -2076,6 +2405,42 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
 
+    simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
+
+    // EXECUÇÃO DO PINCH-TO-ZOOM COM 2 DEDOS NO CELULAR
+    if (simRef.current.touchMap.size === 2) {
+      const touches = Array.from(simRef.current.touchMap.values());
+      const currentDist = Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY);
+      const currentMid = {
+        x: (touches[0].x + touches[1].x) / 2,
+        y: (touches[0].y + touches[1].y) / 2
+      };
+
+      if (!simRef.current.pinch) {
+        simRef.current.pinch = {
+          initialDist: currentDist,
+          initialMid: currentMid,
+          startZoom: cameraRef.current.zoom,
+          startPan: { ...cameraRef.current.pan }
+        };
+      } else {
+        const pinch = simRef.current.pinch;
+        const scale = currentDist / Math.max(10, pinch.initialDist);
+        const newZoom = Math.max(0.12, Math.min(5.0, pinch.startZoom * scale));
+
+        const midX = pinch.initialMid.x;
+        const midY = pinch.initialMid.y;
+        cameraRef.current.zoom = newZoom;
+        cameraRef.current.pan.x = midX - (midX - pinch.startPan.x) * (newZoom / pinch.startZoom) + (currentMid.x - pinch.initialMid.x);
+        cameraRef.current.pan.y = midY - (midY - pinch.startPan.y) * (newZoom / pinch.startZoom) + (currentMid.y - pinch.initialMid.y);
+
+        if (svgGroupRef.current) {
+          svgGroupRef.current.setAttribute('transform', `translate(${cameraRef.current.pan.x}, ${cameraRef.current.pan.y}) scale(${cameraRef.current.zoom})`);
+        }
+      }
+      return;
+    }
+
     const cam = cameraRef.current;
     const worldX = (px - cam.pan.x) / cam.zoom;
     const worldY = (py - cam.pan.y) / cam.zoom;
@@ -2086,8 +2451,9 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     drag.mouse = { x: worldX, y: worldY };
 
+    // Se o dedo moveu mais de 8 pixels, cancela o temporizador de pressão longa
     const moveDist = Math.hypot(e.clientX - drag.screenStartX, e.clientY - drag.screenStartY);
-    if (moveDist > 5 && simRef.current.longPressTimer) {
+    if (moveDist > 8 && simRef.current.longPressTimer) {
       clearTimeout(simRef.current.longPressTimer);
       simRef.current.longPressTimer = null;
     }
@@ -2144,6 +2510,11 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     simRef.current.touchMap.delete(e.pointerId);
 
+    if (simRef.current.touchMap.size < 2) {
+      simRef.current.pinch = null;
+    }
+
+    // Cancela imediatamente o temporizador caso o usuário solte o dedo antes dos 550ms
     if (simRef.current.longPressTimer) {
       clearTimeout(simRef.current.longPressTimer);
       simRef.current.longPressTimer = null;
@@ -2157,7 +2528,18 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     }
 
     const drag = simRef.current.drag;
-    if (!drag) return;
+    const wasLongPress = simRef.current.isLongPressTriggered;
+
+    // Se NÃO foi pressão longa (ou seja, foi toque rápido de clique), garante que a janela NUNCA abra
+    if (!wasLongPress) {
+      setShowProps(false);
+    }
+
+    if (!drag) {
+      simRef.current.isLongPressTriggered = false;
+      return;
+    }
+
     const moveDist = Math.hypot(e.clientX - drag.screenStartX, e.clientY - drag.screenStartY);
 
     if (hasPendingDragChangesRef.current) {
@@ -2176,8 +2558,9 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       setIsCadDragging(false);
     }
 
-    // Clique rápido: manobra dispositivos sem abrir gaveta
-    if (!simRef.current.isLongPressTriggered && moveDist < 6 && drag.mode === 'comp' && drag.compId) {
+    // SE FOI UM TOQUE RÁPIDO (< 550ms e sem arrastar):
+    // Manobra o dispositivo normalmente sem abrir propriedades
+    if (!wasLongPress && moveDist < 8 && drag.mode === 'comp' && drag.compId) {
       const c = projectRef.current.components.find((item: any) => item.id === drag.compId);
       if (c) {
         const d = getComponentDef(c.code);
@@ -2218,6 +2601,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
+    simRef.current.isLongPressTriggered = false;
     simRef.current.drag = null;
   };
 
@@ -2259,7 +2643,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             <h1 className="text-xs sm:text-sm font-black text-white tracking-wide flex items-center gap-1.5">
               <span>TécnicaMZ Pro</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 font-mono border border-blue-800">
-                CAD V21
+                CAD V25
               </span>
             </h1>
             <p className="text-[10px] text-slate-400 hidden md:block">
@@ -2369,10 +2753,46 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           >
             <span>☀️ Solar FV</span>
           </button>
+
+          <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />
+
+          <button
+            type="button"
+            onClick={() => {
+              const next = !isThermalMode;
+              setIsThermalMode(next);
+              isThermalModeRef.current = next;
+              showToast(next ? '📷 Modo Termografia FLIR ativado' : 'Termografia desativada');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+              isThermalMode
+                ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white border-amber-400 shadow-md shadow-amber-900/50 animate-pulse'
+                : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/30'
+            }`}
+            title="Alternar Câmera Térmica FLIR"
+          >
+            <Thermometer className="w-3.5 h-3.5 text-amber-300" />
+            <span>📷 Termografia</span>
+          </button>
         </div>
 
         {/* Ações da Direita */}
         <div className="flex items-center gap-1.5">
+          {/* BOTÃO PRÓPRIO DE ROTAÇÃO PARA MODO HORIZONTAL (LANDSCAPE) */}
+          <button
+            type="button"
+            onClick={handleToggleOrientation}
+            className={`px-2.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+              isLandscape
+                ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-900/40'
+                : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/30'
+            }`}
+            title="Alternar Modo Horizontal / Vertical (Girar Tela)"
+          >
+            <RotateCw className={`w-3.5 h-3.5 transition-transform duration-300 ${isLandscape ? 'rotate-90 text-white' : 'text-amber-300'}`} />
+            <span className="text-[11px] font-bold">{isLandscape ? 'Vertical' : 'Girar'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsDiagnosticPanelOpen(true)}
@@ -2474,6 +2894,13 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           <span ref={ghostTextRef} className="text-[9px] font-black font-mono text-blue-200">CAD</span>
         </div>
 
+        {isThermalMode && (
+          <div className="absolute top-4 left-4 z-40 px-3.5 py-1.5 rounded-xl bg-orange-950/90 border border-orange-500/80 text-orange-300 text-xs font-mono font-black shadow-2xl flex items-center gap-2 backdrop-blur-md animate-pulse">
+            <Thermometer className="w-4 h-4 text-amber-400" />
+            <span>[ MODO TERMOGRAFIA FLIR ATIVO ]</span>
+          </div>
+        )}
+
         {faultAlert && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-xl bg-rose-950/90 border border-rose-600 text-rose-200 text-xs font-bold shadow-2xl flex items-center gap-2 animate-bounce">
             <AlertTriangle className="w-4 h-4 text-rose-400" />
@@ -2493,8 +2920,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             <div className="flex items-center gap-1.5 pr-2 border-r border-slate-700 font-mono text-slate-300 font-bold">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: WIRE_NORM_COLORS[selectedWire.type]?.base || '#f59e0b' }} />
               <span>{selectedWire.id}</span>
-              {selectedWire.current > 0 && (
-                <span className="text-emerald-400 text-[10px]">({selectedWire.current.toFixed(1)}A)</span>
+              {selectedWire.current !== undefined && (
+                <span className="text-emerald-400 text-[10px]">
+                  ({Number(selectedWire.current) < 1.0 && Number(selectedWire.current) > 0
+                    ? `${(Number(selectedWire.current) * 1000).toFixed(0)}mA`
+                    : `${Number(selectedWire.current).toFixed(2)}A`})
+                </span>
               )}
             </div>
 
@@ -2643,13 +3074,11 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             </div>
 
             <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
-              {/* Identificador Técnico */}
               <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                 <div className="text-[10px] text-slate-400 font-mono">ID: {selectedComponent.id}</div>
                 <div className="text-xs font-black text-blue-300">{selectedComponent.code} • {selectedComponent.label || selectedComponent.code}</div>
               </div>
 
-              {/* Rótulo / Nome */}
               <div>
                 <label className="text-[10px] text-slate-400 font-bold block mb-1">Rótulo Técnico</label>
                 <input
@@ -2667,7 +3096,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 />
               </div>
 
-              {/* Fabricante / Marca Industrial */}
               <div>
                 <label className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 mb-1">
                   <Tag className="w-3 h-3 text-emerald-400" />
@@ -3008,6 +3436,84 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 </div>
               )}
 
+              {/* PARÂMETROS DE CARGA DA TOMADA (OUTLET) */}
+              {(selectedComponent.code === 'OUTLET' || selectedComponent.code?.startsWith('OUTLET')) && (
+                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-900/50 space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
+                    <Power className="w-3.5 h-3.5" />
+                    <span>Carga Conectada na Tomada (Plug & Test)</span>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Nome do Aparelho / Carga</label>
+                    <input
+                      type="text"
+                      value={selectedComponent.params?.applianceName || 'Carga Geral'}
+                      onChange={e => updateComponentProperty('applianceName', e.target.value)}
+                      placeholder="Ex: Chuveiro, Secador, Bomba..."
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
+                      <span>Potência Nominal da Carga:</span>
+                      <span className="text-amber-400 font-mono font-bold">
+                        {Number(selectedComponent.params?.powerW || (selectedComponent.params?.customPowerW || 0))} W
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max="12000"
+                        step="50"
+                        value={Number(selectedComponent.params?.powerW || (selectedComponent.params?.customPowerW || 0))}
+                        onChange={e => {
+                          const wVal = Math.max(0, Number(e.target.value));
+                          const vNom = Number(selectedComponent.params?.voltage || 230);
+                          const pf = Number(selectedComponent.params?.powerFactor || 1.0);
+                          const iVal = Number((wVal / (vNom * pf)).toFixed(1));
+                          updateComponentProperty('powerW', wVal);
+                          updateComponentProperty('customPowerW', wVal);
+                          updateComponentProperty('targetCurrent', iVal);
+                          if (wVal > 0 && selectedComponent.params?.pluggedAppliance === 'NONE') {
+                            updateComponentProperty('pluggedAppliance', 'CUSTOM');
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono font-bold outline-none"
+                      />
+                      <span className="text-slate-400 font-mono font-bold">Watts</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Aparelhos Pré-Configurados</label>
+                    <select
+                      value={selectedComponent.params?.pluggedAppliance || 'NONE'}
+                      onChange={e => {
+                        const appKey = e.target.value;
+                        const preset = APPLIANCE_PRESETS.find(p => p.id === appKey);
+                        updateComponentProperty('pluggedAppliance', appKey);
+                        if (preset) {
+                          updateComponentProperty('applianceName', preset.label);
+                          updateComponentProperty('powerW', preset.powerW);
+                          updateComponentProperty('customPowerW', preset.powerW);
+                          updateComponentProperty('targetCurrent', preset.currentA);
+                        }
+                      }}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-bold outline-none cursor-pointer"
+                    >
+                      {APPLIANCE_PRESETS.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.label} {p.powerW > 0 ? `(${p.powerW}W • ~${p.currentA}A)` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {/* Botões de Ação Direta */}
               <div className="pt-2 border-t border-slate-800 space-y-1.5">
                 <button
@@ -3078,7 +3584,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           <div className="absolute left-3 bottom-3 z-10 px-3.5 py-2.5 rounded-2xl bg-[#0A1224]/90 border border-blue-900/40 shadow-xl backdrop-blur-md flex items-center gap-4 text-xs font-mono">
             <div>Tensão: <strong className="text-amber-400">{meterV.toFixed(1)} V</strong></div>
             <div className="h-4 w-px bg-slate-800" />
-            <div>Corrente: <strong className="text-emerald-400">{meterA.toFixed(2)} A</strong></div>
+            <div>Corrente: <strong className="text-emerald-400">{meterA < 1.0 && meterA > 0 ? `${(meterA * 1000).toFixed(0)} mA` : `${meterA.toFixed(2)} A`}</strong></div>
             <div className="h-4 w-px bg-slate-800" />
             <div>Potência: <strong className="text-blue-400">{meterW} W</strong></div>
             <div className="h-4 w-px bg-slate-800" />

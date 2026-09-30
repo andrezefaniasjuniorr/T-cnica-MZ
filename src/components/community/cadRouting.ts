@@ -1,17 +1,12 @@
 // ============================================================================
-// TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO DE CONDUTORES, FÍSICA E ANATOMIA IEC/DIN (V19)
+// TÉCNICAMZ PRO — MOTOR DE ROTEAMENTO DE CONDUTORES, FÍSICA E ANATOMIA IEC/DIN (V21)
 // Normas: IEC 60669, NBR 14136, IEC 60947, IEC 60898, IEC 60034, IEC 62109, DIN 46228-4
 // Mapeamento Normativo e Coordenadas Espaciais sem Sobreposição:
 // - Condutores Isolados: L1, L2, L3, N, PE, 24+, 24-, CTRL
-// - Condutor Nu de Cobre (NU) para Malhas de Aterramento e Equipotencialização
-// - Motor 6 Pontas (U1, V1, W1 / W2, U2, V2)
-// - ATS / MTS (Entradas Rede, Entradas Gerador e Saídas Carga)
-// - DPS Monofásico (SPD) e Tetrapolar (SPD3) com bornes Top/Bottom reais
-// - Eletrobomba Centrífuga em Caracol (U, V, W, PE na caixa de ligação)
-// - Inversores Solares On-Grid, Off-Grid, Híbrido, Módulos FV e Bateria LiFePO4
-// - Timers Estrela-Triângulo (Y-Δ), TOF, Temporizador Digital e Termostato
-// - Fotocélula Crepuscular e Sensor PIR de Presença
-// - Aterramento BEP, Haste de Cobre e Caixas WAGO
+// - Circulação Dinâmica de Corrente Proporcional (v ∝ I)
+// - Exibição da Tensão de Linha (V), Queda Ôhmica (ΔV), Frequência (Hz) e Temp (°C)
+// - Resolução de Corrente Inteligente (A / mA sem truncamento a zero)
+// - Aquecimento Joule Contínuo, Fumaça e Carbonização com Ruptura
 // ============================================================================
 
 import { getComponentDef } from './cadEngine';
@@ -134,37 +129,30 @@ export function getNormativeTerminalOffset(
   }
 
   if (comp.code === 'ATS_SWITCH' || d.kind === 'ats_switch') {
-    // Entradas Concessionária (Rede Normal)
     if (termId === 'N_L1') return { x: -w * 0.42, y: -h / 2, dir: 'top' };
     if (termId === 'N_L2') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
     if (termId === 'N_L3') return { x: -w * 0.18, y: -h / 2, dir: 'top' };
     if (termId === 'N_N') return { x: -w * 0.06, y: -h / 2, dir: 'top' };
-    // Entradas Grupo Gerador
     if (termId === 'G_L1') return { x: w * 0.06, y: -h / 2, dir: 'top' };
     if (termId === 'G_L2') return { x: w * 0.18, y: -h / 2, dir: 'top' };
     if (termId === 'G_L3') return { x: w * 0.30, y: -h / 2, dir: 'top' };
     if (termId === 'G_N') return { x: w * 0.42, y: -h / 2, dir: 'top' };
-    // Saídas Carga Alimentada
     if (termId === 'LOAD_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
     if (termId === 'LOAD_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
     if (termId === 'LOAD_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
     if (termId === 'LOAD_N') return { x: w * 0.36, y: h / 2, dir: 'bottom' };
-    // Contato Seco de Partida Remota do Gerador
     if (termId === 'GEN_START') return { x: w / 2, y: 0, dir: 'right' };
   }
 
   if (comp.code === 'MTS_SWITCH' || d.kind === 'mts_switch') {
-    // Entradas Rede (Lado Superior Esquerdo)
     if (termId === 'R_L1') return { x: -w * 0.40, y: -h / 2, dir: 'top' };
     if (termId === 'R_L2') return { x: -w * 0.28, y: -h / 2, dir: 'top' };
     if (termId === 'R_L3') return { x: -w * 0.16, y: -h / 2, dir: 'top' };
     if (termId === 'R_N') return { x: -w * 0.04, y: -h / 2, dir: 'top' };
-    // Entradas Gerador (Lado Superior Direito)
     if (termId === 'G_L1') return { x: w * 0.08, y: -h / 2, dir: 'top' };
     if (termId === 'G_L2') return { x: w * 0.20, y: -h / 2, dir: 'top' };
     if (termId === 'G_L3') return { x: w * 0.32, y: -h / 2, dir: 'top' };
     if (termId === 'G_N') return { x: w * 0.44, y: -h / 2, dir: 'top' };
-    // Saídas Carga (Lado Inferior)
     if (termId === 'OUT_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
     if (termId === 'OUT_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
     if (termId === 'OUT_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
@@ -175,7 +163,6 @@ export function getNormativeTerminalOffset(
   // MOTORES ELÉTRICOS E ELETROBOMBAS CENTRÍFUGAS (IEC 60034)
   // --------------------------------------------------------------------------
   if (comp.code === 'PUMP' || d.kind === 'pump') {
-    // Caixa de ligação superior do motor acoplado à voluta
     if (termId === 'U') return { x: w * 0.08, y: -h / 2, dir: 'top' };
     if (termId === 'V') return { x: w * 0.18, y: -h / 2, dir: 'top' };
     if (termId === 'W') return { x: w * 0.28, y: -h / 2, dir: 'top' };
@@ -183,7 +170,6 @@ export function getNormativeTerminalOffset(
   }
 
   if (comp.code === 'M3PH_6L' || d.kind === 'motor3_6lead') {
-    // 6 Pontas Estrela-Triângulo
     if (termId === 'U1') return { x: -w * 0.30, y: -h / 2, dir: 'top' };
     if (termId === 'V1') return { x: 0, y: -h / 2, dir: 'top' };
     if (termId === 'W1') return { x: w * 0.30, y: -h / 2, dir: 'top' };
@@ -206,6 +192,31 @@ export function getNormativeTerminalOffset(
   if (d.kind === 'motorDC') {
     if (termId === '+') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
     if (termId === '-') return { x: w * 0.22, y: -h / 2, dir: 'top' };
+  }
+
+  // --------------------------------------------------------------------------
+  // INSTRUMENTOS DE MEDIÇÃO REAL (VM, AM, OHM, WM, FREQ, COS)
+  // --------------------------------------------------------------------------
+  if (comp.code === 'VM' || comp.code === 'OHM') {
+    if (termId === '+') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === '-') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'AM') {
+    if (termId === 'IN') return { x: 0, y: -h / 2, dir: 'top' };
+    if (termId === 'OUT') return { x: 0, y: h / 2, dir: 'bottom' };
+  }
+
+  if (comp.code === 'FREQ' || comp.code === 'COS') {
+    if (termId === 'L') return { x: -w * 0.25, y: -h / 2, dir: 'top' };
+    if (termId === 'N') return { x: w * 0.25, y: -h / 2, dir: 'top' };
+  }
+
+  if (comp.code === 'WM') {
+    if (termId === 'I_IN') return { x: -w * 0.32, y: -h / 2, dir: 'top' };
+    if (termId === 'I_OUT') return { x: -w * 0.32, y: h / 2, dir: 'bottom' };
+    if (termId === 'V+') return { x: w * 0.32, y: -h / 2, dir: 'top' };
+    if (termId === 'V-') return { x: w * 0.32, y: h / 2, dir: 'bottom' };
   }
 
   // Terra de Proteção padrão (PE / GND): Lateral Direita para demais equipamentos
@@ -368,12 +379,10 @@ export function getNormativeTerminalOffset(
   }
 
   if (comp.code === 'PV_INVERTER_ONGRID') {
-    // Entradas DC MPPT
     if (termId === 'DC1+') return { x: -w * 0.38, y: -h / 2, dir: 'top' };
     if (termId === 'DC1-') return { x: -w * 0.22, y: -h / 2, dir: 'top' };
     if (termId === 'DC2+') return { x: w * 0.22, y: -h / 2, dir: 'top' };
     if (termId === 'DC2-') return { x: w * 0.38, y: -h / 2, dir: 'top' };
-    // Saídas AC Trifásicas
     if (termId === 'AC_L1') return { x: -w * 0.36, y: h / 2, dir: 'bottom' };
     if (termId === 'AC_L2') return { x: -w * 0.12, y: h / 2, dir: 'bottom' };
     if (termId === 'AC_L3') return { x: w * 0.12, y: h / 2, dir: 'bottom' };
@@ -793,8 +802,38 @@ export interface WireRenderOptions {
   isLive?: boolean;
   isSelected?: boolean;
   isOverheated?: boolean;
+  isSmoke?: boolean;
+  isCarbonized?: boolean;
+  temp?: number;
+  current?: number;
+  voltage?: number;       // Tensão elétrica real de trabalho (ex: 230V / 400V)
+  voltageDrop?: number;   // Queda de tensão ôhmica ao longo do cabo (ex: 0.18V)
+  frequency?: number;     // Frequência real (ex: 50.0 Hz)
+  smoke?: boolean;
+  carbonized?: boolean;
   animTick?: number;
   toScreen: (p: { x: number; y: number }) => { x: number; y: number };
+}
+
+function blendHexColor(c1: string, c2: string, factor: number): string {
+  const f = Math.max(0, Math.min(1, factor));
+  const parse = (hex: string) => {
+    const h = hex.replace('#', '');
+    if (h.length === 3) {
+      return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)];
+    }
+    return [
+      parseInt(h.substring(0, 2), 16) || 0,
+      parseInt(h.substring(2, 4), 16) || 0,
+      parseInt(h.substring(4, 6), 16) || 0
+    ];
+  };
+  const [r1, g1, b1] = parse(c1);
+  const [r2, g2, b2] = parse(c2);
+  const r = Math.round(r1 + (r2 - r1) * f);
+  const g = Math.round(g1 + (g2 - g1) * f);
+  const b = Math.round(b1 + (b2 - b1) * f);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 export function renderCurvedWireBack(
@@ -808,12 +847,23 @@ export function renderCurvedWireBack(
     cam,
     isLive = false,
     isSelected = false,
-    isOverheated = false,
-    animTick = 0,
     toScreen
   } = options;
 
   if (!filletPath || !filletPath.points || filletPath.points.length < 2) return;
+
+  // RELÓGIO IMUNE A CONGELAMENTO: Se animTick for 0, usa timestamp contínuo em tempo real
+  const tick = (options.animTick !== undefined && options.animTick > 0)
+    ? options.animTick
+    : (performance.now() * 0.06);
+
+  const actualTemp = options.temp ?? 25.0;
+  const actualCurrent = Math.max(0, options.current ?? 0);
+  const actualVoltageDrop = options.voltageDrop ?? 0;
+  const actualVoltage = options.voltage ?? (isLive ? 230 : 0);
+  const actualSmoke = Boolean(options.smoke ?? options.isSmoke ?? (actualTemp >= 130.0));
+  const actualCarbonized = Boolean(options.carbonized ?? options.isCarbonized ?? (actualTemp >= 240.0));
+  const actualOverheated = Boolean(options.isOverheated ?? (actualTemp > 70.0));
 
   const screenPoints = filletPath.points.map(p => toScreen(p));
   const z = Math.max(0.35, Math.min(2.5, cam.zoom));
@@ -825,7 +875,7 @@ export function renderCurvedWireBack(
 
   // Glow de seleção quando clicado
   if (isSelected) {
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.75)';
     ctx.lineWidth = wireW + 9 * z;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -845,21 +895,27 @@ export function renderCurvedWireBack(
   ctx.restore();
 
   // Borda escura do condutor
-  ctx.strokeStyle = '#050a14';
+  ctx.strokeStyle = actualCarbonized ? '#09090b' : '#050a14';
   ctx.lineWidth = wireW + 1.2 * z;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   traceFilletPathCanvas(ctx, screenPoints, radius);
   ctx.stroke();
 
-  // Cor Base do Condutor (ou cobre brilhante se for NU)
-  if (isOverheated) {
-    const pulse = (Math.sin(animTick * 0.18) + 1) * 0.5;
-    ctx.strokeStyle = `rgb(${Math.round(235 + pulse * 20)}, ${Math.round(50 + pulse * 80)}, 15)`;
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = (12 + pulse * 14) * z;
+  // 1. GRADIENTE TÉRMICO DE COR (Base -> Incandescente se Temp > 50°C -> Carbonizado se >= 240°C)
+  const heatPulse = (Math.sin(tick * 0.22) + 1) * 0.5;
+
+  if (actualCarbonized) {
+    ctx.strokeStyle = '#121214'; // Preto carvão fuligem
+  } else if (actualTemp > 50.0) {
+    const fHeat = Math.min(1.0, (actualTemp - 50.0) / 90.0);
+    const hotTarget = actualSmoke
+      ? `rgb(${Math.round(245 + heatPulse * 10)}, ${Math.round(40 + heatPulse * 40)}, 10)`
+      : `rgb(${Math.round(230 + heatPulse * 25)}, ${Math.round(70 + heatPulse * 70)}, 15)`;
+    ctx.strokeStyle = blendHexColor(norm.base, hotTarget, fHeat);
+    ctx.shadowColor = actualSmoke ? '#ef4444' : '#f97316';
+    ctx.shadowBlur = (6 + fHeat * 14 + heatPulse * 8) * z;
   } else if (norm.isBare) {
-    // Efeito metálico de cordoalha de cobre nu
     const copperGrad = ctx.createLinearGradient(
       screenPoints[0].x,
       screenPoints[0].y,
@@ -881,8 +937,62 @@ export function renderCurvedWireBack(
   ctx.stroke();
   ctx.shadowColor = 'transparent';
 
+  // 2. QUEBRA E PONTAS ROMPIDAS SE CARBONIZADO (≥ 240°C)
+  if (actualCarbonized) {
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = Math.max(1, wireW * 0.4);
+    ctx.setLineDash([4 * z, 8 * z]);
+    traceFilletPathCanvas(ctx, screenPoints, radius);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (screenPoints.length >= 2) {
+      const midIdx = Math.floor(screenPoints.length / 2);
+      const bPt = screenPoints[midIdx];
+      ctx.save();
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(bPt.x, bPt.y, wireW * 0.9, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#f97316';
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 9 * z;
+      [-1, 1].forEach((dir) => {
+        const off = dir * (4 * z);
+        ctx.beginPath();
+        ctx.arc(bPt.x + off, bPt.y, 2 * z, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+  }
+
+  // 3. PARTÍCULAS DE FUMAÇA ANIMADAS (≥ 130°C ou smoke = true)
+  if (actualSmoke && !actualCarbonized) {
+    ctx.save();
+    screenPoints.forEach((sp, idx) => {
+      if (idx % 2 === 0) {
+        for (let p = 0; p < 2; p++) {
+          const phase = (tick * 1.6 + idx * 9.2 + p * 17.5) % 60;
+          const progress = phase / 60;
+          const driftX = Math.sin(tick * 0.09 + idx + p) * (11 * z) * progress;
+          const riseY = -progress * (38 * z);
+          const puffR = (5 + progress * 15) * z;
+          const alpha = (1 - progress) * 0.52;
+
+          ctx.fillStyle = `rgba(226, 232, 240, ${alpha.toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(sp.x + driftX, sp.y + riseY, puffR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    });
+    ctx.restore();
+  }
+
   // Listra Verde-Amarela para PE
-  if (norm.isStriped && !isOverheated) {
+  if (norm.isStriped && !actualOverheated && !actualCarbonized) {
     ctx.strokeStyle = '#eab308';
     ctx.lineWidth = wireW * 0.82;
     ctx.setLineDash([8 * z, 8 * z]);
@@ -892,7 +1002,7 @@ export function renderCurvedWireBack(
   }
 
   // Estrias metálicas de cordoalha trançada para Condutor Nu (NU)
-  if (norm.isBare && !isOverheated) {
+  if (norm.isBare && !actualOverheated && !actualCarbonized) {
     ctx.strokeStyle = 'rgba(254, 215, 170, 0.45)';
     ctx.lineWidth = Math.max(1, wireW * 0.7);
     ctx.setLineDash([3 * z, 3 * z]);
@@ -902,24 +1012,134 @@ export function renderCurvedWireBack(
   }
 
   // Filete de brilho superior 3D
-  ctx.strokeStyle = isOverheated ? '#fef08a' : norm.highlight;
-  ctx.lineWidth = Math.max(0.8, wireW * 0.28);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.globalAlpha = 0.65;
-  traceFilletPathCanvas(ctx, screenPoints, radius);
-  ctx.stroke();
-  ctx.globalAlpha = 1.0;
-
-  // Pulso de corrente elétrica quando em simulação (RUN e Live)
-  if (isLive) {
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = Math.max(1.1, wireW * 0.35);
-    ctx.setLineDash([6 * z, 10 * z]);
-    ctx.lineDashOffset = -animTick * 1.5;
+  if (!actualCarbonized) {
+    ctx.strokeStyle = actualOverheated ? '#fef08a' : norm.highlight;
+    ctx.lineWidth = Math.max(0.8, wireW * 0.28);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.65;
     traceFilletPathCanvas(ctx, screenPoints, radius);
     ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.globalAlpha = 1.0;
+  }
+
+  // 4. CIRCULAÇÃO FÍSICA REAL DE CORRENTE: VELOCIDADE PROPORCIONAL À INTENSIDADE (v ∝ I)
+  if (isLive && !actualCarbonized) {
+    if (actualCurrent > 0.005) {
+      // CORRENTE FLUINDO: Os elétrons se movem na velocidade proporcional aos Amperes!
+      const speedMultiplier = Math.min(28.0, Math.max(1.4, Math.sqrt(actualCurrent) * 2.8));
+      const dashLen = Math.max(4 * z, Math.min(12 * z, (5 + Math.sqrt(actualCurrent) * 0.85) * z));
+      const gapLen = Math.max(5 * z, Math.min(15 * z, (9 + Math.sqrt(actualCurrent) * 0.5) * z));
+
+      ctx.strokeStyle = actualCurrent > 20.0 ? '#fef08a' : '#ffffff';
+      ctx.lineWidth = Math.max(1.2, wireW * 0.38);
+      ctx.setLineDash([dashLen, gapLen]);
+      ctx.lineDashOffset = -tick * speedMultiplier;
+      traceFilletPathCanvas(ctx, screenPoints, radius);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      // APENAS TENSÃO PRESENTE (SEM CARGA): Sinal estático discreto indicando potencial elétrico
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = Math.max(0.9, wireW * 0.24);
+      ctx.setLineDash([3 * z, 8 * z]);
+      traceFilletPathCanvas(ctx, screenPoints, radius);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // 5. MEDIDOR FLUTUANTE NO CABO (COM TENSÃO REAL, AMPERES / mA, FREQUÊNCIA HZ, TEMP E QUEDA ΔV)
+  const showBadge = isSelected || actualOverheated || actualTemp > 50.0 || actualSmoke || actualCarbonized;
+
+  if (showBadge && screenPoints.length >= 2) {
+    let totalLen = 0;
+    for (let i = 0; i < screenPoints.length - 1; i++) {
+      totalLen += Math.hypot(screenPoints[i + 1].x - screenPoints[i].x, screenPoints[i + 1].y - screenPoints[i].y);
+    }
+    const targetMid = totalLen * 0.5;
+    let accumulated = 0;
+    let midX = screenPoints[Math.floor(screenPoints.length / 2)].x;
+    let midY = screenPoints[Math.floor(screenPoints.length / 2)].y;
+
+    for (let i = 0; i < screenPoints.length - 1; i++) {
+      const d = Math.hypot(screenPoints[i + 1].x - screenPoints[i].x, screenPoints[i + 1].y - screenPoints[i].y);
+      if (accumulated + d >= targetMid) {
+        const ratio = d > 0 ? (targetMid - accumulated) / d : 0;
+        midX = screenPoints[i].x + (screenPoints[i + 1].x - screenPoints[i].x) * ratio;
+        midY = screenPoints[i].y + (screenPoints[i + 1].y - screenPoints[i].y) * ratio;
+        break;
+      }
+      accumulated += d;
+    }
+
+    ctx.save();
+    const freqVal = options.frequency !== undefined ? options.frequency : (isLive ? 50.0 : 0.0);
+
+    // Formatação de Corrente com Alta Resolução (sem truncar miliamperes a zero)
+    let currentFormatted = '0.00 A';
+    if (actualCurrent === 0) {
+      currentFormatted = isLive ? '0.00 A (Circ. Aberto)' : '0.00 A (Off)';
+    } else if (actualCurrent < 1.0) {
+      currentFormatted = `${(actualCurrent * 1000).toFixed(0)} mA (${actualCurrent.toFixed(3)}A)`;
+    } else {
+      currentFormatted = `${actualCurrent.toFixed(2)} A`;
+    }
+
+    // Formatação da Queda de Tensão (ΔV)
+    const dropFormatted = actualVoltageDrop > 0 && actualVoltageDrop < 0.01
+      ? `${(actualVoltageDrop * 1000).toFixed(1)} mV`
+      : `${actualVoltageDrop.toFixed(2)} V`;
+
+    const badgeTxt = actualCarbonized
+      ? `⚡ 0.0A • 🔥 ROMPIDO (${actualTemp.toFixed(1)}°C) • ΔV: ${dropFormatted}`
+      : `[ ${actualVoltage}V • ${currentFormatted} • ${freqVal.toFixed(1)} Hz • ${actualTemp.toFixed(1)} °C • ΔV: ${dropFormatted} ]`;
+
+    ctx.font = `bold ${Math.max(8, 9.5 * z)}px 'Courier New', monospace`;
+    const tw = ctx.measureText(badgeTxt).width + 16 * z;
+    const th = 17 * z;
+    const badgeY = midY - 18 * z;
+
+    ctx.fillStyle = '#030712';
+    ctx.strokeStyle = actualCarbonized
+      ? '#ef4444'
+      : actualSmoke
+      ? '#f97316'
+      : actualOverheated
+      ? '#f59e0b'
+      : isSelected
+      ? '#38bdf8'
+      : '#64748b';
+
+    ctx.lineWidth = 1.3 * z;
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 9 * z;
+
+    ctx.beginPath();
+    ctx.roundRect(midX - tw / 2, badgeY - th / 2, tw, th, 4 * z);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(midX - 4 * z, badgeY + th / 2);
+    ctx.lineTo(midX, badgeY + th / 2 + 3.5 * z);
+    ctx.lineTo(midX + 4 * z, badgeY + th / 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = actualCarbonized
+      ? '#fca5a5'
+      : actualOverheated
+      ? '#fed7aa'
+      : isSelected
+      ? '#7dd3fc'
+      : '#e2e8f0';
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeTxt, midX, badgeY);
+    ctx.restore();
   }
 
   ctx.restore();
@@ -964,7 +1184,7 @@ export function renderFerruleTerminal(
   ctx.lineWidth = 0.9 * z;
   ctx.stroke();
 
-  // Cabeça do Parafuso de Fixação Pozidriv
+  // Cabeça do Parafuso Pozidriv
   ctx.fillStyle = '#94a3b8';
   ctx.beginPath();
   ctx.arc(-1.2 * z, 0, 2.2 * z, 0, Math.PI * 2);
@@ -982,11 +1202,11 @@ export function renderFerruleTerminal(
   ctx.lineTo(-1.2 * z, 1.2 * z);
   ctx.stroke();
 
-  // Ponta de Cobre Multifilar
+  // Ponta de Cobre
   ctx.fillStyle = isOverheated ? '#ea580c' : '#b45309';
   ctx.fillRect(-0.4 * z, -tubeHalfW * 0.7, 2.8 * z, tubeHalfW * 1.4);
 
-  // Luva Metálica Estanhada Crimpada
+  // Luva Metálica Estanhada
   const metalGrad = ctx.createLinearGradient(0, -tubeHalfW, 0, tubeHalfW);
   metalGrad.addColorStop(0, '#64748b');
   metalGrad.addColorStop(0.2, '#ffffff');
@@ -1002,7 +1222,6 @@ export function renderFerruleTerminal(
   ctx.lineWidth = 0.6 * z;
   ctx.stroke();
 
-  // Se for Condutor Nu (NU), desenha o conector olhal/metálico sem capa plástica
   if (norm.isBare) {
     const lugGrad = ctx.createLinearGradient(0, -collarEndHalfW, 0, collarEndHalfW);
     lugGrad.addColorStop(0, '#78350f');
@@ -1018,7 +1237,6 @@ export function renderFerruleTerminal(
     ctx.lineWidth = 0.6 * z;
     ctx.stroke();
   } else {
-    // Capa Cônica Isolante Plástica Normativa
     const collarStartX = tubeLen - 0.5 * z;
     const collarEndX = collarStartX + collarLen;
     const collarStartHalfW = tubeHalfW + 0.4 * z;
@@ -1092,6 +1310,11 @@ export function renderCurvedWireWithFerrules(
     isLive: options.isLive,
     isSelected: options.isSelected,
     isOverheated: options.isOverheated,
+    current: Number(wire.current || 0),
+    voltage: Number(wire.voltage || 0),
+    temp: Number(wire.temp || 25),
+    voltageDrop: Number(wire.voltageDrop || 0),
+    frequency: Number(wire.frequency || 0),
     animTick: options.animTick || 0,
     toScreen: options.toScreen
   });

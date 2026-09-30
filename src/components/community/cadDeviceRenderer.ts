@@ -92,6 +92,9 @@ export interface DeviceFaultState {
   sparking?: boolean;
   sparkStartTime?: number;
   isBurned?: boolean;
+  burned?: boolean;
+  tripReason?: string;
+  tripDetails?: string;
   rotationDir?: 'CW' | 'CCW';
   phaseSequence?: string;
   thermal?: boolean;
@@ -215,7 +218,14 @@ export const COMPACT_DEVICE_CODES: Record<string, string> = {
 
   EARTH_ROD: 'HASTE TERRA',
   EARTH_PIT: 'CAIXA BEP',
-  JUNCTION_BOX: 'CAIXA WAGO'
+  JUNCTION_BOX: 'CAIXA WAGO',
+
+  VM: 'VOLTÍMETRO',
+  AM: 'AMPERÍMETRO',
+  OHM: 'OHMÍMETRO',
+  WM: 'WATTÍMETRO',
+  FREQ: 'FREQ. HERTZ',
+  COS: 'FASÍMETRO'
 };
 
 export function getCompactDeviceLabel(code: string, customLabel?: string): string {
@@ -760,37 +770,131 @@ export function renderCommercialDinBreaker(
   const brandName = (c.brand || c.brandName || 'Schneider Electric').toString();
   const shortBrand = REAL_BRANDS[brandName as DeviceBrand]?.shortName || brandName.split(' ')[0];
 
+  const isMagneticShort = st.tripReason === 'MAGNETIC_SHORT_CIRCUIT' || Boolean(st.tripReason?.includes('Magnético')) || Boolean(st.tripReason?.includes('SHORT'));
+  const isDamagedIcu = Boolean(st.damaged || st.isBurned || st.burned || st.tripReason?.includes('Icu') || st.tripReason?.includes('Destruição'));
+
+  // 1. CARCAÇA MODULAR DIN TH35 (CHAMUSCADA SE st.damaged / Icu EXCEDIDO)
   const grad = ctx.createLinearGradient(0, -ch / 2, 0, ch / 2);
-  grad.addColorStop(0, '#334155');
-  grad.addColorStop(0.12, '#1e293b');
-  grad.addColorStop(0.88, '#0f172a');
-  grad.addColorStop(1, '#020617');
+  if (isDamagedIcu) {
+    // Carcaça chamuscada por destruição de arco elétrico e Icu excedido
+    grad.addColorStop(0, '#1c1917');
+    grad.addColorStop(0.18, '#0c0a09');
+    grad.addColorStop(0.55, '#18181b');
+    grad.addColorStop(0.85, '#09090b');
+    grad.addColorStop(1, '#050507');
+  } else {
+    grad.addColorStop(0, '#334155');
+    grad.addColorStop(0.12, '#1e293b');
+    grad.addColorStop(0.88, '#0f172a');
+    grad.addColorStop(1, '#020617');
+  }
 
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 4 * zoom);
   ctx.fill();
-  ctx.strokeStyle = isTrip ? '#ef4444' : '#475569';
-  ctx.lineWidth = 1.2 * zoom;
+  ctx.strokeStyle = isDamagedIcu ? '#ef4444' : isTrip ? '#f59e0b' : '#475569';
+  ctx.lineWidth = (isDamagedIcu ? 2 : 1.2) * zoom;
   ctx.stroke();
 
-  // Visor ótico
+  // Se carcaça chamuscada: manchas severas de fuligem e fissuras térmicas de ruptura
+  if (isDamagedIcu) {
+    ctx.save();
+    // Mancha carbonizada central intensa
+    const burnGrad = ctx.createRadialGradient(0, -ch * 0.1, 2 * zoom, 0, -ch * 0.1, cw * 0.65);
+    burnGrad.addColorStop(0, 'rgba(5, 5, 8, 0.95)');
+    burnGrad.addColorStop(0.5, 'rgba(18, 18, 22, 0.8)');
+    burnGrad.addColorStop(0.8, 'rgba(39, 39, 42, 0.4)');
+    burnGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = burnGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -ch * 0.1, cw * 0.52, ch * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fissuras térmicas irregulares de alívio de explosão na carcaça plástica
+    ctx.strokeStyle = '#f97316';
+    ctx.lineWidth = 1.2 * zoom;
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 6 * zoom;
+    ctx.beginPath();
+    ctx.moveTo(-cw * 0.38, -ch * 0.22);
+    ctx.lineTo(-cw * 0.15, -ch * 0.08);
+    ctx.lineTo(-cw * 0.05, -ch * 0.15);
+    ctx.lineTo(cw * 0.25, -ch * 0.02);
+    ctx.lineTo(cw * 0.38, ch * 0.12);
+    ctx.stroke();
+
+    // Ramificação da trinca
+    ctx.beginPath();
+    ctx.moveTo(-cw * 0.15, -ch * 0.08);
+    ctx.lineTo(-cw * 0.22, ch * 0.18);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // 2. RANHURAS DE DESCOMPRESSÃO DA CÂMARA DE EXTINÇÃO DE ARCO (DE-ION VENT SLOTS)
+  const ventSlotW = Math.min(cw * 0.65, 26 * zoom);
+  const ventSlotH = 1.8 * zoom;
+  const ventSlotsY = -ch * 0.43;
+
+  for (let s = 0; s < 4; s++) {
+    const vy = ventSlotsY + s * (3.1 * zoom);
+    // Vão da ranhura de descompressão
+    ctx.fillStyle = isMagneticShort ? '#050507' : '#0b0f19';
+    ctx.fillRect(-ventSlotW / 2, vy, ventSlotW, ventSlotH);
+    ctx.strokeStyle = isMagneticShort ? 'rgba(239, 68, 68, 0.4)' : '#1e293b';
+    ctx.lineWidth = 0.6 * zoom;
+    ctx.strokeRect(-ventSlotW / 2, vy, ventSlotW, ventSlotH);
+  }
+
+  // Se disparado por curto magnético: MANCHAS PRETAS DE QUEIMA DE ARCO NAS RANHURAS
+  if (isMagneticShort) {
+    ctx.save();
+    // Pluma de fuligem preta de descompressão do arco elétrico
+    const sootArcGrad = ctx.createRadialGradient(0, ventSlotsY + 5 * zoom, 2 * zoom, 0, ventSlotsY + 5 * zoom, cw * 0.6);
+    sootArcGrad.addColorStop(0, 'rgba(5, 5, 8, 0.96)');
+    sootArcGrad.addColorStop(0.35, 'rgba(15, 15, 18, 0.88)');
+    sootArcGrad.addColorStop(0.7, 'rgba(40, 25, 20, 0.45)');
+    sootArcGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = sootArcGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, ventSlotsY + 5 * zoom, cw * 0.52, 14 * zoom, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Chamuscado incandescente alaranjado ao redor das aletas da câmara de extinção
+    ctx.strokeStyle = 'rgba(249, 115, 22, 0.65)';
+    ctx.lineWidth = 0.9 * zoom;
+    ctx.shadowColor = '#f97316';
+    ctx.shadowBlur = 8 * zoom;
+    for (let s = 0; s < 4; s++) {
+      const vy = ventSlotsY + s * (3.1 * zoom);
+      ctx.strokeRect(-ventSlotW / 2 - 1 * zoom, vy - 0.5 * zoom, ventSlotW + 2 * zoom, ventSlotH + 1 * zoom);
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // 3. VISOR ÓTICO DE STATUS MECÂNICO
   const flagW = Math.min(cw * 0.45, 18 * zoom);
   const flagH = 4.5 * zoom;
-  const flagY = -ch * 0.28;
-  ctx.fillStyle = isTrip ? '#f59e0b' : isClosed ? '#dc2626' : '#16a34a';
+  const flagY = -ch * 0.26;
+  ctx.fillStyle = isDamagedIcu ? '#450a0a' : isTrip ? '#f59e0b' : isClosed ? '#dc2626' : '#16a34a';
   ctx.fillRect(-flagW / 2, flagY, flagW, flagH);
   ctx.strokeStyle = '#020617';
   ctx.lineWidth = 0.8 * zoom;
   ctx.strokeRect(-flagW / 2, flagY, flagW, flagH);
 
-  // Alavanca basculante
+  // 4. ALAVANCA BASCULANTE ERGONÔMICA
   const levW = Math.min(cw * 0.42, 18 * zoom);
   const levH = 18 * zoom;
-  const levY = isTrip ? -levH / 2 : isClosed ? -ch * 0.12 : 2 * zoom;
+  const levY = isDamagedIcu ? -levH * 0.4 : isTrip ? -levH / 2 : isClosed ? -ch * 0.12 : 2 * zoom;
 
   const levGrad = ctx.createLinearGradient(0, levY, 0, levY + levH);
-  if (isTrip) {
+  if (isDamagedIcu) {
+    levGrad.addColorStop(0, '#27272a');
+    levGrad.addColorStop(1, '#09090b');
+  } else if (isTrip) {
     levGrad.addColorStop(0, '#fbbf24');
     levGrad.addColorStop(1, '#b45309');
   } else if (isClosed) {
@@ -805,7 +909,7 @@ export function renderCommercialDinBreaker(
   ctx.beginPath();
   ctx.roundRect(-levW / 2, levY, levW, levH, 2.5 * zoom);
   ctx.fill();
-  ctx.strokeStyle = '#64748b';
+  ctx.strokeStyle = isDamagedIcu ? '#7f1d1d' : '#64748b';
   ctx.lineWidth = 0.8 * zoom;
   ctx.stroke();
 
@@ -813,13 +917,14 @@ export function renderCommercialDinBreaker(
   ctx.font = `bold ${Math.max(6.5, 7.5 * zoom)}px monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(isTrip ? 'TRIP' : isClosed ? 'I' : 'O', 0, levY + levH / 2);
+  ctx.fillText(isDamagedIcu ? 'DAMAGED' : isTrip ? 'TRIP' : isClosed ? 'I' : 'O', 0, levY + levH / 2);
 
+  // Botão de teste mecânico para DR / RCBO
   if (isRcd) {
     const testR = 5 * zoom;
     const testX = cw * 0.28;
     const testY = -ch * 0.12;
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = isDamagedIcu ? '#78350f' : '#f59e0b';
     ctx.beginPath();
     ctx.arc(testX, testY, testR, 0, Math.PI * 2);
     ctx.fill();
@@ -830,13 +935,25 @@ export function renderCommercialDinBreaker(
     ctx.fillText('T', testX, testY);
   }
 
-  ctx.fillStyle = REAL_BRANDS[brandName as DeviceBrand]?.textColor || '#94a3b8';
+  // Marca Comercial
+  ctx.fillStyle = isDamagedIcu ? '#71717a' : REAL_BRANDS[brandName as DeviceBrand]?.textColor || '#94a3b8';
   ctx.font = `bold ${Math.max(5.5, 6.5 * zoom)}px sans-serif`;
   ctx.fillText(shortBrand.toUpperCase(), 0, -ch / 2 + 8 * zoom);
 
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = `bold ${Math.max(6, 7 * zoom)}px monospace`;
-  ctx.fillText(isRcd ? `${inA}A • 30mA` : `${curve}${inA} • ${icu}kA`, 0, ch / 2 - 8 * zoom);
+  // Informações Técnicas Normativas (ou Alerta de Destruição por Icu)
+  if (isDamagedIcu) {
+    ctx.fillStyle = '#ef4444';
+    ctx.font = `bold ${Math.max(6, 7 * zoom)}px monospace`;
+    ctx.fillText(`DESTRUÍDO (Icu > ${icu}kA)`, 0, ch / 2 - 8 * zoom);
+  } else if (isMagneticShort) {
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = `bold ${Math.max(6, 7 * zoom)}px monospace`;
+    ctx.fillText(`CURTO-CIRCUITO (${curve}${inA})`, 0, ch / 2 - 8 * zoom);
+  } else {
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = `bold ${Math.max(6, 7 * zoom)}px monospace`;
+    ctx.fillText(isRcd ? `${inA}A • 30mA` : `${curve}${inA} • ${icu}kA`, 0, ch / 2 - 8 * zoom);
+  }
 }
 
 export function renderCommercialMotorBreaker(
@@ -899,35 +1016,177 @@ export function renderCommercialFuseCarrier(
   ch: number,
   zoom: number
 ) {
-  const isTrip = Boolean(st.burned || st.tripped);
+  const isTrip = Boolean(st.burned || st.isBurned || st.tripped || st.fault);
   const inA = c.params?.current || 10;
   const is3P = c.code === 'FU3';
-  ctx.fillStyle = '#1e293b';
+
+  // Base do porta-fusível seccionador
+  ctx.fillStyle = isTrip ? '#090d16' : '#1e293b';
   ctx.beginPath();
   ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 4 * zoom);
   ctx.fill();
   ctx.strokeStyle = isTrip ? '#ef4444' : '#475569';
+  ctx.lineWidth = (isTrip ? 1.8 : 1) * zoom;
   ctx.stroke();
 
   const poles = is3P ? 3 : 1;
-  const pW = (cw * 0.8) / poles;
-  const pH = ch * 0.58;
-  const startX = -cw * 0.4 + pW / 2;
+  const pW = (cw * 0.84) / poles;
+  const pH = ch * 0.62;
+  const startX = -cw * 0.42 + pW / 2;
 
   for (let i = 0; i < poles; i++) {
     const px = startX + i * pW;
-    ctx.fillStyle = '#0f172a';
+
+    // Gaveta basculante do cartucho
+    ctx.fillStyle = '#050a14';
     ctx.beginPath();
-    ctx.roundRect(px - pW * 0.44, -pH / 2, pW * 0.88, pH, 2 * zoom);
+    ctx.roundRect(px - pW * 0.45, -pH / 2, pW * 0.9, pH, 3 * zoom);
     ctx.fill();
-    ctx.fillStyle = isTrip ? '#450a0a' : '#f8fafc';
-    ctx.fillRect(px - pW * 0.22, -pH * 0.32, pW * 0.44, pH * 0.64);
+    ctx.strokeStyle = isTrip ? 'rgba(239, 68, 68, 0.4)' : '#1e293b';
+    ctx.stroke();
+
+    // CARTUCHO CERÂMICO 10x38 mm (ESTOURADO/CARBONIZADO EM PRETO FULIGEM SE isTrip / st.burned)
+    const cartW = pW * 0.54;
+    const cartH = pH * 0.82;
+    const cartX = px - cartW / 2;
+    const cartY = -cartH / 2;
+
+    if (isTrip) {
+      // Cartucho estourado/carbonizado em preto fuligem com queima térmica
+      const charredGrad = ctx.createLinearGradient(cartX, 0, cartX + cartW, 0);
+      charredGrad.addColorStop(0, '#09090b');
+      charredGrad.addColorStop(0.3, '#1c1917');
+      charredGrad.addColorStop(0.7, '#18181b');
+      charredGrad.addColorStop(1, '#050507');
+
+      ctx.fillStyle = charredGrad;
+      ctx.beginPath();
+      ctx.roundRect(cartX, cartY, cartW, cartH, 2.5 * zoom);
+      ctx.fill();
+
+      // Manchas de fuligem preta estourada projetadas para fora da gaveta
+      const sootBlast = ctx.createRadialGradient(px, 0, 1 * zoom, px, 0, cartW * 1.5);
+      sootBlast.addColorStop(0, 'rgba(5, 5, 8, 0.95)');
+      sootBlast.addColorStop(0.5, 'rgba(24, 24, 27, 0.7)');
+      sootBlast.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = sootBlast;
+      ctx.beginPath();
+      ctx.arc(px, 0, cartW * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Terminais metálicos (caps) descoloridos e oxidados pelo arco de queima
+      [-cartH / 2, cartH / 2 - 5 * zoom].forEach(capY => {
+        ctx.fillStyle = '#292524';
+        ctx.fillRect(cartX, capY, cartW, 5 * zoom);
+        ctx.strokeStyle = '#44403c';
+        ctx.strokeRect(cartX, capY, cartW, 5 * zoom);
+      });
+
+      // VISOR ÓTICO CENTRAL COM O FILAMENTO ROMPIDO
+      const winW = cartW * 0.75;
+      const winH = 8 * zoom;
+      const winY = -winH / 2;
+
+      // Fundo escuro do visor chamuscado por vapor de prata/cobre
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(px - winW / 2, winY, winW, winH);
+      ctx.strokeStyle = '#450a0a';
+      ctx.lineWidth = 0.8 * zoom;
+      ctx.strokeRect(px - winW / 2, winY, winW, winH);
+
+      // FILAMENTO ROMPIDO: pontas fundidas separadas por gap aberto
+      ctx.save();
+      // Ponta esquerda do elo fusível com gota esférica de cobre fundido
+      ctx.strokeStyle = '#ea580c';
+      ctx.lineWidth = 1.3 * zoom;
+      ctx.beginPath();
+      ctx.moveTo(px - winW * 0.45, 0);
+      ctx.lineTo(px - 1.8 * zoom, -0.8 * zoom);
+      ctx.stroke();
+
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.arc(px - 1.8 * zoom, -0.8 * zoom, 1.2 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ponta direita do elo fusível com gota esférica de cobre fundido
+      ctx.strokeStyle = '#ea580c';
+      ctx.beginPath();
+      ctx.moveTo(px + winW * 0.45, 0);
+      ctx.lineTo(px + 1.8 * zoom, 0.8 * zoom);
+      ctx.stroke();
+
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.arc(px + 1.8 * zoom, 0.8 * zoom, 1.2 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Trincas no vidro do visor por pressão interna de arco
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 0.5 * zoom;
+      ctx.beginPath();
+      ctx.moveTo(px - 3 * zoom, -winH * 0.4);
+      ctx.lineTo(px, winH * 0.4);
+      ctx.lineTo(px + 3 * zoom, -winH * 0.2);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      // Cartucho cerâmico esteatita branco original
+      const ceramicGrad = ctx.createLinearGradient(cartX, 0, cartX + cartW, 0);
+      ceramicGrad.addColorStop(0, '#e2e8f0');
+      ceramicGrad.addColorStop(0.3, '#ffffff');
+      ceramicGrad.addColorStop(0.7, '#f8fafc');
+      ceramicGrad.addColorStop(1, '#cbd5e1');
+
+      ctx.fillStyle = ceramicGrad;
+      ctx.beginPath();
+      ctx.roundRect(cartX, cartY, cartW, cartH, 2.5 * zoom);
+      ctx.fill();
+
+      // Caps metálicos niquelados prateados nas extremidades
+      [-cartH / 2, cartH / 2 - 5 * zoom].forEach(capY => {
+        const capGrad = ctx.createLinearGradient(cartX, 0, cartX + cartW, 0);
+        capGrad.addColorStop(0, '#94a3b8');
+        capGrad.addColorStop(0.5, '#f1f5f9');
+        capGrad.addColorStop(1, '#64748b');
+        ctx.fillStyle = capGrad;
+        ctx.fillRect(cartX, capY, cartW, 5 * zoom);
+      });
+
+      // Visor de inspeção com elo fusível intacto
+      const winW = cartW * 0.75;
+      const winH = 7 * zoom;
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(px - winW / 2, -winH / 2, winW, winH);
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 0.6 * zoom;
+      ctx.strokeRect(px - winW / 2, -winH / 2, winW, winH);
+
+      // Elo fusível intacto contínuo prateado
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1.2 * zoom;
+      ctx.beginPath();
+      ctx.moveTo(px - winW * 0.42, 0);
+      ctx.lineTo(px + winW * 0.42, 0);
+      ctx.stroke();
+    }
   }
 
-  ctx.fillStyle = isTrip ? '#ef4444' : '#38bdf8';
-  ctx.font = `bold ${Math.max(6, 7 * zoom)}px sans-serif`;
+  // RÓTULO TEXTUAL NORMATIVO
+  ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillText(isTrip ? 'FUSÍVEL QUEIMADO' : `FUSÍVEL ${inA}A gG`, 0, ch / 2 - 7 * zoom);
+  if (isTrip) {
+    ctx.fillStyle = '#ef4444';
+    ctx.font = `bold ${Math.max(6.5, 7.5 * zoom)}px sans-serif`;
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 8 * zoom;
+    ctx.fillText('FUSÍVEL ROMPIDO (I²t)', 0, ch / 2 - 7 * zoom);
+  } else {
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = `bold ${Math.max(6, 7 * zoom)}px sans-serif`;
+    ctx.fillText(`FUSÍVEL ${inA}A gG`, 0, ch / 2 - 7 * zoom);
+  }
+  ctx.restore();
 }
 
 // ----------------------------------------------------------------------------
@@ -1756,6 +2015,7 @@ export function renderCommercialRotaryCamSelector(
 // ----------------------------------------------------------------------------
 // MOTOR TRIFÁSICO MIT HEAVY-DUTY INDUSTRIAL ULTRA-REALISTA (WEG W22 IE3 400V)
 // Carcaça Aletada em Ferro Fundido, Prensa-Cabos, Olhal DIN 580, Eixo Retificado e Pés B3
+// Efeitos: Estremecimento Proporcional ao RPM, Giro da Patilha (CW/CCW) e Seta Circular
 // ----------------------------------------------------------------------------
 export function renderIndustrialWegMotor(
   ctx: CanvasRenderingContext2D,
@@ -1768,17 +2028,46 @@ export function renderIndustrialWegMotor(
   time: number,
   simRunning: boolean
 ) {
-  const isRunning = Boolean(simRunning && st?.running && (st?.rpm || 0) > 0);
-  const rpm = isRunning ? (st?.rpm || 0) : 0;
+  // 1. DETECÇÃO ROBUSTA DE FUNCIONAMENTO (imune a st.rpm undefined)
+  const isRunning = Boolean(
+    (simRunning && (st?.running || st?.energized || (st?.voltage && st.voltage > 50) || (st?.current && st.current > 0.05))) ||
+    st?.running ||
+    st?.energized ||
+    c?.params?.running
+  );
+
+  const nominalRpm = Number(c?.params?.rpm || 2920);
+  const rawRpm = Number(st?.rpm) > 0 ? Number(st?.rpm) : nominalRpm;
+  const rpm = isRunning ? rawRpm : 0;
   const pNom = Number(c?.params?.power || 7500);
   const pKw = (pNom / 1000).toFixed(1);
   const pCv = ((pNom / 1000) * 1.36).toFixed(1);
   const vNom = c?.params?.voltage || 400;
   const brandName = (c?.brand || c?.brandName || 'WEG W22 Premium').toString();
 
-  // Efeito de microvibração mecânica quando em rotação
-  const vibX = isRunning ? Math.sin(time * 60) * (0.6 * zoom) : 0;
-  const vibY = isRunning ? Math.cos(time * 60) * (0.4 * zoom) : 0;
+  // Sentido de rotação: 1 = Horário (CW / Direto), -1 = Anti-Horário (CCW / Fases Invertidas)
+  const isCCW = Boolean(
+    st?.rotationDir === 'CCW' ||
+    st?.phaseSequence === 'CBA' ||
+    st?.phaseSequence === 'BAC' ||
+    st?.phaseSequence === 'ACB' ||
+    c?.params?.rotationDir === 'CCW' ||
+    c?.params?.reverse ||
+    st?.reverse ||
+    (typeof st?.rpm === 'number' && st?.rpm < 0)
+  );
+  const dirSign = isCCW ? -1 : 1;
+
+  // Relógio contínuo imune a congelamento
+  const animTime = (time !== undefined && time > 0) ? time : (performance.now() * 0.001);
+
+  // 2. FÍSICA DE ESTREMECIMENTO / TREMOR PROPORCIONAL AO RPM
+  // Escala quadrática: em repouso = 0; em 2920 RPM = forte vibração mecânica nos pés de apoio
+  const speedRatio = Math.min(1.5, Math.abs(rpm) / 2920);
+  const vibAmp = isRunning ? (1.2 * speedRatio + 2.8 * Math.pow(speedRatio, 2)) * zoom : 0;
+  const vibAngle = animTime * 52 * Math.PI * 2;
+  const vibX = isRunning ? (Math.sin(vibAngle) * 0.7 + Math.sin(animTime * 38) * 0.3) * vibAmp : 0;
+  const vibY = isRunning ? (Math.cos(vibAngle * 0.92) * 0.55 + Math.cos(animTime * 47) * 0.25) * vibAmp : 0;
 
   ctx.save();
   ctx.translate(vibX, vibY);
@@ -1798,7 +2087,6 @@ export function renderIndustrialWegMotor(
 
   // Sapatas de apoio
   [-footW * 0.36, footW * 0.36].forEach(fx => {
-    // Nervura estrutural chanfrada
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
     ctx.moveTo(fx - 14 * zoom, footY);
@@ -1811,7 +2099,6 @@ export function renderIndustrialWegMotor(
     ctx.lineWidth = 1 * zoom;
     ctx.stroke();
 
-    // Sapata usinada em ferro fundido
     const fGrad = ctx.createLinearGradient(fx - 18 * zoom, footY, fx + 18 * zoom, footY + footH);
     fGrad.addColorStop(0, '#334155');
     fGrad.addColorStop(0.5, '#1e293b');
@@ -1823,7 +2110,6 @@ export function renderIndustrialWegMotor(
     ctx.strokeStyle = '#475569';
     ctx.stroke();
 
-    // Chumbador sextavado em aço zincado com arruela
     ctx.fillStyle = '#94a3b8';
     ctx.beginPath();
     ctx.arc(fx, footY + footH * 0.65, 3.5 * zoom, 0, Math.PI * 2);
@@ -1832,7 +2118,6 @@ export function renderIndustrialWegMotor(
     ctx.lineWidth = 1 * zoom;
     ctx.stroke();
 
-    // Fenda da porca sextavada
     ctx.fillStyle = '#cbd5e1';
     ctx.beginPath();
     ctx.arc(fx, footY + footH * 0.65, 2.2 * zoom, 0, Math.PI * 2);
@@ -1843,13 +2128,11 @@ export function renderIndustrialWegMotor(
   const eyeR = 7.5 * zoom;
   const eyeY = -ch / 2 + 5 * zoom;
 
-  // Base sextavada do olhal
   ctx.fillStyle = '#475569';
   ctx.fillRect(-5 * zoom, eyeY + eyeR * 0.7, 10 * zoom, 5 * zoom);
   ctx.strokeStyle = '#1e293b';
   ctx.strokeRect(-5 * zoom, eyeY + eyeR * 0.7, 10 * zoom, 5 * zoom);
 
-  // Anel forjado com reflexo metálico
   const eyeGrad = ctx.createLinearGradient(-eyeR, eyeY - eyeR, eyeR, eyeY + eyeR);
   eyeGrad.addColorStop(0, '#f1f5f9');
   eyeGrad.addColorStop(0.3, '#cbd5e1');
@@ -1863,7 +2146,6 @@ export function renderIndustrialWegMotor(
   ctx.lineWidth = 1.2 * zoom;
   ctx.stroke();
 
-  // Furo central do olhal
   ctx.fillStyle = '#0a101d';
   ctx.beginPath();
   ctx.arc(0, eyeY, eyeR * 0.48, 0, Math.PI * 2);
@@ -1874,7 +2156,6 @@ export function renderIndustrialWegMotor(
   const bodyH = ch * 0.68;
   const bodyY = -1 * zoom;
 
-  // Bloco cilíndrico do estator
   const statorGrad = ctx.createLinearGradient(-bodyW / 2, bodyY - bodyH / 2, bodyW / 2, bodyY + bodyH / 2);
   if (isRunning) {
     statorGrad.addColorStop(0, '#0284c7');
@@ -1906,7 +2187,6 @@ export function renderIndustrialWegMotor(
   for (let i = 0; i < numFins; i++) {
     const fy = finStartY + i * finStep;
 
-    // Sombra de canaleta da aleta (profundidade)
     ctx.strokeStyle = '#02131e';
     ctx.lineWidth = 2.6 * zoom;
     ctx.beginPath();
@@ -1914,7 +2194,6 @@ export function renderIndustrialWegMotor(
     ctx.lineTo(bodyW * 0.48, fy + 0.8 * zoom);
     ctx.stroke();
 
-    // Corpo de ferro azul da aleta
     ctx.strokeStyle = isRunning ? '#0284c7' : '#0369a1';
     ctx.lineWidth = 1.8 * zoom;
     ctx.beginPath();
@@ -1922,7 +2201,6 @@ export function renderIndustrialWegMotor(
     ctx.lineTo(bodyW * 0.48, fy);
     ctx.stroke();
 
-    // Filete superior metálico polido (destaque de luz usinada)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.48)';
     ctx.lineWidth = 0.9 * zoom;
     ctx.beginPath();
@@ -1936,7 +2214,6 @@ export function renderIndustrialWegMotor(
   const tBoxH = 24 * zoom;
   const tBoxY = bodyY - bodyH / 2 + tBoxH / 2 + 2 * zoom;
 
-  // Base da caixa preta em polímero autoextinguível
   const boxGrad = ctx.createLinearGradient(-tBoxW / 2, tBoxY - tBoxH / 2, tBoxW / 2, tBoxY + tBoxH / 2);
   boxGrad.addColorStop(0, '#1e293b');
   boxGrad.addColorStop(0.5, '#0f172a');
@@ -1949,7 +2226,6 @@ export function renderIndustrialWegMotor(
   ctx.lineWidth = 1.4 * zoom;
   ctx.stroke();
 
-  // Parafusos imperdíveis nos 4 cantos da tampa da caixa
   const cOff = 3.5 * zoom;
   [
     { x: -tBoxW / 2 + cOff, y: tBoxY - tBoxH / 2 + cOff },
@@ -1963,7 +2239,6 @@ export function renderIndustrialWegMotor(
     ctx.fill();
   });
 
-  // Prensa-Cabos Metálico de Latão Niquelado na Lateral Esquerda da Caixa
   const glandX = -tBoxW / 2 - 5 * zoom;
   ctx.fillStyle = '#94a3b8';
   ctx.fillRect(glandX, tBoxY - 4 * zoom, 6 * zoom, 8 * zoom);
@@ -1973,7 +2248,6 @@ export function renderIndustrialWegMotor(
   ctx.lineWidth = 0.8 * zoom;
   ctx.strokeRect(glandX - 2 * zoom, tBoxY - 5 * zoom, 8 * zoom, 10 * zoom);
 
-  // Placa interna de ligação em baquelite marrom acetinado
   const bqlW = tBoxW - 14 * zoom;
   const bqlH = tBoxH - 6 * zoom;
   ctx.fillStyle = '#451a03';
@@ -1984,12 +2258,10 @@ export function renderIndustrialWegMotor(
   ctx.lineWidth = 1 * zoom;
   ctx.stroke();
 
-  // 3 Bornes M8 de Latão Maciço Usinado (U, V, W) alinhados com condutores
   const termXOffsets = [-cw * 0.25, 0, cw * 0.25];
   const termLabels = ['U', 'V', 'W'];
 
   termXOffsets.forEach((tx, idx) => {
-    // Porca sextavada de latão dourado
     const brassGrad = ctx.createLinearGradient(tx - 4 * zoom, tBoxY - 4 * zoom, tx + 4 * zoom, tBoxY + 4 * zoom);
     brassGrad.addColorStop(0, '#fef08a');
     brassGrad.addColorStop(0.3, '#f59e0b');
@@ -2004,13 +2276,11 @@ export function renderIndustrialWegMotor(
     ctx.lineWidth = 0.9 * zoom;
     ctx.stroke();
 
-    // Pino roscado central
     ctx.fillStyle = '#020617';
     ctx.beginPath();
     ctx.arc(tx, tBoxY - 1 * zoom, 1.5 * zoom, 0, Math.PI * 2);
     ctx.fill();
 
-    // Letra identificadora fundida na placa
     ctx.fillStyle = '#fde047';
     ctx.font = `black ${Math.max(6, 7.5 * zoom)}px monospace`;
     ctx.textAlign = 'center';
@@ -2021,7 +2291,6 @@ export function renderIndustrialWegMotor(
   // 7. BORNE DE ATERRAMENTO DA CARCAÇA COM IDENTIFICADOR (PE)
   const peX = bodyW / 2 + 2 * zoom;
   const peY = bodyY;
-  // Flange do parafuso de aterramento
   ctx.fillStyle = '#1e293b';
   ctx.beginPath();
   ctx.roundRect(peX - 2 * zoom, peY - 7 * zoom, 7 * zoom, 14 * zoom, 2 * zoom);
@@ -2029,7 +2298,6 @@ export function renderIndustrialWegMotor(
   ctx.strokeStyle = '#475569';
   ctx.stroke();
 
-  // Parafuso de latão com arruela verde
   ctx.fillStyle = '#16a34a';
   ctx.beginPath();
   ctx.arc(peX + 2 * zoom, peY, 4 * zoom, 0, Math.PI * 2);
@@ -2047,7 +2315,6 @@ export function renderIndustrialWegMotor(
   const shaftCenterY = bodyY + 6 * zoom;
   const flangeR = 19 * zoom;
 
-  // Flange usinada
   ctx.fillStyle = '#0f172a';
   ctx.beginPath();
   ctx.arc(0, shaftCenterY, flangeR, 0, Math.PI * 2);
@@ -2056,7 +2323,6 @@ export function renderIndustrialWegMotor(
   ctx.lineWidth = 1.4 * zoom;
   ctx.stroke();
 
-  // 6 Parafusos perimétricos da tampa de mancais
   for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
     const px = Math.cos(a) * (flangeR - 3 * zoom);
     const py = shaftCenterY + Math.sin(a) * (flangeR - 3 * zoom);
@@ -2066,15 +2332,65 @@ export function renderIndustrialWegMotor(
     ctx.fill();
   }
 
-  // 9. EIXO EM AÇO FORJADO RETIFICADO COM CHAVETA GIRATÓRIA ANIMADA
-  const rotAngle = isRunning ? (time * (rpm / 60) * Math.PI * 2) : 0;
+  // 9. SETA CIRCULAR NORMATIVA INDICANDO O SENTIDO DA ROTAÇÃO (CW OU CCW)
+  const arrowRadius = 22.5 * zoom;
+  const arcSweep = Math.PI * 1.35; // Arco visível de ~243 graus
+  const startAng = isCCW ? (Math.PI * 0.45) : (-Math.PI * 0.9);
+  const endAng = isCCW ? (startAng - arcSweep) : (startAng + arcSweep);
+
+  ctx.save();
+  ctx.translate(0, shaftCenterY);
+
+  ctx.beginPath();
+  ctx.arc(0, 0, arrowRadius, startAng, endAng, isCCW);
+  ctx.strokeStyle = isRunning ? (isCCW ? '#f59e0b' : '#10b981') : 'rgba(148, 163, 184, 0.45)';
+  ctx.lineWidth = Math.max(1.8, 2.4 * zoom);
+  ctx.lineCap = 'round';
+
+  if (isRunning) {
+    ctx.shadowColor = isCCW ? '#f59e0b' : '#34d399';
+    ctx.shadowBlur = 10 * zoom;
+    // Animação de fluxo dinâmico contínuo na direção do giro
+    ctx.setLineDash([8 * zoom, 4 * zoom]);
+    ctx.lineDashOffset = -dirSign * animTime * 45 * zoom;
+  } else {
+    ctx.setLineDash([4 * zoom, 4 * zoom]);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Cabeça triangular da seta direcional
+  const tipX = Math.cos(endAng) * arrowRadius;
+  const tipY = Math.sin(endAng) * arrowRadius;
+  const tangentAng = endAng + (isCCW ? -Math.PI / 2 : Math.PI / 2);
+  const headLen = 7 * zoom;
+  const headHalfW = 4 * zoom;
+
+  const leftWingX = tipX - Math.cos(tangentAng) * headLen + Math.sin(tangentAng) * headHalfW;
+  const leftWingY = tipY - Math.sin(tangentAng) * headLen - Math.cos(tangentAng) * headHalfW;
+  const rightWingX = tipX - Math.cos(tangentAng) * headLen - Math.sin(tangentAng) * headHalfW;
+  const rightWingY = tipY - Math.sin(tangentAng) * headLen + Math.cos(tangentAng) * headHalfW;
+
+  ctx.fillStyle = isRunning ? (isCCW ? '#fbbf24' : '#34d399') : '#94a3b8';
+  ctx.beginPath();
+  ctx.moveTo(tipX + Math.cos(tangentAng) * (1.8 * zoom), tipY + Math.sin(tangentAng) * (1.8 * zoom));
+  ctx.lineTo(leftWingX, leftWingY);
+  ctx.lineTo(rightWingX, rightWingY);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
+  // 10. EIXO EM AÇO FORJADO RETIFICADO COM CHAVETA (PATILHA) GIRATÓRIA ANIMADA
+  // Velocidade calibrada sem aliasing estroboscópico de 60Hz (~3.6 voltas/segundo a 2920 RPM)
+  const visualRevPerSec = (rpm / 2920) * 3.6;
+  const rotAngle = isRunning ? dirSign * (animTime * visualRevPerSec * Math.PI * 2) : 0;
   const shaftR = 12 * zoom;
 
   ctx.save();
   ctx.translate(0, shaftCenterY);
   ctx.rotate(rotAngle);
 
-  // Eixo usinado em anéis concêntricos (marcas de retífica)
   const shaftGrad = ctx.createLinearGradient(-shaftR, -shaftR, shaftR, shaftR);
   shaftGrad.addColorStop(0, '#ffffff');
   shaftGrad.addColorStop(0.2, '#f1f5f9');
@@ -2090,27 +2406,25 @@ export function renderIndustrialWegMotor(
   ctx.lineWidth = 1.2 * zoom;
   ctx.stroke();
 
-  // Anel interno usinado
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.lineWidth = 0.8 * zoom;
   ctx.beginPath();
   ctx.arc(0, 0, shaftR * 0.65, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Rasgo de chaveta DIN 6885 com chaveta de aço temperado
-  ctx.fillStyle = isRunning ? '#0284c7' : '#0369a1';
+  // Chaveta / Patilha metálica retangular animada
+  ctx.fillStyle = isRunning ? (isCCW ? '#d97706' : '#0284c7') : '#0369a1';
   ctx.fillRect(-2.2 * zoom, -shaftR, 4.4 * zoom, shaftR * 0.78);
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 0.6 * zoom;
   ctx.strokeRect(-2.2 * zoom, -shaftR, 4.4 * zoom, shaftR * 0.78);
   ctx.restore();
 
-  // 10. PLACA DE IDENTIFICAÇÃO INDUSTRIAL REBITADA (ALUMÍNIO ANODIZADO ESCOVADO)
+  // 11. PLACA DE IDENTIFICAÇÃO INDUSTRIAL REBITADA
   const tagW = bodyW * 0.86;
   const tagH = 15 * zoom;
   const tagY = ch / 2 - 13 * zoom;
 
-  // Placa de alumínio
   const tagGrad = ctx.createLinearGradient(-tagW / 2, tagY - tagH / 2, tagW / 2, tagY + tagH / 2);
   tagGrad.addColorStop(0, '#f8fafc');
   tagGrad.addColorStop(0.3, '#e2e8f0');
@@ -2125,7 +2439,6 @@ export function renderIndustrialWegMotor(
   ctx.lineWidth = 1 * zoom;
   ctx.stroke();
 
-  // 4 Rebites esféricos nas pontas da plaqueta
   const rOffX = tagW / 2 - 2.5 * zoom;
   const rOffY = tagH / 2 - 2.5 * zoom;
   [
@@ -2140,7 +2453,6 @@ export function renderIndustrialWegMotor(
     ctx.fill();
   });
 
-  // Dados técnicos gravados na placa metálica
   ctx.fillStyle = '#0f172a';
   ctx.font = `bold ${Math.max(6.5, 7.5 * zoom)}px sans-serif`;
   ctx.textAlign = 'center';
@@ -2150,10 +2462,11 @@ export function renderIndustrialWegMotor(
     tagY - 2 * zoom
   );
 
-  ctx.fillStyle = isRunning ? '#15803d' : '#475569';
+  const dirLabel = isCCW ? 'ANTI-HORÁRIO ⟲ (FASES INVERTIDAS)' : 'HORÁRIO ⟳ (DIRETO)';
+  ctx.fillStyle = isRunning ? (isCCW ? '#b45309' : '#15803d') : '#475569';
   ctx.font = `bold ${Math.max(5.5, 6.5 * zoom)}px monospace`;
   ctx.fillText(
-    isRunning ? `${Math.round(rpm)} RPM • COS φ: 0.86 • EM MARCHA` : 'MOTOR 3F MIT (U - V - W) • PRONTO',
+    isRunning ? `${Math.round(Math.abs(rpm))} RPM • ${dirLabel}` : 'MOTOR 3F MIT (U - V - W) • PRONTO',
     0,
     tagY + 5.5 * zoom
   );
@@ -3037,25 +3350,403 @@ export function renderCommercialPanelPilot(ctx: CanvasRenderingContext2D, c: any
 export function renderCommercialOutlet(ctx: CanvasRenderingContext2D, c: any, st: any, cw: number, ch: number, zoom: number) {
   const plateW = cw;
   const plateH = ch;
-  ctx.fillStyle = '#f8fafc';
+  const isEnergized = Boolean(st.energized || st.live);
+
+  const applianceKey = (c.params?.pluggedAppliance || st.appliance || 'NONE').toString().toUpperCase();
+  const configuredCurrent = Number(c.params?.current || 0);
+  const isPlugged = applianceKey !== 'NONE' || (configuredCurrent > 0 && applianceKey !== 'NONE') || Boolean(c.params?.pluggedAppliance && c.params.pluggedAppliance !== 'NONE');
+
+  // Cálculo da potência física e corrente real da carga conectada
+  let appPowerW = 0;
+  if (applianceKey === 'PHONE') appPowerW = 20;
+  else if (applianceKey === 'HAIR_DRYER') appPowerW = 2000;
+  else if (applianceKey === 'SHOWER') appPowerW = 5500;
+  else if (applianceKey === 'WELDER') appPowerW = 7500;
+  else if (applianceKey === 'CUSTOM') appPowerW = Number(c.params?.customPowerW || 2000);
+  else appPowerW = Number(st.appliancePower || 0);
+
+  const vNom = Number(c.params?.voltage || 230);
+  const currentA = appPowerW > 0 ? (appPowerW / vNom) : Number(st.current || (isPlugged ? 10 : 0));
+
+  let appName = 'Carga Conectada';
+  if (applianceKey === 'PHONE') appName = 'Carregador Celular 20W';
+  else if (applianceKey === 'HAIR_DRYER') appName = 'Secador Turbo 2000W';
+  else if (applianceKey === 'SHOWER') appName = 'Chuveiro 5500W';
+  else if (applianceKey === 'WELDER') appName = 'Inversora Solda 7.5kW';
+  else if (applianceKey === 'CUSTOM') appName = `Carga Custom ${appPowerW}W`;
+  else if (isPlugged) appName = `Carga ${appPowerW > 0 ? appPowerW + 'W' : ''}`;
+
+  const currentFormatted = currentA < 1 && currentA > 0 ? `${currentA.toFixed(1)}A` : `${Math.round(currentA)}A`;
+  const plaqueText = isPlugged ? `${appName} / ${currentFormatted}` : 'TOMADA 2P+T 16A • VAZIA';
+
+  // 1. ESPELHO DA TOMADA (FACEPLATE TERMOPLÁSTICO INDUSTRIAL)
+  const plateGrad = ctx.createLinearGradient(0, -plateH / 2, 0, plateH / 2);
+  plateGrad.addColorStop(0, '#f8fafc');
+  plateGrad.addColorStop(0.5, '#f1f5f9');
+  plateGrad.addColorStop(1, '#e2e8f0');
+
+  ctx.fillStyle = plateGrad;
   ctx.beginPath();
   ctx.roundRect(-plateW / 2, -plateH / 2, plateW, plateH, 6 * zoom);
   ctx.fill();
-  ctx.strokeStyle = '#64748b';
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.2 * zoom;
   ctx.stroke();
 
-  const cavityR = Math.min(cw, ch) * 0.34;
-  ctx.fillStyle = '#0f172a';
+  // Parafusos decorativos de fixação do espelho
+  [-plateW * 0.42, plateW * 0.42].forEach(sx => {
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath();
+    ctx.arc(sx, 0, 1.8 * zoom, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 0.5 * zoom;
+    ctx.stroke();
+  });
+
+  // 2. POÇO REBAIXADO DA TOMADA SCHUKO / NBR (CAVITY)
+  const cavityR = Math.min(cw, ch) * 0.33;
+  const cavityY = -ch * 0.05;
+
+  const cavityGrad = ctx.createRadialGradient(0, cavityY, 2 * zoom, 0, cavityY, cavityR);
+  cavityGrad.addColorStop(0, '#090d16');
+  cavityGrad.addColorStop(0.75, '#0f172a');
+  cavityGrad.addColorStop(1, '#1e293b');
+
+  ctx.fillStyle = cavityGrad;
   ctx.beginPath();
-  ctx.arc(0, 0, cavityR, 0, Math.PI * 2);
+  ctx.arc(0, cavityY, cavityR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.2 * zoom;
+  ctx.stroke();
+
+  // Molas metálicas de aterramento lateral Schuko
+  [-cavityR + 1.2 * zoom, cavityR - 1.2 * zoom].forEach(gx => {
+    ctx.fillStyle = '#d97706';
+    ctx.fillRect(gx - 1.2 * zoom, cavityY - 3.5 * zoom, 2.4 * zoom, 7 * zoom);
+  });
+
+  if (!isPlugged) {
+    // Alvéolos vazios (Fase, Terra central NBR, Neutro)
+    [-cavityR * 0.52, 0, cavityR * 0.52].forEach(px => {
+      ctx.fillStyle = '#020617';
+      ctx.beginPath();
+      ctx.arc(px, cavityY, 2.6 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 0.6 * zoom;
+      ctx.stroke();
+    });
+  } else {
+    // 3. PLUGUE 2P+T MACHO INDUSTRIAL DE BORRACHA PRETA CONECTADO NO CENTRO DO POÇO
+    ctx.save();
+
+    // Sombra de profundidade do plugue inserido
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.beginPath();
+    ctx.arc(1.5 * zoom, cavityY + 2.5 * zoom, cavityR * 0.88, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Corpo circular de borracha vulcanizada preta texturizada
+    const rubberR = cavityR * 0.86;
+    const plugGrad = ctx.createRadialGradient(0, cavityY - 2 * zoom, 2 * zoom, 0, cavityY, rubberR);
+    plugGrad.addColorStop(0, '#27272a');
+    plugGrad.addColorStop(0.45, '#18181b');
+    plugGrad.addColorStop(0.85, '#09090b');
+    plugGrad.addColorStop(1, '#050507');
+
+    ctx.fillStyle = plugGrad;
+    ctx.beginPath();
+    ctx.arc(0, cavityY, rubberR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = isEnergized ? 'rgba(34, 197, 94, 0.75)' : '#3f3f46';
+    ctx.lineWidth = 1.6 * zoom;
+    ctx.stroke();
+
+    // Aletas / ranhuras ergonômicas de empunhadura na borracha
+    for (let a = 0; a < 6; a++) {
+      const ang = (a / 6) * Math.PI * 2;
+      const gX1 = Math.cos(ang) * (rubberR * 0.58);
+      const gY1 = cavityY + Math.sin(ang) * (rubberR * 0.58);
+      const gX2 = Math.cos(ang) * (rubberR * 0.84);
+      const gY2 = cavityY + Math.sin(ang) * (rubberR * 0.84);
+
+      ctx.strokeStyle = '#27272a';
+      ctx.lineWidth = 1.2 * zoom;
+      ctx.beginPath();
+      ctx.moveTo(gX1, gY1);
+      ctx.lineTo(gX2, gY2);
+      ctx.stroke();
+    }
+
+    // Passacabo de borracha cônico central (strain relief boot)
+    const bootR = rubberR * 0.42;
+    ctx.fillStyle = '#18181b';
+    ctx.beginPath();
+    ctx.arc(0, cavityY, bootR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3f3f46';
+    ctx.lineWidth = 0.8 * zoom;
+    ctx.stroke();
+
+    // Anéis escalonados de alívio de tensão do passacabo
+    [bootR * 0.75, bootR * 0.5].forEach(rStep => {
+      ctx.strokeStyle = '#27272a';
+      ctx.lineWidth = 0.7 * zoom;
+      ctx.beginPath();
+      ctx.arc(0, cavityY, rStep, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    // 4. CABO FLEXÍVEL DE BORRACHA SAINDO DO PLUGUE (NEOPRENE HEAVY DUTY)
+    const cableStartX = 0;
+    const cableStartY = cavityY + 2 * zoom;
+    const cableMidX = 9 * zoom;
+    const cableMidY = cavityY + cavityR * 0.95;
+    const cableEndX = -3 * zoom;
+    const cableEndY = ch * 0.55;
+
+    // Sombra do cabo flexível
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.lineWidth = 6 * zoom;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cableStartX + 2 * zoom, cableStartY + 2.5 * zoom);
+    ctx.quadraticCurveTo(cableMidX + 2 * zoom, cableMidY + 2.5 * zoom, cableEndX + 2 * zoom, cableEndY + 2.5 * zoom);
+    ctx.stroke();
+
+    // Corpo do cabo de borracha preta
+    ctx.strokeStyle = '#09090b';
+    ctx.lineWidth = 5.5 * zoom;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cableStartX, cableStartY);
+    ctx.quadraticCurveTo(cableMidX, cableMidY, cableEndX, cableEndY);
+    ctx.stroke();
+
+    // Filete 3D de reflexão de luz na curvatura do cabo
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 1.3 * zoom;
+    ctx.beginPath();
+    ctx.moveTo(cableStartX, cableStartY);
+    ctx.quadraticCurveTo(cableMidX - 0.5 * zoom, cableMidY - 0.5 * zoom, cableEndX - 0.5 * zoom, cableEndY);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // 5. PLAQUETA DIGITAL 3D IDENTIFICANDO O APARELHO EM CARGA
+  const plaqueW = Math.min(plateW * 0.92, 78 * zoom);
+  const plaqueH = 14 * zoom;
+  const plaqueY = ch * 0.32;
+
+  // Fundo do display tecnológico (OLED / Dark Glassmorphism)
+  ctx.save();
+  ctx.fillStyle = '#030712';
+  ctx.beginPath();
+  ctx.roundRect(-plaqueW / 2, plaqueY - plaqueH / 2, plaqueW, plaqueH, 3.5 * zoom);
   ctx.fill();
 
-  [-cavityR * 0.52, 0, cavityR * 0.52].forEach(px => {
-    ctx.fillStyle = '#020617';
+  ctx.strokeStyle = isPlugged
+    ? (isEnergized ? '#10b981' : '#f59e0b')
+    : '#475569';
+  ctx.lineWidth = 1 * zoom;
+  ctx.shadowColor = isPlugged && isEnergized ? '#10b981' : 'transparent';
+  ctx.shadowBlur = isPlugged && isEnergized ? 6 * zoom : 0;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Texto digital na plaqueta
+  ctx.fillStyle = isPlugged
+    ? (isEnergized ? '#34d399' : '#fbbf24')
+    : '#94a3b8';
+  ctx.font = `bold ${Math.max(5.5, 6.8 * zoom)}px 'Courier New', monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(isPlugged ? `⚡ ${plaqueText}` : plaqueText, 0, plaqueY);
+  ctx.restore();
+
+  // 6. LED DE ALIMENTAÇÃO VERDE NO ESPELHO DA TOMADA
+  const ledX = cw / 2 - 9 * zoom;
+  const ledY = -ch / 2 + 9 * zoom;
+  const ledR = 3 * zoom;
+
+  // Aro cromado metálico do LED
+  ctx.fillStyle = '#475569';
+  ctx.beginPath();
+  ctx.arc(ledX, ledY, ledR + 1 * zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 0.5 * zoom;
+  ctx.stroke();
+
+  // Lente do LED (verde vivo com glow quando energizado)
+  ctx.save();
+  if (isEnergized) {
+    ctx.fillStyle = '#22c55e';
+    ctx.shadowColor = '#22c55e';
+    ctx.shadowBlur = 8 * zoom;
     ctx.beginPath();
-    ctx.arc(px, 0, 2.5 * zoom, 0, Math.PI * 2);
+    ctx.arc(ledX, ledY, ledR, 0, Math.PI * 2);
     ctx.fill();
-  });
+
+    // Ponto especular de brilho
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(ledX - 0.8 * zoom, ledY - 0.8 * zoom, 0.9 * zoom, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = '#064e3b';
+    ctx.beginPath();
+    ctx.arc(ledX, ledY, ledR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+export function renderCommercialMeasurementMeter(
+  ctx: CanvasRenderingContext2D,
+  c: any,
+  st: DeviceSimulationState,
+  cw: number,
+  ch: number,
+  zoom: number
+) {
+  const code = c.code;
+  const brand = (c.brand || 'FLUKE INDUSTRIAL').toUpperCase();
+
+  // 1. Carcaça Industrial de Alta Resistência (Termoplástico DIN / Bancada)
+  ctx.save();
+  const bgGrad = ctx.createLinearGradient(-cw / 2, -ch / 2, cw / 2, ch / 2);
+  bgGrad.addColorStop(0, '#1e293b');
+  bgGrad.addColorStop(0.5, '#0f172a');
+  bgGrad.addColorStop(1, '#090d16');
+  ctx.fillStyle = bgGrad;
+  ctx.beginPath();
+  ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 5 * zoom);
+  ctx.fill();
+
+  // Borda chanfrada de precisão
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.2 * zoom;
+  ctx.stroke();
+
+  // 2. Visor Digital OLED / VFD de Alta Visibilidade
+  const dispW = cw * 0.88;
+  const dispH = ch * 0.52;
+  const dispY = -ch * 0.05;
+
+  ctx.fillStyle = '#020617';
+  ctx.beginPath();
+  ctx.roundRect(-dispW / 2, dispY - dispH / 2, dispW, dispH, 3.5 * zoom);
+  ctx.fill();
+
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1 * zoom;
+  ctx.stroke();
+
+  // Grade de fundo sutil do visor
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.04)';
+  ctx.lineWidth = 0.5 * zoom;
+  for (let gx = -dispW / 2 + 5 * zoom; gx < dispW / 2; gx += 8 * zoom) {
+    ctx.beginPath();
+    ctx.moveTo(gx, dispY - dispH / 2);
+    ctx.lineTo(gx, dispY + dispH / 2);
+    ctx.stroke();
+  }
+
+  // 3. Leituras Físicas Reais do Instrumento
+  let mainVal = '0.0';
+  let unit = '';
+  let subText = '';
+  let readoutColor = '#38bdf8'; // Cyan padrão
+
+  if (code === 'VM') {
+    const v = st.voltage ?? 0;
+    mainVal = v.toFixed(1);
+    unit = 'V';
+    subText = 'TRUE-RMS • 0-600V CA/CC';
+    readoutColor = v > 50 ? '#38bdf8' : '#64748b';
+  } else if (code === 'AM') {
+    const i = st.current ?? 0;
+    mainVal = i.toFixed(2);
+    unit = 'A';
+    subText = 'SHUNT SÉRIE • 0.0005 Ω';
+    readoutColor = i > 0.05 ? '#34d399' : '#64748b';
+  } else if (code === 'OHM') {
+    if (st.error) {
+      mainVal = 'ALERTA!';
+      unit = '';
+      subText = 'CIRC. ENERGIZADO!';
+      readoutColor = '#ef4444';
+    } else {
+      const r = st.resistance ?? 0;
+      mainVal = typeof r === 'number' ? r.toFixed(2) : String(r);
+      unit = 'Ω';
+      subText = 'MALHA PASSIVA • Req';
+      readoutColor = '#f59e0b';
+    }
+  } else if (code === 'WM') {
+    const p = (st.powerKW ?? 0) * 1000;
+    mainVal = p >= 1000 ? `${(p / 1000).toFixed(2)}k` : p.toFixed(0);
+    unit = 'W';
+    subText = `S: ${(st.powerKVA ?? 0).toFixed(2)}kVA • cosφ: ${(st.powerFactor ?? 1.0).toFixed(2)}`;
+    readoutColor = p > 10 ? '#a855f7' : '#64748b';
+  } else if (code === 'FREQ') {
+    const f = st.frequency ?? 0;
+    mainVal = f > 0 ? f.toFixed(1) : '0.0';
+    unit = 'Hz';
+    subText = 'ONDA FUNDAMENTAL CA';
+    readoutColor = f > 0 ? '#06b6d4' : '#64748b';
+  } else if (code === 'COS') {
+    const pf = st.powerFactor ?? 1.0;
+    mainVal = pf.toFixed(2);
+    unit = 'φ';
+    subText = 'FATOR DE POTÊNCIA (COS)';
+    readoutColor = '#10b981';
+  }
+
+  // Display LED / VFD Glow
+  ctx.save();
+  ctx.fillStyle = readoutColor;
+  ctx.shadowColor = readoutColor;
+  ctx.shadowBlur = 6 * zoom;
+
+  // Valor Principal
+  ctx.font = `bold ${Math.max(9, 13 * zoom)}px 'Courier New', monospace`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(mainVal, dispW * 0.22, dispY - 1 * zoom);
+
+  // Unidade de Medida
+  ctx.font = `bold ${Math.max(6.5, 9 * zoom)}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.fillText(unit, dispW * 0.26, dispY - 1 * zoom);
+
+  // Sub-texto de telemetria
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#64748b';
+  ctx.font = `bold ${Math.max(4.5, 5.5 * zoom)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(subText, 0, dispY + dispH * 0.35);
+  ctx.restore();
+
+  // 4. Marca e Rótulo Superior
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = `bold ${Math.max(5, 6.5 * zoom)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(brand, 0, -ch / 2 + 4.5 * zoom);
+
+  // 5. Rótulo Inferior / Tipo de Instrumento
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = `bold ${Math.max(5.5, 7.5 * zoom)}px monospace`;
+  ctx.textBaseline = 'bottom';
+  const devTitle = COMPACT_DEVICE_CODES[code] || code;
+  ctx.fillText(devTitle, 0, ch / 2 - 4.5 * zoom);
+
+  ctx.restore();
 }
 
 export function renderCommercialIndustrialHeater(ctx: CanvasRenderingContext2D, c: any, st: any, cw: number, ch: number, zoom: number) {
@@ -3149,16 +3840,159 @@ export function renderFaultEffects(
   time: number,
   st: DeviceSimulationState
 ) {
+  const isFaultActive = Boolean(st.fault || st.sparking || st.burned || st.isBurned || st.damaged);
+  const isSevere = Boolean(st.burned || st.isBurned || st.damaged);
+  const hasSparks = Boolean(st.sparking || st.fault || isSevere);
+  const hasSmoke = Boolean(isFaultActive || st.thermal || (st.temperature && st.temperature > 70));
+
   ctx.save();
-  if (st.thermal || st.damaged || st.isBurned) {
+
+  // 1. MANCHAS DE FULIGEM ESCURA DE QUEIMA (DARK SOOT BURN MARKS)
+  // Deposição realista de carbono e chamuscado gerado por arco elétrico e queima
+  if (isFaultActive || st.damaged || st.isBurned || st.burned) {
+    const sootPatches = [
+      { x: 0, y: -ch * 0.05, rx: cw * 0.48, ry: ch * 0.44, opacity: 0.92 },
+      { x: -cw * 0.22, y: -ch * 0.18, rx: cw * 0.32, ry: ch * 0.36, opacity: 0.78 },
+      { x: cw * 0.18, y: -ch * 0.24, rx: cw * 0.28, ry: ch * 0.32, opacity: 0.82 },
+      { x: cw * 0.06, y: ch * 0.16, rx: cw * 0.38, ry: ch * 0.28, opacity: 0.72 }
+    ];
+
+    sootPatches.forEach(p => {
+      ctx.save();
+      const sootGrad = ctx.createRadialGradient(p.x, p.y, 2 * zoom, p.x, p.y, Math.max(p.rx, p.ry));
+      sootGrad.addColorStop(0, `rgba(5, 5, 8, ${p.opacity})`);
+      sootGrad.addColorStop(0.4, `rgba(18, 18, 22, ${(p.opacity * 0.85).toFixed(3)})`);
+      sootGrad.addColorStop(0.75, `rgba(39, 39, 42, ${(p.opacity * 0.4).toFixed(3)})`);
+      sootGrad.addColorStop(1, 'rgba(24, 24, 27, 0)');
+
+      ctx.fillStyle = sootGrad;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.rx, p.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // Borda incandescente em chamas/brasas ao redor da carcaça
     ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 2.5 * zoom;
-    ctx.shadowColor = 'rgba(239, 68, 68, 0.8)';
-    ctx.shadowBlur = 10 * zoom;
+    ctx.lineWidth = 1.8 * zoom;
+    ctx.shadowColor = 'rgba(239, 68, 68, 0.95)';
+    ctx.shadowBlur = 12 * zoom;
     ctx.beginPath();
     ctx.roundRect(-cw / 2 - 2 * zoom, -ch / 2 - 2 * zoom, cw + 4 * zoom, ch + 4 * zoom, 6 * zoom);
     ctx.stroke();
+    ctx.shadowBlur = 0;
   }
+
+  // 2. ANÉIS DE FUMAÇA CINZENTA VOLUMÉTRICA ANIMADA EM CANVAS2D
+  // Nuvens toroidais de fumaça que sobem, expandem e dispersam com turbulência
+  if (hasSmoke) {
+    ctx.save();
+    const ringCount = isSevere ? 6 : 4;
+    for (let i = 0; i < ringCount; i++) {
+      const phase = ((time * 1.6 + i * (3.5 / ringCount)) % 3.5) / 3.5; // ciclo 0 a 1
+      const riseProgress = Math.pow(phase, 0.85);
+      const yRise = -ch * 0.28 - riseProgress * (ch * 0.85 + 45 * zoom);
+      const xTurbulence = Math.sin(time * 2.8 + i * 1.9) * (14 * zoom * riseProgress);
+
+      const ringR = (7 + riseProgress * 32) * zoom;
+      const ringW = (3 + riseProgress * 8) * zoom;
+      const alpha = Math.sin(riseProgress * Math.PI) * (isSevere ? 0.65 : 0.42);
+
+      // Corpo toroidal volumétrico com gradiente suave
+      ctx.save();
+      const smokeGrad = ctx.createRadialGradient(
+        xTurbulence,
+        yRise,
+        Math.max(1, ringR - ringW),
+        xTurbulence,
+        yRise,
+        ringR + ringW
+      );
+      smokeGrad.addColorStop(0, `rgba(148, 163, 184, 0)`);
+      smokeGrad.addColorStop(0.35, `rgba(203, 213, 225, ${alpha.toFixed(3)})`);
+      smokeGrad.addColorStop(0.7, `rgba(100, 116, 139, ${(alpha * 0.7).toFixed(3)})`);
+      smokeGrad.addColorStop(1, `rgba(51, 65, 85, 0)`);
+
+      ctx.fillStyle = smokeGrad;
+      ctx.beginPath();
+      ctx.arc(xTurbulence, yRise, ringR + ringW, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Centro do anel de fumaça com linha suave
+      ctx.strokeStyle = `rgba(226, 232, 240, ${(alpha * 0.45).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1, ringW * 0.4);
+      ctx.beginPath();
+      ctx.arc(xTurbulence, yRise, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // 3. GERADOR PROCEDURAL DE FAÍSCAS INCANDESCENTES (ARC FLASH SPARKS)
+  // Faíscas que voam para fora do dispositivo com rastro de plasma e alta velocidade
+  if (hasSparks) {
+    ctx.save();
+
+    // Arc flash plasma glow central
+    const flashPulse = (Math.sin(time * 48) + Math.cos(time * 33) + 2) * 0.25;
+    const arcRadius = (cw * 0.36 + flashPulse * 16 * zoom);
+    const arcGrad = ctx.createRadialGradient(0, 0, 1 * zoom, 0, 0, arcRadius);
+    arcGrad.addColorStop(0, 'rgba(255, 255, 255, 0.96)');
+    arcGrad.addColorStop(0.25, 'rgba(254, 240, 138, 0.88)');
+    arcGrad.addColorStop(0.6, 'rgba(249, 115, 22, 0.48)');
+    arcGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+
+    ctx.fillStyle = arcGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, arcRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 24 Faíscas incandescentes individuais voando em 360 graus
+    const numSparks = 24;
+    for (let s = 0; s < numSparks; s++) {
+      const speed = 2.4 + (s % 7) * 0.65;
+      const sparkLife = ((time * speed + s * 0.173) % 1.0); // 0 a 1
+
+      const baseAngle = (s / numSparks) * Math.PI * 2 + Math.sin(s * 7.1) * 0.35;
+      const flyDist = (cw * 0.15 + (cw * 0.65 + 45 * zoom) * Math.pow(sparkLife, 0.82));
+
+      // Cabeça da faísca
+      const sx = Math.cos(baseAngle) * flyDist + Math.sin(time * 8 + s) * (3 * zoom);
+      const sy = Math.sin(baseAngle) * flyDist - (sparkLife * 12 * zoom);
+
+      // Comprimento do rastro (tail streak)
+      const tailLen = (5 + sparkLife * 14) * zoom;
+      const tx = sx - Math.cos(baseAngle) * tailLen;
+      const ty = sy - Math.sin(baseAngle) * tailLen;
+
+      const sparkAlpha = Math.max(0, 1 - Math.pow(sparkLife, 1.4));
+
+      // Traço luminoso incandescente do rastro
+      const sparkGrad = ctx.createLinearGradient(tx, ty, sx, sy);
+      sparkGrad.addColorStop(0, `rgba(239, 68, 68, 0)`);
+      sparkGrad.addColorStop(0.4, `rgba(249, 115, 22, ${(sparkAlpha * 0.7).toFixed(3)})`);
+      sparkGrad.addColorStop(0.85, `rgba(254, 240, 138, ${sparkAlpha.toFixed(3)})`);
+      sparkGrad.addColorStop(1, `rgba(255, 255, 255, ${sparkAlpha.toFixed(3)})`);
+
+      ctx.strokeStyle = sparkGrad;
+      ctx.lineWidth = Math.max(1.2, (2.6 - sparkLife * 1.5) * zoom);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(sx, sy);
+      ctx.stroke();
+
+      // Ponto de brasa incandescente na ponta
+      ctx.fillStyle = sparkLife < 0.35 ? '#ffffff' : sparkLife < 0.7 ? '#fef08a' : '#f97316';
+      ctx.beginPath();
+      ctx.arc(sx, sy, Math.max(0.8, (2.0 - sparkLife * 1.2) * zoom), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
   ctx.restore();
 }
 
@@ -3287,6 +4121,8 @@ export function renderDevice(
     renderCommercialOutlet(ctx, c, st, cw, ch, zoom);
   } else if (c.code === 'HEATER' || d.kind === 'heater') {
     renderCommercialIndustrialHeater(ctx, c, st, cw, ch, zoom);
+  } else if (['VM', 'AM', 'OHM', 'WM', 'FREQ', 'COS'].includes(c.code) || d.cat === 'measurement') {
+    renderCommercialMeasurementMeter(ctx, c, st, cw, ch, zoom);
   } else if (c.code === 'EARTH_ROD' || c.code === 'EARTH_PIT') {
     renderCommercialGrounding(ctx, c, cw, ch, zoom);
   } else if (c.code === 'JUNCTION_BOX') {
@@ -3301,7 +4137,7 @@ export function renderDevice(
 
   renderMetallicScrewTerminals(ctx, c, d, cw, ch, zoom);
 
-  if (st.thermal || st.damaged || st.sparking || st.fault || st.isBurned) {
+  if (st.thermal || st.damaged || st.sparking || st.fault || st.isBurned || st.burned) {
     renderFaultEffects(ctx, cw, ch, zoom, time, st);
   }
 
