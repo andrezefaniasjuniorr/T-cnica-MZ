@@ -59,7 +59,7 @@ function toPlainText(text: string): string {
 // Helper para chamadas ao Gemini com Retry e Exponential Backoff contra alta demanda (503 / 429 / overloaded)
 async function executeWithBackoffRetry<T>(
   action: (modelName: string) => Promise<T>,
-  candidateModels: string[] = ['gemini-2.5-flash', 'gemini-flash-latest'],
+  candidateModels: string[] = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'],
   maxRetries: number = 3
 ): Promise<T> {
   let lastError: any = null;
@@ -188,7 +188,7 @@ Responda de forma direta, clara, técnica e precisa em português de Moçambique
             }
           });
         },
-        ['gemini-2.5-flash', 'gemini-flash-latest'],
+        ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'],
         2
       );
 
@@ -302,7 +302,7 @@ O usuário atual é: ${userName || 'Usuário'} (${userRole || 'visitante'}).`;
             }
           });
         },
-        ['gemini-2.5-flash', 'gemini-flash-latest'],
+        ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'],
         2
       );
 
@@ -381,7 +381,7 @@ Estruture em tópicos numerados:
             }
           });
         },
-        ['gemini-2.5-flash', 'gemini-flash-latest'],
+        ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'],
         2
       );
 

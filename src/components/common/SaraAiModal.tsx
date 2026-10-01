@@ -654,6 +654,20 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   });
 
   const [isThinking, setIsThinking] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<ChatInputFormHandle | null>(null);
@@ -858,6 +872,31 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     saveMessagesToStorage(updatedHistory);
     setIsThinking(true);
 
+    // Se estiver explicitamente offline (sem conexão à internet), usa diretamente o front da Sara
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const offlineReply = generateSaraTechnicalReply({
+        message: trimmedText,
+        history: updatedHistory,
+        userName,
+        userRole: authUser?.role || 'Técnico',
+        activeAcademyContext,
+        imageBase64: currentImg?.base64,
+        mimeType: currentImg?.mimeType,
+      });
+
+      const finalOfflineMsg: Message = {
+        id: saraMessageId,
+        sender: 'sara',
+        text: offlineReply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setMessages(prev => prev.map(msg => (msg.id === saraMessageId ? finalOfflineMsg : msg)));
+      saveMessagesToStorage([...updatedHistory, finalOfflineMsg]);
+      setIsThinking(false);
+      return;
+    }
+
     try {
       const recentHistory = updatedHistory.slice(-6);
 
@@ -902,7 +941,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
       let fullText = '';
 
       if (GEMINI_API_KEY) {
-        const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
+        const candidateModels = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'];
         let streamSuccess = false;
 
         for (const modelName of candidateModels) {
@@ -1110,11 +1149,26 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
                     PRO
                   </span>
                 </h3>
+
+                {/* SINAL VISUAL DE CONEXÃO: VERDE (ONLINE / API NUVEM) OU VERMELHO (OFFLINE / MOTOR LOCAL) */}
+                <div
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider border transition-all ${
+                    isOnline
+                      ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.35)]'
+                      : 'bg-red-950/80 border-red-500/60 text-red-300 shadow-[0_0_12px_rgba(239,68,68,0.35)]'
+                  }`}
+                  title={isOnline ? 'Online: Conexão direta com a API do Gemini' : 'Offline: Sem internet, operando com o Motor Técnico Local'}
+                >
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`} />
+                  <span className="shrink-0">{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+                </div>
               </div>
               <div className="flex items-center gap-2 text-[10px] font-mono text-cyan-300 truncate">
                 <span className="text-[#00F5FF] font-black animate-pulse">⚡ 230V / 50Hz</span>
                 <span>•</span>
-                <span className="text-slate-400">EDM GRID SYNCHRONIZED</span>
+                <span className={isOnline ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
+                  {isOnline ? 'API NUVEM ATIVA' : 'FRONTEND LOCAL ATIVO'}
+                </span>
               </div>
             </div>
           </div>
