@@ -655,19 +655,63 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
 
   const [isThinking, setIsThinking] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  const [showOnlineBadge, setShowOnlineBadge] = useState<boolean>(false);
 
+  // Monitoramento contínuo de rede (online / offline / corte de dados móveis)
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    let hideTimer: any = null;
 
-    window.addEventListener('online', handleOnline);
+    const triggerOnlineBadge = () => {
+      setIsOnline(true);
+      setShowOnlineBadge(true);
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        setShowOnlineBadge(false);
+      }, 3500);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setShowOnlineBadge(false);
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+
+    // Verificação imediata ao abrir o modal
+    if (typeof navigator !== 'undefined') {
+      if (navigator.onLine) {
+        triggerOnlineBadge();
+      } else {
+        handleOffline();
+      }
+    }
+
+    window.addEventListener('online', triggerOnlineBadge);
     window.addEventListener('offline', handleOffline);
 
+    // Heartbeat a cada 3.5s para detectar alternância de dados móveis no celular
+    const interval = setInterval(() => {
+      if (typeof navigator !== 'undefined') {
+        const currentStatus = navigator.onLine;
+        setIsOnline(prev => {
+          if (prev !== currentStatus) {
+            if (currentStatus) {
+              triggerOnlineBadge();
+            } else {
+              handleOffline();
+            }
+          }
+          return currentStatus;
+        });
+      }
+    }, 3500);
+
     return () => {
-      window.removeEventListener('online', handleOnline);
+      if (hideTimer) clearTimeout(hideTimer);
+      clearInterval(interval);
+      window.removeEventListener('online', triggerOnlineBadge);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [isOpen]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<ChatInputFormHandle | null>(null);
@@ -920,7 +964,8 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
       let systemInstructionText = `Você é a Eng. Sara IA da TécnicaMZ Pro em Moçambique. Sempre formate suas respostas técnicas utilizando tabelas em Markdown, destaques em negrito usando asteriscos (**exemplo**), listas organizadas e equações em LaTeX para fórmulas e cálculos de engenharia.
 Você está conversando com o usuário: ${userName} (Perfil: ${authUser?.role || 'Técnico'}).
 IMPORTANTE: Trate o usuário pelo nome real dele ("${userName}") durante a conversa de forma natural e amigável.
-Responda em português, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
+Responda em português de Moçambique, com termos técnicos aplicáveis às normas EDM, climatização, energia solar fotovoltaica e orçamentos em Meticais (MZN).
+DIRETRIZ DE IDENTIDADE: NUNCA mencione que você é uma IA do Google, nem mencione palavras como Gemini, API, LLM ou termos de infraestrutura interna. Apresente-se unicamente como a Eng.ª Sara IA da TécnicaMZ Pro.
 Mantenha o tom profissional, direto e objetivo. NUNCA repita saudações formais longas a cada mensagem.`;
 
       if (activeAcademyContext) {
@@ -1141,7 +1186,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
               </span>
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex flex-col justify-center">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm sm:text-base font-black text-white tracking-wider font-mono uppercase flex items-center gap-1.5 truncate">
                   Sara IA
@@ -1150,24 +1195,32 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
                   </span>
                 </h3>
 
-                {/* SINAL VISUAL DE CONEXÃO: VERDE (ONLINE / API NUVEM) OU VERMELHO (OFFLINE / MOTOR LOCAL) */}
-                <div
-                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider border transition-all ${
-                    isOnline
-                      ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.35)]'
-                      : 'bg-red-950/80 border-red-500/60 text-red-300 shadow-[0_0_12px_rgba(239,68,68,0.35)]'
-                  }`}
-                  title={isOnline ? 'Online: Conexão direta com a API do Gemini' : 'Offline: Sem internet, operando com o Motor Técnico Local'}
-                >
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`} />
-                  <span className="shrink-0">{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
-                </div>
+                {/* SINAL TEMPORÁRIO ONLINE (some após 3.5s) OU PERSISTENTE OFFLINE (Sem sobreposição) */}
+                {!isOnline ? (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-wider bg-red-950/90 border border-red-500/70 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.4)] shrink-0 animate-in fade-in duration-200"
+                    title="Sem conexão à internet. Modo técnico local ativo."
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    OFFLINE
+                  </span>
+                ) : showOnlineBadge ? (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-wider bg-emerald-950/90 border border-emerald-500/70 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.4)] shrink-0 animate-in fade-in zoom-in-95 duration-200"
+                    title="Conectado à rede técnica"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    ONLINE
+                  </span>
+                ) : null}
               </div>
-              <div className="flex items-center gap-2 text-[10px] font-mono text-cyan-300 truncate">
-                <span className="text-[#00F5FF] font-black animate-pulse">⚡ 230V / 50Hz</span>
+
+              {/* Subtítulo limpo e profissional, sem expor termos internos de API */}
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-cyan-300/80 truncate mt-0.5">
+                <span className="text-[#00F5FF] font-bold">⚡ 230V / 50Hz</span>
                 <span>•</span>
-                <span className={isOnline ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
-                  {isOnline ? 'API NUVEM ATIVA' : 'FRONTEND LOCAL ATIVO'}
+                <span className="text-slate-300 truncate">
+                  {!isOnline ? 'MODO LOCAL OFFLINE' : 'EDM MOÇAMBIQUE'}
                 </span>
               </div>
             </div>
