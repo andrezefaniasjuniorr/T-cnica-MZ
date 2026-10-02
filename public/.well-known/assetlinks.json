@@ -4,9 +4,7 @@
     "target": {
       "namespace": "android_app",
       "package_name": "dev.pages.tecnicamzpro.twa",
-      "sha256_cert_fingerprints": [
-        "3B:BE:30:A0:96:DB:58:E6:E8:D8:4D:61:55:46:35:0C:1C:C8:1A:E4:49:01:37:AA:47:43:F2:2A:9A:DC:96:90"
-      ]
+      "sha256_cert_fingerprints": ["61:40:F0:03:52:9D:F3:D9:BE:1C:75:2D:20:47:E7:11:72:3C:1C:EE:4A:92:E5:02:10:9B:0A:91:C4:35:EB:B4"]
     }
   }
 ]

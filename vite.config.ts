@@ -8,28 +8,35 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // Plugin para garantir cópia de arquivos e pastas ocultas (como .well-known) da pasta public para a pasta dist
 function copyWellKnownPlugin(): Plugin {
-  return {
-    name: 'copy-well-known',
-    closeBundle() {
-      try {
-        const srcDir = path.resolve(__dirname, 'public/.well-known');
-        const destDir = path.resolve(__dirname, 'dist/.well-known');
-        if (fs.existsSync(srcDir)) {
-          if (!fs.existsSync(destDir)) {
-            fs.mkdirSync(destDir, { recursive: true });
-          }
-          if (typeof (fs as any).cpSync === 'function') {
-            (fs as any).cpSync(srcDir, destDir, { recursive: true });
-          } else {
-            const files = fs.readdirSync(srcDir);
-            for (const file of files) {
-              fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
-            }
+  const copyFn = () => {
+    try {
+      const srcDir = path.resolve(__dirname, 'public/.well-known');
+      const destDir = path.resolve(__dirname, 'dist/.well-known');
+      if (fs.existsSync(srcDir)) {
+        if (!fs.existsSync(destDir)) {
+          fs.mkdirSync(destDir, { recursive: true });
+        }
+        if (typeof (fs as any).cpSync === 'function') {
+          (fs as any).cpSync(srcDir, destDir, { recursive: true });
+        } else {
+          const files = fs.readdirSync(srcDir);
+          for (const file of files) {
+            fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
           }
         }
-      } catch (err) {
-        console.warn('Notice: .well-known copy skipped:', err);
       }
+    } catch (err) {
+      console.warn('Notice: .well-known copy skipped:', err);
+    }
+  };
+
+  return {
+    name: 'copy-well-known',
+    writeBundle() {
+      copyFn();
+    },
+    closeBundle() {
+      copyFn();
     },
   };
 }
@@ -115,8 +122,8 @@ export default defineConfig(() => {
           scope: '/',
           display: 'standalone',
           orientation: 'portrait-primary',
-          background_color: '#0b1329',
-          theme_color: '#0b1329',
+          background_color: '#080F1E',
+          theme_color: '#080F1E',
           icons: [
             {
               src: '/icon-192.png?v=round6',

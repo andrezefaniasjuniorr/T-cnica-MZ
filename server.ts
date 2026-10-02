@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { generateSaraTechnicalReply } from './src/services/saraTechnicalEngine';
@@ -20,6 +21,22 @@ app.use((req: Request, res: Response, next) => {
     return res.sendStatus(204);
   }
   next();
+});
+
+// TWA / Digital Asset Links: serve .well-known/assetlinks.json com application/json direto
+app.get('/.well-known/assetlinks.json', (req: Request, res: Response) => {
+  const possiblePaths = [
+    path.join(process.cwd(), 'public/.well-known/assetlinks.json'),
+    path.join(process.cwd(), 'dist/.well-known/assetlinks.json'),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.sendFile(p);
+    }
+  }
+  return res.status(404).json({ error: 'assetlinks.json not found' });
 });
 
 // Lazy initialization of Gemini client
