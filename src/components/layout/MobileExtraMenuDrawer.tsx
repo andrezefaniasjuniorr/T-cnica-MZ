@@ -441,6 +441,37 @@ export const MobileExtraMenuDrawer: React.FC<MobileExtraMenuDrawerProps> = ({
               <ChevronRight className="w-4 h-4 text-emerald-600" />
             </a>
           </div>
+
+          {/* Botão de Preview do Splash Screen Oficial */}
+          <div className="mt-2 pt-2 border-t border-slate-100">
+            <button
+              onClick={() => {
+                soundFX.playClick();
+                onClose();
+                const url = new URL(window.location.href);
+                url.searchParams.set('preview', 'splash');
+                window.history.pushState({}, '', url.pathname + url.search + url.hash);
+                window.dispatchEvent(new CustomEvent('tecnicamz:preview_splash'));
+                window.location.reload();
+              }}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition active:scale-95 text-left"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-400">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-white">
+                    Ver Splash Screen
+                  </p>
+                  <p className="text-[10px] text-cyan-300">
+                    Ícone 220px, néon e pulso
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -37,6 +37,7 @@ import { SeloMZModal } from './components/common/SeloMZModal';
 import { PWAInstallBanner } from './components/common/PWAInstallBanner';
 import { SubscriptionPaywall } from './components/subscription/SubscriptionPaywall';
 import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
+import { SplashScreen } from './components/common/SplashScreen';
 
 import { UserRole } from './types';
 import { Wrench, Phone, Mail, ShieldCheck, Heart, Sparkles } from 'lucide-react';
@@ -202,6 +203,15 @@ const AppContent: React.FC = () => {
 
   const [isAccessDeniedOpen, setIsAccessDeniedOpen] = useState(false);
   const [requiredRoleForDenied, setRequiredRoleForDenied] = useState<UserRole>('client');
+
+  // Splash Screen Preview State (?preview=splash ou ?splash)
+  const [showSplashPreview, setShowSplashPreview] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return (params.get('preview') === 'splash') || params.has('splash');
+    }
+    return false;
+  });
 
   // Selo MZ Interception Modal State
   const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
@@ -618,23 +628,28 @@ const AppContent: React.FC = () => {
   };
 
   // =========================================================================
-  // STRICT ACCESS CONTROL: IF NOT AUTHENTICATED, SHOW MINIMAL AUTH SCREEN ONLY
+  // SPLASH SCREEN & STRICT ACCESS CONTROL
   // =========================================================================
-  // Se houver currentUser (vindo de cache local instantâneo ou sessão anterior),
-  // renderiza IMEDIATAMENTE (Estilo WhatsApp) sem bloquear com tela de carregamento!
-  // A verificação do Firebase roda silenciosamente em segundo plano (background).
-  if (isLoading && !currentUser) {
+  if (showSplashPreview) {
     return (
-      <div className="min-h-screen bg-[#F0F2F5] flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 mb-4 animate-bounce">
-          <Wrench className="w-6 h-6" />
-        </div>
-        <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-2" />
-        <p className="text-xs font-bold text-slate-600 tracking-tight">
-          Carregando TécnicaMZ Pro...
-        </p>
-      </div>
+      <SplashScreen
+        previewMode
+        onFinish={() => {
+          setShowSplashPreview(false);
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('preview');
+            url.searchParams.delete('splash');
+            window.history.replaceState({}, '', url.pathname + url.hash);
+          } catch {}
+        }}
+      />
     );
+  }
+
+  // Se estiver carregando inicialmente, exibe o Splash Screen oficial com ícone de 220px e neon
+  if (isLoading && !currentUser) {
+    return <SplashScreen />;
   }
 
   if (!currentUser) {

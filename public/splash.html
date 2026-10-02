@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Splash Screen Preview | TécnicaMZ Pro</title>
+    <link rel="icon" type="image/png" href="/icon-192.png?v=round6" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body {
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+        background-color: #0A1120;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .splash-screen {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        background-color: #0A1120;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      /* Brilho radial sutil atrás do ícone */
+      .radial-glow {
+        position: absolute;
+        width: 450px;
+        height: 450px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(0, 212, 255, 0.15) 0%, transparent 70%);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 1;
+      }
+      /* Animação pulse: scale 1 -> 1.05 infinito 2s */
+      @keyframes pulse {
+        0%, 100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+      .icon-container {
+        position: relative;
+        z-index: 2;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        box-shadow: 0 0 40px rgba(0, 212, 255, 0.6);
+        animation: pulse 2s infinite ease-in-out;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .icon-container img {
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        object-fit: contain;
+        display: block;
+      }
+      /* Texto TécnicaMZ Pro: Outfit / Inter, weight 600, letter-spacing 0.5px, bottom 80px */
+      .splash-title {
+        position: absolute;
+        bottom: 80px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        z-index: 2;
+        font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 600;
+        font-size: 22px;
+        letter-spacing: 0.5px;
+        color: #FFFFFF;
+        text-shadow: 0 2px 12px rgba(0, 212, 255, 0.3);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="splash-screen">
+      <div class="radial-glow"></div>
+      <div class="icon-container">
+        <img src="/icon-512.png?v=round6" alt="TécnicaMZ Pro" />
+      </div>
+      <div class="splash-title">TécnicaMZ Pro</div>
+    </div>
+  </body>
+</html>

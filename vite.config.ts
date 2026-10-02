@@ -104,6 +104,7 @@ export default defineConfig(() => {
           'dashboard.js',
           'admin.js',
           'tecnica_mz_slogan.jpg',
+          'splash.html',
         ],
         manifest: ({
           id: '/',
