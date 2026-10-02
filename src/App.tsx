@@ -175,11 +175,7 @@ const AppContent: React.FC = () => {
   const handleOpenSaraAi = () => {
     if (!isClientUser && isTechnicianUser) {
       soundFX.playModalOpen();
-      setActiveTab('sara');
       setIsSaraAiOpen(true);
-      try {
-        window.history.pushState({ tab: 'sara' }, '', '#sara');
-      } catch {}
     } else {
       setRequiredRoleForDenied('technician');
       setIsAccessDeniedOpen(true);
@@ -188,12 +184,17 @@ const AppContent: React.FC = () => {
 
   const handleCloseSaraAi = () => {
     setIsSaraAiOpen(false);
-    if (activeTab === 'sara') {
-      setActiveTab('technician');
-      try {
-        window.history.replaceState({ tab: 'technician' }, '', '#tecnico');
-      } catch {}
-    }
+    dismissModalWithoutHistory('sara_ai');
+    setActiveTab(prev => (prev === 'sara' ? 'technician' : prev));
+    try {
+      localStorage.setItem('tecnicamz_last_route', 'technician');
+      localStorage.setItem('lastRoute', 'technician');
+      const rawPath = window.location.pathname.replace(/^\//, '').trim().toLowerCase();
+      const rawHash = window.location.hash.replace(/^#/, '').trim().toLowerCase();
+      if (rawPath === 'sara' || rawPath === 'sara-ia' || rawHash === 'sara' || rawHash === 'sara-ia') {
+        window.history.replaceState({ tab: 'technician' }, '', '/#tecnico');
+      }
+    } catch {}
   };
 
   // Navigation State initialized from URL location or cached lastRoute (Instant WhatsApp-style opening)
@@ -501,8 +502,11 @@ const AppContent: React.FC = () => {
 
     // If Technician (tipo === 'tecnico' or tipoConta === 'tecnico' or role === 'technician')
     if (isTechnician || currentUser.tipo === 'tecnico' || currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician') {
-      if (detected && ['technician', 'tools', 'jobs', 'market', 'community', 'academy', 'technicians_directory', 'company_directory', 'settings'].includes(detected)) {
+      if (detected && ['technician', 'tools', 'jobs', 'market', 'community', 'academy', 'technicians_directory', 'company_directory', 'settings', 'sara'].includes(detected)) {
         setActiveTab(detected);
+        if (detected === 'sara') {
+          setIsSaraAiOpen(true);
+        }
       } else {
         // Strict redirection: Technician is NEVER sent to client dashboard
         setActiveTab('technician');
@@ -568,24 +572,9 @@ const AppContent: React.FC = () => {
     // 1. LÓGICA DE INTERCEPTAÇÃO E VERIFICAÇÃO DO SELO MZ:
     // Cheque no localStorage a chave: 'tecnico_verificado' (booleano).
     if (targetTab === 'sara') {
-      if (isClientUser || !isTechnicianUser) {
-        setRequiredRoleForDenied('technician');
-        setIsAccessDeniedOpen(true);
-        return;
-      }
       setIsMobileMenuOpen(false);
       dismissModalWithoutHistory('mobile_menu');
-      setActiveTab('sara');
-      setIsSaraAiOpen(true);
-      try {
-        localStorage.setItem('tecnicamz_last_route', 'sara');
-        localStorage.setItem('lastRoute', 'sara');
-      } catch {}
-      if (addToHistory && typeof window !== 'undefined' && window.history) {
-        try {
-          window.history.pushState({ tab: 'sara' }, '', '#sara');
-        } catch {}
-      }
+      handleOpenSaraAi();
       return;
     }
 

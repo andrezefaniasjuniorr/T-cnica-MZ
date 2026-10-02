@@ -11,7 +11,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../firebase/config';
 import { soundFX } from '../../utils/audio';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { useModalHistory } from '../../utils/modalHistory';
+import { useModalHistory, dismissModalWithoutHistory } from '../../utils/modalHistory';
 import {
   X,
   ArrowLeft,
@@ -823,6 +823,7 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   };
 
   const [isExpandedWorkbench, setIsExpandedWorkbench] = useState(false);
+  const [isAcademyModalOpen, setIsAcademyModalOpen] = useState(false);
 
   const toggleExpandWorkbench = useCallback(async () => {
     soundFX.playClick();
@@ -890,12 +891,19 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     };
   }, [isOpen]);
 
-  const handleClose = useCallback(() => {
+  const handleClose = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+      } catch {}
+    }
     soundFX.playModalClose();
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
     setIsExpandedWorkbench(false);
+    setIsAcademyModalOpen(false);
     onClose();
   }, [onClose]);
 
@@ -1235,12 +1243,19 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         >
           <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
             <button
+              type="button"
               onClick={handleClose}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-[#051429] hover:bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/40 transition flex items-center gap-1.5 text-xs font-mono font-bold cursor-pointer shrink-0"
-              title="Sair / Desconectar Terminal"
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleClose(e);
+              }}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-[#051429] hover:bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/40 active:scale-95 transition flex items-center gap-1.5 text-xs font-mono font-bold cursor-pointer shrink-0 z-30"
+              title="Voltar / Sair do Terminal"
+              aria-label="Voltar / Sair do Terminal"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">SAIR</span>
+              <span className="hidden sm:inline">VOLTAR</span>
             </button>
 
             <div className="relative shrink-0">
@@ -1353,9 +1368,16 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
             </button>
             
             <button
+              type="button"
               onClick={handleClose}
-              className="p-2 rounded-lg bg-[#051429] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
-              title="Fechar"
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleClose(e);
+              }}
+              className="p-2 rounded-lg bg-[#051429] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 active:scale-95 transition cursor-pointer shrink-0 z-30"
+              title="Fechar Terminal"
+              aria-label="Fechar Terminal"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1385,6 +1407,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           <div className="w-full shrink-0 overflow-x-hidden">
             <SaraAcademyCard
               currentUser={currentUser}
+              onModalStateChange={(open) => setIsAcademyModalOpen(open)}
               onAskSara={(promptText) => {
                 chatInputRef.current?.setInputText('');
                 chatInputRef.current?.focus();
@@ -1398,26 +1421,30 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           </div>
         )}
 
-        {/* Feed de Mensagens Firme (Sara Ampla / Usuário Compacto) */}
-        <ChatMessagesList
-          messages={messages}
-          isThinking={isThinking}
-          userName={userName}
-          messagesEndRef={messagesEndRef}
-          fontSize={chatFontSize}
-        />
+        {/* Feed de Mensagens Firme (Sara Ampla / Usuário Compacto) - Oculto na Academia */}
+        {!isAcademyModalOpen && (
+          <ChatMessagesList
+            messages={messages}
+            isThinking={isThinking}
+            userName={userName}
+            messagesEndRef={messagesEndRef}
+            fontSize={chatFontSize}
+          />
+        )}
 
-        {/* Entrada de Comandos */}
-        <ChatInputForm
-          ref={chatInputRef}
-          onSend={handleSend}
-          isThinking={isThinking}
-          userName={userName}
-          hasAccess={hasAccess}
-          onOpenSeloModal={() => setShowSeloModal(true)}
-          onGoToSettings={onGoToSettings}
-          onClose={onClose}
-        />
+        {/* Entrada de Comandos - Oculto estritamente na Academia Técnica */}
+        {!isAcademyModalOpen && (
+          <ChatInputForm
+            ref={chatInputRef}
+            onSend={handleSend}
+            isThinking={isThinking}
+            userName={userName}
+            hasAccess={hasAccess}
+            onOpenSeloModal={() => setShowSeloModal(true)}
+            onGoToSettings={onGoToSettings}
+            onClose={handleClose}
+          />
+        )}
       </div>
 
       {showSeloModal && (

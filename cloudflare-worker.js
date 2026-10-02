@@ -36,6 +36,30 @@ export default {
       });
     }
 
+    // Digital Asset Links (TWA) para Android remover a barra do navegador em tecnicamzpro.pages.dev
+    if (request.method === "GET" && (url.pathname === "/.well-known/assetlinks.json" || url.pathname === "/.well-known/assetlinks")) {
+      return new Response(
+        JSON.stringify([
+          {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "dev.pages.tecnicamzpro.twa",
+              "sha256_cert_fingerprints": ["61:40:F0:03:52:9D:F3:D9:BE:1C:75:2D:20:47:E7:11:72:3C:1C:EE:4A:92:E5:02:10:9B:0A:91:C4:35:EB:B4"]
+            }
+          }
+        ]),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "public, max-age=31536000, immutable",
+            ...CORS_HEADERS,
+          },
+        }
+      );
+    }
+
     // 2. Health check ou rota raiz para teste no navegador
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/api/health")) {
       return new Response(

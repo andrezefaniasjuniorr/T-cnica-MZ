@@ -23,20 +23,38 @@ app.use((req: Request, res: Response, next) => {
   next();
 });
 
-// TWA / Digital Asset Links: serve .well-known/assetlinks.json com application/json direto
-app.get('/.well-known/assetlinks.json', (req: Request, res: Response) => {
+// TWA / Digital Asset Links: serve .well-known/assetlinks.json e .well-known/assetlinks com application/json direto
+app.get(['/.well-known/assetlinks.json', '/.well-known/assetlinks'], (req: Request, res: Response) => {
   const possiblePaths = [
     path.join(process.cwd(), 'public/.well-known/assetlinks.json'),
     path.join(process.cwd(), 'dist/.well-known/assetlinks.json'),
   ];
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
-      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.sendFile(p);
     }
   }
   return res.status(404).json({ error: 'assetlinks.json not found' });
+});
+
+// PWA Web App Manifests
+app.get(['/manifest.json', '/manifest.webmanifest'], (req: Request, res: Response) => {
+  const possiblePaths = [
+    path.join(process.cwd(), 'public/manifest.json'),
+    path.join(process.cwd(), 'dist/manifest.webmanifest'),
+    path.join(process.cwd(), 'dist/manifest.json'),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.sendFile(p);
+    }
+  }
+  return res.status(404).json({ error: 'manifest not found' });
 });
 
 // Lazy initialization of Gemini client

@@ -22,12 +22,14 @@ interface SaraAcademyCardProps {
   currentUser: any;
   onAskSara: (promptText: string, contextSummary?: string) => void;
   className?: string;
+  onModalStateChange?: (isOpen: boolean) => void;
 }
 
 export const SaraAcademyCard: React.FC<SaraAcademyCardProps> = ({
   currentUser,
   onAskSara,
-  className = ''
+  className = '',
+  onModalStateChange
 }) => {
   const userId = currentUser?.uid || 'guest';
   const userArea: AcademyArea = useMemo(() => detectUserArea(currentUser), [currentUser]);
@@ -47,6 +49,16 @@ export const SaraAcademyCard: React.FC<SaraAcademyCardProps> = ({
 
   // Estado do Modal de Tela Inteira (Abre ao clicar em CONTINUAR CURSO)
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+    onModalStateChange?.(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    onModalStateChange?.(false);
+  };
 
   // Recalcula dados quando o usuário ou área mudar
   useEffect(() => {
@@ -101,7 +113,7 @@ export const SaraAcademyCard: React.FC<SaraAcademyCardProps> = ({
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleOpenModal}
                 className="px-2 py-0.5 rounded bg-[#3B82F6] hover:bg-blue-600 text-white font-black text-[10px] flex items-center gap-1 transition cursor-pointer"
               >
                 <span>Continuar</span>
@@ -180,7 +192,7 @@ export const SaraAcademyCard: React.FC<SaraAcademyCardProps> = ({
               <button
                 type="button"
                 id="btn_continue_sara_course"
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleOpenModal}
                 className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[#3B82F6] hover:bg-blue-600 active:scale-95 text-white font-black text-xs transition flex items-center gap-1.5 shadow-md shadow-blue-500/25 cursor-pointer"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
@@ -206,7 +218,7 @@ export const SaraAcademyCard: React.FC<SaraAcademyCardProps> = ({
       {/* =================================================================== */}
       <SaraAcademyModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         currentUser={currentUser}
         userArea={userArea}
         academyData={academyData}

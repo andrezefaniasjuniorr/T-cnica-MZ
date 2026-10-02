@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
+  ArrowLeft,
   BookOpen,
   GraduationCap,
   CheckCircle2,
@@ -258,20 +260,58 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
     }
   };
 
-  return (
+  const modalContent = (
     <div
       id="sara_academy_modal_overlay"
-      className="modal-useful-fullscreen-overlay dark-modal z-46 animate-in fade-in duration-200"
+      className="fixed inset-0 w-screen h-[100dvh] z-[100000] bg-[#0A0F1D] overflow-hidden flex flex-col animate-in fade-in duration-200"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+        zIndex: 100000,
+        backgroundColor: '#0A0F1D',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
     >
       <div
         id="sara_academy_modal_window"
-        className="modal-useful-fullscreen-window bg-[#0A0F1D] shadow-2xl flex flex-col overflow-hidden text-slate-100"
+        className="w-full h-full bg-[#0A0F1D] flex flex-col overflow-hidden text-slate-100"
+        style={{
+          flex: '1 1 0%',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          maxHeight: '100%',
+          overflow: 'hidden',
+        }}
       >
         {/* ================================================================= */}
         {/* TOPO: IDENTIDADE VISUAL + GAMIFICAÇÃO + BOTÃO FECHAR              */}
         {/* ================================================================= */}
-        <div className="px-4 py-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between gap-3 shrink-0 sticky top-0 z-10">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="px-3 sm:px-4 py-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between gap-2 sm:gap-3 shrink-0 sticky top-0 z-20">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Botão Voltar (Seta de recuo) */}
+            <button
+              type="button"
+              onClick={onClose}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                onClose();
+              }}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-white border border-slate-700 active:scale-95 transition flex items-center gap-1.5 text-xs font-mono font-bold cursor-pointer shrink-0 z-30"
+              title="Voltar ao Chat"
+              aria-label="Voltar ao Chat"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">VOLTAR</span>
+            </button>
+
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
               <GraduationCap className="w-5 h-5" />
             </div>
@@ -336,8 +376,13 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-              title="Voltar ao Chat"
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                onClose();
+              }}
+              className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white active:scale-95 transition cursor-pointer z-30"
+              title="Fechar Academia"
+              aria-label="Fechar Academia"
             >
               <X className="w-5 h-5" />
             </button>
@@ -965,4 +1010,7 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 };
