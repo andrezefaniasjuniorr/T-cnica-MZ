@@ -17,15 +17,23 @@ interface BottomNavProps {
   onNavigateTab: (tab: string) => void;
   onOpenSaraAi: () => void;
   onOpenMobileMenu?: () => void;
+  isSaraOpen?: boolean;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   onNavigateTab,
   onOpenSaraAi,
-  onOpenMobileMenu
+  onOpenMobileMenu,
+  isSaraOpen = false,
 }) => {
   const { currentUser, isClient, isTechnician, isAdmin } = useAuth();
+
+  // CORREÇÃO OBRIGATÓRIA: Quando a rota for /sara ou a aba Sara IA estiver ativa,
+  // ESCONDA completamente a bottom navigation (display: none !important)
+  if (activeTab === 'sara' || isSaraOpen) {
+    return null;
+  }
 
   const roleStr = String(currentUser?.role || '');
   const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
@@ -87,6 +95,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const handleSaraClick = () => {
     if (isClientUser || !isTechnicianUser) return;
     soundFX.playClick();
+    onNavigateTab('sara');
     onOpenSaraAi();
   };
 

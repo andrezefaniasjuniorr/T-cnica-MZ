@@ -65,6 +65,7 @@ const VALID_TABS = [
   'technician',
   'client',
   'academy',
+  'sara',
   'gestao-pro-mz',
   'admin'
 ];
@@ -73,6 +74,11 @@ const resolveTabFromLocation = (): string | null => {
   if (typeof window === 'undefined') return null;
   const rawPath = window.location.pathname.replace(/^\//, '').trim().toLowerCase();
   const rawHash = window.location.hash.replace(/^#/, '').trim().toLowerCase();
+
+  // Sara IA route
+  if (rawPath === 'sara' || rawPath === 'sara-ia' || rawHash === 'sara' || rawHash === 'sara-ia') {
+    return 'sara';
+  }
 
   // Admin routes
   if (rawPath === 'gestao-pro-mz' || rawPath === 'admin' || rawHash === 'gestao-pro-mz' || rawHash === 'admin') {
@@ -168,7 +174,25 @@ const AppContent: React.FC = () => {
 
   const handleOpenSaraAi = () => {
     if (!isClientUser && isTechnicianUser) {
+      soundFX.playModalOpen();
+      setActiveTab('sara');
       setIsSaraAiOpen(true);
+      try {
+        window.history.pushState({ tab: 'sara' }, '', '#sara');
+      } catch {}
+    } else {
+      setRequiredRoleForDenied('technician');
+      setIsAccessDeniedOpen(true);
+    }
+  };
+
+  const handleCloseSaraAi = () => {
+    setIsSaraAiOpen(false);
+    if (activeTab === 'sara') {
+      setActiveTab('technician');
+      try {
+        window.history.replaceState({ tab: 'technician' }, '', '#tecnico');
+      } catch {}
     }
   };
 
@@ -543,6 +567,28 @@ const AppContent: React.FC = () => {
 
     // 1. LÓGICA DE INTERCEPTAÇÃO E VERIFICAÇÃO DO SELO MZ:
     // Cheque no localStorage a chave: 'tecnico_verificado' (booleano).
+    if (targetTab === 'sara') {
+      if (isClientUser || !isTechnicianUser) {
+        setRequiredRoleForDenied('technician');
+        setIsAccessDeniedOpen(true);
+        return;
+      }
+      setIsMobileMenuOpen(false);
+      dismissModalWithoutHistory('mobile_menu');
+      setActiveTab('sara');
+      setIsSaraAiOpen(true);
+      try {
+        localStorage.setItem('tecnicamz_last_route', 'sara');
+        localStorage.setItem('lastRoute', 'sara');
+      } catch {}
+      if (addToHistory && typeof window !== 'undefined' && window.history) {
+        try {
+          window.history.pushState({ tab: 'sara' }, '', '#sara');
+        } catch {}
+      }
+      return;
+    }
+
     // Ao tentar acessar a aba "Ferramentas" (ou qualquer recurso restrito), caso 'tecnico_verificado' seja 'false' ou inexistente:
     // * Impede a abertura do conteúdo da aba.
     // * Exibe o Modal "Selo MZ Necessário".
@@ -794,16 +840,21 @@ const AppContent: React.FC = () => {
         )}
       </main>
 
-      {/* 3. Mobile Bottom Navigation Bar */}
-      <BottomNav
-        activeTab={activeTab}
-        onNavigateTab={handleNavigate}
-        onOpenSaraAi={handleOpenSaraAi}
-        onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-      />
+      {/* 3. Mobile Bottom Navigation Bar - ESCONDA completamente quando rota for /sara ou Sara IA ativa */}
+      {!(activeTab === 'sara' || isSaraAiOpen) && (
+        <BottomNav
+          activeTab={activeTab}
+          onNavigateTab={handleNavigate}
+          onOpenSaraAi={handleOpenSaraAi}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          isSaraOpen={isSaraAiOpen || activeTab === 'sara'}
+        />
+      )}
 
-      {/* 4. Desktop Floating Quick Launcher for Sara IA (Exclusivo Técnicos / Oculto para Clientes) */}
-      <SaraAiFloatingButton onClick={handleOpenSaraAi} />
+      {/* 4. Desktop Floating Quick Launcher for Sara IA (Exclusivo Técnicos / Oculto para Clientes e quando Sara aberta) */}
+      {!(activeTab === 'sara' || isSaraAiOpen) && (
+        <SaraAiFloatingButton onClick={handleOpenSaraAi} />
+      )}
 
       {/* 5. Global Official Footer */}
       <footer className="bg-slate-950 text-slate-400 border-t border-slate-800 text-xs mt-auto hidden md:block">
@@ -887,8 +938,8 @@ const AppContent: React.FC = () => {
       />
 
       <SaraAiModal
-        isOpen={isSaraAiOpen && !isClientUser && isTechnicianUser}
-        onClose={() => setIsSaraAiOpen(false)}
+        isOpen={(isSaraAiOpen || activeTab === 'sara') && !isClientUser && isTechnicianUser}
+        onClose={handleCloseSaraAi}
         onGoToSettings={() => handleNavigate('settings')}
       />
 

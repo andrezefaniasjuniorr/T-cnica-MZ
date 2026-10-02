@@ -58,7 +58,7 @@ export interface ChatInputFormHandle {
 // Estilos Cyber-Elétricos com bloqueio rígido horizontal e visual espaçoso
 const CYBER_ELECTRIC_STYLES = `
   .cyber-electric-viewport {
-    background-color: #030712;
+    background-color: #080F1E;
     background-image: 
       radial-gradient(circle at 50% 0%, rgba(0, 245, 255, 0.10) 0%, transparent 60%),
       radial-gradient(circle at 100% 100%, rgba(0, 119, 254, 0.06) 0%, transparent 50%),
@@ -388,7 +388,14 @@ const ChatMessagesList = memo(function ChatMessagesList({
   fontSize
 }: ChatMessagesListProps) {
   return (
-    <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 space-y-3 cyber-electric-viewport cyber-custom-scrollbar w-full max-w-full">
+    <div
+      className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 space-y-3 cyber-electric-viewport cyber-custom-scrollbar w-full max-w-full"
+      style={{
+        flex: '1 1 0%',
+        overflowY: 'auto',
+        paddingBottom: '20px',
+      }}
+    >
       {messages.map((m, idx) => {
         const isLastSara = m.sender === 'sara' && idx === messages.length - 1;
         return (
@@ -474,10 +481,19 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
   };
 
   return (
-    <div className="w-full shrink-0 overflow-x-hidden">
+    <div
+      className="w-full shrink-0 overflow-x-hidden"
+      style={{
+        flexShrink: 0,
+        position: 'sticky',
+        bottom: 0,
+        background: '#080F1E',
+        zIndex: 20,
+      }}
+    >
       {/* Imagem Técnica Anexada */}
       {selectedImage && (
-        <div className="px-4 py-2 bg-[#020610] border-t-2 border-[#00F5FF]/30 flex items-center justify-between w-full">
+        <div className="px-4 py-2 bg-[#080F1E] border-t-2 border-[#00F5FF]/30 flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <div className="relative">
               <img
@@ -505,7 +521,7 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
 
       {/* Input de Comando ou Bloqueio por Selo */}
       {!hasAccess ? (
-        <div className="p-4 bg-[#030814] text-white border-t-2 border-[#00F5FF]/30 flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
+        <div className="p-4 bg-[#080F1E] text-white border-t-2 border-[#00F5FF]/30 flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-3 text-xs text-slate-300">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
               <Lock className="w-5 h-5" />
@@ -534,7 +550,7 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="p-3 sm:p-4 bg-[#030814] border-t-2 border-[#00F5FF]/30 flex items-center gap-2 relative w-full">
+        <form onSubmit={handleSubmit} className="p-3 sm:p-4 bg-[#080F1E] border-t-2 border-[#00F5FF]/30 flex items-center gap-2 relative w-full">
           <input
             type="file"
             ref={fileInputRef}
@@ -854,6 +870,26 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     };
   }, [isOpen, isExpandedWorkbench]);
 
+  // Bloqueio rigoroso de overflow no body e no html para evitar rolagem de fundo
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return;
+
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('sara-open');
+    document.documentElement.classList.add('sara-open');
+
+    return () => {
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+      document.body.classList.remove('sara-open');
+      document.documentElement.classList.remove('sara-open');
+    };
+  }, [isOpen]);
+
   const handleClose = useCallback(() => {
     soundFX.playModalClose();
     if (document.fullscreenElement && document.exitFullscreen) {
@@ -1154,18 +1190,49 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
   return (
     <div
       id="sara_ai_modal_overlay"
-      className={`modal-useful-fullscreen-overlay dark-modal !bg-[#020610] overflow-x-hidden ${
+      className={`fixed inset-0 w-screen h-[100dvh] z-[9999] bg-[#080F1E] overflow-hidden flex flex-col ${
         isExpandedWorkbench ? 'sara-workbench-fullscreen' : ''
       }`}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+        zIndex: 9999,
+        background: '#080F1E',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        margin: 0,
+        padding: 0,
+      }}
     >
       <style>{CYBER_ELECTRIC_STYLES}</style>
 
       <div
         id="sara_ai_modal_window"
-        className="modal-useful-fullscreen-window cyber-electric-viewport text-slate-100 flex flex-col h-full overflow-x-hidden w-full max-w-full animate-in fade-in duration-200"
+        className="cyber-electric-viewport text-slate-100 flex flex-col h-full overflow-hidden w-full max-w-full animate-in fade-in duration-200"
+        style={{
+          flex: '1 1 0%',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          maxHeight: '100%',
+          width: '100%',
+          overflow: 'hidden',
+          background: '#080F1E',
+          margin: 0,
+          padding: 0,
+        }}
       >
         {/* Cabeçalho Terminal HUD Industrial Elétrico */}
-        <div className="bg-[#030914] text-white p-3 sm:p-4 flex items-center justify-between border-b-2 border-[#00F5FF]/40 shadow-[0_4px_25px_rgba(0,245,255,0.15)] shrink-0 sticky top-0 z-10 w-full overflow-x-hidden">
+        <div
+          style={{ flexShrink: 0 }}
+          className="bg-[#030914] text-white p-3 sm:p-4 flex items-center justify-between border-b-2 border-[#00F5FF]/40 shadow-[0_4px_25px_rgba(0,245,255,0.15)] shrink-0 sticky top-0 z-10 w-full overflow-x-hidden"
+        >
           <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
             <button
               onClick={handleClose}
@@ -1368,3 +1435,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
     </div>
   );
 };
+
+export const SaraChatView = SaraAiModal;
+export default SaraAiModal;
