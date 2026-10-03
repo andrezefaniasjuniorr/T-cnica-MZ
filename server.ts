@@ -57,6 +57,24 @@ app.get(['/manifest.json', '/manifest.webmanifest'], (req: Request, res: Respons
   return res.status(404).json({ error: 'manifest not found' });
 });
 
+// Service Worker serving
+app.get('/sw.js', (req: Request, res: Response) => {
+  const possiblePaths = [
+    path.join(process.cwd(), 'public/sw.js'),
+    path.join(process.cwd(), 'dist/sw.js'),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      res.setHeader('Service-Worker-Allowed', '/');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.sendFile(p);
+    }
+  }
+  return res.status(404).send('// Service worker not found');
+});
+
 // Lazy initialization of Gemini client
 let genAIClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
