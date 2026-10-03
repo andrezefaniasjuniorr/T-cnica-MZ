@@ -568,7 +568,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         E-mail *
                       </label>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                           <Mail className="w-4 h-4 text-blue-500" />
                         </div>
                         <input
@@ -579,7 +579,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="seu.email@exemplo.co.mz"
-                          className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                          className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                         />
                       </div>
                     </div>
@@ -593,13 +593,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           id="modal-btn-forgot-password"
                           type="button"
                           onClick={() => setIsForgotPassword(true)}
-                          className="text-[11px] font-bold text-blue-600 hover:text-blue-800"
+                          className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
                         >
                           Esqueceu a senha?
                         </button>
                       </div>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                           <Lock className="w-4 h-4 text-blue-500" />
                         </div>
                         <input
@@ -610,13 +610,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           placeholder="Sua palavra-passe"
-                          className="w-full pl-9 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                          className="w-full pl-11 pr-11 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                         />
                         <button
                           id="modal-toggle-password"
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                         >
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -684,7 +684,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Seu nome"
-                            className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium placeholder-slate-400 focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
 
@@ -700,7 +700,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                             placeholder="+258 84 000 0000"
-                            className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium placeholder-slate-400 focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
 
@@ -714,7 +714,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             value={specialty}
                             onChange={(e) => setSpecialty(e.target.value)}
                             required
-                            className="form-control w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                            className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
                           >
                             <option value="" disabled>Selecione a Categoria/Especialidade</option>
                             {TECHNICAL_CATEGORIES.map(cat => (
@@ -736,7 +736,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             max="100"
                             value={idade}
                             onChange={(e) => setIdade(e.target.value)}
-                            className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium placeholder-slate-400 focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
 
@@ -750,7 +750,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             value={province}
                             onChange={(e) => setProvince(e.target.value)}
                             required
-                            className="form-control w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                            className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
                           >
                             <option value="" disabled>Selecione a Província</option>
                             {MOZAMBIQUE_PROVINCES.map(prov => (
@@ -771,7 +771,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             value={city}
                             onChange={(e) => setCity(e.target.value)}
                             placeholder="Sua cidade ou distrito"
-                            className="form-control w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-medium placeholder-slate-400 focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
                       </div>

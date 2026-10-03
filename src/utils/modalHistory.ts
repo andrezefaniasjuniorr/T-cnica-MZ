@@ -82,6 +82,9 @@ export function setupModalHistoryListener(): () => void {
   const handlePopState = (event: PopStateEvent) => {
     if (isManualBackPopping) {
       // Foi acionado pelo nosso próprio history.back() programático ao fechar via botão (X)
+      event.preventDefault?.();
+      event.stopImmediatePropagation?.();
+      event.stopPropagation?.();
       return;
     }
 
@@ -89,6 +92,7 @@ export function setupModalHistoryListener(): () => void {
       // Modal aberto detectado: previne ação padrão e fecha APENAS o modal visível
       event.preventDefault?.();
       event.stopImmediatePropagation?.();
+      event.stopPropagation?.();
       fecharModalAtivo();
     }
   };
@@ -105,6 +109,10 @@ export function setupModalHistoryListener(): () => void {
 // Auto-inicializa o listener no ambiente do navegador
 if (typeof window !== 'undefined') {
   setupModalHistoryListener();
+}
+
+export function isManualBackPoppingActive(): boolean {
+  return isManualBackPopping;
 }
 
 export function dismissModalWithoutHistory(name?: string): void {

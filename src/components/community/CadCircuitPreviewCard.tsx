@@ -26,14 +26,16 @@ import {
 
 interface CadCircuitPreviewCardProps {
   circuit: CadCircuitProject;
-  onTestCircuit: () => void;
+  onTestCircuit?: () => void;
   className?: string;
+  hideTestButton?: boolean;
 }
 
 export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
   circuit,
   onTestCircuit,
-  className = ''
+  className = '',
+  hideTestButton = false
 }) => {
   const circuitType = circuit.circuitType || 'direct_motor';
   const hasCustomCadData = Boolean(
@@ -1469,15 +1471,17 @@ export const CadCircuitPreviewCard: React.FC<CadCircuitPreviewCardProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={onTestCircuit}
-          className="px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/40 active:scale-95 cursor-pointer border border-blue-400/40 shrink-0"
-        >
-          <Zap className="w-4 h-4 fill-amber-300 text-amber-300 animate-bounce" />
-          <span>⚡ Testar Circuito</span>
-          <Maximize2 className="w-3.5 h-3.5 text-blue-200 ml-1" />
-        </button>
+        {!hideTestButton && onTestCircuit && (
+          <button
+            type="button"
+            onClick={onTestCircuit}
+            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/40 active:scale-95 cursor-pointer border border-blue-400/40 shrink-0"
+          >
+            <Zap className="w-4 h-4 fill-amber-300 text-amber-300 animate-bounce" />
+            <span>⚡ Testar Circuito</span>
+            <Maximize2 className="w-3.5 h-3.5 text-blue-200 ml-1" />
+          </button>
+        )}
       </div>
     </div>
   );

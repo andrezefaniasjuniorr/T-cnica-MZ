@@ -45,7 +45,7 @@ import {
 } from '../../services/saraAcademyService';
 import { setActiveAcademyContext } from '../../services/saraAcademyContext';
 import { soundFX } from '../../utils/audio';
-import { useModalHistory } from '../../utils/modalHistory';
+import { useModalHistory, dismissModalWithoutHistory } from '../../utils/modalHistory';
 import { FontScaleControl, useAcademyFontScale } from '../academy/FontScaleControl';
 import { CircuitDiagramViewer } from '../academy/CircuitDiagramViewer';
 import { InteractiveVisualLab } from '../academy/InteractiveVisualLab';
@@ -214,6 +214,7 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
 
   // Botão "Tirar Dúvida no Exame com a Sara"
   const handleAskSaraExam = (questionContext: string) => {
+    dismissModalWithoutHistory('sara_academy');
     onClose();
     onAskSara(questionContext, `Dúvida do Exame: ${selectedLesson.title} (${selectedLesson.norma})`);
   };
@@ -226,6 +227,7 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
     const norm = selectedLesson.norma;
     const doubtPayload = `Elemento: ${elementName} | Norma: ${norm}`;
 
+    dismissModalWithoutHistory('sara_academy');
     onClose();
     onAskSara(doubtPayload, `Elemento: ${elementName} (${norm})`);
   };

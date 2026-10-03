@@ -140,6 +140,18 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
   // Bloqueio de rolagem do fundo (body scroll lock)
   useBodyScrollLock(isOpen);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (isOpen) {
+      document.body.classList.add('messages-modal-open');
+    } else {
+      document.body.classList.remove('messages-modal-open');
+    }
+    return () => {
+      document.body.classList.remove('messages-modal-open');
+    };
+  }, [isOpen]);
+
   if (!isOpen || !currentUser) return null;
 
   // Conversations user participates in
@@ -209,10 +221,10 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
 
   return (
     <div id="messages_modal_overlay" className="modal-useful-fullscreen-overlay">
-      <div id="messages_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col md:flex-row animate-in fade-in duration-150">
+      <div id="messages_modal_window" className="modal-useful-fullscreen-window bg-white flex flex-col md:flex-row animate-in fade-in duration-150 min-h-0 min-w-0 overflow-hidden">
         
         {/* Left Sidebar: Conversations List */}
-        <div className={`w-full md:w-80 bg-slate-50 border-r border-slate-200 flex flex-col h-full shrink-0 ${
+        <div className={`w-full md:w-80 bg-slate-50 border-r border-slate-200 flex flex-col h-full min-h-0 shrink-0 overflow-hidden ${
           activeConvId ? 'hidden md:flex' : 'flex'
         }`}>
           {/* Header with Exit button */}
@@ -220,7 +232,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={handleClose}
-                className="p-1.5 -ml-1 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition"
+                className="p-1.5 -ml-1 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition cursor-pointer"
                 title="Voltar / Sair do Chat"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -237,7 +249,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
               </span>
               <button
                 onClick={handleClose}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
                 title="Fechar Chat"
               >
                 <X className="w-4 h-4" />
@@ -246,7 +258,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
           </div>
 
           {/* Search */}
-          <div className="p-3 border-b border-slate-200">
+          <div className="p-3 border-b border-slate-200 shrink-0 bg-white">
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
               <input
@@ -254,13 +266,13 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Buscar conversa..."
-                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1 overscroll-contain">
             {filteredConversations.length === 0 ? (
               <div className="text-center py-10 px-4 text-slate-400 space-y-3">
                 <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
@@ -329,7 +341,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
         </div>
 
         {/* Right Chat Area */}
-        <div className={`flex-1 flex flex-col h-full bg-white ${
+        <div className={`flex-1 flex flex-col h-full min-h-0 min-w-0 bg-white overflow-hidden ${
           !activeConvId ? 'hidden md:flex' : 'flex'
         }`}>
           {activeConversation && otherParticipant ? (
@@ -343,7 +355,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                       soundFX.playClick();
                       setActiveConvId(null);
                     }}
-                    className="p-1.5 md:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition flex items-center gap-1 text-xs font-bold shrink-0"
+                    className="p-1.5 md:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition flex items-center gap-1 text-xs font-bold shrink-0 cursor-pointer"
                     title="Voltar para Lista de Conversas"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -369,7 +381,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={handleClose}
-                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition flex items-center gap-1 text-xs font-bold"
+                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition flex items-center gap-1 text-xs font-bold cursor-pointer"
                     title="Fechar Janela de Chat"
                   >
                     <span className="hidden sm:inline">Sair</span>
@@ -379,7 +391,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
               </div>
 
               {/* Messages Flow */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 bg-slate-50/50">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-3 bg-slate-50/50 overscroll-contain">
                 {activeMessages.length === 0 ? (
                   <div className="text-center py-12 text-slate-400 space-y-2">
                     <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
@@ -431,7 +443,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
               </div>
 
               {/* Input Form */}
-              <form onSubmit={handleSend} className="p-3 sm:p-4 border-t border-slate-200 bg-white flex items-center gap-2">
+              <form onSubmit={handleSend} className="p-3 sm:p-4 border-t border-slate-200 bg-white flex items-center gap-2 shrink-0">
                 <input
                   type="text"
                   value={inputText}
@@ -442,7 +454,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
                 <button
                   type="submit"
                   disabled={!inputText.trim()}
-                  className="p-2.5 sm:px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl transition shadow-xs flex items-center gap-1 font-bold text-xs shrink-0"
+                  className="p-2.5 sm:px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl transition shadow-xs flex items-center gap-1 font-bold text-xs shrink-0 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
                   <span className="hidden sm:inline">Enviar</span>
@@ -450,7 +462,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
               </form>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-3">
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-3">
               <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
                 <MessageSquare className="w-7 h-7 text-blue-600" />
               </div>
@@ -462,7 +474,7 @@ export const MessagesModal: React.FC<MessagesModalProps> = ({
               </div>
               <button
                 onClick={handleClose}
-                className="mt-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
+                className="mt-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Voltar à Aplicação</span>

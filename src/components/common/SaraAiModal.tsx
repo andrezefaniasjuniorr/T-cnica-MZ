@@ -1409,6 +1409,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
               currentUser={currentUser}
               onModalStateChange={(open) => setIsAcademyModalOpen(open)}
               onAskSara={(promptText) => {
+                setIsAcademyModalOpen(false);
                 chatInputRef.current?.setInputText('');
                 chatInputRef.current?.focus();
                 scrollToBottom();

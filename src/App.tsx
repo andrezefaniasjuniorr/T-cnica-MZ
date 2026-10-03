@@ -42,7 +42,7 @@ import { SplashScreen } from './components/common/SplashScreen';
 import { UserRole } from './types';
 import { Wrench, Phone, Mail, ShieldCheck, Heart, Sparkles } from 'lucide-react';
 import { soundFX } from './utils/audio';
-import { hasActiveModals, setupModalHistoryListener, dismissModalWithoutHistory, fecharModalAtivo } from './utils/modalHistory';
+import { hasActiveModals, setupModalHistoryListener, dismissModalWithoutHistory, fecharModalAtivo, isManualBackPoppingActive } from './utils/modalHistory';
 import {
   getSavedCompanyLogoSync,
   getSavedCompanyLogoAsync,
@@ -387,6 +387,12 @@ const AppContent: React.FC = () => {
     };
 
     const handlePopState = (event: PopStateEvent) => {
+      // Se foi disparado por um history.back programático interno de fechar modal, não feche modais pai
+      if (isManualBackPoppingActive()) {
+        event.preventDefault?.();
+        return;
+      }
+
       // 1. INTERCEPTAÇÃO ESTRITA: Se houver qualquer modal ou gaveta ativa na pilha,
       // a navegação histórica pertence exclusivamente ao fechamento do modal!
       if (hasActiveModals()) {

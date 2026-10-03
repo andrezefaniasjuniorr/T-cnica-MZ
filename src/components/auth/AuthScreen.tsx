@@ -662,7 +662,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder="Ex: Alberto Sitoe"
-                                className="form-control w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                                className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                               />
                             </div>
                           </div>
@@ -683,7 +683,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
                                 placeholder="+258 84 123 4567"
-                                className="form-control w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                                className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                               />
                             </div>
                           </div>
@@ -701,7 +701,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                                 name="specialty"
                                 value={specialty}
                                 onChange={(e) => setSpecialty(e.target.value)}
-                                className="form-control w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition cursor-pointer"
+                                className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition cursor-pointer"
                               >
                                 {TECHNICAL_CATEGORIES.map(cat => (
                                   <option key={cat} value={cat}>{cat}</option>
@@ -740,7 +740,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                                 name="province"
                                 value={province}
                                 onChange={(e) => setProvince(e.target.value)}
-                                className="form-control w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition cursor-pointer"
+                                className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition cursor-pointer"
                               >
                                 {MOZAMBIQUE_PROVINCES.map(prov => (
                                   <option key={prov} value={prov}>{prov}</option>
@@ -761,7 +761,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                               value={city}
                               onChange={(e) => setCity(e.target.value)}
                               placeholder="Ex: Maputo / Matola"
-                              className="form-control w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                              className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                             />
                           </div>
                         </div>
@@ -929,7 +929,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
                               placeholder="seu.email@exemplo.co.mz"
-                              className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                              className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                             />
                           </div>
                         </div>
@@ -952,13 +952,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                className="w-full pl-9 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                                className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                               />
                               <button
                                 id="btn-toggle-reg-password"
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                               >
                                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
@@ -982,7 +982,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 placeholder="••••••••"
-                                className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                                className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                               />
                             </div>
                           </div>

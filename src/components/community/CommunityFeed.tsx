@@ -56,7 +56,18 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     markCommentAsUseful,
     startOrGetConversation
   } = useData();
-  const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ } = useAuth();
+  const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isClient } = useAuth();
+
+  const roleStr = String(currentUser?.role || '');
+  const tipoStr = String((currentUser as any)?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
+
+  const isClientUser = Boolean(
+    isClient ||
+    roleStr === 'cliente' ||
+    roleStr === 'client' ||
+    tipoStr === 'cliente' ||
+    (!isTechnician && !isCompany && !isAdmin && currentUser)
+  );
 
   const getAuthorPoints = (authorId?: string) => {
     if (!authorId) return 0;
@@ -304,17 +315,19 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
             className="w-full h-40 sm:h-52 md:h-64 object-cover object-center"
             referrerPolicy="no-referrer"
           />
-          {/* Action Button: ⚡ Criar no Simulador CAD */}
-          <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-2">
-            <button
-              onClick={() => handleOpenCadSimulator()}
-              className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
-              title="Abrir a bancada de simulação de circuitos CAD"
-            >
-              <Zap className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
-              <span>⚡ Criar no Simulador CAD</span>
-            </button>
-          </div>
+          {/* Action Button: ⚡ Criar no Simulador CAD (Exclusivo Técnicos/Engenharia - Oculto para Clientes) */}
+          {!isClientUser && (
+            <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-2">
+              <button
+                onClick={() => handleOpenCadSimulator()}
+                className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
+                title="Abrir a bancada de simulação de circuitos CAD"
+              >
+                <Zap className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
+                <span>⚡ Criar no Simulador CAD</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Responsive Desktop Grid (Feed + Side Widgets) */}
@@ -337,13 +350,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
               <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
                 Abra a bancada de simulação CAD para desenhar seu primeiro circuito esquemático e compartilhá-lo no mural técnico!
               </p>
-              <button
-                onClick={() => handleOpenCadSimulator()}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-xs inline-flex items-center gap-2 cursor-pointer"
-              >
-                <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
-                <span>⚡ Abrir Simulador CAD</span>
-              </button>
+              {!isClientUser && (
+                <button
+                  onClick={() => handleOpenCadSimulator()}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-xs inline-flex items-center gap-2 cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                  <span>⚡ Abrir Simulador CAD</span>
+                </button>
+              )}
             </div>
           ) : (
             filteredPosts.map(post => {
@@ -471,6 +486,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
                         <CadCircuitPreviewCard
                           circuit={postCircuit}
                           onTestCircuit={() => handleOpenCadSimulator(postCircuit)}
+                          hideTestButton={isClientUser}
                         />
                       </div>
                     )}
@@ -573,15 +589,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
 
                       {/* Right: d) Botão de Ação Destacado: "⚡ Testar Circuito", Comments & Contact */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenCadSimulator(postCircuit)}
-                          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs transition flex items-center gap-1.5 shadow-md shadow-blue-900/30 cursor-pointer active:scale-95"
-                          title="Carregar e testar o circuito na bancada CAD interativa"
-                        >
-                          <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300 animate-pulse" />
-                          <span>⚡ Testar Circuito</span>
-                        </button>
+                        {!isClientUser && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCadSimulator(postCircuit)}
+                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs transition flex items-center gap-1.5 shadow-md shadow-blue-900/30 cursor-pointer active:scale-95"
+                            title="Carregar e testar o circuito na bancada CAD interativa"
+                          >
+                            <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300 animate-pulse" />
+                            <span>⚡ Testar Circuito</span>
+                          </button>
+                        )}
 
                         <button
                           onClick={() => setActiveCommentPostId(isCommentOpen ? null : post.id)}
