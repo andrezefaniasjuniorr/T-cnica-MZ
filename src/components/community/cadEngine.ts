@@ -127,6 +127,62 @@ export const GAUGE_AMPACITY: Record<number, number> = {
 // CATÁLOGO COMPLETO DE COMPONENTES REAIS
 // ----------------------------------------------------------------------------
 export const COMPONENT_CATALOG: ComponentDef[] = [
+  // 0. TRILHOS DIN E BARRAMENTOS ELÉTRICOS (IEC 60715 / IEC 61439)
+  {
+    code: 'BUSBAR_DIN',
+    name: 'Trilho DIN 35mm Perfurado (IEC/EN 60715 TH35)',
+    cat: 'busbars',
+    icon: '⫯',
+    terminals: [],
+    kind: 'busbar_din',
+    params: { length: 680, orientation: 'horizontal' }
+  },
+  {
+    code: 'BUSBAR_L1',
+    name: 'Barramento / Pente de Fase L1 (Cobre / Castanho)',
+    cat: 'busbars',
+    icon: '━',
+    terminals: [],
+    kind: 'busbar_phase_l1',
+    params: { length: 680, orientation: 'horizontal', spacing: 28 }
+  },
+  {
+    code: 'BUSBAR_L2',
+    name: 'Barramento / Pente de Fase L2 (Cobre / Preto)',
+    cat: 'busbars',
+    icon: '━',
+    terminals: [],
+    kind: 'busbar_phase_l2',
+    params: { length: 680, orientation: 'horizontal', spacing: 28 }
+  },
+  {
+    code: 'BUSBAR_L3',
+    name: 'Barramento / Pente de Fase L3 (Cobre / Cinzento)',
+    cat: 'busbars',
+    icon: '━',
+    terminals: [],
+    kind: 'busbar_phase_l3',
+    params: { length: 680, orientation: 'horizontal', spacing: 28 }
+  },
+  {
+    code: 'BUSBAR_N',
+    name: 'Barramento Isolado de Neutro N (Azul Celeste)',
+    cat: 'busbars',
+    icon: '━',
+    terminals: [],
+    kind: 'busbar_neutral',
+    params: { length: 680, orientation: 'horizontal', spacing: 24 }
+  },
+  {
+    code: 'BUSBAR_PE',
+    name: 'Barramento de Proteção / Terra PE (Verde-Amarelo)',
+    cat: 'busbars',
+    icon: '━',
+    terminals: [],
+    kind: 'busbar_earth',
+    params: { length: 680, orientation: 'horizontal', spacing: 24 }
+  },
+
   // 1. INSTRUMENTOS DE MEDIÇÃO
   {
     code: 'VM',
@@ -1437,12 +1493,79 @@ export function solveCircuitPhysicsStep(
         }
       }
 
-      // Interruptores
-      if (c.code === 'SW' && c.state.closed) addGraphEdge(`${c.id}:L`, `${c.id}:R`, 0.002);
-      if (c.code === 'THREE_WAY') {
-        const pos = Number(c.params?.position ?? (c.state?.closed ? 1 : 0));
-        addGraphEdge(`${c.id}:C`, pos === 0 ? `${c.id}:R1` : `${c.id}:R2`, 0.002);
+      // INTERRUPTORES RESIDENCIAIS & COMUTADORES (SW, SW2, SW_DOUBLE, THREE_WAY, FOUR_WAY)
+      if (c.code === 'SW' && c.state.closed) {
+        addGraphEdge(`${c.id}:L`, `${c.id}:R`, 0.002);
+        addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
       }
+
+      if (c.code === 'SW2' && c.state.closed) {
+        addGraphEdge(`${c.id}:L1`, `${c.id}:L1'`, 0.002);
+        addGraphEdge(`${c.id}:L2`, `${c.id}:L2'`, 0.002);
+        addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
+        addGraphEdge(`${c.id}:3`, `${c.id}:4`, 0.002);
+      }
+
+      if (c.code === 'SW_DOUBLE') {
+        if (c.state?.closed1 ?? c.state?.closed) {
+          addGraphEdge(`${c.id}:L`, `${c.id}:R1`, 0.002);
+          addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
+        }
+        if (c.state?.closed2) {
+          addGraphEdge(`${c.id}:L`, `${c.id}:R2`, 0.002);
+          addGraphEdge(`${c.id}:1`, `${c.id}:3`, 0.002);
+        }
+      }
+
+      // COMUTADOR DE ESCADA THREE-WAY (PARALELO)
+      if (c.code === 'THREE_WAY') {
+        const pos = Number(c.params?.position ?? c.state?.position ?? (c.state?.closed ? 1 : 0));
+        const cTerm = `${c.id}:C`;
+        const rTerm = pos === 0 ? `${c.id}:R1` : `${c.id}:R2`;
+        addGraphEdge(cTerm, rTerm, 0.002, undefined, 1.0, c.id, 'P1');
+        addGraphEdge(`${c.id}:COM`, cTerm, 0.0001);
+        addGraphEdge(`${c.id}:1`, `${c.id}:R1`, 0.0001);
+        addGraphEdge(`${c.id}:2`, `${c.id}:R2`, 0.0001);
+      }
+
+      // COMUTADOR INTERMEDIÁRIO FOUR-WAY (CRUZAMENTO)
+      if (c.code === 'FOUR_WAY') {
+        const isCrossed = Boolean(c.params?.crossed ?? c.state?.crossed ?? c.state?.closed);
+        if (!isCrossed) {
+          addGraphEdge(`${c.id}:IN1`, `${c.id}:OUT1`, 0.002, undefined, 1.0, c.id, 'P1');
+          addGraphEdge(`${c.id}:IN2`, `${c.id}:OUT2`, 0.002, undefined, 1.0, c.id, 'P2');
+        } else {
+          addGraphEdge(`${c.id}:IN1`, `${c.id}:OUT2`, 0.002, undefined, 1.0, c.id, 'P1');
+          addGraphEdge(`${c.id}:IN2`, `${c.id}:OUT1`, 0.002, undefined, 1.0, c.id, 'P2');
+        }
+        addGraphEdge(`${c.id}:1`, `${c.id}:IN1`, 0.0001);
+        addGraphEdge(`${c.id}:2`, `${c.id}:IN2`, 0.0001);
+        addGraphEdge(`${c.id}:3`, `${c.id}:OUT1`, 0.0001);
+        addGraphEdge(`${c.id}:4`, `${c.id}:OUT2`, 0.0001);
+      }
+
+      // FOTOCÉLULA CREPUSCULAR (10A 230V)
+      if (c.code === 'PHOTOCELL') {
+        const lux = Number(c.params?.ambientLux ?? 100);
+        const isNight = lux <= 20 || Boolean(c.state?.closed);
+        c.state.closed = isNight;
+        if (isNight) {
+          // Relé fecha contato entre Fase (F) e Retorno para a Carga (R)
+          addGraphEdge(`${c.id}:F`, `${c.id}:R`, 0.002, undefined, 1.0, c.id, 'P1');
+          addGraphEdge(`${c.id}:L`, `${c.id}:F`, 0.0001);
+          addGraphEdge(`${c.id}:OUT`, `${c.id}:R`, 0.0001);
+        }
+      }
+
+      // SENSOR DE PRESENÇA INFRAVERMELHO (PIR)
+      if (c.code === 'PIR_SENSOR') {
+        const isDetected = Boolean(c.params?.presenceDetected || c.state?.presenceDetected || c.state?.closed);
+        if (isDetected) {
+          addGraphEdge(`${c.id}:L`, `${c.id}:OUT`, 0.002, undefined, 1.0, c.id, 'P1');
+        }
+      }
+
+      // BOTOEIRAS
       if (c.code === 'PBNO' && (c.state.pressed || c.state.closed)) addGraphEdge(`${c.id}:3`, `${c.id}:4`, 0.002);
       if (c.code === 'PBNC' && !c.state.pressed && c.state.closed !== false) addGraphEdge(`${c.id}:1`, `${c.id}:2`, 0.002);
     });

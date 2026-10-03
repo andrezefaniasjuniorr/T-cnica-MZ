@@ -1790,18 +1790,50 @@ export function renderCommercialSensors(
   ch: number,
   zoom: number
 ) {
-  if (c.code === 'PHOTOCELL') {
-    ctx.fillStyle = '#0284c7';
+  if (c.code === 'PHOTOCELL' || c.kind === 'photocell') {
+    const lux = Number(c.params?.ambientLux ?? 100);
+    const isNight = lux <= 20 || Boolean(st.closed);
+    const r = Math.min(cw, ch) * 0.38;
+
+    // 1. Base externa do relé fotoelétrico NEMA IP65
+    ctx.fillStyle = isNight ? '#0b132b' : '#0284c7';
     ctx.beginPath();
-    ctx.arc(0, 0, Math.min(cw, ch) * 0.35, 0, Math.PI * 2);
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#38bdf8';
+    ctx.strokeStyle = isNight ? '#f59e0b' : '#38bdf8';
+    ctx.lineWidth = 2 * zoom;
     ctx.stroke();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.max(6, 7 * zoom)}px sans-serif`;
+
+    // 2. Cúpula óptica do sensor fotossensível (LDR)
+    ctx.fillStyle = isNight ? '#1e293b' : '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.22, r * 0.44, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = isNight ? '#ca8a04' : '#ffffff';
+    ctx.lineWidth = 1.2 * zoom;
+    ctx.stroke();
+
+    // 3. Ícone visual dinâmico (Lua no escuro / Sol no claro)
+    ctx.font = `bold ${Math.max(11, 13 * zoom)}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('FOTOCÉLULA', 0, 0);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isNight ? '🌙' : '☀️', 0, -r * 0.22);
+
+    // 4. Identificação do dispositivo
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.max(6.5, 7.5 * zoom)}px sans-serif`;
+    ctx.fillText('FOTOCÉLULA', 0, r * 0.32);
+
+    // 5. Estado operacional e medição em Lux
+    ctx.fillStyle = isNight ? '#34d399' : '#fde047';
+    ctx.font = `bold ${Math.max(5.5, 6.5 * zoom)}px monospace`;
+    ctx.fillText(
+      isNight ? 'NOITE (<20lx) • FECHADO' : 'DIA (>20lx) • ABERTO',
+      0,
+      r * 0.62
+    );
   } else {
+    // Sensor de Presença PIR
     ctx.fillStyle = '#f8fafc';
     ctx.beginPath();
     ctx.arc(0, 0, Math.min(cw, ch) * 0.36, 0, Math.PI * 2);
@@ -3764,22 +3796,325 @@ export function renderCommercialIndustrialHeater(ctx: CanvasRenderingContext2D, 
   ctx.fillText('RESISTÊNCIA 2000W', 0, 0);
 }
 
-export function renderCommercialPowerSource(ctx: CanvasRenderingContext2D, c: any, st: any, cw: number, ch: number, zoom: number) {
+export function renderCommercialPowerSource(
+  ctx: CanvasRenderingContext2D,
+  c: any,
+  st: any,
+  cw: number,
+  ch: number,
+  zoom: number
+) {
   const is3P = c.code === 'SRC_AC3';
-  const vNom = c.params?.voltage || (is3P ? 400 : 230);
-  ctx.fillStyle = '#1e293b';
+  const isDC = c.code === 'SRC_DC24' || c.code === 'BAT';
+  const vNom = Number(c.params?.voltage || (is3P ? 400 : isDC ? 24 : 230));
+  const fNom = Number(c.params?.frequency || 50.0);
+  const isLive = Boolean(st?.energized !== false && c.params?.closed !== false);
+
+  ctx.save();
+
+  // 1. SOMBRA DE OCLUSÃO AMBIENTE PROJETADA NO FUNDO
+  ctx.save();
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.7)';
   ctx.beginPath();
-  ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 5 * zoom);
+  ctx.roundRect(-cw / 2 + 4 * zoom, -ch / 2 + 6 * zoom, cw, ch, 8 * zoom);
   ctx.fill();
-  ctx.strokeStyle = is3P ? '#f59e0b' : '#38bdf8';
+  ctx.restore();
+
+  // 2. ALETAS LATERAIS DE VENTILAÇÃO / REFRIGERAÇÃO EM ALUMÍNIO FUNDIDO
+  const finW = 4.5 * zoom;
+  const finH = ch * 0.65;
+  const numFins = 6;
+  const finStep = finH / (numFins - 1);
+
+  [-cw / 2 - finW + 1 * zoom, cw / 2 - 1 * zoom].forEach((sideX) => {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(sideX, -finH / 2, finW, finH);
+    for (let i = 0; i < numFins; i++) {
+      const fy = -finH / 2 + i * finStep;
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(sideX, fy - 1 * zoom, finW, 2 * zoom);
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(sideX, fy - 1 * zoom, finW, 0.8 * zoom);
+    }
+  });
+
+  // 3. CARCAÇA PRINCIPAL EM AÇO INDUSTRIAL 3D (CHANFRO BI-COLOR METÁLICO)
+  const chassisGrad = ctx.createLinearGradient(-cw / 2, -ch / 2, cw / 2, ch / 2);
+  if (is3P) {
+    chassisGrad.addColorStop(0, '#334155');
+    chassisGrad.addColorStop(0.1, '#1e293b');
+    chassisGrad.addColorStop(0.5, '#0f172a');
+    chassisGrad.addColorStop(0.9, '#090d16');
+    chassisGrad.addColorStop(1, '#020617');
+  } else if (isDC) {
+    chassisGrad.addColorStop(0, '#1e3a5f');
+    chassisGrad.addColorStop(0.2, '#0f2744');
+    chassisGrad.addColorStop(0.8, '#081729');
+    chassisGrad.addColorStop(1, '#030a12');
+  } else {
+    chassisGrad.addColorStop(0, '#2e384d');
+    chassisGrad.addColorStop(0.15, '#1e2538');
+    chassisGrad.addColorStop(0.55, '#131929');
+    chassisGrad.addColorStop(0.88, '#0b0f1a');
+    chassisGrad.addColorStop(1, '#05070d');
+  }
+
+  ctx.fillStyle = chassisGrad;
+  ctx.beginPath();
+  ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 6 * zoom);
+  ctx.fill();
+
+  // Borda metálica chanfrada com destaque luminoso superior
+  ctx.strokeStyle = is3P ? (isLive ? '#f59e0b' : '#64748b') : (isLive ? '#38bdf8' : '#475569');
+  ctx.lineWidth = 1.6 * zoom;
   ctx.stroke();
 
-  ctx.fillStyle = '#020617';
-  ctx.fillRect(-cw * 0.38, -ch * 0.22, cw * 0.76, 22 * zoom);
-  ctx.fillStyle = is3P ? '#facc15' : '#34d399';
-  ctx.font = `bold ${Math.max(9, 11 * zoom)}px 'Courier New', monospace`;
+  // Filete interno de brilho 3D (Bevel Highlight)
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+  ctx.lineWidth = 0.9 * zoom;
+  ctx.beginPath();
+  ctx.roundRect(-cw / 2 + 1.8 * zoom, -ch / 2 + 1.8 * zoom, cw - 3.6 * zoom, ch - 3.6 * zoom, 4.5 * zoom);
+  ctx.stroke();
+
+  // 4. PARAFUSOS ALLEN SEXTAVADOS NOS 4 CANTOS DA TAMPA
+  const screwInset = 6.5 * zoom;
+  const screwR = 2.4 * zoom;
+  [
+    { x: -cw / 2 + screwInset, y: -ch / 2 + screwInset },
+    { x: cw / 2 - screwInset, y: -ch / 2 + screwInset },
+    { x: -cw / 2 + screwInset, y: ch / 2 - screwInset },
+    { x: cw / 2 - screwInset, y: ch / 2 - screwInset }
+  ].forEach((sc) => {
+    // Anel externo
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, screwR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#020617';
+    ctx.lineWidth = 0.6 * zoom;
+    ctx.stroke();
+
+    // Centro sextavado usinado
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, screwR * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // 5. PAINEL CENTRAL REBAIXADO (DISPLAY TECNOLÓGICO INDUSTRIAL)
+  const panW = cw * 0.84;
+  const panH = ch * 0.54;
+  const panY = -ch * 0.08;
+
+  // Caixa guia rebaixada
+  ctx.fillStyle = '#030712';
+  ctx.beginPath();
+  ctx.roundRect(-panW / 2, panY - panH / 2, panW, panH, 4 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1 * zoom;
+  ctx.stroke();
+
+  // Textura sutil de micro-grade interna do visor
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.035)';
+  ctx.lineWidth = 0.5 * zoom;
+  for (let gx = -panW / 2 + 4 * zoom; gx < panW / 2; gx += 8 * zoom) {
+    ctx.beginPath();
+    ctx.moveTo(gx, panY - panH / 2);
+    ctx.lineTo(gx, panY + panH / 2);
+    ctx.stroke();
+  }
+
+  // 6. RENDERIZAÇÃO ESPECÍFICA DO DISPLAY CONFORME O TIPO DE FONTE
+  if (is3P) {
+    // ------------------------------------------------------------------------
+    // SUBESTAÇÃO / REDE TRIFÁSICA (400V 3F+N+PE)
+    // ------------------------------------------------------------------------
+    // Letreiro do Analisador Multifunção
+    ctx.fillStyle = isLive ? '#facc15' : '#64748b';
+    ctx.font = `bold ${Math.max(10, 13 * zoom)}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${vNom.toFixed(1)} V`, 0, panY - panH * 0.22);
+
+    ctx.fillStyle = isLive ? '#38bdf8' : '#475569';
+    ctx.font = `bold ${Math.max(5.5, 6.8 * zoom)}px monospace`;
+    ctx.fillText(`3~ TRIFÁSICO • 230V F-N • ${fNom.toFixed(1)}Hz`, 0, panY + panH * 0.12);
+
+    // 3 LEDs de Presença de Fase (L1, L2, L3)
+    const ledSpacing = 16 * zoom;
+    const ledY = panY + panH * 0.35;
+    const phaseColors = ['#ef4444', '#f59e0b', '#38bdf8'];
+    const phaseNames = ['L1', 'L2', 'L3'];
+
+    [-ledSpacing, 0, ledSpacing].forEach((lx, idx) => {
+      // Aro metálico
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(lx, ledY, 3.2 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Lente iluminada
+      ctx.fillStyle = isLive ? phaseColors[idx] : '#1e293b';
+      if (isLive) {
+        ctx.shadowColor = phaseColors[idx];
+        ctx.shadowBlur = 6 * zoom;
+      }
+      ctx.beginPath();
+      ctx.arc(lx, ledY, 2 * zoom, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Ponto especular
+      if (isLive) {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(lx - 0.6 * zoom, ledY - 0.6 * zoom, 0.6 * zoom, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = isLive ? '#cbd5e1' : '#475569';
+      ctx.font = `bold ${Math.max(4.5, 5.5 * zoom)}px monospace`;
+      ctx.fillText(phaseNames[idx], lx, ledY + 6.5 * zoom);
+    });
+
+    // Ícone de Perigo Alta Tensão (Triângulo Amarelo IEC 60417-5036)
+    const warnX = -panW / 2 + 10 * zoom;
+    const warnY = panY - panH * 0.22;
+    const warnS = 13 * zoom;
+
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.moveTo(warnX, warnY - warnS * 0.5);
+    ctx.lineTo(warnX + warnS * 0.5, warnY + warnS * 0.5);
+    ctx.lineTo(warnX - warnS * 0.5, warnY + warnS * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#020617';
+    ctx.lineWidth = 0.6 * zoom;
+    ctx.stroke();
+
+    // Raio preto dentro do triângulo
+    ctx.fillStyle = '#020617';
+    ctx.beginPath();
+    ctx.moveTo(warnX + 0.5 * zoom, warnY - warnS * 0.2);
+    ctx.lineTo(warnX - 1.5 * zoom, warnY + 0.8 * zoom);
+    ctx.lineTo(warnX + 0.5 * zoom, warnY + 0.8 * zoom);
+    ctx.lineTo(warnX - 0.8 * zoom, warnY + warnS * 0.35);
+    ctx.lineTo(warnX + 2 * zoom, warnY - 0.2 * zoom);
+    ctx.lineTo(warnX + 0.2 * zoom, warnY - 0.2 * zoom);
+    ctx.closePath();
+    ctx.fill();
+
+  } else if (isDC) {
+    // ------------------------------------------------------------------------
+    // FONTE INDUSTRIAL CC (24Vcc / BATERIA)
+    // ------------------------------------------------------------------------
+    ctx.fillStyle = isLive ? '#34d399' : '#64748b';
+    ctx.font = `bold ${Math.max(11, 14 * zoom)}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${vNom.toFixed(1)} V DC`, 0, panY - 3 * zoom);
+
+    ctx.fillStyle = isLive ? '#22c55e' : '#475569';
+    ctx.font = `bold ${Math.max(5.5, 6.8 * zoom)}px monospace`;
+    ctx.fillText('FONTE REGULADA • RIPPLE < 10mV', 0, panY + 12 * zoom);
+
+    // LED "DC OK"
+    ctx.fillStyle = isLive ? '#22c55e' : '#1e293b';
+    if (isLive) {
+      ctx.shadowColor = '#22c55e';
+      ctx.shadowBlur = 6 * zoom;
+    }
+    ctx.beginPath();
+    ctx.arc(panW * 0.32, panY - 3 * zoom, 2.5 * zoom, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+  } else {
+    // ------------------------------------------------------------------------
+    // REDE MONOFÁSICA COMERCIAL (230V 1F+N)
+    // ------------------------------------------------------------------------
+    ctx.fillStyle = isLive ? '#34d399' : '#64748b';
+    ctx.font = `bold ${Math.max(11, 14 * zoom)}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${vNom.toFixed(1)} V`, 0, panY - panH * 0.18);
+
+    ctx.fillStyle = isLive ? '#38bdf8' : '#475569';
+    ctx.font = `bold ${Math.max(5.5, 7 * zoom)}px monospace`;
+    ctx.fillText(`REDE CA 1~ • TRUE-RMS • ${fNom.toFixed(1)}Hz`, 0, panY + panH * 0.15);
+
+    // Barra de Nível Analógica (Bargraph Digital)
+    const barW = panW * 0.72;
+    const barH = 3 * zoom;
+    const barX = -barW / 2;
+    const barY = panY + panH * 0.32;
+
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(barX, barY, barW, barH);
+    if (isLive) {
+      const fillW = Math.min(barW, (vNom / 250) * barW);
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(barX, barY, fillW, barH);
+    }
+
+    // Chave seccionadora rotativa mecânica no canto
+    const swX = -panW / 2 + 10 * zoom;
+    const swY = panY;
+    const swR = 5 * zoom;
+    ctx.fillStyle = isLive ? '#dc2626' : '#334155';
+    ctx.beginPath();
+    ctx.arc(swX, swY, swR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = isLive ? '#facc15' : '#64748b';
+    ctx.lineWidth = 0.8 * zoom;
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.2 * zoom;
+    ctx.beginPath();
+    ctx.moveTo(swX, swY - swR * 0.6);
+    ctx.lineTo(swX, swY + swR * 0.6);
+    ctx.stroke();
+  }
+
+  // 7. BARRAMENTO INFERIOR DE BORNES COM MOLDURA METÁLICA DE RETENÇÃO
+  const busbarPlateH = 12 * zoom;
+  const busbarPlateY = ch / 2 - busbarPlateH / 2 - 2 * zoom;
+  ctx.fillStyle = '#0a0f1d';
+  ctx.beginPath();
+  ctx.roundRect(-cw * 0.44, busbarPlateY - busbarPlateH / 2, cw * 0.88, busbarPlateH, 2 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 0.8 * zoom;
+  ctx.stroke();
+
+  // 8. PLAQUETA METÁLICA SUPERIOR COM ESPECIFICAÇÃO DE ENGENHARIA
+  const tagW = cw * 0.88;
+  const tagH = 9 * zoom;
+  const tagY = -ch / 2 + 6 * zoom;
+
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(-tagW / 2, tagY - tagH / 2, tagW, tagH);
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 0.6 * zoom;
+  ctx.strokeRect(-tagW / 2, tagY - tagH / 2, tagW, tagH);
+
+  ctx.fillStyle = isLive ? '#38bdf8' : '#94a3b8';
+  ctx.font = `bold ${Math.max(5, 6.2 * zoom)}px sans-serif`;
   ctx.textAlign = 'center';
-  ctx.fillText(`${Number(vNom).toFixed(1)} V`, 0, -ch * 0.08);
+  ctx.textBaseline = 'middle';
+
+  const labelText = is3P
+    ? 'SUBESTAÇÃO REDE 400V 3F+N+PE • IEC 60947'
+    : isDC
+    ? 'FONTE CHAVEADA INDUSTRIAL CC • 24Vcc'
+    : 'ENTRADA DE ENERGIA CONCESSIONÁRIA 230V CA';
+
+  ctx.fillText(labelText, 0, tagY);
+
+  ctx.restore();
 }
 
 // ----------------------------------------------------------------------------

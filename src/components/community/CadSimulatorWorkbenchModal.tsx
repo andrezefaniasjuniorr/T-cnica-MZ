@@ -330,6 +330,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     setProject(prev);
     setSelectedCompId(null);
     setSelectedWireId(null);
+    setSelectedBusbarId(null);
     showToast('Ação desfeita');
   }, [showToast]);
 
@@ -344,6 +345,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     setProject(next);
     setSelectedCompId(null);
     setSelectedWireId(null);
+    setSelectedBusbarId(null);
     showToast('Ação refeita');
   }, [showToast]);
 
@@ -612,10 +614,114 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     setTimeout(handleFit, 60);
   }, [pushHistory, handleFit, showToast]);
 
-  const addComponentToCanvas = useCallback((code: string, customX?: number, customY?: number) => {
-    const cdef = getComponentDef(code);
-    pushHistory();
+  // INSERÇÃO DE BARRAMENTOS E TRILHOS DIN NO PAINEL
+  const addBusbar = useCallback(
+    (
+      type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
+      x?: number,
+      y?: number,
+      length = 680,
+      orientation: 'horizontal' | 'vertical' = 'horizontal'
+    ) => {
+      pushHistory();
+      const cam = cameraRef.current;
+      const canvas = canvasRef.current;
+      let targetX = 0;
+      let targetY = 0;
 
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        targetX = Math.round((cx - cam.pan.x) / (cam.zoom * 20)) * 20;
+        targetY = Math.round((cy - cam.pan.y) / (cam.zoom * 20)) * 20;
+      }
+
+      if (x !== undefined) targetX = x;
+      if (y !== undefined) targetY = y;
+
+      const busbarId = `BB_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const terminals = generateBusbarTerminals(busbarId, type, targetX, targetY, length, orientation);
+
+      const newBusbar: Busbar = {
+        id: busbarId,
+        type,
+        x: targetX,
+        y: targetY,
+        length,
+        orientation,
+        terminals
+      };
+
+      setProject((prev: any) => {
+        const updated = {
+          ...prev,
+          busbars: [...(prev.busbars || []), newBusbar],
+          updated: Date.now()
+        };
+        projectRef.current = updated;
+        return updated;
+      });
+
+      setSelectedBusbarId(newBusbar.id);
+      setSelectedCompId(null);
+      setSelectedWireId(null);
+      setShowProps(false);
+      soundFX?.playClick?.();
+
+      const typeLabel =
+        type === 'din'
+          ? 'Trilho DIN 35mm'
+          : type === 'phase_l1'
+          ? 'Barramento Fase L1'
+          : type === 'phase_l2'
+          ? 'Barramento Fase L2'
+          : type === 'phase_l3'
+          ? 'Barramento Fase L3'
+          : type === 'neutral'
+          ? 'Barramento Neutro'
+          : 'Barramento Terra PE';
+
+      showToast(`${typeLabel} adicionado.`);
+      addEvent(`${typeLabel} inserido no diagrama.`);
+    },
+    [pushHistory, addEvent, showToast]
+  );
+
+  // ATUALIZAÇÃO PARAMÉTRICA DO BARRAMENTO / TRILHO DIN
+  const updateBusbarProperty = useCallback(
+    (updates: { length?: number; orientation?: 'horizontal' | 'vertical'; spacing?: number }) => {
+      if (!selectedBusbarId) return;
+      pushHistory();
+      setProject(prev => {
+        const updated = {
+          ...prev,
+          busbars: (prev.busbars || []).map((b: any) => {
+            if (b.id === selectedBusbarId) {
+              const newLen = updates.length !== undefined ? updates.length : b.length;
+              const newOrient = updates.orientation !== undefined ? updates.orientation : b.orientation;
+              const spacing = updates.spacing || (b.type === 'din' ? 40 : 26);
+              const newTerminals = generateBusbarTerminals(b.id, b.type, b.x, b.y, newLen, newOrient, spacing);
+              return {
+                ...b,
+                length: newLen,
+                orientation: newOrient,
+                terminals: newTerminals
+              };
+            }
+            return b;
+          }),
+          updated: Date.now()
+        };
+        projectRef.current = updated;
+        return updated;
+      });
+      soundFX?.playClick?.();
+    },
+    [selectedBusbarId, pushHistory]
+  );
+
+  const addComponentToCanvas = useCallback((code: string, customX?: number, customY?: number) => {
     const canvas = canvasRef.current;
     let spawnX = customX ?? 0;
     let spawnY = customY ?? 0;
@@ -626,6 +732,26 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       spawnX = Math.round((cx - cameraRef.current.pan.x) / (cameraRef.current.zoom * cameraRef.current.grid)) * cameraRef.current.grid;
       spawnY = Math.round((cy - cameraRef.current.pan.y) / (cameraRef.current.zoom * cameraRef.current.grid)) * cameraRef.current.grid;
     }
+
+    // TRATAMENTO NATIVO PARA CÓDIGOS DE TRILHOS DIN E BARRAMENTOS
+    if (code.startsWith('BUSBAR_')) {
+      const busbarTypeMap: Record<string, 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth'> = {
+        BUSBAR_DIN: 'din',
+        BUSBAR_L1: 'phase_l1',
+        BUSBAR_L2: 'phase_l2',
+        BUSBAR_L3: 'phase_l3',
+        BUSBAR_N: 'neutral',
+        BUSBAR_PE: 'earth'
+      };
+      const bType = busbarTypeMap[code];
+      if (bType) {
+        addBusbar(bType, spawnX, spawnY);
+        return;
+      }
+    }
+
+    const cdef = getComponentDef(code);
+    pushHistory();
 
     let defaultW = 90;
     let defaultH = 75;
@@ -702,7 +828,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     soundFX.playClick();
     addEvent(`${cdef.name} inserido no diagrama.`);
     showToast(`${cdef.name} adicionado`);
-  }, [pushHistory, addEvent, showToast]);
+  }, [pushHistory, addEvent, showToast, addBusbar]);
 
   const handleLibraryPointerDown = useCallback((e: React.PointerEvent, code: string, name: string) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -720,7 +846,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         if (ghostRef.current) {
           ghostRef.current.style.display = 'flex';
           if (ghostTextRef.current) {
-            ghostTextRef.current.textContent = code.substring(0, 4);
+            ghostTextRef.current.textContent = code.startsWith('BUSBAR_') ? code.replace('BUSBAR_', '') : code.substring(0, 4);
           }
         }
       }
@@ -852,21 +978,30 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     };
   }, [isRunning, addComponentToCanvas, pushHistory, loadPreset, onClose, showToast]);
 
+  // GIRAR TANTO COMPONENTE QUANTO BARRAMENTO/TRILHO
   const rotateSelectedComponent = useCallback(() => {
-    if (!selectedCompId) return;
-    pushHistory();
-    setProject(prev => {
-      const updated = {
-        ...prev,
-        components: prev.components.map(c => (c.id === selectedCompId ? { ...c, rot: (c.rot + 90) % 360 } : c)),
-        updated: Date.now()
-      };
-      projectRef.current = updated;
-      return updated;
-    });
-    soundFX.playClick();
-    showToast('Componente girado 90°');
-  }, [selectedCompId, pushHistory, showToast]);
+    if (selectedCompId) {
+      pushHistory();
+      setProject(prev => {
+        const updated = {
+          ...prev,
+          components: prev.components.map(c => (c.id === selectedCompId ? { ...c, rot: (c.rot + 90) % 360 } : c)),
+          updated: Date.now()
+        };
+        projectRef.current = updated;
+        return updated;
+      });
+      soundFX.playClick();
+      showToast('Componente girado 90°');
+    } else if (selectedBusbarId) {
+      const curBB = (projectRef.current.busbars || []).find((b: any) => b.id === selectedBusbarId);
+      if (curBB) {
+        const nextOrient = curBB.orientation === 'horizontal' ? 'vertical' : 'horizontal';
+        updateBusbarProperty({ orientation: nextOrient });
+        showToast(`Barramento girado para ${nextOrient === 'horizontal' ? 'Horizontal' : 'Vertical'}`);
+      }
+    }
+  }, [selectedCompId, selectedBusbarId, pushHistory, showToast, updateBusbarProperty]);
 
   const duplicateSelectedComponent = useCallback(() => {
     if (!selectedCompId) return;
@@ -890,79 +1025,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     soundFX.playClick();
     showToast('Componente duplicado');
   }, [selectedCompId, pushHistory, showToast]);
-
-  const addBusbar = useCallback(
-    (
-      type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
-      x?: number,
-      y?: number,
-      length = 680,
-      orientation: 'horizontal' | 'vertical' = 'horizontal'
-    ) => {
-      pushHistory();
-      const cam = cameraRef.current;
-      const canvas = canvasRef.current;
-      let targetX = 0;
-      let targetY = 0;
-
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const cx = rect.width / 2;
-        const cy = rect.height / 2;
-        targetX = Math.round((cx - cam.pan.x) / (cam.zoom * 20)) * 20;
-        targetY = Math.round((cy - cam.pan.y) / (cam.zoom * 20)) * 20;
-      }
-
-      if (x !== undefined) targetX = x;
-      if (y !== undefined) targetY = y;
-
-      const busbarId = `BB_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      const terminals = generateBusbarTerminals(busbarId, type, targetX, targetY, length, orientation);
-
-      const newBusbar: Busbar = {
-        id: busbarId,
-        type,
-        x: targetX,
-        y: targetY,
-        length,
-        orientation,
-        terminals
-      };
-
-      setProject((prev: any) => {
-        const updated = {
-          ...prev,
-          busbars: [...(prev.busbars || []), newBusbar],
-          updated: Date.now()
-        };
-        projectRef.current = updated;
-        return updated;
-      });
-
-      setSelectedBusbarId(newBusbar.id);
-      setSelectedCompId(null);
-      setSelectedWireId(null);
-      setShowProps(false);
-      soundFX?.playClick?.();
-
-      const typeLabel =
-        type === 'din'
-          ? 'Trilho DIN 35mm'
-          : type === 'phase_l1'
-          ? 'Barramento Fase L1'
-          : type === 'phase_l2'
-          ? 'Barramento Fase L2'
-          : type === 'phase_l3'
-          ? 'Barramento Fase L3'
-          : type === 'neutral'
-          ? 'Barramento Neutro'
-          : 'Barramento Terra PE';
-
-      showToast(`${typeLabel} adicionado.`);
-      addEvent(`${typeLabel} inserido no diagrama.`);
-    },
-    [pushHistory, addEvent, showToast]
-  );
 
   const deleteWire = useCallback((wireId: string) => {
     pushHistory();
@@ -2289,7 +2351,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
             const targetId = c.id;
             simRef.current.longPressTimer = setTimeout(() => {
-              // TRAVA DE SEGURANÇA: só abre se o dedo AINDA estiver segurando o componente
               if (simRef.current.drag && simRef.current.drag.compId === targetId) {
                 simRef.current.isLongPressTriggered = true;
                 setShowProps(true);
@@ -2328,7 +2389,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
         const targetId = c.id;
         simRef.current.longPressTimer = setTimeout(() => {
-          // TRAVA DE SEGURANÇA: só abre se o dedo AINDA estiver segurando o componente
           if (simRef.current.drag && simRef.current.drag.compId === targetId) {
             simRef.current.isLongPressTriggered = true;
             setShowProps(true);
@@ -2355,7 +2415,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       const ry = isH ? halfH : halfL;
 
       if (Math.abs(worldX - b.x) <= rx && Math.abs(worldY - b.y) <= ry) {
-        setShowProps(false);
         setSelectedBusbarId(b.id);
         setSelectedCompId(null);
         setSelectedWireId(null);
@@ -2364,6 +2423,16 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         simRef.current.drag.offsetX = worldX - b.x;
         simRef.current.drag.offsetY = worldY - b.y;
         soundFX?.playClick?.();
+
+        const targetBbId = b.id;
+        simRef.current.longPressTimer = setTimeout(() => {
+          if (simRef.current.drag && simRef.current.drag.busbarId === targetBbId) {
+            simRef.current.isLongPressTriggered = true;
+            setShowProps(true);
+            soundFX?.playClick?.();
+            showToast('Propriedades do Barramento');
+          }
+        }, 550);
         return;
       }
     }
@@ -2451,7 +2520,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     drag.mouse = { x: worldX, y: worldY };
 
-    // Se o dedo moveu mais de 8 pixels, cancela o temporizador de pressão longa
     const moveDist = Math.hypot(e.clientX - drag.screenStartX, e.clientY - drag.screenStartY);
     if (moveDist > 8 && simRef.current.longPressTimer) {
       clearTimeout(simRef.current.longPressTimer);
@@ -2514,7 +2582,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       simRef.current.pinch = null;
     }
 
-    // Cancela imediatamente o temporizador caso o usuário solte o dedo antes dos 550ms
     if (simRef.current.longPressTimer) {
       clearTimeout(simRef.current.longPressTimer);
       simRef.current.longPressTimer = null;
@@ -2530,7 +2597,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     const drag = simRef.current.drag;
     const wasLongPress = simRef.current.isLongPressTriggered;
 
-    // Se NÃO foi pressão longa (ou seja, foi toque rápido de clique), garante que a janela NUNCA abra
     if (!wasLongPress) {
       setShowProps(false);
     }
@@ -2558,8 +2624,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       setIsCadDragging(false);
     }
 
-    // SE FOI UM TOQUE RÁPIDO (< 550ms e sem arrastar):
-    // Manobra o dispositivo normalmente sem abrir propriedades
     if (!wasLongPress && moveDist < 8 && drag.mode === 'comp' && drag.compId) {
       const c = projectRef.current.components.find((item: any) => item.id === drag.compId);
       if (c) {
@@ -2628,6 +2692,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
   const selectedComponent = project.components.find((c: any) => c.id === selectedCompId);
   const selectedWire = project.wires.find((w: any) => w.id === selectedWireId);
+  const selectedBusbar = (project.busbars || []).find((b: any) => b.id === selectedBusbarId);
 
   if (!isOpen) return null;
 
@@ -3060,488 +3125,610 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* PAINEL LATERAL: PROPRIEDADES PARAMÉTRICAS DO DISPOSITIVO */}
-        {showProps && selectedComponent && (
+        {/* PAINEL LATERAL: PROPRIEDADES PARAMÉTRICAS DO DISPOSITIVO OU BARRAMENTO */}
+        {showProps && (selectedComponent || selectedBusbar) && (
           <div className="absolute right-3 top-3 bottom-3 w-88 max-w-[calc(100vw-24px)] bg-[#0A1224]/95 border border-blue-900/50 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden animate-in slide-in-from-right duration-200">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-[#0E1A33]">
               <div className="flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-black text-white">Dimensionamento & Propriedades</span>
+                <span className="text-xs font-black text-white">
+                  {selectedBusbar ? 'Propriedades do Barramento' : 'Dimensionamento & Propriedades'}
+                </span>
               </div>
               <button type="button" onClick={() => setShowProps(false)} className="p-1 rounded text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
-              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                <div className="text-[10px] text-slate-400 font-mono">ID: {selectedComponent.id}</div>
-                <div className="text-xs font-black text-blue-300">{selectedComponent.code} • {selectedComponent.label || selectedComponent.code}</div>
-              </div>
+            {/* SE O SELECIONADO FOR BARRAMENTO OU TRILHO DIN */}
+            {selectedBusbar && (
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-mono">ID: {selectedBusbar.id}</div>
+                  <div className="text-xs font-black text-amber-300">
+                    {selectedBusbar.type === 'din'
+                      ? 'Trilho DIN 35mm (IEC/EN 60715 TH35)'
+                      : selectedBusbar.type === 'phase_l1'
+                      ? 'Barramento Fase L1 (Castanho / Cobre)'
+                      : selectedBusbar.type === 'phase_l2'
+                      ? 'Barramento Fase L2 (Preto / Cobre)'
+                      : selectedBusbar.type === 'phase_l3'
+                      ? 'Barramento Fase L3 (Cinzento / Cobre)'
+                      : selectedBusbar.type === 'neutral'
+                      ? 'Barramento de Neutro N (Azul Celeste)'
+                      : 'Barramento de Proteção PE (Verde-Amarelo)'}
+                  </div>
+                </div>
 
-              <div>
-                <label className="text-[10px] text-slate-400 font-bold block mb-1">Rótulo Técnico</label>
-                <input
-                  type="text"
-                  value={selectedComponent.label || ''}
-                  onChange={e => {
-                    const nextVal = e.target.value;
-                    setProject(prev => ({
-                      ...prev,
-                      components: prev.components.map(c => c.id === selectedCompId ? { ...c, label: nextVal } : c),
-                      updated: Date.now()
-                    }));
-                  }}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold outline-none"
-                />
-              </div>
+                {/* Comprimento / Extensão do Barramento */}
+                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold">
+                    <span>Comprimento do Perfil:</span>
+                    <span className="text-amber-400 font-mono font-bold">{selectedBusbar.length} mm</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="200"
+                    max="1400"
+                    step="20"
+                    value={selectedBusbar.length}
+                    onChange={e => updateBusbarProperty({ length: Number(e.target.value) })}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="grid grid-cols-4 gap-1 pt-1">
+                    {[400, 600, 800, 1000].map(lenPreset => (
+                      <button
+                        key={lenPreset}
+                        type="button"
+                        onClick={() => updateBusbarProperty({ length: lenPreset })}
+                        className={`py-1 rounded text-[10px] font-bold border transition cursor-pointer ${
+                          selectedBusbar.length === lenPreset
+                            ? 'bg-amber-600 text-white border-amber-400'
+                            : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                        }`}
+                      >
+                        {lenPreset}mm
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-              <div>
-                <label className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 mb-1">
-                  <Tag className="w-3 h-3 text-emerald-400" />
-                  <span>Fabricante / Linha Comercial</span>
-                </label>
-                <select
-                  value={selectedComponent.brand || 'Schneider Electric'}
-                  onChange={e => {
-                    const brandName = e.target.value as DeviceBrand;
-                    setProject(prev => ({
-                      ...prev,
-                      components: prev.components.map(c =>
-                        c.id === selectedCompId
-                          ? { ...c, brand: brandName, brandName }
-                          : c
-                      ),
-                      updated: Date.now()
-                    }));
-                    showToast(`Fabricante alterado para ${brandName}`);
-                  }}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-emerald-300 font-bold outline-none cursor-pointer"
-                >
-                  {Object.keys(REAL_BRANDS).map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
+                {/* Orientação (Horizontal / Vertical) */}
+                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                  <label className="text-[10px] text-slate-400 font-bold block">Orientação Espacial</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateBusbarProperty({ orientation: 'horizontal' })}
+                      className={`py-2 rounded-lg font-bold text-xs border transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                        selectedBusbar.orientation === 'horizontal'
+                          ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-900/40'
+                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>═ Horizontal</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateBusbarProperty({ orientation: 'vertical' })}
+                      className={`py-2 rounded-lg font-bold text-xs border transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                        selectedBusbar.orientation === 'vertical'
+                          ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-900/40'
+                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>║ Vertical</span>
+                    </button>
+                  </div>
+                </div>
 
-                {selectedComponent.brand && REAL_BRANDS[selectedComponent.brand as DeviceBrand] && (
-                  <div
-                    className="mt-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center justify-between border"
-                    style={{
-                      backgroundColor: REAL_BRANDS[selectedComponent.brand as DeviceBrand].badgeBg,
-                      borderColor: REAL_BRANDS[selectedComponent.brand as DeviceBrand].primaryColor,
-                      color: REAL_BRANDS[selectedComponent.brand as DeviceBrand].textColor
-                    }}
-                  >
-                    <span>Linha Certificada</span>
-                    <span>{REAL_BRANDS[selectedComponent.brand as DeviceBrand].shortName}</span>
+                {/* Bornes / Capacidade para Barramentos Elétricos */}
+                {selectedBusbar.type !== 'din' && (
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                    <div className="text-[10px] text-slate-400 font-bold">Informações dos Bornes</div>
+                    <div className="text-slate-300 font-mono text-[11px]">
+                      Quantidade de Bornes: <strong className="text-emerald-400">{selectedBusbar.terminals?.length || 0} parafusos</strong>
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      Capacidade nominal de corrente suportada: até 125A contínuos.
+                    </div>
                   </div>
                 )}
+
+                {/* Ações Diretas */}
+                <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={rotateSelectedComponent}
+                    className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer"
+                  >
+                    <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Girar Orientação (90°)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deleteSelected}
+                    className="w-full py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-800 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remover Barramento / Trilho</span>
+                  </button>
+                </div>
               </div>
+            )}
 
-              {/* PARÂMETROS DE MÓDULO SOLAR (PV_PANEL) */}
-              {selectedComponent.code === 'PV_PANEL' && (
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-900/40 space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
-                    <Sun className="w-3.5 h-3.5" />
-                    <span>Dimensionamento Fotovoltaico</span>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Potência Nominal (Wp)</label>
-                    <div className="grid grid-cols-4 gap-1 mb-1.5">
-                      {[400, 450, 550, 650].map(p => (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => {
-                            updateComponentProperty('pMax', p);
-                            updateComponentProperty('vmpp', Number((p / 13.15).toFixed(1)));
-                          }}
-                          className={`py-1 rounded text-[10px] font-bold border ${
-                            (selectedComponent.params?.pMax ?? 550) === p
-                              ? 'bg-amber-600 text-white border-amber-400'
-                              : 'bg-slate-900 text-slate-300 border-slate-700'
-                          }`}
-                        >
-                          {p}W
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min="100"
-                        max="800"
-                        step="10"
-                        value={selectedComponent.params?.pMax ?? 550}
-                        onChange={e => updateComponentProperty('pMax', Number(e.target.value))}
-                        className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-amber-300 font-mono font-bold"
-                      />
-                      <span className="text-slate-400 font-mono">Wp</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Tensão Vmpp (V)</label>
-                      <input
-                        type="number"
-                        min="18"
-                        max="70"
-                        step="0.5"
-                        value={selectedComponent.params?.vmpp ?? 41.8}
-                        onChange={e => updateComponentProperty('vmpp', Number(e.target.value))}
-                        className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sky-300 font-mono font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Tensão Voc (V)</label>
-                      <input
-                        type="number"
-                        min="20"
-                        max="85"
-                        step="0.5"
-                        value={selectedComponent.params?.voc ?? 49.8}
-                        onChange={e => updateComponentProperty('voc', Number(e.target.value))}
-                        className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sky-300 font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
-                      <span>Irradiância Solar</span>
-                      <span className="text-amber-400 font-mono">{selectedComponent.params?.irradiance ?? 1000} W/m²</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1200"
-                      step="50"
-                      value={selectedComponent.params?.irradiance ?? 1000}
-                      onChange={e => updateComponentProperty('irradiance', Number(e.target.value))}
-                      className="w-full accent-amber-500 cursor-pointer"
-                    />
-                  </div>
+            {/* SE O SELECIONADO FOR COMPONENTE COMUM */}
+            {selectedComponent && (
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-mono">ID: {selectedComponent.id}</div>
+                  <div className="text-xs font-black text-blue-300">{selectedComponent.code} • {selectedComponent.label || selectedComponent.code}</div>
                 </div>
-              )}
 
-              {/* PARÂMETROS DE BATERIA LiFePO4 */}
-              {selectedComponent.code === 'BAT_LIFEPO4' && (
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-sky-900/40 space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
-                    <BatteryCharging className="w-3.5 h-3.5" />
-                    <span>Dimensionamento da Bateria</span>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Tensão Nominal do Banco</label>
-                    <div className="grid grid-cols-4 gap-1">
-                      {[12, 24, 48, 51.2].map(v => (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => updateComponentProperty('voltage', v)}
-                          className={`py-1 rounded text-[10px] font-bold border ${
-                            Number(selectedComponent.params?.voltage ?? 51.2) === v
-                              ? 'bg-sky-600 text-white border-sky-300'
-                              : 'bg-slate-900 text-slate-300 border-slate-700'
-                          }`}
-                        >
-                          {v}V
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Capacidade (Ah)</label>
-                    <select
-                      value={selectedComponent.params?.capacityAh ?? 100}
-                      onChange={e => updateComponentProperty('capacityAh', Number(e.target.value))}
-                      className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-emerald-300 font-mono font-bold cursor-pointer"
-                    >
-                      <option value="50">50 Ah</option>
-                      <option value="100">100 Ah (Padrão 3U Rack)</option>
-                      <option value="150">150 Ah</option>
-                      <option value="200">200 Ah</option>
-                      <option value="280">280 Ah</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
-                      <span>Nível de Carga (SOC)</span>
-                      <span className="text-emerald-400 font-mono">{selectedComponent.params?.socPercent ?? 90}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={selectedComponent.params?.socPercent ?? 90}
-                      onChange={e => updateComponentProperty('socPercent', Number(e.target.value))}
-                      className="w-full accent-emerald-500 cursor-pointer"
-                    />
-                  </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Rótulo Técnico</label>
+                  <input
+                    type="text"
+                    value={selectedComponent.label || ''}
+                    onChange={e => {
+                      const nextVal = e.target.value;
+                      setProject(prev => ({
+                        ...prev,
+                        components: prev.components.map(c => c.id === selectedCompId ? { ...c, label: nextVal } : c),
+                        updated: Date.now()
+                      }));
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold outline-none"
+                  />
                 </div>
-              )}
 
-              {/* PARÂMETROS DE DISJUNTORES, FUSÍVEIS E IDRs */}
-              {selectedComponent.params?.current !== undefined && (
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                  <div className="flex items-center gap-1.5 text-blue-400 font-bold text-[11px]">
-                    <Shield className="w-3.5 h-3.5" />
-                    <span>Proteção Termomagnética</span>
-                  </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 mb-1">
+                    <Tag className="w-3 h-3 text-emerald-400" />
+                    <span>Fabricante / Linha Comercial</span>
+                  </label>
+                  <select
+                    value={selectedComponent.brand || 'Schneider Electric'}
+                    onChange={e => {
+                      const brandName = e.target.value as DeviceBrand;
+                      setProject(prev => ({
+                        ...prev,
+                        components: prev.components.map(c =>
+                          c.id === selectedCompId
+                            ? { ...c, brand: brandName, brandName }
+                            : c
+                        ),
+                        updated: Date.now()
+                      }));
+                      showToast(`Fabricante alterado para ${brandName}`);
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-emerald-300 font-bold outline-none cursor-pointer"
+                  >
+                    {Object.keys(REAL_BRANDS).map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
 
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Corrente Nominal (In)</label>
-                    <select
-                      value={selectedComponent.params.current}
-                      onChange={e => updateComponentProperty('current', Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono font-bold cursor-pointer"
+                  {selectedComponent.brand && REAL_BRANDS[selectedComponent.brand as DeviceBrand] && (
+                    <div
+                      className="mt-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center justify-between border"
+                      style={{
+                        backgroundColor: REAL_BRANDS[selectedComponent.brand as DeviceBrand].badgeBg,
+                        borderColor: REAL_BRANDS[selectedComponent.brand as DeviceBrand].primaryColor,
+                        color: REAL_BRANDS[selectedComponent.brand as DeviceBrand].textColor
+                      }}
                     >
-                      {[6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125].map(val => (
-                        <option key={val} value={val}>{val} A</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {selectedComponent.params?.curve !== undefined && (
-                    <div>
-                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Curva de Disparo IEC</label>
-                      <select
-                        value={selectedComponent.params.curve || 'C'}
-                        onChange={e => updateComponentProperty('curve', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono font-bold cursor-pointer"
-                      >
-                        <option value="B">Curva B (3 a 5 x In - Cargas Resistivas)</option>
-                        <option value="C">Curva C (5 a 10 x In - Uso Geral / Motores)</option>
-                        <option value="D">Curva D (10 a 20 x In - Alta Corrente de Partida)</option>
-                      </select>
+                      <span>Linha Certificada</span>
+                      <span>{REAL_BRANDS[selectedComponent.brand as DeviceBrand].shortName}</span>
                     </div>
                   )}
+                </div>
 
-                  {selectedComponent.params?.icu !== undefined && (
+                {/* PARÂMETROS DE MÓDULO SOLAR (PV_PANEL) */}
+                {selectedComponent.code === 'PV_PANEL' && (
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-900/40 space-y-2.5">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
+                      <Sun className="w-3.5 h-3.5" />
+                      <span>Dimensionamento Fotovoltaico</span>
+                    </div>
+
                     <div>
-                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Capacidade de Interrupção (Icu)</label>
+                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Potência Nominal (Wp)</label>
+                      <div className="grid grid-cols-4 gap-1 mb-1.5">
+                        {[400, 450, 550, 650].map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => {
+                              updateComponentProperty('pMax', p);
+                              updateComponentProperty('vmpp', Number((p / 13.15).toFixed(1)));
+                            }}
+                            className={`py-1 rounded text-[10px] font-bold border ${
+                              (selectedComponent.params?.pMax ?? 550) === p
+                                ? 'bg-amber-600 text-white border-amber-400'
+                                : 'bg-slate-900 text-slate-300 border-slate-700'
+                            }`}
+                          >
+                            {p}W
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="100"
+                          max="800"
+                          step="10"
+                          value={selectedComponent.params?.pMax ?? 550}
+                          onChange={e => updateComponentProperty('pMax', Number(e.target.value))}
+                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-amber-300 font-mono font-bold"
+                        />
+                        <span className="text-slate-400 font-mono">Wp</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Tensão Vmpp (V)</label>
+                        <input
+                          type="number"
+                          min="18"
+                          max="70"
+                          step="0.5"
+                          value={selectedComponent.params?.vmpp ?? 41.8}
+                          onChange={e => updateComponentProperty('vmpp', Number(e.target.value))}
+                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sky-300 font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Tensão Voc (V)</label>
+                        <input
+                          type="number"
+                          min="20"
+                          max="85"
+                          step="0.5"
+                          value={selectedComponent.params?.voc ?? 49.8}
+                          onChange={e => updateComponentProperty('voc', Number(e.target.value))}
+                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sky-300 font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
+                        <span>Irradiância Solar</span>
+                        <span className="text-amber-400 font-mono">{selectedComponent.params?.irradiance ?? 1000} W/m²</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1200"
+                        step="50"
+                        value={selectedComponent.params?.irradiance ?? 1000}
+                        onChange={e => updateComponentProperty('irradiance', Number(e.target.value))}
+                        className="w-full accent-amber-500 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* PARÂMETROS DE BATERIA LiFePO4 */}
+                {selectedComponent.code === 'BAT_LIFEPO4' && (
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-sky-900/40 space-y-2.5">
+                    <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
+                      <BatteryCharging className="w-3.5 h-3.5" />
+                      <span>Dimensionamento da Bateria</span>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Tensão Nominal do Banco</label>
+                      <div className="grid grid-cols-4 gap-1">
+                        {[12, 24, 48, 51.2].map(v => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => updateComponentProperty('voltage', v)}
+                            className={`py-1 rounded text-[10px] font-bold border ${
+                              Number(selectedComponent.params?.voltage ?? 51.2) === v
+                                ? 'bg-sky-600 text-white border-sky-300'
+                                : 'bg-slate-900 text-slate-300 border-slate-700'
+                            }`}
+                          >
+                            {v}V
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Capacidade (Ah)</label>
                       <select
-                        value={selectedComponent.params.icu || 6}
-                        onChange={e => updateComponentProperty('icu', Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-emerald-300 font-mono font-bold cursor-pointer"
+                        value={selectedComponent.params?.capacityAh ?? 100}
+                        onChange={e => updateComponentProperty('capacityAh', Number(e.target.value))}
+                        className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-emerald-300 font-mono font-bold cursor-pointer"
                       >
-                        {[4.5, 6, 10, 16, 25, 36, 50].map(v => (
-                          <option key={v} value={v}>{v} kA</option>
+                        <option value="50">50 Ah</option>
+                        <option value="100">100 Ah (Padrão 3U Rack)</option>
+                        <option value="150">150 Ah</option>
+                        <option value="200">200 Ah</option>
+                        <option value="280">280 Ah</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
+                        <span>Nível de Carga (SOC)</span>
+                        <span className="text-emerald-400 font-mono">{selectedComponent.params?.socPercent ?? 90}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={selectedComponent.params?.socPercent ?? 90}
+                        onChange={e => updateComponentProperty('socPercent', Number(e.target.value))}
+                        className="w-full accent-emerald-500 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* PARÂMETROS DE DISJUNTORES, FUSÍVEIS E IDRs */}
+                {selectedComponent.params?.current !== undefined && (
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                    <div className="flex items-center gap-1.5 text-blue-400 font-bold text-[11px]">
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>Proteção Termomagnética</span>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Corrente Nominal (In)</label>
+                      <select
+                        value={selectedComponent.params.current}
+                        onChange={e => updateComponentProperty('current', Number(e.target.value))}
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono font-bold cursor-pointer"
+                      >
+                        {[6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125].map(val => (
+                          <option key={val} value={val}>{val} A</option>
                         ))}
                       </select>
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* PARÂMETROS DE CONTATORES */}
-              {selectedComponent.code === 'CONTACTOR' && (
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                  <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>Dimensionamento do Contator</span>
+                    {selectedComponent.params?.curve !== undefined && (
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Curva de Disparo IEC</label>
+                        <select
+                          value={selectedComponent.params.curve || 'C'}
+                          onChange={e => updateComponentProperty('curve', e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono font-bold cursor-pointer"
+                        >
+                          <option value="B">Curva B (3 a 5 x In - Cargas Resistivas)</option>
+                          <option value="C">Curva C (5 a 10 x In - Uso Geral / Motores)</option>
+                          <option value="D">Curva D (10 a 20 x In - Alta Corrente de Partida)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {selectedComponent.params?.icu !== undefined && (
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Capacidade de Interrupção (Icu)</label>
+                        <select
+                          value={selectedComponent.params.icu || 6}
+                          onChange={e => updateComponentProperty('icu', Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-emerald-300 font-mono font-bold cursor-pointer"
+                        >
+                          {[4.5, 6, 10, 16, 25, 36, 50].map(v => (
+                            <option key={v} value={v}>{v} kA</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
+                )}
 
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Corrente AC-3 (Ie)</label>
-                    <select
-                      value={selectedComponent.params?.ac3Current ?? selectedComponent.params?.current ?? 25}
-                      onChange={e => updateComponentProperty('ac3Current', Number(e.target.value))}
-                      className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-emerald-300 font-mono font-bold cursor-pointer"
-                    >
-                      {[9, 12, 18, 25, 32, 40, 50, 65, 80, 95].map(a => (
-                        <option key={a} value={a}>{a} A (AC-3)</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Tensão da Bobina (A1-A2)</label>
-                    <select
-                      value={selectedComponent.params?.coil ?? 230}
-                      onChange={e => updateComponentProperty('coil', Number(e.target.value))}
-                      className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-sky-300 font-mono font-bold cursor-pointer"
-                    >
-                      <option value="24">24V AC/DC</option>
-                      <option value="110">110V AC</option>
-                      <option value="230">230V AC (Monofásico)</option>
-                      <option value="400">400V AC (Bifásico)</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* PARÂMETROS DE MOTORES E BOMBAS */}
-              {['motor3', 'motor1', 'motor3_6lead', 'pump', 'fan'].some(k => selectedComponent.code.includes('M') || selectedComponent.code === 'PUMP' || selectedComponent.code === 'FAN') && (
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                  <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
-                    <Activity className="w-3.5 h-3.5" />
-                    <span>Dados do Motor / Carga Mecânica</span>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
-                      <span>Potência Nominal</span>
-                      <span className="text-amber-400 font-mono">
-                        {((selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)) / 735.5).toFixed(1)} CV ({((selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)) / 1000).toFixed(1)} kW)
-                      </span>
+                {/* PARÂMETROS DE CONTATORES */}
+                {selectedComponent.code === 'CONTACTOR' && (
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Dimensionamento do Contator</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min="250"
-                        max="75000"
-                        step="250"
-                        value={selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)}
-                        onChange={e => updateComponentProperty('power', Number(e.target.value))}
-                        className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-amber-300 font-mono font-bold"
-                      />
-                      <span className="text-slate-400 font-mono">W</span>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Rotação (RPM)</label>
+                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Corrente AC-3 (Ie)</label>
                       <select
-                        value={selectedComponent.params?.rpm || (selectedComponent.code === 'PUMP' ? 2880 : 2920)}
-                        onChange={e => updateComponentProperty('rpm', Number(e.target.value))}
-                        className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white font-mono font-bold cursor-pointer"
+                        value={selectedComponent.params?.ac3Current ?? selectedComponent.params?.current ?? 25}
+                        onChange={e => updateComponentProperty('ac3Current', Number(e.target.value))}
+                        className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-emerald-300 font-mono font-bold cursor-pointer"
                       >
-                        <option value="960">960 RPM (6 Polos)</option>
-                        <option value="1450">1450 RPM (4 Polos)</option>
-                        <option value="2880">2880 RPM (Bomba Centrífuga)</option>
-                        <option value="2920">2920 RPM (2 Polos)</option>
+                        {[9, 12, 18, 25, 32, 40, 50, 65, 80, 95].map(a => (
+                          <option key={a} value={a}>{a} A (AC-3)</option>
+                        ))}
                       </select>
                     </div>
+
                     <div>
-                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Fator de Potência</label>
+                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Tensão da Bobina (A1-A2)</label>
+                      <select
+                        value={selectedComponent.params?.coil ?? 230}
+                        onChange={e => updateComponentProperty('coil', Number(e.target.value))}
+                        className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-sky-300 font-mono font-bold cursor-pointer"
+                      >
+                        <option value="24">24V AC/DC</option>
+                        <option value="110">110V AC</option>
+                        <option value="230">230V AC (Monofásico)</option>
+                        <option value="400">400V AC (Bifásico)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* PARÂMETROS DE MOTORES E BOMBAS */}
+                {['motor3', 'motor1', 'motor3_6lead', 'pump', 'fan'].some(k => selectedComponent.code.includes('M') || selectedComponent.code === 'PUMP' || selectedComponent.code === 'FAN') && (
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                    <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>Dados do Motor / Carga Mecânica</span>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
+                        <span>Potência Nominal</span>
+                        <span className="text-amber-400 font-mono">
+                          {((selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)) / 735.5).toFixed(1)} CV ({((selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)) / 1000).toFixed(1)} kW)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="250"
+                          max="75000"
+                          step="250"
+                          value={selectedComponent.params?.power || (selectedComponent.code === 'PUMP' ? 3000 : 7500)}
+                          onChange={e => updateComponentProperty('power', Number(e.target.value))}
+                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-amber-300 font-mono font-bold"
+                        />
+                        <span className="text-slate-400 font-mono">W</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Rotação (RPM)</label>
+                        <select
+                          value={selectedComponent.params?.rpm || (selectedComponent.code === 'PUMP' ? 2880 : 2920)}
+                          onChange={e => updateComponentProperty('rpm', Number(e.target.value))}
+                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white font-mono font-bold cursor-pointer"
+                        >
+                          <option value="960">960 RPM (6 Polos)</option>
+                          <option value="1450">1450 RPM (4 Polos)</option>
+                          <option value="2880">2880 RPM (Bomba Centrífuga)</option>
+                          <option value="2920">2920 RPM (2 Polos)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Fator de Potência</label>
+                        <input
+                          type="number"
+                          min="0.7"
+                          max="0.98"
+                          step="0.01"
+                          value={selectedComponent.params?.pf || 0.85}
+                          onChange={e => updateComponentProperty('pf', Number(e.target.value))}
+                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-emerald-300 font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* PARÂMETROS DE CARGA DA TOMADA (OUTLET) */}
+                {(selectedComponent.code === 'OUTLET' || selectedComponent.code?.startsWith('OUTLET')) && (
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-900/50 space-y-2.5">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
+                      <Power className="w-3.5 h-3.5" />
+                      <span>Carga Conectada na Tomada (Plug & Test)</span>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Nome do Aparelho / Carga</label>
                       <input
-                        type="number"
-                        min="0.7"
-                        max="0.98"
-                        step="0.01"
-                        value={selectedComponent.params?.pf || 0.85}
-                        onChange={e => updateComponentProperty('pf', Number(e.target.value))}
-                        className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-emerald-300 font-mono font-bold"
+                        type="text"
+                        value={selectedComponent.params?.applianceName || 'Carga Geral'}
+                        onChange={e => updateComponentProperty('applianceName', e.target.value)}
+                        placeholder="Ex: Chuveiro, Secador, Bomba..."
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold outline-none"
                       />
                     </div>
-                  </div>
-                </div>
-              )}
 
-              {/* PARÂMETROS DE CARGA DA TOMADA (OUTLET) */}
-              {(selectedComponent.code === 'OUTLET' || selectedComponent.code?.startsWith('OUTLET')) && (
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-900/50 space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
-                    <Power className="w-3.5 h-3.5" />
-                    <span>Carga Conectada na Tomada (Plug & Test)</span>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Nome do Aparelho / Carga</label>
-                    <input
-                      type="text"
-                      value={selectedComponent.params?.applianceName || 'Carga Geral'}
-                      onChange={e => updateComponentProperty('applianceName', e.target.value)}
-                      placeholder="Ex: Chuveiro, Secador, Bomba..."
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
-                      <span>Potência Nominal da Carga:</span>
-                      <span className="text-amber-400 font-mono font-bold">
-                        {Number(selectedComponent.params?.powerW || (selectedComponent.params?.customPowerW || 0))} W
-                      </span>
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
+                        <span>Potência Nominal da Carga:</span>
+                        <span className="text-amber-400 font-mono font-bold">
+                          {Number(selectedComponent.params?.powerW || (selectedComponent.params?.customPowerW || 0))} W
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          max="12000"
+                          step="50"
+                          value={Number(selectedComponent.params?.powerW || (selectedComponent.params?.customPowerW || 0))}
+                          onChange={e => {
+                            const wVal = Math.max(0, Number(e.target.value));
+                            const vNom = Number(selectedComponent.params?.voltage || 230);
+                            const pf = Number(selectedComponent.params?.powerFactor || 1.0);
+                            const iVal = Number((wVal / (vNom * pf)).toFixed(1));
+                            updateComponentProperty('powerW', wVal);
+                            updateComponentProperty('customPowerW', wVal);
+                            updateComponentProperty('targetCurrent', iVal);
+                            if (wVal > 0 && selectedComponent.params?.pluggedAppliance === 'NONE') {
+                              updateComponentProperty('pluggedAppliance', 'CUSTOM');
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono font-bold outline-none"
+                        />
+                        <span className="text-slate-400 font-mono font-bold">Watts</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min="0"
-                        max="12000"
-                        step="50"
-                        value={Number(selectedComponent.params?.powerW || (selectedComponent.params?.customPowerW || 0))}
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 font-bold block mb-1">Aparelhos Pré-Configurados</label>
+                      <select
+                        value={selectedComponent.params?.pluggedAppliance || 'NONE'}
                         onChange={e => {
-                          const wVal = Math.max(0, Number(e.target.value));
-                          const vNom = Number(selectedComponent.params?.voltage || 230);
-                          const pf = Number(selectedComponent.params?.powerFactor || 1.0);
-                          const iVal = Number((wVal / (vNom * pf)).toFixed(1));
-                          updateComponentProperty('powerW', wVal);
-                          updateComponentProperty('customPowerW', wVal);
-                          updateComponentProperty('targetCurrent', iVal);
-                          if (wVal > 0 && selectedComponent.params?.pluggedAppliance === 'NONE') {
-                            updateComponentProperty('pluggedAppliance', 'CUSTOM');
+                          const appKey = e.target.value;
+                          const preset = APPLIANCE_PRESETS.find(p => p.id === appKey);
+                          updateComponentProperty('pluggedAppliance', appKey);
+                          if (preset) {
+                            updateComponentProperty('applianceName', preset.label);
+                            updateComponentProperty('powerW', preset.powerW);
+                            updateComponentProperty('customPowerW', preset.powerW);
+                            updateComponentProperty('targetCurrent', preset.currentA);
                           }
                         }}
-                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono font-bold outline-none"
-                      />
-                      <span className="text-slate-400 font-mono font-bold">Watts</span>
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-bold outline-none cursor-pointer"
+                      >
+                        {APPLIANCE_PRESETS.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.label} {p.powerW > 0 ? `(${p.powerW}W • ~${p.currentA}A)` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
+                )}
 
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Aparelhos Pré-Configurados</label>
-                    <select
-                      value={selectedComponent.params?.pluggedAppliance || 'NONE'}
-                      onChange={e => {
-                        const appKey = e.target.value;
-                        const preset = APPLIANCE_PRESETS.find(p => p.id === appKey);
-                        updateComponentProperty('pluggedAppliance', appKey);
-                        if (preset) {
-                          updateComponentProperty('applianceName', preset.label);
-                          updateComponentProperty('powerW', preset.powerW);
-                          updateComponentProperty('customPowerW', preset.powerW);
-                          updateComponentProperty('targetCurrent', preset.currentA);
-                        }
-                      }}
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-bold outline-none cursor-pointer"
-                    >
-                      {APPLIANCE_PRESETS.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.label} {p.powerW > 0 ? `(${p.powerW}W • ~${p.currentA}A)` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Botões de Ação Direta */}
+                <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={rotateSelectedComponent}
+                    className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                    <span>Girar 90°</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={duplicateSelectedComponent}
+                    className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Duplicar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deleteSelected}
+                    className="w-full py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-800 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remover Dispositivo</span>
+                  </button>
                 </div>
-              )}
-
-              {/* Botões de Ação Direta */}
-              <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                <button
-                  type="button"
-                  onClick={rotateSelectedComponent}
-                  className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  <span>Girar 90°</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={duplicateSelectedComponent}
-                  className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Duplicar</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={deleteSelected}
-                  className="w-full py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-800 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Remover Dispositivo</span>
-                </button>
               </div>
-            </div>
+            )}
           </div>
         )}
 
