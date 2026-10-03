@@ -2942,81 +2942,306 @@ export function renderCommercialGenerator(
 ) {
   const isRunning = Boolean(simRunning && (st.running || c.params?.running));
   const kva = c.params?.kva || 25;
+  const kw = Math.round(kva * 0.8);
   const brandName = (c.brand || c.brandName || 'Cummins Power / Cat').toString();
+  const rpm = isRunning ? 1500 : 0;
 
-  const vibX = isRunning ? Math.sin(time * 45) * (0.8 * zoom) : 0;
-  const vibY = isRunning ? Math.cos(time * 45) * (0.5 * zoom) : 0;
+  // Vibração mecânica do motor a combustão quando em marcha
+  const vibX = isRunning ? Math.sin(time * 55) * (0.9 * zoom) : 0;
+  const vibY = isRunning ? Math.cos(time * 48) * (0.6 * zoom) : 0;
 
   ctx.save();
   ctx.translate(vibX, vibY);
 
-  const baseH = 12 * zoom;
-  ctx.fillStyle = '#0f172a';
+  // 1. SOMBRA DE OCLUSÃO NO FUNDO
+  ctx.save();
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.75)';
   ctx.beginPath();
-  ctx.roundRect(-cw / 2, ch / 2 - baseH, cw, baseH, 2 * zoom);
+  ctx.roundRect(-cw / 2 + 3 * zoom, -ch / 2 + 5 * zoom, cw, ch, 8 * zoom);
   ctx.fill();
+  ctx.restore();
 
+  // 2. CHASSI BASE (SKID TANK) EM AÇO PESADO COM BOLSOS DE EMPILHADEIRA
+  const skidH = 14 * zoom;
+  const skidY = ch / 2 - skidH / 2 - 2 * zoom;
+
+  const skidGrad = ctx.createLinearGradient(-cw / 2, skidY - skidH / 2, -cw / 2, skidY + skidH / 2);
+  skidGrad.addColorStop(0, '#1e293b');
+  skidGrad.addColorStop(0.3, '#0f172a');
+  skidGrad.addColorStop(0.85, '#090d16');
+  skidGrad.addColorStop(1, '#020617');
+
+  ctx.fillStyle = skidGrad;
+  ctx.beginPath();
+  ctx.roundRect(-cw / 2, skidY - skidH / 2, cw, skidH, 3 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.2 * zoom;
+  ctx.stroke();
+
+  // Bolsos para garfo de empilhadeira usinados no skid
+  [-cw * 0.28, cw * 0.28].forEach((fx) => {
+    ctx.fillStyle = '#020617';
+    ctx.beginPath();
+    ctx.roundRect(fx - 11 * zoom, skidY - 3 * zoom, 22 * zoom, 7 * zoom, 1.5 * zoom);
+    ctx.fill();
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 0.8 * zoom;
+    ctx.stroke();
+  });
+
+  // Visor de nível de diesel do tanque integrado
+  const fuelX = -cw * 0.44;
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(fuelX - 2 * zoom, skidY - 4 * zoom, 18 * zoom, 8 * zoom);
+  ctx.fillStyle = '#22c55e';
+  ctx.fillRect(fuelX, skidY - 2 * zoom, 14 * zoom, 4 * zoom);
+
+  // 3. SILENCIOSO DE ESCAPE (MUFFLER) INOX COM TAMPA DE CHUVA BASCULANTE
+  const exhX = cw * 0.25;
+  const canTopY = -ch / 2 + 10 * zoom;
+  const exhH = 12 * zoom;
+  const exhW = 8 * zoom;
+
+  // Tubo de escape
+  const exhGrad = ctx.createLinearGradient(exhX - exhW / 2, 0, exhX + exhW / 2, 0);
+  exhGrad.addColorStop(0, '#94a3b8');
+  exhGrad.addColorStop(0.4, '#f1f5f9');
+  exhGrad.addColorStop(0.8, '#cbd5e1');
+  exhGrad.addColorStop(1, '#64748b');
+
+  ctx.fillStyle = exhGrad;
+  ctx.fillRect(exhX - exhW / 2, canTopY - exhH, exhW, exhH);
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 0.8 * zoom;
+  ctx.strokeRect(exhX - exhW / 2, canTopY - exhH, exhW, exhH);
+
+  // Flange parafusada
+  ctx.fillStyle = '#475569';
+  ctx.fillRect(exhX - exhW * 0.75, canTopY - 3 * zoom, exhW * 1.5, 3 * zoom);
+
+  // Tampa de chuva basculante (Abre quando ligado!)
+  ctx.save();
+  ctx.translate(exhX + exhW / 2, canTopY - exhH);
+  ctx.rotate(isRunning ? -0.55 : 0);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillRect(-exhW - 2 * zoom, -2 * zoom, exhW + 4 * zoom, 2.5 * zoom);
+  ctx.restore();
+
+  // Fumaça animada saindo do escape se o gerador estiver em marcha
+  if (isRunning) {
+    for (let p = 0; p < 3; p++) {
+      const pPhase = ((time * 2.2 + p * 0.6) % 1.8) / 1.8;
+      const py = canTopY - exhH - pPhase * (24 * zoom);
+      const px = exhX + Math.sin(time * 6 + p) * (6 * zoom) * pPhase;
+      const pR = (3 + pPhase * 8) * zoom;
+      const pAlpha = (1 - pPhase) * 0.35;
+      ctx.fillStyle = `rgba(203, 213, 225, ${pAlpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(px, py, pR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 4. CARENAGEM INSONORIZADA PRINCIPAL (AMARELO INDUSTRIAL / RAL 1003 COM PINTURA TEXTURIZADA)
   const canW = cw;
-  const canH = ch - baseH - 4 * zoom;
-  const canY = -ch / 2 + canH / 2;
+  const canH = ch - skidH - 12 * zoom;
+  const canY = -ch / 2 + canH / 2 + 9 * zoom;
 
   const canGrad = ctx.createLinearGradient(-canW / 2, canY - canH / 2, canW / 2, canY + canH / 2);
-  canGrad.addColorStop(0, '#facc15');
-  canGrad.addColorStop(0.2, '#eab308');
-  canGrad.addColorStop(0.8, '#ca8a04');
-  canGrad.addColorStop(1, '#a16207');
+  canGrad.addColorStop(0, '#fef08a');
+  canGrad.addColorStop(0.12, '#facc15');
+  canGrad.addColorStop(0.5, '#eab308');
+  canGrad.addColorStop(0.85, '#ca8a04');
+  canGrad.addColorStop(1, '#854d0e');
 
   ctx.fillStyle = canGrad;
   ctx.beginPath();
   ctx.roundRect(-canW / 2, canY - canH / 2, canW, canH, 6 * zoom);
   ctx.fill();
   ctx.strokeStyle = '#713f12';
+  ctx.lineWidth = 1.6 * zoom;
+  ctx.stroke();
+
+  // Friso metálico superior de rigidez
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.lineWidth = 1 * zoom;
+  ctx.beginPath();
+  ctx.moveTo(-canW / 2 + 5 * zoom, canY - canH / 2 + 2 * zoom);
+  ctx.lineTo(canW / 2 - 5 * zoom, canY - canH / 2 + 2 * zoom);
+  ctx.stroke();
+
+  // Olhal forjado de içamento central
+  const liftW = 14 * zoom;
+  const liftH = 5 * zoom;
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(-liftW / 2, canY - canH / 2 - liftH + 1 * zoom, liftW, liftH);
+  ctx.strokeStyle = '#64748b';
+  ctx.strokeRect(-liftW / 2, canY - canH / 2 - liftH + 1 * zoom, liftW, liftH);
+
+  // 5. PORTA LATERAL DE MANUTENÇÃO COM DOBRADIÇAS E MAÇANETA DE CONCHA
+  const doorW = canW * 0.44;
+  const doorH = canH * 0.74;
+  const doorX = -canW * 0.24;
+  const doorY = canY + 3 * zoom;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+  ctx.beginPath();
+  ctx.roundRect(doorX - doorW / 2, doorY - doorH / 2, doorW, doorH, 4 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#854d0e';
+  ctx.lineWidth = 1.2 * zoom;
+  ctx.stroke();
+
+  // Dobradiças de aço inox na porta
+  [-doorH * 0.38, doorH * 0.38].forEach((hy) => {
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(doorX - doorW / 2 - 1.5 * zoom, doorY + hy - 3 * zoom, 3 * zoom, 6 * zoom);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 0.5 * zoom;
+    ctx.strokeRect(doorX - doorW / 2 - 1.5 * zoom, doorY + hy - 3 * zoom, 3 * zoom, 6 * zoom);
+  });
+
+  // Fechadura industrial com maçaneta de concha cromada
+  const latchX = doorX + doorW / 2 - 6 * zoom;
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.roundRect(latchX - 3.5 * zoom, doorY - 6 * zoom, 7 * zoom, 12 * zoom, 1.5 * zoom);
+  ctx.fill();
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillRect(latchX - 1 * zoom, doorY - 4 * zoom, 2 * zoom, 8 * zoom);
+
+  // 6. GRELHAS ACÚSTICAS DE ADMISSÃO DE AR (LOUVERS 3D RANHURADOS)
+  const louverW = doorW * 0.72;
+  const louverH = doorH * 0.58;
+  const louverY = doorY - 1 * zoom;
+  const louverX = doorX - 4 * zoom;
+
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.roundRect(louverX - louverW / 2, louverY - louverH / 2, louverW, louverH, 3 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1 * zoom;
+  ctx.stroke();
+
+  const numLouvers = 7;
+  const lStep = louverH / (numLouvers + 1);
+  for (let i = 1; i <= numLouvers; i++) {
+    const ly = louverY - louverH / 2 + i * lStep;
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(louverX - louverW * 0.44, ly - 1.2 * zoom, louverW * 0.88, 2.4 * zoom);
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(louverX - louverW * 0.44, ly, louverW * 0.88, 1.2 * zoom);
+  }
+
+  // 7. PAINEL DE CONTROLE INDUSTRIAL DIGITAL (PADRÃO DSE / COMAP / INTELILITE)
+  const dseW = canW * 0.44;
+  const dseH = canH * 0.74;
+  const dseX = canW * 0.24;
+  const dseY = canY + 3 * zoom;
+
+  // Carcaça externa do controlador Deep Sea
+  ctx.fillStyle = '#020617';
+  ctx.beginPath();
+  ctx.roundRect(dseX - dseW / 2, dseY - dseH / 2, dseW, dseH, 4 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
   ctx.lineWidth = 1.4 * zoom;
   ctx.stroke();
 
-  // Escapamento
-  const exhX = cw * 0.22;
-  const exhY = canY - canH / 2 - 8 * zoom;
-  ctx.fillStyle = '#475569';
-  ctx.fillRect(exhX - 6 * zoom, exhY, 12 * zoom, 10 * zoom);
+  // Visor gráfico LCD protegido por policarbonato
+  const lcdW = dseW * 0.86;
+  const lcdH = dseH * 0.52;
+  const lcdY = dseY - dseH * 0.16;
 
-  // Grade de ventilação
-  const louverX = -cw * 0.26;
-  const louverW = cw * 0.28;
-  const louverH = canH * 0.55;
-  ctx.fillStyle = '#0f172a';
+  ctx.fillStyle = isRunning ? '#064e3b' : '#0f172a';
   ctx.beginPath();
-  ctx.roundRect(louverX - louverW / 2, canY - louverH / 2, louverW, louverH, 3 * zoom);
+  ctx.roundRect(dseX - lcdW / 2, lcdY - lcdH / 2, lcdW, lcdH, 2 * zoom);
   ctx.fill();
+  ctx.strokeStyle = isRunning ? '#10b981' : '#1e293b';
+  ctx.lineWidth = 1 * zoom;
+  ctx.stroke();
 
-  // Painel de controle digital DSE
-  const dseX = cw * 0.16;
-  const dseW = cw * 0.45;
-  const dseH = canH * 0.62;
-  ctx.fillStyle = '#020617';
-  ctx.beginPath();
-  ctx.roundRect(dseX - dseW / 2, canY - dseH / 2, dseW, dseH, 3 * zoom);
-  ctx.fill();
-
-  const lcdW = dseW * 0.85;
-  const lcdH = dseH * 0.46;
-  const lcdY = canY - dseH * 0.18;
-  ctx.fillStyle = isRunning ? '#064e3b' : '#1e293b';
-  ctx.fillRect(dseX - lcdW / 2, lcdY - lcdH / 2, lcdW, lcdH);
-
-  ctx.fillStyle = isRunning ? '#34d399' : '#ef4444';
-  ctx.font = `bold ${Math.max(6.5, 7.5 * zoom)}px 'Courier New', monospace`;
+  // Telemetria True-RMS do Grupo Gerador
+  ctx.fillStyle = isRunning ? '#34d399' : '#f59e0b';
+  ctx.font = `bold ${Math.max(7.5, 9 * zoom)}px 'Courier New', monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText(isRunning ? '400V • 50.0Hz' : 'GMG PARADO (OFF)', dseX, lcdY - 3 * zoom);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(isRunning ? '400V 3~ • 50Hz' : 'GMG STANDBY', dseX, lcdY - 7 * zoom);
 
   ctx.fillStyle = isRunning ? '#a7f3d0' : '#94a3b8';
   ctx.font = `bold ${Math.max(5.5, 6.5 * zoom)}px monospace`;
-  ctx.fillText(isRunning ? '1500 RPM • AVR OK' : 'MODO: AUTO / STANDBY', dseX, lcdY + 6 * zoom);
+  ctx.fillText(
+    isRunning ? `${rpm} RPM • AVR OK` : 'MODO: AUTO / REMOTO',
+    dseX,
+    lcdY + 3 * zoom
+  );
+
+  ctx.fillStyle = isRunning ? '#6ee7b7' : '#64748b';
+  ctx.font = `bold ${Math.max(4.5, 5.5 * zoom)}px monospace`;
+  ctx.fillText(isRunning ? 'ÓLEO 4.8bar • 85°C' : 'BAT: 12.6V • REDE OK', dseX, lcdY + 11 * zoom);
+
+  // Teclas industriais de membrana (START, STOP, AUTO)
+  const keyY = dseY + dseH * 0.28;
+  const keyW = 10 * zoom;
+  const keyH = 7 * zoom;
+
+  // Botão START (Verde)
+  ctx.fillStyle = '#15803d';
+  ctx.beginPath();
+  ctx.roundRect(dseX - keyW * 1.5, keyY - keyH / 2, keyW, keyH, 1.5 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#22c55e';
+  ctx.stroke();
+
+  // Botão STOP (Vermelho)
+  ctx.fillStyle = '#b91c1c';
+  ctx.beginPath();
+  ctx.roundRect(dseX - keyW * 0.5, keyY - keyH / 2, keyW, keyH, 1.5 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#ef4444';
+  ctx.stroke();
+
+  // Botão AUTO (Cinza)
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.roundRect(dseX + keyW * 0.5, keyY - keyH / 2, keyW, keyH, 1.5 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.stroke();
+
+  // Botão de Parada de Emergência tipo cogumelo montado no painel
+  const estopX = dseX + dseW / 2 - 5 * zoom;
+  const estopY = dseY - dseH / 2 + 5 * zoom;
+  ctx.fillStyle = '#facc15';
+  ctx.beginPath();
+  ctx.arc(estopX, estopY, 4 * zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.arc(estopX, estopY, 2.8 * zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#7f1d1d';
+  ctx.lineWidth = 0.6 * zoom;
+  ctx.stroke();
+
+  // 8. PLAQUETA DE ESPECIFICAÇÃO DE ENGENHARIA REBITADA
+  const tagW = canW * 0.52;
+  const tagH = 9 * zoom;
+  const tagY = canY - canH / 2 + 8 * zoom;
 
   ctx.fillStyle = '#0f172a';
-  ctx.font = `bold ${Math.max(6, 7 * zoom)}px sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.fillText(`${brandName} • ${kva} kVA`, -canW * 0.42, canY - canH * 0.35);
+  ctx.fillRect(-tagW / 2, tagY - tagH / 2, tagW, tagH);
+  ctx.strokeStyle = '#713f12';
+  ctx.lineWidth = 0.8 * zoom;
+  ctx.strokeRect(-tagW / 2, tagY - tagH / 2, tagW, tagH);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${Math.max(5.5, 6.8 * zoom)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${brandName.toUpperCase()} • ${kva}kVA (${kw}kW) 400V`, 0, tagY);
 
   ctx.restore();
 }
