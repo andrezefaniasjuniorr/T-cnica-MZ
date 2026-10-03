@@ -9,6 +9,7 @@ import {
   ArrowRight,
   Sparkles,
   CheckCircle2,
+  AlertTriangle,
   Briefcase,
   Layers,
   Lock
@@ -20,7 +21,7 @@ interface RoleEntryCardsProps {
 }
 
 export const RoleEntryCards: React.FC<RoleEntryCardsProps> = ({ onSelectRole, onNavigateTab }) => {
-  const { currentUser, isClient, isTechnician, isCompany, isAdmin } = useAuth();
+  const { currentUser, isClient, isTechnician, isCompany, isAdmin, temSeloMZ, isSeloExpired, isAccountActive } = useAuth();
 
   const roleCards = [
     {
@@ -111,9 +112,15 @@ export const RoleEntryCards: React.FC<RoleEntryCardsProps> = ({ onSelectRole, on
                       {card.pill}
                     </span>
                     {isUserCurrentRole && (
-                      <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800">
-                        <CheckCircle2 className="w-3 h-3" /> Sessão Ativa
-                      </span>
+                      isSeloExpired || (!isAdmin && !isClient && !isAccountActive) ? (
+                        <span className="flex items-center gap-1 text-[10px] font-black text-rose-300 bg-rose-950/80 px-2 py-0.5 rounded-md border border-rose-700 animate-pulse">
+                          <AlertTriangle className="w-3 h-3 text-rose-400" /> NÃO ATIVA (Sessão Expirada)
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800">
+                          <CheckCircle2 className="w-3 h-3" /> Sessão Ativa
+                        </span>
+                      )
                     )}
                   </div>
 

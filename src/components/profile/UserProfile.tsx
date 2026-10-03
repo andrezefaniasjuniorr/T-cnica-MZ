@@ -5,6 +5,7 @@ import {
   User,
   Wrench,
   ShieldCheck,
+  AlertTriangle,
   Award,
   Phone,
   MapPin,
@@ -33,22 +34,12 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   onOpenSeloModal,
   className = ''
 }) => {
-  const { currentUser, isTechnician, isCompany } = useAuth();
+  const { currentUser, isTechnician, isCompany, temSeloMZ, isSeloExpired, isAccountActive } = useAuth();
   const { technicians } = useData();
   const [tourResetSuccess, setTourResetSuccess] = useState(false);
 
   // Encontra os dados estendidos do técnico se existirem
   const techData = technicians.find(t => t.userId === currentUser?.uid);
-
-  // Verifica status do Selo MZ
-  let temSeloMZ = false;
-  try {
-    temSeloMZ = localStorage.getItem('tecnico_verificado') === 'true' ||
-      currentUser?.temSeloMZ === true ||
-      currentUser?.statusSelo === 'aprovado' ||
-      currentUser?.isVerified === true ||
-      techData?.isVerified === true;
-  } catch {}
 
   const handleRestartTour = () => {
     setTourResetSuccess(true);
@@ -79,6 +70,11 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-200 shadow-xs">
                     <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
                     <span>Selo MZ Verificado</span>
+                  </span>
+                ) : isSeloExpired ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    <span>NÃO ATIVA (Sessão Expirada)</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
@@ -118,13 +114,46 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 if (onOpenSeloModal) onOpenSeloModal();
                 else if (onNavigateTab) onNavigateTab('settings');
               }}
-              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95 shrink-0"
+              className={`px-4 py-2 text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95 shrink-0 ${
+                isSeloExpired
+                  ? 'bg-rose-600 hover:bg-rose-700'
+                  : 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600'
+              }`}
             >
-              <Award className="w-4 h-4" />
-              <span>Ativar Selo MZ</span>
+              {isSeloExpired ? <AlertTriangle className="w-4 h-4" /> : <Award className="w-4 h-4" />}
+              <span>{isSeloExpired ? 'Renovar Selo MZ (50 MT)' : 'Ativar Selo MZ'}</span>
             </button>
           )}
         </div>
+
+        {/* Alerta de Expiração de Assinatura */}
+        {isSeloExpired && (
+          <div className="mt-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-rose-900">
+                  Assinatura Mensal Expirada (30 Dias) — Conta NÃO ATIVA
+                </p>
+                <p className="text-[11px] text-rose-700 mt-0.5">
+                  O Selo MZ foi revogado. O acesso ao simulador CAD, teste de circuitos, ferramentas técnicas e Sara IA foi bloqueado.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenSeloModal) onOpenSeloModal();
+                else if (onNavigateTab) onNavigateTab('settings');
+              }}
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs shrink-0 cursor-pointer"
+            >
+              Reativar Conta
+            </button>
+          </div>
+        )}
 
         {/* Biografia / Resumo Profissional */}
         {currentUser?.bio && (

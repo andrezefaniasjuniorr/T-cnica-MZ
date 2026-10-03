@@ -26,6 +26,8 @@ export const ComprarSeloTab: React.FC = () => {
     currentUser,
     temSeloMZ,
     statusSelo,
+    isSeloExpired,
+    seloDaysRemaining,
     solicitarSeloMZ
   } = useAuth();
 
@@ -90,12 +92,14 @@ export const ComprarSeloTab: React.FC = () => {
     }
   };
 
+  // Status is expired (30 dias)
+  const isExpired = isSeloExpired || statusSelo === 'expirado';
   // Status is approved
-  const isApproved = temSeloMZ || currentUser?.temSeloMZ || statusSelo === 'aprovado';
+  const isApproved = !isExpired && temSeloMZ;
   // Status is pending
-  const isPending = !isApproved && (statusSelo === 'pendente_aprovacao' || currentUser?.statusSelo === 'pendente_aprovacao');
+  const isPending = !isApproved && !isExpired && (statusSelo === 'pendente_aprovacao' || currentUser?.statusSelo === 'pendente_aprovacao');
   // Status is rejected
-  const isRejected = !isApproved && !isPending && (statusSelo === 'rejeitado' || currentUser?.statusSelo === 'rejeitado');
+  const isRejected = !isApproved && !isPending && !isExpired && (statusSelo === 'rejeitado' || currentUser?.statusSelo === 'rejeitado');
 
   return (
     <div className="space-y-6">
@@ -135,6 +139,30 @@ export const ComprarSeloTab: React.FC = () => {
       </div>
 
       {/* STATUS BADGES & ALERTS */}
+      {isExpired && (
+        <div className="bg-rose-950/40 border border-rose-500/50 rounded-3xl p-6 text-rose-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg animate-in fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-white">Assinatura Mensal Expirada (30 Dias)</h2>
+                <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white font-black text-[10px] uppercase tracking-wider animate-pulse">
+                  NÃO ATIVA
+                </span>
+              </div>
+              <p className="text-xs text-rose-200/90 mt-0.5">
+                O seu período de 30 dias expirou e o Selo MZ foi revogado. O acesso ao simulador CAD, teste de circuitos, ferramentas técnicas, Sara IA e salas restritas encontra-se bloqueado. Efetue a renovação de 50 MT abaixo para reativar imediatamente.
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-rose-300 font-bold bg-rose-900/40 px-3.5 py-2 rounded-xl border border-rose-700/50 shrink-0">
+            Sessão Expirada
+          </div>
+        </div>
+      )}
+
       {isApproved && (
         <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-3xl p-6 text-emerald-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
           <div className="flex items-center gap-3.5">

@@ -411,11 +411,11 @@ export const Header: React.FC<HeaderProps> = ({
               ) : isSeloExpired ? (
                 <button
                   onClick={() => onNavigateTab('comprar-selo-mz')}
-                  className="hidden xl:flex items-center gap-1 px-2 py-1 rounded-full bg-rose-500/15 hover:bg-rose-500/25 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold transition shadow-2xs shrink-0 cursor-pointer animate-pulse"
-                  title="Selo MZ Expirado."
+                  className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition shadow-sm shrink-0 cursor-pointer animate-pulse"
+                  title="Assinatura e Selo MZ expirados. Conta NÃO ATIVA. Clique para renovar por 50 MT."
                 >
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                  <span className="text-[11px] font-black">Renovar</span>
+                  <AlertCircle className="w-3.5 h-3.5 text-white" />
+                  <span className="text-[10px] font-black uppercase tracking-wider">NÃO ATIVA • Expirada</span>
                 </button>
               ) : isTrialValid ? (
                 <div

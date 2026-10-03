@@ -150,7 +150,7 @@ const resolveTabFromLocation = (): string | null => {
 };
 
 const AppContent: React.FC = () => {
-  const { currentUser, isLoading, isClient, isTechnician, isCompany, isAdmin, isSubscriptionActive } = useAuth();
+  const { currentUser, isLoading, isClient, isTechnician, isCompany, isAdmin, isSubscriptionActive, temSeloMZ, isSeloExpired } = useAuth();
 
   const roleStr = String(currentUser?.role || '');
   const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
@@ -173,7 +173,17 @@ const AppContent: React.FC = () => {
   );
 
   const handleOpenSaraAi = () => {
-    if (!isClientUser && isTechnicianUser) {
+    if (isClientUser) {
+      setRequiredRoleForDenied('technician');
+      setIsAccessDeniedOpen(true);
+      return;
+    }
+    if ((!temSeloMZ || isSeloExpired) && !isAdmin) {
+      setSeloFeatureName('Eng. Sara IA');
+      setIsSeloModalOpen(true);
+      return;
+    }
+    if (isTechnicianUser) {
       soundFX.playModalOpen();
       setIsSaraAiOpen(true);
     } else {
@@ -584,7 +594,7 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // Ao tentar acessar a aba "Ferramentas" (ou qualquer recurso restrito), caso 'tecnico_verificado' seja 'false' ou inexistente:
+    // Ao tentar acessar a aba "Ferramentas" (ou qualquer recurso restrito), caso sem Selo MZ ou expirado:
     // * Impede a abertura do conteúdo da aba.
     // * Exibe o Modal "Selo MZ Necessário".
     if (targetTab === 'tools') {
@@ -593,7 +603,7 @@ const AppContent: React.FC = () => {
         isVerificado = localStorage.getItem('tecnico_verificado') === 'true';
       } catch {}
 
-      if (!isVerificado) {
+      if ((!isVerificado || !temSeloMZ || isSeloExpired) && !isAdmin) {
         setSeloFeatureName('Ferramentas & Recursos');
         setIsSeloModalOpen(true);
         return; // Impede a abertura do conteúdo da aba!

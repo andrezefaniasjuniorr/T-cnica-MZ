@@ -50,7 +50,7 @@ export type PlanTier = 'basico' | 'profissional' | 'empresa_vip';
 
 export type AccountType = 'cliente' | 'tecnico' | 'empresa';
 export type ApprovalStatus = 'pendente' | 'aprovado' | 'rejeitado';
-export type AccountStatus = 'ativa' | 'bloqueada' | 'suspensa';
+export type AccountStatus = 'ativa' | 'inativa' | 'expirada' | 'nao_ativa' | 'bloqueada' | 'suspensa';
 
 export type PdfTemplateType =
   | 'corporate_blue'       // 1. "Corporativo Azul" (Visual empresarial clássico e limpo)

@@ -37,6 +37,8 @@ interface AuthContextType {
   statusSelo: 'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado' | 'expirado';
   seloDaysRemaining: number;
   isSeloExpired: boolean;
+  isAccountActive: boolean;
+  accountStatusLabel: string;
   isTrialActive: boolean;
   trialDaysRemaining: number;
   isTrialValid: boolean;
@@ -2837,11 +2839,195 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // =========================================================================
-  // PAYWALL & SUBSCRIPTION STRICT COMPUTATIONS
+  // ROLES, SELO MZ & SUBSCRIPTION STRICT COMPUTATIONS (30 DIAS)
   // =========================================================================
+  const isCompany = currentUser?.tipoConta === 'empresa' || currentUser?.role === 'company' || (currentUser?.role as any) === 'empresa';
+  const isTechnician = !isCompany && (currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician' || (currentUser?.role as any) === 'tecnico');
+  const isClient = !isCompany && !isTechnician && (currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client' || (currentUser?.role as any) === 'cliente');
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.adminSubRole === 'super_admin';
+  const isFinanceAdmin = isSuperAdmin || currentUser?.adminSubRole === 'finance_admin';
+  const isModerator = isSuperAdmin || currentUser?.adminSubRole === 'moderator';
+
+  // 1. Verificação Estrita de Expiração do Selo MZ / Assinatura (30 Dias)
+  const isSeloExpired = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
+    ) {
+      return false;
+    }
+
+    // Se já estiver explicitamente marcado como expirado ou inativo
+    if (currentUser.statusSelo === 'expirado') return true;
+    if (currentUser.statusAssinatura === 'expirada' || currentUser.subscriptionStatus === 'expired') return true;
+    if (currentUser.statusConta === 'inativa' || currentUser.statusConta === 'expirada' || (currentUser as any).statusConta === 'nao_ativa') return true;
+
+    // Checagem de expiração por data limite (verifiedUntil)
+    if (currentUser.verifiedUntil) {
+      const untilMs = new Date(currentUser.verifiedUntil).getTime();
+      if (!isNaN(untilMs) && Date.now() >= untilMs) return true;
+    }
+
+    // Checagem por subscriptionExpiresAt ou dataExpiracao
+    if (currentUser.subscriptionExpiresAt || currentUser.dataExpiracao) {
+      const expMs = new Date(currentUser.subscriptionExpiresAt || currentUser.dataExpiracao!).getTime();
+      if (!isNaN(expMs) && Date.now() >= expMs) return true;
+    }
+
+    // Checagem por verifiedAt ou dataSeloAprovacao (+ 30 dias)
+    if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
+      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      if (!isNaN(atMs) && Date.now() >= (atMs + thirtyDaysMs)) return true;
+    }
+
+    // Se possui flag de selo mas sem datas explícitas, checa a data de cadastro (+ 30 dias)
+    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
+    if (hasSeloFlag) {
+      const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro);
+      if (createdMs && Date.now() >= (createdMs + 30 * 24 * 60 * 60 * 1000)) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [currentUser]);
+
+  // 2. Selo MZ Válido
+  const isSeloValid = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
+    ) {
+      return true;
+    }
+
+    // Se expirou os 30 dias, perde o selo imediatamente
+    if (isSeloExpired) return false;
+
+    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
+    if (!hasSeloFlag) return false;
+
+    if (currentUser.statusSelo === 'expirado') return false;
+    if (currentUser.statusConta === 'inativa' || currentUser.statusConta === 'expirada' || (currentUser as any).statusConta === 'nao_ativa') return false;
+    if (currentUser.statusAssinatura === 'expirada' || currentUser.subscriptionStatus === 'expired') return false;
+
+    // Checagem de expiração da data
+    if (currentUser.verifiedUntil) {
+      const untilMs = new Date(currentUser.verifiedUntil).getTime();
+      if (!isNaN(untilMs) && Date.now() >= untilMs) return false;
+    }
+    if (currentUser.subscriptionExpiresAt || currentUser.dataExpiracao) {
+      const expMs = new Date(currentUser.subscriptionExpiresAt || currentUser.dataExpiracao!).getTime();
+      if (!isNaN(expMs) && Date.now() >= expMs) return false;
+    }
+    if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
+      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      if (!isNaN(atMs) && Date.now() >= (atMs + thirtyDaysMs)) return false;
+    }
+    return true;
+  }, [currentUser, isSeloExpired]);
+
+  const seloDaysRemaining = React.useMemo<number>(() => {
+    if (!currentUser) return 0;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
+    ) {
+      return 30;
+    }
+
+    if (isSeloExpired) return 0;
+    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
+    if (!hasSeloFlag || currentUser.statusSelo === 'expirado') return 0;
+
+    let targetUntilMs: number | null = null;
+    if (currentUser.verifiedUntil) {
+      targetUntilMs = new Date(currentUser.verifiedUntil).getTime();
+    } else if (currentUser.subscriptionExpiresAt || currentUser.dataExpiracao) {
+      targetUntilMs = new Date(currentUser.subscriptionExpiresAt || currentUser.dataExpiracao!).getTime();
+    } else if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
+      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
+      targetUntilMs = atMs + 30 * 24 * 60 * 60 * 1000;
+    }
+
+    if (!targetUntilMs) return 0;
+    const diffMs = targetUntilMs - Date.now();
+    if (diffMs <= 0) return 0;
+    return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+  }, [currentUser, isSeloExpired]);
+
+  const temSeloMZ = React.useMemo<boolean>(() => {
+    if (isSeloExpired) return false;
+    return isSeloValid;
+  }, [isSeloValid, isSeloExpired]);
+
+  const statusSelo = React.useMemo<'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado' | 'expirado'>(() => {
+    if (!currentUser) return 'nenhum';
+    if (isSeloExpired) return 'expirado';
+    if (isSeloValid) return 'aprovado';
+    return (currentUser.statusSelo as any) || 'nenhum';
+  }, [currentUser, isSeloValid, isSeloExpired]);
+
+  // 3. Teste Grátis (3 Dias)
+  const isTrialActive = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    return currentUser.isTrialActive === true;
+  }, [currentUser]);
+
+  const trialDaysRemaining = React.useMemo<number>(() => {
+    if (!currentUser) return 0;
+    if (currentUser.isTrialActive !== true) return 0;
+    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
+    const diffMs = (createdMs + THREE_DAYS_MS) - Date.now();
+    if (diffMs <= 0) return 0;
+    return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+  }, [currentUser]);
+
+  const isTrialValid = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return true;
+    }
+    if (currentUser.isTrialActive !== true) return false;
+    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
+    const elapsedMs = Math.max(0, Date.now() - createdMs);
+    return elapsedMs <= THREE_DAYS_MS;
+  }, [currentUser]);
+
+  const isTrialExpired = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return false;
+    }
+    if (currentUser.isTrialActive !== true) return true;
+    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
+    const elapsedMs = Math.max(0, Date.now() - createdMs);
+    return elapsedMs > THREE_DAYS_MS;
+  }, [currentUser]);
+
+  // 4. Assinatura Ativa (Quando expirar os 30 dias, perde o selo e a assinatura NÃO continua ativa)
   const isSubscriptionActive = React.useMemo(() => {
     if (!currentUser) return false;
-    // Super Admins and Admins bypass paywall
+    // Super Admins e Admins possuem acesso irrestrito
     if (
       currentUser.role === 'super_admin' ||
       currentUser.role === 'admin' ||
@@ -2853,26 +3039,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
-    // Selo MZ active unlocks full platform features
-    if (currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado') {
+    // Regra Estrita: Se o Selo ou a assinatura expirou os 30 dias, a conta NÃO CONTINUA ATIVA
+    if (isSeloExpired) {
+      return false;
+    }
+
+    // Selo MZ aprovado e com prazo vigente desbloqueia a assinatura
+    if (isSeloValid) {
       return true;
     }
 
-    // Free Trial (3 Dias): isTrialActive === true E tempo decorrido <= 259.200.000 ms
-    // Libera acesso total (Sara IA, ferramentas, mural)
-    if (currentUser.isTrialActive === true) {
-      const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
-      const elapsedMs = Math.max(0, Date.now() - createdMs);
-      if (elapsedMs <= THREE_DAYS_MS) {
-        return true;
-      }
+    // Free Trial de 3 dias ainda dentro do prazo
+    if (isTrialValid) {
+      return true;
     }
 
-    // Check statusAssinatura or subscriptionStatus
+    // Checagem de status explícito de assinatura e data de expiração
     const status = (currentUser.statusAssinatura || currentUser.subscriptionStatus || '').toLowerCase();
     if (status === 'ativa' || status === 'active') {
       const expStr = currentUser.dataExpiracao || currentUser.subscriptionExpiresAt;
-      if (!expStr) return true;
+      if (!expStr) return false;
       const expTime = new Date(expStr).getTime();
       if (!isNaN(expTime) && expTime > Date.now()) {
         return true;
@@ -2880,7 +3066,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return false;
-  }, [currentUser]);
+  }, [currentUser, isSeloExpired, isSeloValid, isTrialValid]);
+
+  // 5. Estado Ativo da Conta e Rótulo (ex: "Sessão Ativa" vs "NÃO ATIVA" / "Sessão expirada")
+  const isAccountActive = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return true;
+    }
+    if (currentUser.role === 'client' || currentUser.tipoConta === 'cliente') {
+      return currentUser.status !== 'blocked' && currentUser.statusConta !== 'bloqueada';
+    }
+    // Para técnicos e empresas:
+    if (isSeloExpired) return false;
+    return isSeloValid || isSubscriptionActive || isTrialValid;
+  }, [currentUser, isSeloExpired, isSeloValid, isSubscriptionActive, isTrialValid]);
+
+  const accountStatusLabel = React.useMemo<string>(() => {
+    if (!currentUser) return '';
+    if (isSeloExpired) return 'NÃO ATIVA (Sessão Expirada)';
+    if (currentUser.status === 'blocked' || currentUser.statusConta === 'bloqueada') return 'Bloqueada';
+    if (isAccountActive) return 'Sessão Ativa';
+    return 'NÃO ATIVA';
+  }, [currentUser, isSeloExpired, isAccountActive]);
+
+  // 6. Regra de Acesso Geral à Plataforma
+  const hasAccess = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin' ||
+      currentUser.role === 'client' ||
+      currentUser.tipoConta === 'cliente'
+    ) {
+      return true;
+    }
+    if (isSeloExpired) return false;
+    return isSeloValid || isTrialValid || isSubscriptionActive;
+  }, [currentUser, isSeloExpired, isSeloValid, isTrialValid, isSubscriptionActive]);
+
+  const isRestrictedTechnician = React.useMemo<boolean>(() => {
+    if (!currentUser) return false;
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return false;
+    }
+    const isTech = currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician';
+    if (!isTech) return false;
+    return !hasAccess;
+  }, [currentUser, hasAccess]);
 
   const activePlanTier = React.useMemo<'basico' | 'profissional' | 'empresa_vip' | null>(() => {
     if (!currentUser) return null;
@@ -3015,185 +3257,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const isCompany = currentUser?.tipoConta === 'empresa' || currentUser?.role === 'company' || (currentUser?.role as any) === 'empresa';
-  const isTechnician = !isCompany && (currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician' || (currentUser?.role as any) === 'tecnico');
-  const isClient = !isCompany && !isTechnician && (currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client' || (currentUser?.role as any) === 'cliente');
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
-  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.adminSubRole === 'super_admin';
-  const isFinanceAdmin = isSuperAdmin || currentUser?.adminSubRole === 'finance_admin';
-  const isModerator = isSuperAdmin || currentUser?.adminSubRole === 'moderator';
-
-  // =========================================================================
-  // SELO MZ CALCULATION, 30-DAY COUNTDOWN, 3-DAY TRIAL & ACCESS CONTROL
-  // =========================================================================
-
-  // 1. Selo MZ 30 Dias: Validade e Contagem Regressiva
-  const isSeloValid = React.useMemo<boolean>(() => {
-    if (!currentUser) return false;
-    if (
-      currentUser.role === 'super_admin' ||
-      currentUser.role === 'admin' ||
-      currentUser.adminSubRole === 'super_admin' ||
-      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
-    ) {
-      return true;
-    }
-
-    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
-    if (!hasSeloFlag) return false;
-
-    if (currentUser.statusSelo === 'expirado') return false;
-
-    // Checagem de expiração da data
-    if (currentUser.verifiedUntil) {
-      const untilMs = new Date(currentUser.verifiedUntil).getTime();
-      return Date.now() < untilMs;
-    }
-    if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
-      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-      return Date.now() < (atMs + thirtyDaysMs);
-    }
-    return true;
-  }, [currentUser]);
-
-  const seloDaysRemaining = React.useMemo<number>(() => {
-    if (!currentUser) return 0;
-    if (
-      currentUser.role === 'super_admin' ||
-      currentUser.role === 'admin' ||
-      currentUser.adminSubRole === 'super_admin' ||
-      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
-    ) {
-      return 30;
-    }
-
-    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
-    if (!hasSeloFlag || currentUser.statusSelo === 'expirado') return 0;
-
-    let targetUntilMs: number | null = null;
-    if (currentUser.verifiedUntil) {
-      targetUntilMs = new Date(currentUser.verifiedUntil).getTime();
-    } else if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
-      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
-      targetUntilMs = atMs + 30 * 24 * 60 * 60 * 1000;
-    }
-
-    if (!targetUntilMs) return 30;
-    const diffMs = targetUntilMs - Date.now();
-    if (diffMs <= 0) return 0;
-    return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
-  }, [currentUser]);
-
-  const isSeloExpired = React.useMemo<boolean>(() => {
-    if (!currentUser) return false;
-    if (
-      currentUser.role === 'super_admin' ||
-      currentUser.role === 'admin' ||
-      currentUser.adminSubRole === 'super_admin'
-    ) {
-      return false;
-    }
-    if (currentUser.statusSelo === 'expirado') return true;
-    if (currentUser.verifiedUntil) {
-      const untilMs = new Date(currentUser.verifiedUntil).getTime();
-      return Date.now() >= untilMs;
-    }
-    if (currentUser.verifiedAt || currentUser.dataSeloAprovacao) {
-      const atMs = new Date(currentUser.verifiedAt || currentUser.dataSeloAprovacao!).getTime();
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-      return Date.now() >= (atMs + thirtyDaysMs);
-    }
-    return false;
-  }, [currentUser]);
-
-  const temSeloMZ = React.useMemo<boolean>(() => {
-    return isSeloValid;
-  }, [isSeloValid]);
-
-  const statusSelo = React.useMemo<'nenhum' | 'pendente_aprovacao' | 'aprovado' | 'rejeitado' | 'expirado'>(() => {
-    if (!currentUser) return 'nenhum';
-    if (isSeloValid) return 'aprovado';
-    if (isSeloExpired) return 'expirado';
-    return (currentUser.statusSelo as any) || 'nenhum';
-  }, [currentUser, isSeloValid, isSeloExpired]);
-
-  // 2. Teste Grátis (3 Dias)
-  const isTrialActive = React.useMemo<boolean>(() => {
-    if (!currentUser) return false;
-    return currentUser.isTrialActive === true;
-  }, [currentUser]);
-
-  const trialDaysRemaining = React.useMemo<number>(() => {
-    if (!currentUser) return 0;
-    if (currentUser.isTrialActive !== true) return 0;
-    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
-    const diffMs = (createdMs + THREE_DAYS_MS) - Date.now();
-    if (diffMs <= 0) return 0;
-    return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
-  }, [currentUser]);
-
-  const isTrialValid = React.useMemo<boolean>(() => {
-    if (!currentUser) return false;
-    if (
-      currentUser.role === 'super_admin' ||
-      currentUser.role === 'admin' ||
-      currentUser.adminSubRole === 'super_admin'
-    ) {
-      return true;
-    }
-    if (currentUser.isTrialActive !== true) return false;
-    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
-    const elapsedMs = Math.max(0, Date.now() - createdMs);
-    return elapsedMs <= THREE_DAYS_MS;
-  }, [currentUser]);
-
-  const isTrialExpired = React.useMemo<boolean>(() => {
-    if (!currentUser) return false;
-    if (
-      currentUser.role === 'super_admin' ||
-      currentUser.role === 'admin' ||
-      currentUser.adminSubRole === 'super_admin'
-    ) {
-      return false;
-    }
-    if (currentUser.isTrialActive !== true) return true;
-    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
-    const elapsedMs = Math.max(0, Date.now() - createdMs);
-    return elapsedMs > THREE_DAYS_MS;
-  }, [currentUser]);
-
-  // 3. Regra de Acesso:
-  // "Acesso liberado se: isVerified === true OU (isTrialActive === true E tempo desde createdAt <= 3 dias)."
-  const hasAccess = React.useMemo<boolean>(() => {
-    if (!currentUser) return false;
-    if (
-      currentUser.role === 'super_admin' ||
-      currentUser.role === 'admin' ||
-      currentUser.adminSubRole === 'super_admin' ||
-      currentUser.role === 'client' ||
-      currentUser.tipoConta === 'cliente'
-    ) {
-      return true;
-    }
-    return isSeloValid || isTrialValid || isSubscriptionActive;
-  }, [currentUser, isSeloValid, isTrialValid, isSubscriptionActive]);
-
-  const isRestrictedTechnician = React.useMemo<boolean>(() => {
-    if (!currentUser) return false;
-    if (
-      currentUser.role === 'super_admin' ||
-      currentUser.role === 'admin' ||
-      currentUser.adminSubRole === 'super_admin'
-    ) {
-      return false;
-    }
-    const isTech = currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician';
-    if (!isTech) return false;
-    return !hasAccess;
-  }, [currentUser, hasAccess]);
-
-  // Auto-expiração do Selo MZ quando verifiedUntil for atingido
+  // Auto-expiração do Selo MZ e Assinatura quando expirar (30 dias)
   React.useEffect(() => {
     if (!currentUser?.uid) return;
     if (
@@ -3204,70 +3268,104 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    if (currentUser.verifiedUntil) {
-      const untilMs = new Date(currentUser.verifiedUntil).getTime();
-      if (Date.now() >= untilMs && (currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado')) {
-        const nowIso = new Date().toISOString();
-        setCurrentUser(prev =>
-          prev
+    if (
+      isSeloExpired &&
+      (currentUser.isVerified ||
+        currentUser.temSeloMZ ||
+        currentUser.statusSelo === 'aprovado' ||
+        currentUser.statusConta === 'ativa' ||
+        currentUser.statusAssinatura === 'ativa' ||
+        currentUser.subscriptionStatus === 'active')
+    ) {
+      const nowIso = new Date().toISOString();
+      setCurrentUser(prev =>
+        prev
+          ? {
+              ...prev,
+              isVerified: false,
+              temSeloMZ: false,
+              statusSelo: 'expirado',
+              statusConta: 'inativa',
+              statusAssinatura: 'expirada',
+              subscriptionStatus: 'expired',
+              updatedAt: nowIso
+            }
+          : null
+      );
+
+      setUsersList(prev =>
+        prev.map(u =>
+          u.uid === currentUser.uid
             ? {
-                ...prev,
+                ...u,
                 isVerified: false,
                 temSeloMZ: false,
                 statusSelo: 'expirado',
+                statusConta: 'inativa',
+                statusAssinatura: 'expirada',
+                subscriptionStatus: 'expired',
                 updatedAt: nowIso
               }
-            : null
-        );
+            : u
+        )
+      );
 
-        setUsersList(prev =>
-          prev.map(u =>
-            u.uid === currentUser.uid
-              ? {
-                  ...u,
-                  isVerified: false,
-                  temSeloMZ: false,
-                  statusSelo: 'expirado',
-                  updatedAt: nowIso
-                }
-              : u
-          )
-        );
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('tecnico_verificado', 'false');
+        } catch {}
+      }
 
-        if (isFirebaseConfigured && db) {
-          updateDoc(doc(db, 'users', currentUser.uid), {
-            isVerified: false,
-            temSeloMZ: false,
-            statusSelo: 'expirado',
-            updatedAt: nowIso
-          }).catch(() => {});
-          updateDoc(doc(db, 'technicians', currentUser.uid), {
-            isVerified: false,
-            temSeloMZ: false,
-            verificationStatus: 'none',
-            statusSelo: 'expirado',
-            updatedAt: nowIso
-          }).catch(() => {});
-          updateDoc(doc(db, 'companies', currentUser.uid), {
-            isVerified: false,
-            temSeloMZ: false,
-            verificationStatus: 'unverified',
-            statusSelo: 'expirado',
-            updatedAt: nowIso
-          }).catch(() => {});
-        }
+      if (isFirebaseConfigured && db) {
+        updateDoc(doc(db, 'users', currentUser.uid), {
+          isVerified: false,
+          temSeloMZ: false,
+          statusSelo: 'expirado',
+          statusConta: 'inativa',
+          statusAssinatura: 'expirada',
+          subscriptionStatus: 'expired',
+          updatedAt: nowIso
+        }).catch(() => {});
+        updateDoc(doc(db, 'technicians', currentUser.uid), {
+          isVerified: false,
+          temSeloMZ: false,
+          verificationStatus: 'none',
+          statusSelo: 'expirado',
+          statusConta: 'inativa',
+          subscriptionStatus: 'expired',
+          updatedAt: nowIso
+        }).catch(() => {});
+        updateDoc(doc(db, 'companies', currentUser.uid), {
+          isVerified: false,
+          temSeloMZ: false,
+          verificationStatus: 'unverified',
+          statusSelo: 'expirado',
+          statusConta: 'inativa',
+          subscriptionStatus: 'expired',
+          updatedAt: nowIso
+        }).catch(() => {});
       }
     }
-  }, [currentUser?.uid, currentUser?.verifiedUntil, currentUser?.isVerified, currentUser?.temSeloMZ, currentUser?.statusSelo]);
+  }, [
+    currentUser?.uid,
+    isSeloExpired,
+    currentUser?.isVerified,
+    currentUser?.temSeloMZ,
+    currentUser?.statusSelo,
+    currentUser?.statusConta,
+    currentUser?.statusAssinatura,
+    currentUser?.subscriptionStatus
+  ]);
 
   // Sincronização automática com a chave 'tecnico_verificado' no localStorage
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('tecnico_verificado', hasAccess ? 'true' : 'false');
+        const isVerificado = Boolean(temSeloMZ && !isSeloExpired && hasAccess);
+        localStorage.setItem('tecnico_verificado', isVerificado ? 'true' : 'false');
       } catch {}
     }
-  }, [hasAccess]);
+  }, [temSeloMZ, isSeloExpired, hasAccess]);
 
   // SELO MZ ACTIONS
   const solicitarSeloMZ = async (
@@ -3582,6 +3680,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         statusSelo,
         seloDaysRemaining,
         isSeloExpired,
+        isAccountActive,
+        accountStatusLabel,
         isTrialActive,
         trialDaysRemaining,
         isTrialValid,
