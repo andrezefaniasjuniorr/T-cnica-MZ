@@ -117,14 +117,11 @@ export default defineConfig(() => {
           id: '/',
           name: 'TécnicaMZ Pro',
           short_name: 'TécnicaMZ',
-          description: 'Plataforma Técnica Eletrotécnica & Engenharia em Moçambique',
-          start_url: '/',
-          scope: '/',
           display: 'standalone',
-          display_override: ['standalone', 'fullscreen', 'window-controls-overlay'],
-          orientation: 'portrait-primary',
-          background_color: '#080F1E',
+          scope: '/',
+          start_url: '/',
           theme_color: '#080F1E',
+          background_color: '#080F1E',
           icons: [
             {
               src: '/icon-192.png?v=round6',
