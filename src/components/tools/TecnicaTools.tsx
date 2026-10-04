@@ -59,10 +59,63 @@ interface TecnicaToolsProps {
 
 export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => {
   const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
-  const hasOSAccess = isAdmin || (!isTechnician && !isCompany) || temSeloMZ || isSubscriptionActive;
+  
+  // Leitura do DataContext (onde ficam os dados aprovados pelo Admin)
+  const dataContext = useData() as any;
+  const techniciansList = (dataContext?.technicians || dataContext?.tecnicos || []) as any[];
+
+  // Localiza o perfil técnico do usuário logado
+  const currentTech = techniciansList.find((t: any) => {
+    const userId = currentUser?.id || (currentUser as any)?.uid;
+    const userEmail = currentUser?.email?.toLowerCase();
+    return (
+      (userId && (t.id === userId || t.userId === userId || t.uid === userId)) ||
+      (userEmail && t.email?.toLowerCase() === userEmail)
+    );
+  });
+
+  // Checagem universal do Selo (AuthContext + DataContext + Admin + Banco de Dados)
+  const hasSeloApproved = Boolean(
+    temSeloMZ ||
+    (currentUser as any)?.temSeloMZ ||
+    (currentUser as any)?.hasSelo ||
+    (currentUser as any)?.selo ||
+    (currentUser as any)?.isVerified ||
+    (currentUser as any)?.seloStatus === 'aprovado' ||
+    (currentUser as any)?.statusSelo === 'aprovado' ||
+    currentTech?.temSeloMZ ||
+    currentTech?.hasSelo ||
+    currentTech?.selo ||
+    currentTech?.isVerified ||
+    currentTech?.seloVerificado ||
+    currentTech?.seloStatus === 'aprovado' ||
+    currentTech?.statusSelo === 'aprovado' ||
+    isAdmin ||
+    (!isTechnician && !isCompany) ||
+    isSubscriptionActive ||
+    (() => {
+      try {
+        return localStorage.getItem('tecnico_verificado') === 'true' || localStorage.getItem('selo_mz_active') === 'true';
+      } catch {
+        return false;
+      }
+    })()
+  );
+
+  const isTecnicoVerificado = hasSeloApproved;
+  const hasOSAccess = hasSeloApproved;
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  // Filtros de busca rápida e abas por categoria
+  // Sincroniza o localStorage
+  useEffect(() => {
+    if (hasSeloApproved) {
+      try {
+        localStorage.setItem('tecnico_verificado', 'true');
+        localStorage.setItem('selo_mz_active', 'true');
+      } catch {}
+    }
+  }, [hasSeloApproved]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'todas' | 'existentes' | 'faturamento' | 'tecnica' | 'gestao' | 'comunidade'>('todas');
   const [activeKitProModal, setActiveKitProModal] = useState<KitProModalId>(null);
@@ -84,7 +137,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const [osClientName, setOsClientName] = useState('');
   const [osClientPhone, setOsClientPhone] = useState('');
   const [osClientAddress, setOsClientAddress] = useState('Maputo');
-  const [osTechnicianName, setOsTechnicianName] = useState(currentUser?.name || 'Técnico Especialista');
+  const [osTechnicianName, setOsTechnicianName] = useState(currentUser?.name || currentTech?.name || 'Técnico Especialista');
   const [osTechnicianNuit, setOsTechnicianNuit] = useState('100458921');
   const [osServiceType, setOsServiceType] = useState('Instalação e Manutenção Técnica');
   const [osDescription, setOsDescription] = useState('');
@@ -147,7 +200,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const [hasDeviceMotion, setHasDeviceMotion] = useState<boolean>(false);
   const [permissionRequired, setPermissionRequired] = useState<boolean>(false);
 
-  // Manual simulator / touch controls
   const [simulatedPitch, setSimulatedPitch] = useState<number>(0);
   const [simulatedRoll, setSimulatedRoll] = useState<number>(0);
   const [useSimulation, setUseSimulation] = useState<boolean>(false);
@@ -394,16 +446,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const pumpPowerHp = Number((pumpPowerKw * 1.341).toFixed(2));
   const solarPanelsKwpForPump = Number((pumpPowerKw * 1.4).toFixed(2));
 
-  // Checagem de verificação no localStorage: 'tecnico_verificado' (booleano)
-  const isTecnicoVerificado = (() => {
-    try {
-      return localStorage.getItem('tecnico_verificado') === 'true';
-    } catch {
-      return false;
-    }
-  })();
-
-  // SE NÃO FOR VERIFICADO: Mantém o card estático explicativo no fundo SEM renderizar o <SeloMZModal> duplicado
+  // SE NÃO FOR VERIFICADO: Exibe tela informativa
   if (!isTecnicoVerificado) {
     return (
       <div id="screen-ferramentas" className="screen-ferramentas active min-h-screen bg-slate-900/5 py-12 px-3 sm:px-6 flex flex-col items-center justify-center">

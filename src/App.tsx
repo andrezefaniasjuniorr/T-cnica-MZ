@@ -170,6 +170,25 @@ const AppContent: React.FC = () => {
     )
   );
 
+  // Verificação unificada do Selo MZ em todos os pontos
+  const hasValidSelo = Boolean(
+    (temSeloMZ && !isSeloExpired) ||
+    (currentUser as any)?.temSeloMZ ||
+    (currentUser as any)?.hasSelo ||
+    (currentUser as any)?.selo ||
+    (currentUser as any)?.isVerified ||
+    (currentUser as any)?.seloStatus === 'aprovado' ||
+    (currentUser as any)?.statusSelo === 'aprovado' ||
+    isAdmin ||
+    (() => {
+      try {
+        return localStorage.getItem('tecnico_verificado') === 'true' || localStorage.getItem('selo_mz_active') === 'true';
+      } catch {
+        return false;
+      }
+    })()
+  );
+
   // Trava anti-duplicidade em milissegundos para evitar abertura de segunda janela concorrente
   const lastSeloModalOpenTimeRef = useRef<number>(0);
 
@@ -179,7 +198,7 @@ const AppContent: React.FC = () => {
       setIsAccessDeniedOpen(true);
       return;
     }
-    if ((!temSeloMZ || isSeloExpired) && !isAdmin) {
+    if (!hasValidSelo && !isAdmin) {
       const now = Date.now();
       if (now - lastSeloModalOpenTimeRef.current > 500) {
         lastSeloModalOpenTimeRef.current = now;
@@ -423,15 +442,9 @@ const AppContent: React.FC = () => {
     const syncTab = () => {
       const detected = resolveTabFromLocation();
 
-      // Interceptação segura de tools: se não tiver selo, reverte o hash para evitar loop de reabertura
+      // Interceptação segura de tools
       if (detected === 'tools') {
-        let isVerificado = false;
-        try {
-          isVerificado = localStorage.getItem('tecnico_verificado') === 'true';
-        } catch {}
-
-        if ((!isVerificado || !temSeloMZ || isSeloExpired) && !isAdmin) {
-          // Reverte o hash da URL para #feed imediatamente para não reabrir ao fechar o modal
+        if (!hasValidSelo && !isAdmin) {
           try {
             window.history.replaceState({ tab: 'community' }, '', '#feed');
           } catch {}
@@ -506,7 +519,7 @@ const AppContent: React.FC = () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, [temSeloMZ, isSeloExpired, isAdmin]);
+  }, [hasValidSelo, isAdmin]);
 
   // 2. Dynamic Redirection upon Login and Session Refresh (F5)
   useEffect(() => {
@@ -655,13 +668,7 @@ const AppContent: React.FC = () => {
 
     // Interceptação única e limpa de Ferramentas
     if (targetTab === 'tools') {
-      let isVerificado = false;
-      try {
-        isVerificado = localStorage.getItem('tecnico_verificado') === 'true';
-      } catch {}
-
-      if ((!isVerificado || !temSeloMZ || isSeloExpired) && !isAdmin) {
-        // Garante que o hash não fique preso em #tools
+      if (!hasValidSelo && !isAdmin) {
         try {
           window.history.replaceState({ tab: activeTab }, '', `#${activeTab === 'community' ? 'feed' : activeTab}`);
         } catch {}
@@ -672,7 +679,7 @@ const AppContent: React.FC = () => {
           setSeloFeatureName('Ferramentas & Recursos');
           setIsSeloModalOpen(true);
         }
-        return; // Interrompe imediatamente sem abrir segunda janela
+        return;
       }
     }
 
