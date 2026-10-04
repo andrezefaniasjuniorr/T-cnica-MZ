@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -170,6 +170,9 @@ const AppContent: React.FC = () => {
     )
   );
 
+  // Trava anti-duplicidade em milissegundos para evitar abertura de segunda janela concorrente
+  const lastSeloModalOpenTimeRef = useRef<number>(0);
+
   const handleOpenSaraAi = () => {
     if (isClientUser) {
       setRequiredRoleForDenied('technician');
@@ -177,12 +180,18 @@ const AppContent: React.FC = () => {
       return;
     }
     if ((!temSeloMZ || isSeloExpired) && !isAdmin) {
-      setSeloFeatureName('Eng. Sara IA');
-      setIsSeloModalOpen(true);
+      const now = Date.now();
+      if (now - lastSeloModalOpenTimeRef.current > 500) {
+        lastSeloModalOpenTimeRef.current = now;
+        setSeloFeatureName('Eng. Sara IA');
+        setIsSeloModalOpen(true);
+      }
       return;
     }
     if (isTechnicianUser) {
-      soundFX.playModalOpen();
+      try {
+        soundFX?.playModalOpen?.();
+      } catch {}
       setIsSaraAiOpen(true);
     } else {
       setRequiredRoleForDenied('technician');
@@ -282,7 +291,7 @@ const AppContent: React.FC = () => {
 
   // Selo MZ Interception Modal State
   const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
-  const [seloFeatureName, setSeloFeatureName] = useState('Simulador CAD Interativo');
+  const [seloFeatureName, setSeloFeatureName] = useState('Ferramentas & Recursos');
 
   // Hydration on boot
   useEffect(() => {
@@ -368,12 +377,17 @@ const AppContent: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Event listeners for Selo MZ modal and tab navigation
+  // Event listeners for Selo MZ modal and tab navigation (com proteção anti-duplicação)
   useEffect(() => {
     const handleOpen = (e: any) => {
-      setSeloFeatureName(e.detail?.featureName || 'Simulador CAD Interativo');
+      const now = Date.now();
+      if (now - lastSeloModalOpenTimeRef.current < 500) return;
+      lastSeloModalOpenTimeRef.current = now;
+
+      setSeloFeatureName(e.detail?.featureName || 'Ferramentas & Recursos');
       setIsSeloModalOpen(true);
     };
+
     const handleClose = () => {
       dismissModalWithoutHistory('selo_mz_modal');
       setIsSeloModalOpen(false);
@@ -408,17 +422,30 @@ const AppContent: React.FC = () => {
 
     const syncTab = () => {
       const detected = resolveTabFromLocation();
+
+      // Interceptação segura de tools: se não tiver selo, reverte o hash para evitar loop de reabertura
       if (detected === 'tools') {
         let isVerificado = false;
         try {
           isVerificado = localStorage.getItem('tecnico_verificado') === 'true';
         } catch {}
-        if (!isVerificado) {
-          setSeloFeatureName('Ferramentas & Recursos');
-          setIsSeloModalOpen(true);
+
+        if ((!isVerificado || !temSeloMZ || isSeloExpired) && !isAdmin) {
+          // Reverte o hash da URL para #feed imediatamente para não reabrir ao fechar o modal
+          try {
+            window.history.replaceState({ tab: 'community' }, '', '#feed');
+          } catch {}
+
+          const now = Date.now();
+          if (now - lastSeloModalOpenTimeRef.current > 500) {
+            lastSeloModalOpenTimeRef.current = now;
+            setSeloFeatureName('Ferramentas & Recursos');
+            setIsSeloModalOpen(true);
+          }
           return;
         }
       }
+
       if (detected) {
         setActiveTab(detected);
         try {
@@ -479,7 +506,7 @@ const AppContent: React.FC = () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, []);
+  }, [temSeloMZ, isSeloExpired, isAdmin]);
 
   // 2. Dynamic Redirection upon Login and Session Refresh (F5)
   useEffect(() => {
@@ -513,7 +540,6 @@ const AppContent: React.FC = () => {
       }
     }
 
-    // Se a aba atual for 'settings', JAMAIS sobrescrever para 'technician' ou 'client'
     if (activeTab === 'settings') {
       return;
     }
@@ -615,7 +641,6 @@ const AppContent: React.FC = () => {
     if (tab === 'feed' || tab === 'mural') targetTab = 'community';
     if (tab === 'gestao-pro-mz' || tab === 'admin') targetTab = 'gestao-pro-mz';
 
-    // Roteamento imediato e seguro para as Definições do Selo MZ
     if (targetTab === 'settings') {
       handleNavigateToSettings((subTab as any) || 'selo_mz');
       return;
@@ -628,6 +653,7 @@ const AppContent: React.FC = () => {
       return;
     }
 
+    // Interceptação única e limpa de Ferramentas
     if (targetTab === 'tools') {
       let isVerificado = false;
       try {
@@ -635,9 +661,18 @@ const AppContent: React.FC = () => {
       } catch {}
 
       if ((!isVerificado || !temSeloMZ || isSeloExpired) && !isAdmin) {
-        setSeloFeatureName('Ferramentas & Recursos');
-        setIsSeloModalOpen(true);
-        return;
+        // Garante que o hash não fique preso em #tools
+        try {
+          window.history.replaceState({ tab: activeTab }, '', `#${activeTab === 'community' ? 'feed' : activeTab}`);
+        } catch {}
+
+        const now = Date.now();
+        if (now - lastSeloModalOpenTimeRef.current > 500) {
+          lastSeloModalOpenTimeRef.current = now;
+          setSeloFeatureName('Ferramentas & Recursos');
+          setIsSeloModalOpen(true);
+        }
+        return; // Interrompe imediatamente sem abrir segunda janela
       }
     }
 
@@ -994,10 +1029,13 @@ const AppContent: React.FC = () => {
         onOpenAuth={() => handleNavigate('settings')}
       />
 
-      {/* Modal Bloqueio: Selo MZ Necessário */}
+      {/* Modal Bloqueio: Selo MZ Necessário (Única Janela Oficial) */}
       <SeloMZModal
         isOpen={isSeloModalOpen}
-        onClose={() => setIsSeloModalOpen(false)}
+        onClose={() => {
+          dismissModalWithoutHistory('selo_mz_modal');
+          setIsSeloModalOpen(false);
+        }}
         onGoToSeloSettings={() => {
           handleNavigateToSettings('selo_mz');
         }}
