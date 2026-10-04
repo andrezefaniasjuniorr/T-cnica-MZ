@@ -1,13 +1,18 @@
-import React, { useEffect } from 'react';
-import { useModalHistory } from '../../utils/modalHistory';
+import React, { useEffect, useCallback } from 'react';
 import {
-  Shield,
   ShieldCheck,
-  Check,
+  X,
   Lock,
   ArrowRight,
-  X
+  CheckCircle2,
+  Zap,
+  Sparkles,
+  Layers,
+  Wrench,
+  Users
 } from 'lucide-react';
+import { useModalHistory, dismissModalWithoutHistory } from '../../utils/modalHistory';
+import { soundFX } from '../../utils/audio';
 
 interface SeloMZModalProps {
   isOpen: boolean;
@@ -20,166 +25,176 @@ export const SeloMZModal: React.FC<SeloMZModalProps> = ({
   isOpen,
   onClose,
   onGoToSeloSettings,
-  featureName = "Ferramentas & Recursos"
+  featureName = 'Simulador CAD Interativo'
 }) => {
-  useModalHistory(isOpen, 'selo_mz_modal', onClose);
+  const handleCloseModal = useCallback(() => {
+    try {
+      soundFX?.playModalClose?.();
+    } catch {}
+    onClose();
+  }, [onClose]);
 
+  useModalHistory(isOpen, 'selo_mz_modal', handleCloseModal);
+
+  // Trava de rolagem suave do fundo enquanto o modal estiver aberto
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
+    if (!isOpen || typeof document === 'undefined') return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const displayName = featureName && featureName.trim() ? featureName.trim() : 'Simulador CAD Interativo';
+  const displayUpper = displayName.toUpperCase();
+
+  const handleConfirmGoToSettings = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      soundFX?.playClick?.();
+    } catch {}
+
+    // Desativa a entrada do modal no histórico para não dar "history.back" ao mudar de aba
+    try {
+      dismissModalWithoutHistory('selo_mz_modal');
+    } catch {}
+
+    onGoToSeloSettings();
+  };
+
   return (
     <div
-      id="modal-selo-mz-overlay"
-      className="modal-useful-fullscreen-overlay z-[9999] transition-opacity duration-150"
+      id="selo_mz_modal_overlay"
+      className="fixed inset-0 z-[100000] flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) {
+          handleCloseModal();
+        }
       }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="titulo-modal-selo"
     >
       <div
-        id="modal-selo-mz-container"
-        className="modal-useful-fullscreen-window bg-white text-slate-900 transition-transform duration-150"
+        id="selo_mz_modal_window"
+        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 max-h-[92vh]"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* ======================================================== */}
-        {/* 1. CABEÇALHO GRADIENTE AZUL (COMPACTO) */}
-        {/* ======================================================== */}
-        <div className="relative bg-gradient-to-r from-blue-900 via-blue-700 to-indigo-800 px-4 py-3.5 sm:px-5 sm:py-4 text-white rounded-none shrink-0 sticky top-0 z-10">
-          {/* Botão "X" de fechar no canto superior direito */}
-          <button
-            id="btn-fechar-modal-selo"
-            type="button"
-            onClick={onClose}
-            className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center transition cursor-pointer active:scale-95"
-            aria-label="Fechar"
-          >
-            <X className="w-4 h-4" />
-          </button>
-
-          <div className="flex items-center gap-3 pr-6">
-            {/* Ícone de Escudo Dourado à esquerda */}
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-950/50 border-2 border-amber-400 shadow-md shadow-amber-400/25 flex items-center justify-center text-amber-400 shrink-0">
-              <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 fill-amber-400/20" />
+        {/* Cabeçalho Azul com Selo Oficial e Botão X */}
+        <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white p-5 sm:p-6 flex items-start justify-between relative shrink-0 shadow-md">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-lg shadow-amber-400/20 border-2 border-white/30">
+              <ShieldCheck className="w-7 h-7 stroke-[2.5]" />
             </div>
 
             <div className="min-w-0">
-              {/* Badge dourado: "✨ VERIFICAÇÃO OFICIAL TÉCNICAMZ" */}
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-300/50 text-amber-300 text-[9px] font-black uppercase tracking-wider">
-                <span>✨</span>
-                <span>VERIFICAÇÃO OFICIAL TÉCNICAMZ</span>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] tracking-wider uppercase">
+                  VERIFICAÇÃO OFICIAL TÉCNICAMZ
+                </span>
               </div>
-              {/* Título: "Selo MZ Necessário" */}
-              <h2 id="titulo-modal-selo" className="text-lg sm:text-xl font-black tracking-tight text-white leading-tight mt-0.5">
+              <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1 truncate">
                 Selo MZ Necessário
               </h2>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleCloseModal}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer shrink-0 ml-2"
+            title="Fechar (X)"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* ======================================================== */}
-        {/* 2. CORPO CLEAN (COMPACTO & OTIMIZADO PARA MOBILE) */}
-        {/* ======================================================== */}
-        <div className="p-3.5 sm:p-4.5 space-y-2.5 sm:space-y-3 overflow-y-auto">
-          {/* Alerta Amarelo/Laranja: Ícone de cadeado + ACESSO RESTRITO */}
-          <div className="p-2.5 sm:p-3 rounded-xl bg-amber-50 border border-amber-200/90 text-amber-950 flex items-start gap-2.5">
-            <div className="p-1 rounded-lg bg-amber-100/90 text-amber-700 shrink-0 mt-0.5">
-              <Lock className="w-3.5 h-3.5" />
+        {/* Corpo com rolagem interna */}
+        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-slate-700">
+          {/* Caixa Amarela de Acesso Restrito com o nome dinâmico */}
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 space-y-1.5 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+              <h4 className="font-black text-xs uppercase tracking-wider text-amber-900">
+                ACESSO RESTRITO A '{displayUpper}'
+              </h4>
             </div>
-            <div className="min-w-0">
-              <h3 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wide text-amber-900 leading-tight">
-                ACESSO RESTRITO A &apos;{featureName.toUpperCase()}&apos;
-              </h3>
-              <p className="text-[11px] sm:text-xs font-semibold text-amber-900/90 mt-0.5 leading-snug">
-                Ative o seu <strong className="text-amber-950 font-black underline decoration-amber-400 decoration-2">Selo MZ</strong> nas Definições da sua conta para liberar todas as ferramentas, solicitações de clientes e a Sara IA!
-              </p>
-            </div>
-          </div>
-
-          {/* Lista de Benefícios (Cards finos com check verde ✓) */}
-          <div>
-            <p className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-              O QUE VOCÊ DESBLOQUEIA COM O SELO MZ:
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Ative o seu <strong className="text-amber-950 font-black">Selo MZ</strong> nas Definições da sua conta para liberar todas as ferramentas, solicitações de clientes, o <strong>{displayName}</strong> e a Sara IA!
             </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50/80 border border-slate-200/80 text-[11px] leading-tight">
-                <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                </span>
-                <span className="font-bold text-slate-800">Publicar no Mural & Mercado</span>
+          </div>
+
+          {/* O que você desbloqueia com o Selo MZ */}
+          <div className="space-y-2 pt-1">
+            <h5 className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+              O QUE VOCÊ DESBLOQUEIA COM O SELO MZ:
+            </h5>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2 font-bold text-slate-800">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Publicar no Mural & Mercado</span>
               </div>
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50/80 border border-slate-200/80 text-[11px] leading-tight">
-                <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                </span>
-                <span className="font-bold text-slate-800">Solicitações & Contatos</span>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2 font-bold text-slate-800">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Solicitações & Contatos</span>
               </div>
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50/80 border border-slate-200/80 text-[11px] leading-tight">
-                <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                </span>
-                <span className="font-bold text-slate-800">Status & Histórias 24h</span>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2 font-bold text-slate-800">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Status & Histórias 24h</span>
               </div>
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50/80 border border-slate-200/80 text-[11px] leading-tight">
-                <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                </span>
-                <span className="font-bold text-slate-800">Ferramentas & Calculadoras</span>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2 font-bold text-slate-800">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Ferramentas & Calculadoras</span>
               </div>
-              <div className="col-span-2 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50/80 border border-slate-200/80 text-[11px] leading-tight">
-                <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                </span>
-                <span className="font-bold text-slate-800">Sara IA: Engenharia, Dimensionamento & Foto Análise</span>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2 font-bold text-slate-800 sm:col-span-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{displayName}: Bancada de Testes, Diagramas & Simulação IEC</span>
               </div>
             </div>
           </div>
 
-          {/* Banner de Taxa: Card azul claro com 50 MT + Tag "Liberação Rápida" */}
-          <div className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl bg-blue-50/80 border border-blue-200/90 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold text-blue-950 uppercase tracking-tight">Taxa Única de Ativação do Selo</p>
-              <p className="text-xs sm:text-sm font-black text-blue-700 leading-tight">
-                50 MT <span className="text-[10px] font-normal text-slate-600">via M-Pesa ou e-Mola</span>
+          {/* Faixa de Valor da Taxa Oficial */}
+          <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-blue-900">
+                TAXA ÚNICA DE ATIVAÇÃO DO SELO
+              </p>
+              <p className="text-sm font-black text-blue-950 mt-0.5">
+                50 MT <span className="text-xs font-normal text-slate-600">via M-Pesa ou e-Mola</span>
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-blue-600 text-white text-[9.5px] sm:text-[10px] font-black tracking-tight shrink-0 shadow-xs">
+
+            <span className="px-3 py-1 rounded-full bg-blue-600 text-white font-black text-[11px] shadow-sm">
               Liberação Rápida
             </span>
           </div>
 
-          {/* ======================================================== */}
-          {/* 3. BOTÕES DE AÇÃO (RESPOSTA INSTANTÂNEA COM 1 CLIQUE) */}
-          {/* ======================================================== */}
-          <div className="flex flex-col gap-1.5 pt-0.5">
-            {/* Botão Azul Principal: "🛡️ Ativar Selo MZ nas Definições ➔" */}
+          {/* Botões de Ação */}
+          <div className="pt-2 space-y-2">
             <button
-              id="btn-ativar-selo-modal"
               type="button"
-              onClick={() => {
-                onClose();
-                onGoToSeloSettings();
-              }}
-              className="w-full py-2.5 sm:py-3 px-3 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs sm:text-[13px] font-black flex items-center justify-center gap-2 shadow-md shadow-blue-600/30 transition cursor-pointer active:scale-[0.98]"
+              onClick={handleConfirmGoToSettings}
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-blue-600/30 active:scale-98 transition cursor-pointer"
             >
-              <Shield className="w-4 h-4 shrink-0 text-amber-300 fill-amber-300/30" />
+              <ShieldCheck className="w-4 h-4 text-amber-300" />
               <span>Ativar Selo MZ nas Definições</span>
-              <ArrowRight className="w-4 h-4 shrink-0 ml-1" />
+              <ArrowRight className="w-4 h-4" />
             </button>
 
-            {/* Botão Secundário: "Talvez depois" */}
             <button
-              id="btn-fechar-modal-depois"
               type="button"
-              onClick={onClose}
-              className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-[11px] sm:text-xs font-bold transition cursor-pointer active:scale-[0.98] text-center"
+              onClick={handleCloseModal}
+              className="w-full py-2.5 text-slate-500 hover:text-slate-800 font-bold text-xs transition cursor-pointer text-center"
             >
               Talvez depois
             </button>
@@ -190,4 +205,4 @@ export const SeloMZModal: React.FC<SeloMZModalProps> = ({
   );
 };
 
-
+export default SeloMZModal;

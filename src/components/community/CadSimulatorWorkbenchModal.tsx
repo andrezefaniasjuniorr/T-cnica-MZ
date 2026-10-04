@@ -6,6 +6,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CadCircuitProject } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { SeloMZModal } from '../common/SeloMZModal';
 import { soundFX } from '../../utils/audio';
 import {
   COMPONENT_CATALOG,
@@ -129,6 +131,16 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   currentUser,
   temSeloMZ = false
 }) => {
+  const { temSeloMZ: authTemSelo, isSeloExpired, isTrialValid, isAdmin } = useAuth();
+  const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
+
+  // Apenas quem tiver selo válido OU estiver dentro dos 3 dias grátis pode testar circuito
+  const hasSimulatorAccess = Boolean(
+    isAdmin ||
+    ((temSeloMZ || authTemSelo) && !isSeloExpired) ||
+    isTrialValid
+  );
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const svgGroupRef = useRef<SVGGElement | null>(null);
   const scopeCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -408,7 +420,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     };
   }, []);
 
-  // FUNÇÃO DE ROTAÇÃO DA TELA (MOBILE LANDSCAPE)
   const handleToggleOrientation = async () => {
     try {
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -614,7 +625,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     setTimeout(handleFit, 60);
   }, [pushHistory, handleFit, showToast]);
 
-  // INSERÇÃO DE BARRAMENTOS E TRILHOS DIN NO PAINEL
   const addBusbar = useCallback(
     (
       type: 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth',
@@ -688,7 +698,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     [pushHistory, addEvent, showToast]
   );
 
-  // ATUALIZAÇÃO PARAMÉTRICA DO BARRAMENTO / TRILHO DIN
   const updateBusbarProperty = useCallback(
     (updates: { length?: number; orientation?: 'horizontal' | 'vertical'; spacing?: number }) => {
       if (!selectedBusbarId) return;
@@ -733,7 +742,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       spawnY = Math.round((cy - cameraRef.current.pan.y) / (cameraRef.current.zoom * cameraRef.current.grid)) * cameraRef.current.grid;
     }
 
-    // TRATAMENTO NATIVO PARA CÓDIGOS DE TRILHOS DIN E BARRAMENTOS
     if (code.startsWith('BUSBAR_')) {
       const busbarTypeMap: Record<string, 'din' | 'phase_l1' | 'phase_l2' | 'phase_l3' | 'neutral' | 'earth'> = {
         BUSBAR_DIN: 'din',
@@ -978,7 +986,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     };
   }, [isRunning, addComponentToCanvas, pushHistory, loadPreset, onClose, showToast]);
 
-  // GIRAR TANTO COMPONENTE QUANTO BARRAMENTO/TRILHO
   const rotateSelectedComponent = useCallback(() => {
     if (selectedCompId) {
       pushHistory();
@@ -1538,9 +1545,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     return getTerminalWorldPos(comp, termId);
   }, []);
 
-  // ==========================================================================
-  // LOOP DE RENDERIZAÇÃO DO CANVAS 2D COM FÍSICA NODAL INTEGRADA
-  // ==========================================================================
+  // Loop de renderização do Canvas 2D
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1591,11 +1596,9 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         const currentProj = projectRef.current;
         const isSimRunning = isRunningRef.current;
 
-        // Fundo
         ctx.fillStyle = '#060D1A';
         ctx.fillRect(0, 0, w, h);
 
-        // Grade técnica
         ctx.save();
         const baseGrid = cam.grid || 20;
         const step = baseGrid * cam.zoom;
@@ -1621,7 +1624,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           y: p.y * cam.zoom + cam.pan.y
         });
 
-        // 1. SOLUÇÃO DO MOTOR FÍSICO MNA NO INÍCIO DO FRAME
         const physResult = solveCircuitPhysicsStep(
           currentProj,
           dt,
@@ -1631,12 +1633,10 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         simRef.current.lastPhysResult = physResult;
         simRef.current.energizedBusbars = new Set(physResult.energizedBusbarIds || []);
 
-        // CAMADA 1: Moldura do Quadro
         if (currentProj.panelConfig?.enabled) {
           drawPanelEnclosure(ctx, cam, currentProj.panelConfig);
         }
 
-        // CAMADA 2: CONDUTORES
         const baseSystemV = physResult.mainVoltageRMS > 0 ? physResult.mainVoltageRMS : 230;
 
         (currentProj.wires || []).forEach((wire: any, wireIdx: number) => {
@@ -1683,7 +1683,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           });
         });
 
-        // CAMADA 3: TRILHOS DIN E BARRAMENTOS
         drawBusbars(
           ctx,
           cam,
@@ -1693,7 +1692,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           simRef.current.energizedBusbars
         );
 
-        // CAMADA 4: DISPOSITIVOS ELÉTRICOS
         currentProj.components.forEach(c => {
           const s = toScreen({ x: c.x, y: c.y });
           ctx.save();
@@ -1715,7 +1713,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           ctx.restore();
         });
 
-        // CAMADA 5: TERMINAIS FERRULES
         (currentProj.wires || []).forEach((wire: any) => {
           const posA = getNodeWorldPos(wire.a?.c, wire.a?.t, currentProj.components, currentProj.busbars || []);
           const posB = getNodeWorldPos(wire.b?.c, wire.b?.t, currentProj.components, currentProj.busbars || []);
@@ -1746,7 +1743,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           );
         });
 
-        // CAMADA 6: TELEMETRIA TÁTICA FLUTUANTE NO DISPOSITIVO SELECIONADO (ALTA RESOLUÇÃO)
         if (selectedCompIdRef.current) {
           const selectedC = (currentProj.components || []).find((item: any) => item.id === selectedCompIdRef.current);
           if (selectedC) {
@@ -1771,7 +1767,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               }
             }
 
-            // CORRENTE REAL: Leitura com cálculo de contingência para motores e cargas
             let currentNum = Number(selectedC.state?.current || 0);
             if ((!currentNum || currentNum <= 0.001) && isEnergized) {
               const pWatts = Number(selectedC.state?.powerW || (selectedC.state?.powerKW ? Number(selectedC.state.powerKW) * 1000 : 0) || selectedC.params?.power || 1500);
@@ -1827,7 +1822,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             const badgeW = textWidth + 18 * cam.zoom;
             const badgeH = 22 * cam.zoom;
 
-            // Fundo holográfico escuro
             ctx.fillStyle = 'rgba(3, 7, 18, 0.94)';
             ctx.beginPath();
             if (typeof (ctx as any).roundRect === 'function') {
@@ -1837,7 +1831,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             }
             ctx.fill();
 
-            // Borda com glow
             ctx.strokeStyle = isTripped ? '#ef4444' : isEnergized ? '#10b981' : '#38bdf8';
             ctx.lineWidth = 1.2 * cam.zoom;
             ctx.shadowColor = ctx.strokeStyle;
@@ -1845,7 +1838,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             ctx.stroke();
             ctx.shadowBlur = 0;
 
-            // Ponta indicadora
             ctx.fillStyle = ctx.strokeStyle;
             ctx.beginPath();
             ctx.moveTo(s.x - 4 * cam.zoom, hudY + badgeH / 2);
@@ -1853,7 +1845,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             ctx.lineTo(s.x, hudY + badgeH / 2 + 4 * cam.zoom);
             ctx.fill();
 
-            // Texto de telemetria
             ctx.fillStyle = '#f8fafc';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -1862,7 +1853,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           }
         }
 
-        // Fio em criação
         if (simRef.current.wireStart) {
           const startPos = getNodeWorldPos(
             simRef.current.wireStart.c,
@@ -1907,7 +1897,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           svgGroupRef.current.setAttribute('transform', `translate(${cam.pan.x}, ${cam.pan.y}) scale(${cam.zoom})`);
         }
 
-        // MODO TERMOGRAFIA FLIR
         if (isThermalModeRef.current) {
           ctx.save();
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1947,7 +1936,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           ctx.restore();
         }
 
-        // EVENTOS E ALERTAS
         if (physResult.hasDirectShort) {
           const faultKey = 'short_circuit_direct';
           if (!simRef.current.firedAlertsSet.has(faultKey)) {
@@ -2212,14 +2200,12 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
 
-    // Cancela imediatamente qualquer temporizador anterior
     if (simRef.current.longPressTimer) {
       clearTimeout(simRef.current.longPressTimer);
       simRef.current.longPressTimer = null;
     }
     simRef.current.isLongPressTriggered = false;
 
-    // 1. PINCH-TO-ZOOM (2 DEDOS NO CELULAR)
     if (simRef.current.touchMap.size === 2) {
       setShowProps(false);
       simRef.current.drag = null;
@@ -2254,7 +2240,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     const terminalHitRadius = Math.max(16, 22 / cam.zoom);
 
-    // 2. Bornes de Barramento
     const nearestBusbarTerm = findNearestBusbarTerminal(
       projectRef.current.busbars || [],
       { x: worldX, y: worldY },
@@ -2298,7 +2283,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       return;
     }
 
-    // 3. Bornes de Dispositivos
     for (const c of projectRef.current.components) {
       const d = getComponentDef(c.code);
       for (const t of d.terminals) {
@@ -2364,7 +2348,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 4. Corpo do Dispositivo
     for (let i = projectRef.current.components.length - 1; i >= 0; i--) {
       const c = projectRef.current.components[i];
       const rad = (-c.rot * Math.PI) / 180;
@@ -2405,7 +2388,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 5. Barramento Elétrico ou Trilho DIN
     for (let i = (projectRef.current.busbars || []).length - 1; i >= 0; i--) {
       const b = projectRef.current.busbars[i];
       const isH = b.orientation === 'horizontal';
@@ -2437,7 +2419,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 6. Seleção de Condutor
     if (simRef.current.wireStart === null) {
       const hitWireId = getHitWireId(
         worldX,
@@ -2458,7 +2439,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       }
     }
 
-    // 7. Clique no Vazio (fecha propriedades e desmarca tudo)
     setShowProps(false);
     setSelectedCompId(null);
     setSelectedWireId(null);
@@ -2476,7 +2456,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     simRef.current.touchMap.set(e.pointerId, { x: px, y: py, clientX: e.clientX, clientY: e.clientY });
 
-    // EXECUÇÃO DO PINCH-TO-ZOOM COM 2 DEDOS NO CELULAR
     if (simRef.current.touchMap.size === 2) {
       const touches = Array.from(simRef.current.touchMap.values());
       const currentDist = Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY);
@@ -2698,7 +2677,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
   return (
     <div className="fixed inset-0 z-[99999] bg-[#050A14] flex flex-col justify-between overflow-hidden select-none text-slate-200 font-sans" style={{ touchAction: 'none' }}>
-      {/* 1. BARRA SUPERIOR (HEADER) */}
+      {/* 1. BARRA SUPERIOR */}
       <header className="h-14 landscape:h-10 px-3 sm:px-4 bg-[#0B132B] border-b border-blue-900/50 flex items-center justify-between gap-2 shrink-0 z-30 shadow-xl">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-blue-900/40">
@@ -2717,11 +2696,16 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         </div>
 
-        {/* Comandos Centrais do Header */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
           <button
             type="button"
             onClick={() => {
+              if (!hasSimulatorAccess) {
+                soundFX.playWarning();
+                showToast('Acesso bloqueado: Período de 3 dias expirou. Ative o Selo MZ.');
+                setIsSeloModalOpen(true);
+                return;
+              }
               const next = !isRunning;
               setIsRunning(next);
               if (next) {
@@ -2841,9 +2825,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </button>
         </div>
 
-        {/* Ações da Direita */}
         <div className="flex items-center gap-1.5">
-          {/* BOTÃO PRÓPRIO DE ROTAÇÃO PARA MODO HORIZONTAL (LANDSCAPE) */}
           <button
             type="button"
             onClick={handleToggleOrientation}
@@ -2924,7 +2906,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           style={{ willChange: 'transform' }}
         />
 
-        {/* CAMADA SVG PASSIVA */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
           <g ref={svgGroupRef} transform={`translate(${cameraRef.current.pan.x}, ${cameraRef.current.pan.y}) scale(${cameraRef.current.zoom})`} style={{ pointerEvents: 'none' }}>
             {(project.wires || []).map((wire: any, wireIdx: number) => {
@@ -2979,7 +2960,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* JANELA FLUTUANTE DE EDIÇÃO DO CONDUTOR SELECIONADO */}
         {selectedWire && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-3 py-2 rounded-2xl bg-[#091226]/95 border border-blue-500/60 shadow-2xl backdrop-blur-xl flex items-center gap-2 text-xs animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-1.5 pr-2 border-r border-slate-700 font-mono text-slate-300 font-bold">
@@ -3055,7 +3035,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* PAINEL LATERAL: BIBLIOTECA EXPANSIVA */}
         {showLibrary && (
           <div className="absolute left-3 top-3 bottom-3 w-76 max-w-[calc(100vw-24px)] bg-[#0A1224]/95 border border-blue-900/50 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-[#0E1A33]">
@@ -3125,7 +3104,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* PAINEL LATERAL: PROPRIEDADES PARAMÉTRICAS DO DISPOSITIVO OU BARRAMENTO */}
         {showProps && (selectedComponent || selectedBusbar) && (
           <div className="absolute right-3 top-3 bottom-3 w-88 max-w-[calc(100vw-24px)] bg-[#0A1224]/95 border border-blue-900/50 rounded-2xl shadow-2xl flex flex-col z-20 backdrop-blur-md overflow-hidden animate-in slide-in-from-right duration-200">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-[#0E1A33]">
@@ -3140,7 +3118,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               </button>
             </div>
 
-            {/* SE O SELECIONADO FOR BARRAMENTO OU TRILHO DIN */}
             {selectedBusbar && (
               <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
                 <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
@@ -3160,7 +3137,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 </div>
 
-                {/* Comprimento / Extensão do Barramento */}
                 <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold">
                     <span>Comprimento do Perfil:</span>
@@ -3193,7 +3169,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 </div>
 
-                {/* Orientação (Horizontal / Vertical) */}
                 <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                   <label className="text-[10px] text-slate-400 font-bold block">Orientação Espacial</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -3222,7 +3197,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 </div>
 
-                {/* Bornes / Capacidade para Barramentos Elétricos */}
                 {selectedBusbar.type !== 'din' && (
                   <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                     <div className="text-[10px] text-slate-400 font-bold">Informações dos Bornes</div>
@@ -3235,7 +3209,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 )}
 
-                {/* Ações Diretas */}
                 <div className="pt-2 border-t border-slate-800 space-y-1.5">
                   <button
                     type="button"
@@ -3257,7 +3230,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               </div>
             )}
 
-            {/* SE O SELECIONADO FOR COMPONENTE COMUM */}
             {selectedComponent && (
               <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
                 <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
@@ -3324,7 +3296,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   )}
                 </div>
 
-                {/* PARÂMETROS DE MÓDULO SOLAR (PV_PANEL) */}
                 {selectedComponent.code === 'PV_PANEL' && (
                   <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-900/40 space-y-2.5">
                     <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
@@ -3412,7 +3383,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 )}
 
-                {/* PARÂMETROS DE BATERIA LiFePO4 */}
                 {selectedComponent.code === 'BAT_LIFEPO4' && (
                   <div className="p-2.5 rounded-xl bg-slate-950/80 border border-sky-900/40 space-y-2.5">
                     <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
@@ -3473,7 +3443,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 )}
 
-                {/* PARÂMETROS DE DISJUNTORES, FUSÍVEIS E IDRs */}
                 {selectedComponent.params?.current !== undefined && (
                   <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                     <div className="flex items-center gap-1.5 text-blue-400 font-bold text-[11px]">
@@ -3526,7 +3495,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 )}
 
-                {/* PARÂMETROS DE CONTATORES */}
                 {selectedComponent.code === 'CONTACTOR' && (
                   <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                     <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
@@ -3563,7 +3531,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 )}
 
-                {/* PARÂMETROS DE MOTORES E BOMBAS */}
                 {['motor3', 'motor1', 'motor3_6lead', 'pump', 'fan'].some(k => selectedComponent.code.includes('M') || selectedComponent.code === 'PUMP' || selectedComponent.code === 'FAN') && (
                   <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                     <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
@@ -3622,7 +3589,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 )}
 
-                {/* PARÂMETROS DE CARGA DA TOMADA (OUTLET) */}
                 {(selectedComponent.code === 'OUTLET' || selectedComponent.code?.startsWith('OUTLET')) && (
                   <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-900/50 space-y-2.5">
                     <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
@@ -3700,7 +3666,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 )}
 
-                {/* Botões de Ação Direta */}
                 <div className="pt-2 border-t border-slate-800 space-y-1.5">
                   <button
                     type="button"
@@ -3732,7 +3697,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* OSCILOSCÓPIO DIGITAL FLUTUANTE */}
         {showScope && (
           <div className="absolute right-3 top-3 w-80 bg-[#0A1224]/95 border border-blue-900/60 rounded-2xl shadow-2xl p-3 z-20 backdrop-blur-md space-y-2">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
@@ -3766,7 +3730,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* PAINEL FLUTUANTE DE MEDIÇÕES TRUE-RMS */}
         {showMeters && (
           <div className="absolute left-3 bottom-3 z-10 px-3.5 py-2.5 rounded-2xl bg-[#0A1224]/90 border border-blue-900/40 shadow-xl backdrop-blur-md flex items-center gap-4 text-xs font-mono">
             <div>Tensão: <strong className="text-amber-400">{meterV.toFixed(1)} V</strong></div>
@@ -3779,7 +3742,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           </div>
         )}
 
-        {/* CONTROLES DE ZOOM E FIT */}
         <div className="absolute right-3 bottom-3 z-10 flex items-center gap-1.5 p-1.5 rounded-xl bg-[#0A1224]/90 border border-blue-900/40 shadow-xl backdrop-blur-md">
           <button
             type="button"
@@ -3812,7 +3774,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         </div>
       </div>
 
-      {/* 3. DOCK INFERIOR DE CONTROLES */}
+      {/* 3. DOCK INFERIOR */}
       <footer className="h-12 bg-[#0B132B] border-t border-blue-900/50 flex items-center justify-between px-3 sm:px-5 z-40 shrink-0 shadow-2xl select-none">
         <div className="flex items-center gap-1.5 sm:gap-2">
           <button
@@ -3962,6 +3924,20 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         onClose={() => setIsDiagnosticPanelOpen(false)}
         onTriggerVisualEffect={() => {}}
       />
+
+      {/* MODAL DE BLOQUEIO POR SELO MZ */}
+      {isSeloModalOpen && (
+        <SeloMZModal
+          isOpen={isSeloModalOpen}
+          onClose={() => setIsSeloModalOpen(false)}
+          onGoToSeloSettings={() => {
+            setIsSeloModalOpen(false);
+            onClose();
+            window.dispatchEvent(new CustomEvent('navigate_tab', { detail: { tab: 'settings', subTab: 'selo_mz' } }));
+          }}
+          featureName="Bancada de Testes do Simulador CAD"
+        />
+      )}
     </div>
   );
 };

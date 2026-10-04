@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole, MOZAMBIQUE_PROVINCES, TECHNICAL_CATEGORIES } from '../../types';
 import { ComprarSeloTab } from './ComprarSeloTab';
@@ -27,7 +27,8 @@ import {
   ExternalLink,
   Loader2,
   RotateCcw,
-  BookOpen
+  BookOpen,
+  Clock
 } from 'lucide-react';
 import { TopBackNav } from '../common/TopBackNav';
 import { UserAvatar } from '../common/UserAvatar';
@@ -62,6 +63,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   const [activeSubTab, setActiveSubTab] = useState<'perfil' | 'selo_mz' | 'aparencia' | 'suporte' | 'seguranca'>(initialSubTab);
 
+  // Sincroniza subaba ativa quando aberta diretamente (ex: Ativar Selo MZ)
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Profile Form States
@@ -70,12 +78,42 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [idade, setIdade] = useState<number | string>(currentUser?.idade !== undefined && currentUser?.idade !== null ? currentUser.idade : '');
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || currentUser?.photoURL || '');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-  const [province, setProvince] = useState(currentTechProfile?.province || 'Maputo Cidade');
-  const [city, setCity] = useState(currentTechProfile?.city || 'Maputo');
+  const [province, setProvince] = useState(currentTechProfile?.province || currentUser?.province || 'Maputo Cidade');
+  const [city, setCity] = useState(currentTechProfile?.city || currentUser?.city || 'Maputo');
   const [specialty, setSpecialty] = useState(
-    currentTechProfile?.specialties?.[0] || TECHNICAL_CATEGORIES[0] || 'Eletricidade'
+    currentTechProfile?.specialties?.[0] || currentUser?.specialty || TECHNICAL_CATEGORIES[0] || 'Eletricidade'
   );
-  const [bio, setBio] = useState(currentTechProfile?.bio || '');
+  const [bio, setBio] = useState(currentTechProfile?.bio || currentUser?.bio || '');
+  const [experienceYears, setExperienceYears] = useState<number | string>(() => {
+    if (currentTechProfile?.experienceYears !== undefined && currentTechProfile?.experienceYears !== null) {
+      return currentTechProfile.experienceYears;
+    }
+    const fromUser = (currentUser as any)?.experienceYears ?? (currentUser as any)?.anosExperiencia;
+    return fromUser !== undefined && fromUser !== null ? fromUser : 2;
+  });
+
+  // Atualização em tempo real quando o perfil do Firestore carregar
+  useEffect(() => {
+    if (currentUser) {
+      setName(currentUser.name || '');
+      setPhone(currentUser.phone || '');
+      setIdade(currentUser.idade !== undefined && currentUser.idade !== null ? currentUser.idade : '');
+      setAvatarUrl(currentUser.avatarUrl || currentUser.photoURL || '');
+    }
+    if (currentTechProfile) {
+      setProvince(currentTechProfile.province || 'Maputo Cidade');
+      setCity(currentTechProfile.city || 'Maputo');
+      if (currentTechProfile.specialties?.[0]) {
+        setSpecialty(currentTechProfile.specialties[0]);
+      }
+      setBio(currentTechProfile.bio || '');
+      if (currentTechProfile.experienceYears !== undefined && currentTechProfile.experienceYears !== null) {
+        setExperienceYears(currentTechProfile.experienceYears);
+      }
+    } else if ((currentUser as any)?.experienceYears !== undefined) {
+      setExperienceYears((currentUser as any).experienceYears);
+    }
+  }, [currentUser?.uid, currentTechProfile?.userId]);
 
   // Role Toggle State
   const [selectedRole, setSelectedRole] = useState<UserRole>(currentUser?.role || 'client');
@@ -99,7 +137,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       const uploadedUrl = await uploadProfilePhoto(currentUser.uid, file);
       setAvatarUrl(uploadedUrl);
 
-      // Auto update profile with new photo
       await updateCurrentUserProfile({
         avatarUrl: uploadedUrl,
         photoURL: uploadedUrl
@@ -128,6 +165,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
     try {
       const parsedAge = idade !== '' && !isNaN(Number(idade)) ? Number(idade) : undefined;
+      const parsedExp = experienceYears !== '' && !isNaN(Number(experienceYears)) ? Math.max(0, Number(experienceYears)) : undefined;
 
       await updateCurrentUserProfile({
         name: name.trim(),
@@ -138,8 +176,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         specialties: [specialty],
         bio: bio.trim(),
         avatarUrl: avatarUrl.trim() || undefined,
-        photoURL: avatarUrl.trim() || undefined
-      });
+        photoURL: avatarUrl.trim() || undefined,
+        experienceYears: parsedExp,
+        anosExperiencia: parsedExp
+      } as any);
 
       if (currentUser?.role === 'technician') {
         const cleanDigits = phone.replace(/\D/g, '');
@@ -155,11 +195,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           province,
           city: city.trim(),
           specialties: [specialty],
-          bio: bio.trim()
-        });
+          bio: bio.trim(),
+          experienceYears: parsedExp,
+          anosExperiencia: parsedExp
+        } as any);
       }
 
-      setProfileSuccess('Perfil atualizado com sucesso!');
+      setProfileSuccess('Perfil atualizado com sucesso e sincronizado no Firebase!');
       setTimeout(() => setProfileSuccess(null), 3000);
     } catch (err: any) {
       console.error('Save profile error:', err);
@@ -215,7 +257,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       <div>
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">Definições da Conta</h1>
         <p className="text-xs text-slate-500 mt-1">
-          Gerencie seus dados pessoais, Selo MZ de verificação, preferências, segurança e suporte oficial.
+          Gerencie seus dados pessoais, tempo de experiência profissional, Selo MZ de verificação, preferências e suporte oficial.
         </p>
       </div>
 
@@ -303,7 +345,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       </div>
 
       {profileSuccess && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-xs text-emerald-800 font-bold">
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-xs text-emerald-800 font-bold animate-in fade-in">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <span>{profileSuccess}</span>
         </div>
@@ -317,277 +359,302 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       {/* 1. EDITAR PERFIL */}
       {activeSubTab === 'perfil' && (
         <div className="space-y-6">
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-        <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
-          <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
-            <User className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-base font-black text-slate-900">Editar Perfil & Contatos</h2>
-            <p className="text-[11px] text-slate-500">Atualize suas informações visíveis na comunidade</p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSaveProfile} className="space-y-4">
-          {/* Avatar / Photo Upload */}
-          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
-            <label className="text-[11px] font-bold text-slate-700 block">
-              Foto de Perfil
-            </label>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="relative group">
-                <UserAvatar
-                  name={name || currentUser?.name}
-                  photoURL={avatarUrl}
-                  size="xl"
-                  className="border-2 border-slate-200 shadow-sm shrink-0"
-                />
-                {isUploadingPhoto && (
-                  <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 text-white animate-spin" />
-                  </div>
-                )}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                <User className="w-5 h-5" />
               </div>
+              <div>
+                <h2 className="text-base font-black text-slate-900">Editar Perfil & Contatos</h2>
+                <p className="text-[11px] text-slate-500">Atualize suas informações visíveis para clientes e empresas em Moçambique</p>
+              </div>
+            </div>
 
-              <div className="flex-1 space-y-2 w-full">
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    disabled={isUploadingPhoto}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50"
-                  >
-                    {isUploadingPhoto ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Carregando foto...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Camera className="w-3.5 h-3.5" />
-                        <span>Escolher Foto da Galeria</span>
-                      </>
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              {/* Avatar / Photo Upload */}
+              <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+                <label className="text-[11px] font-bold text-slate-700 block">
+                  Foto de Perfil
+                </label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="relative group">
+                    <UserAvatar
+                      name={name || currentUser?.name}
+                      photoURL={avatarUrl}
+                      size="xl"
+                      className="border-2 border-slate-200 shadow-sm shrink-0"
+                    />
+                    {isUploadingPhoto && (
+                      <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 text-white animate-spin" />
+                      </div>
                     )}
-                  </button>
+                  </div>
 
-                  {avatarUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setAvatarUrl('')}
-                      className="px-3 py-2 bg-slate-200/80 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                    >
-                      Remover Foto
-                    </button>
-                  )}
-                </div>
+                  <div className="flex-1 space-y-2 w-full">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        disabled={isUploadingPhoto}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50"
+                      >
+                        {isUploadingPhoto ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Carregando foto...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>Escolher Foto da Galeria</span>
+                          </>
+                        )}
+                      </button>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400 font-medium">Ou URL direta:</span>
-                  <input
-                    type="url"
-                    value={avatarUrl}
-                    onChange={e => setAvatarUrl(e.target.value)}
-                    placeholder="https://exemplo.com/foto.jpg"
-                    className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
-                  />
+                      {avatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setAvatarUrl('')}
+                          className="px-3 py-2 bg-slate-200/80 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                        >
+                          Remover Foto
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 font-medium">Ou URL direta:</span>
+                      <input
+                        type="url"
+                        value={avatarUrl}
+                        onChange={e => setAvatarUrl(e.target.value)}
+                        placeholder="https://exemplo.com/foto.jpg"
+                        className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Name, Phone & Idade */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1">Nome Completo</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={e => setName(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1">Idade (Anos - Opcional)</label>
-              <input
-                type="number"
-                min={16}
-                max={99}
-                value={idade}
-                onChange={e => setIdade(e.target.value)}
-                placeholder="Ex: 24"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1">Número de Celular / WhatsApp</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="841234567"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-              />
-            </div>
-          </div>
-
-          {/* Email (Readonly) */}
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 block mb-1">E-mail Cadastrado</label>
-            <input
-              type="email"
-              disabled
-              value={currentUser?.email || ''}
-              className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-500 font-mono cursor-not-allowed"
-            />
-          </div>
-
-          {/* Tech Profile Extra Fields */}
-          {currentUser?.role === 'technician' && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+              {/* Name, Phone & Idade */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Especialidade Principal</label>
-                  <select
-                    value={specialty}
-                    onChange={e => setSpecialty(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                  >
-                    {TECHNICAL_CATEGORIES.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Província</label>
-                  <select
-                    value={province}
-                    onChange={e => setProvince(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                  >
-                    {MOZAMBIQUE_PROVINCES.map(prov => (
-                      <option key={prov} value={prov}>{prov}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Cidade</label>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Nome Completo</label>
                   <input
                     type="text"
-                    value={city}
-                    onChange={e => setCity(e.target.value)}
+                    required
+                    value={name}
+                    onChange={e => setName(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                   />
                 </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Idade (Anos - Opcional)</label>
+                  <input
+                    type="number"
+                    min={16}
+                    max={99}
+                    value={idade}
+                    onChange={e => setIdade(e.target.value)}
+                    placeholder="Ex: 24"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Número de Celular / WhatsApp</label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="841234567"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
+                  />
+                </div>
               </div>
 
+              {/* Email (Readonly) */}
               <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">Biografia Profissional</label>
-                <textarea
-                  rows={2}
-                  value={bio}
-                  onChange={e => setBio(e.target.value)}
-                  placeholder="Descreva suas competências e experiência técnica..."
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">E-mail Cadastrado</label>
+                <input
+                  type="email"
+                  disabled
+                  value={currentUser?.email || ''}
+                  className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-500 font-mono cursor-not-allowed"
                 />
               </div>
-            </>
-          )}
 
-          <div className="pt-2 flex justify-end">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs flex items-center gap-2 shadow-md shadow-blue-600/20 transition cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
-            </button>
-          </div>
-        </form>
-      </div>
+              {/* Tech Profile Extra Fields */}
+              {(currentUser?.role === 'technician' || (currentUser as any)?.tipoConta === 'tecnico') && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Especialidade Principal</label>
+                      <select
+                        value={specialty}
+                        onChange={e => setSpecialty(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                      >
+                        {TECHNICAL_CATEGORIES.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
 
-      {/* 2. INFORMAÇÃO DE PERFIL PERMANENTE */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
-        <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
-          <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
-            <Shield className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-base font-black text-slate-900">Tipo de Perfil Registado</h2>
-            <p className="text-[11px] text-slate-500">Definição permanente estabelecida na criação da conta</p>
-          </div>
-        </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Província</label>
+                      <select
+                        value={province}
+                        onChange={e => setProvince(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                      >
+                        {MOZAMBIQUE_PROVINCES.map(prov => (
+                          <option key={prov} value={prov}>{prov}</option>
+                        ))}
+                      </select>
+                    </div>
 
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${
-              currentUser?.role === 'client' ? 'bg-emerald-600' : 'bg-blue-600'
-            }`}>
-              {currentUser?.role === 'client' ? <User className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-slate-900">
-                  {currentUser?.role === 'client' ? 'Conta de Cliente (Contratar Serviços)' : 'Conta de Técnico Profissional / Empresa'}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-700">
-                  Permanente
-                </span>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Cidade</label>
+                      <input
+                        type="text"
+                        value={city}
+                        onChange={e => setCity(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* CAMPO EDITÁVEL: TEMPO EXATO DE EXPERIÊNCIA PRÁTICA */}
+                  <div className="p-4 bg-blue-50/50 border border-blue-200/80 rounded-2xl space-y-2">
+                    <label className="text-[11px] font-black text-slate-900 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Tempo Exato de Experiência Prática (Anos)</span>
+                    </label>
+                    <div className="relative max-w-xs">
+                      <input
+                        type="number"
+                        min={0}
+                        max={60}
+                        value={experienceYears}
+                        onChange={e => setExperienceYears(e.target.value)}
+                        placeholder="Ex: 5"
+                        className="w-full pl-3.5 pr-14 py-2.5 bg-white border border-blue-300 rounded-xl text-sm font-black text-slate-900 shadow-2xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <span className="absolute right-3.5 top-2.5 text-xs text-slate-500 font-bold pointer-events-none">
+                        anos
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-medium">
+                      Este número reflete no seu cartão público do directório e no modal de detalhes do técnico para todos os clientes verem.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Biografia Profissional</label>
+                    <textarea
+                      rows={2}
+                      value={bio}
+                      onChange={e => setBio(e.target.value)}
+                      placeholder="Descreva suas competências e experiência técnica..."
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs flex items-center gap-2 shadow-md shadow-blue-600/20 transition cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
+                </button>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {currentUser?.role === 'client'
-                  ? 'Acesso simplificado para orçamentos, pedidos de serviço, pesquisa no directório e mercado.'
-                  : 'Acesso a ferramentas avançadas, ordens de serviço, dimensionamentos e Sara IA.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. GUIA DE INTEGRAÇÃO & TUTORIAL DO APP */}
-      <div className="bg-gradient-to-br from-blue-50 via-white to-sky-50 rounded-3xl p-6 sm:p-8 border border-blue-200/80 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-blue-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-black text-slate-900">Guia de Integração do Aplicativo</h2>
-              <p className="text-[11px] text-slate-500">Reveja o tour interativo sobre as principais funções da plataforma</p>
-            </div>
+            </form>
           </div>
 
-          <button
-            type="button"
-            onClick={resetOnboardingTour}
-            className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Ver Tutorial do App Novamente</span>
-          </button>
+          {/* 2. INFORMAÇÃO DE PERFIL PERMANENTE */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-slate-900">Tipo de Perfil Registado</h2>
+                <p className="text-[11px] text-slate-500">Definição permanente estabelecida na criação da conta</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${
+                  currentUser?.role === 'client' ? 'bg-emerald-600' : 'bg-blue-600'
+                }`}>
+                  {currentUser?.role === 'client' ? <User className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-900">
+                      {currentUser?.role === 'client' ? 'Conta de Cliente (Contratar Serviços)' : 'Conta de Técnico Profissional / Empresa'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-700">
+                      Permanente
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {currentUser?.role === 'client'
+                      ? 'Acesso simplificado para orçamentos, pedidos de serviço, pesquisa no directório e mercado.'
+                      : 'Acesso a ferramentas avançadas, ordens de serviço, dimensionamentos e Sara IA.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. GUIA DE INTEGRAÇÃO & TUTORIAL DO APP */}
+          <div className="bg-gradient-to-br from-blue-50 via-white to-sky-50 rounded-3xl p-6 sm:p-8 border border-blue-200/80 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-blue-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-900">Guia de Integração do Aplicativo</h2>
+                  <p className="text-[11px] text-slate-500">Reveja o tour interativo sobre as principais funções da plataforma</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={resetOnboardingTour}
+                className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Ver Tutorial do App Novamente</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Relembre as 4 etapas essenciais para o seu sucesso na TécnicaMZ Pro:
+              o <strong>Teste Grátis de 3 dias</strong> ativado, navegação no <strong>Mural de Serviços</strong> para captação de clientes, uso das <strong>Calculadoras e Tabelas Técnicas EDM</strong>, e como ativar o <strong>Selo MZ Verificado</strong> via M-Pesa (851949159) ou e-Mola (872943159).
+            </p>
+          </div>
         </div>
+      )}
 
-        <p className="text-xs text-slate-600 leading-relaxed">
-          Relembre as 4 etapas essenciais para o seu sucesso na TécnicaMZ Pro:
-          o <strong>Teste Grátis de 3 dias</strong> ativado, navegação no <strong>Mural de Serviços</strong> para captação de clientes, uso das <strong>Calculadoras e Tabelas Técnicas EDM</strong>, e como ativar o <strong>Selo MZ Verificado</strong> via M-Pesa (851949159) ou e-Mola (872943159).
-        </p>
-      </div>
-    </div>
-  )}
-
-      {/* 3. APARÊNCIA: MODO CLARO / ESCURO AZULADO */}
+      {/* 3. APARÊNCIA */}
       {activeSubTab === 'aparencia' && (
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
           <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
@@ -632,7 +699,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
       )}
 
-      {/* 4. SUPORTE DIRETO OFICIAL */}
+      {/* 4. SUPORTE DIRETO */}
       {activeSubTab === 'suporte' && (
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
           <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
@@ -683,7 +750,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
       )}
 
-      {/* 5. SEGURANÇA E SESSÃO */}
+      {/* 5. SEGURANÇA */}
       {activeSubTab === 'seguranca' && (
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
           <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">

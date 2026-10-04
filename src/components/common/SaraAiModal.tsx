@@ -39,7 +39,7 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !=
 interface SaraAiModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGoToSettings?: () => void;
+  onGoToSettings?: (subTab?: 'selo_mz' | 'perfil') => void;
 }
 
 interface Message {
@@ -252,7 +252,6 @@ interface ChatMessageItemProps {
   fontSize?: number;
 }
 
-// Item de Mensagem com tipagem estrita (Sara Expandida / Usuário Compacto)
 const ChatMessageItem = memo(function ChatMessageItem({
   message,
   isThinkingThisMessage,
@@ -269,7 +268,6 @@ const ChatMessageItem = memo(function ChatMessageItem({
             : 'w-full max-w-[98%] sm:max-w-[96%] p-4 sm:p-5 rounded-xl hud-bracket-sara bg-[#040C1A]/95 backdrop-blur-xl text-slate-100 border-y border-r border-[#00F5FF]/30 border-l-[5px] border-l-[#00F5FF] shadow-[0_0_30px_rgba(0,245,255,0.12),inset_0_0_20px_rgba(0,245,255,0.04)] rounded-tl-none'
         }`}
       >
-        {/* Cabeçalho da Mensagem da Sara IA */}
         {!isUser && (
           <div className="flex items-center justify-between pb-2.5 mb-2 border-b border-[#00F5FF]/20 select-none">
             <div className="flex items-center gap-2">
@@ -289,7 +287,6 @@ const ChatMessageItem = memo(function ChatMessageItem({
           </div>
         )}
 
-        {/* Cabeçalho compacto da Mensagem do Usuário */}
         {isUser && (
           <div className="flex items-center justify-between gap-4 pb-1.5 mb-1.5 border-b border-[#0077FE]/20 select-none font-mono text-[9px] text-cyan-400">
             <div className="flex items-center gap-1.5">
@@ -380,7 +377,6 @@ interface ChatMessagesListProps {
   fontSize: number;
 }
 
-// Lista de mensagens tipada corretamente, eliminando erro de compilação
 const ChatMessagesList = memo(function ChatMessagesList({
   messages,
   isThinking,
@@ -421,7 +417,7 @@ interface ChatInputFormProps {
   userName: string;
   hasAccess: boolean;
   onOpenSeloModal: () => void;
-  onGoToSettings?: () => void;
+  onGoToSettings?: (subTab?: 'selo_mz' | 'perfil') => void;
   onClose: () => void;
 }
 
@@ -491,7 +487,6 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
         zIndex: 20,
       }}
     >
-      {/* Imagem Técnica Anexada */}
       {selectedImage && (
         <div className="px-4 py-2 bg-[#080F1E] border-t-2 border-[#00F5FF]/30 flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
@@ -519,7 +514,6 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
         </div>
       )}
 
-      {/* Input de Comando ou Bloqueio por Selo */}
       {!hasAccess ? (
         <div className="p-4 bg-[#080F1E] text-white border-t-2 border-[#00F5FF]/30 flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-3 text-xs text-slate-300">
@@ -535,9 +529,9 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
             id="btn_upgrade_sara_ai"
             type="button"
             onClick={() => {
+              dismissModalWithoutHistory('sara_ai');
               if (onGoToSettings) {
-                onClose();
-                onGoToSettings();
+                onGoToSettings('selo_mz');
               } else {
                 onOpenSeloModal();
               }
@@ -619,7 +613,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   const { currentUser, isClient, isTechnician, isAdmin, temSeloMZ, isSubscriptionActive } = useAuth();
   const [showSeloModal, setShowSeloModal] = useState(false);
 
-  // Cast seguro de usuário para garantir ausência de erros de TS
   const authUser = currentUser as any;
   const roleStr = String(authUser?.role || '');
   const tipoStr = String(authUser?.tipoConta || authUser?.tipo || authUser?.userType || '');
@@ -641,7 +634,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     )
   );
 
-  // Leitura direta do Firestore para reconhecimento e respeito total ao Super Administrador
   const [firestoreUserData, setFirestoreUserData] = useState<any>(null);
 
   useEffect(() => {
@@ -701,7 +693,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const [showOnlineBadge, setShowOnlineBadge] = useState<boolean>(false);
 
-  // Monitoramento contínuo de rede (online / offline / corte de dados móveis)
   useEffect(() => {
     let hideTimer: any = null;
 
@@ -720,7 +711,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
       if (hideTimer) clearTimeout(hideTimer);
     };
 
-    // Verificação imediata ao abrir o modal
     if (typeof navigator !== 'undefined') {
       if (navigator.onLine) {
         triggerOnlineBadge();
@@ -732,7 +722,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     window.addEventListener('online', triggerOnlineBadge);
     window.addEventListener('offline', handleOffline);
 
-    // Heartbeat a cada 3.5s para detectar alternância de dados móveis no celular
     const interval = setInterval(() => {
       if (typeof navigator !== 'undefined') {
         const currentStatus = navigator.onLine;
@@ -899,7 +888,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     };
   }, [isOpen, isExpandedWorkbench]);
 
-  // Bloqueio rigoroso de overflow no body e no html para evitar rolagem de fundo
   useEffect(() => {
     if (!isOpen || typeof document === 'undefined') return;
 
@@ -988,7 +976,6 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     saveMessagesToStorage(updatedHistory);
     setIsThinking(true);
 
-    // Se estiver explicitamente offline (sem conexão à internet), usa diretamente o front da Sara
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       const offlineReply = generateSaraTechnicalReply({
         message: trimmedText,
@@ -1038,112 +1025,17 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
       if (isSuperAdmin) {
         systemInstructionText = `Você é a Eng.ª Sara IA, a assistente virtual pessoal e executiva da plataforma TécnicaMZ Pro, respondendo diretamente ao seu criador e dono, o Super Administrador André Zefanias Júnior (${userName}).
 
-RECONHECIMENTO TOTAL E RESPEITO AO SUPER_ADMIN (MANDATÓRIO):
+RECONHECIMENTO TOTAL E RESPEITO AO SUPER_ADMIN:
 - Demonstre reconhecimento total, extrema formalidade, reverência e lealdade ao Super Administrador.
 - Trate-o sempre como "Senhor Administrador", "Senhor André" ou "Meu Criador e Administrador".
 - Aja como uma assistente virtual de elite preparada respondendo ao seu dono: reporte status com prontidão, esclareça métricas, dados de faturamento, estado dos 23 módulos e apoie o comando da plataforma com máxima precisão.
-- Seja técnica, executiva, direta e atenciosa.
-
-CONHECIMENTO INTEGRAL DA PLATAFORMA TÉCNICAMZ PRO (2026):
-Você conhece cada recurso da plataforma criada por ele:
-1. MURAL & SIMULADOR CAD (Aba Mural):
-   - Status & Histórias: stories técnicos de 24h
-   - Mural & Feed: posts, dicas e debates da comunidade
-   - Simulador CAD: Simulador realista fiação IEC 60947 / 60364. Se errar: cabo solta fumaça, disjuntor desarma, bomba queima se inverter fases. Tem Partida Direta de Motor, sistemas fotovoltaicos, instalação residencial, comutação Grupo motor Gerador.
-2. TÉCNICOS MZ & RANKING (Aba Técnicos):
-   - Diretório Nacional de Especialistas com filtro por província e especialidade
-   - Ranking Nacional Top 5 por curtidas e engajamento
-   - Selo Oficial Verificado diferencia técnico Premium
-   - Perfis com avaliação 5.0, WhatsApp direto e histórico
-3. AS 23 FERRAMENTAS (Aba Ferramentas):
-   - FATURAMENTO (4): OS & Contrato PRO, Preço de Serviço (MARGEM), Gestão de Obra, Cotação de Lojas.
-   - TÉCNICA (5): Dimensionamento PRO (Ib, Cabo e Disjuntor), Tabelas Normativas (AWG/mm² IEC), Bitola EDM (Queda 220V/DC), Carga AC (BTU e Disjuntor), Solar PV (Painéis e Bateria).
-   - GESTÃO (4): Lista de Materiais AUTO, CRM de Clientes, Agenda & WhatsApp, Portfólio Digital.
-   - OUTRAS (10): Nível de Parede, Fita Métrica, Aterramento (<10Ω), Bomba de Furo (HMT/Vazão), Gerador de OS, Tabela do QG (Cartela Porta), Diagnóstico IA, Checklist NR10, Certificado Garantia, Socorro na Obra (SOS).
-   - E Minha Marca (Logo & Perfil da Empresa).
-4. SELO MZ OFICIAL (Aba Mais > Configurações > Comprar Selo MZ):
-   - Custa 50 MT / mês - Taxa única via M-Pesa (*150#) ou e-Mola (*898#) para 851949159 - André Zefanias Júnior.
-   - Passo 2: colar SMS da operadora completo. Validação manual pela administração.
-5. MENU MAIS:
-   - Vagas & Emprego, Empresas MZ, Livros & Manuais (Academia MZ), Mercado de Ferramentas, Painel Admin (/gestao-pro-mz), Mensagens Diretas.
-
-DIRETRIZ DE IDENTIDADE: NUNCA mencione que você é uma IA do Google, nem cite Gemini, API ou LLM. Apresente-se unicamente como a Eng.ª Sara IA da TécnicaMZ Pro.`;
+- Seja técnica, executiva, direta e atenciosa.`;
       } else {
         systemInstructionText = `Você é a Eng.ª Sara IA da TécnicaMZ Pro em Moçambique.
-Você é uma Engenheira Eletrotécnica Moçambicana experiente, técnica de campo, extremamente didática, acolhedora, calorosa, doce, leve, engraçada e direta ao ponto! Você não é uma IA genérica ou robótica; você fala a língua real do técnico moçambicano com carinho, autoridade técnica e simplicidade ("meu colega", "mano ${userName}", "parceiro de campo").
+Você é uma Engenheira Eletrotécnica Moçambicana experiente, técnica de campo, extremamente didática, acolhedora, calorosa, doce, leve, engraçada e direta ao ponto! Você fala a língua real do técnico moçambicano com carinho, autoridade técnica e simplicidade ("meu colega", "mano ${userName}", "parceiro de campo").
 
-REGRA FUNDAMENTAL E INVIOLÁVEL:
-Você NUNCA faz a ação no lugar do técnico. Quando o técnico falar de qualquer problema ou dúvida, você explica o fundamento de forma simples e DIRETA e INDICA A FERRAMENTA EXATA PELO NOME QUE ESTÁ NO APP!
-Seja curta, direta e SEMPRE termine indicando onde ele deve clicar.
-
-EXEMPLOS EXATOS DE CONDUTA:
-- Técnico: "Quanto cobrar pelo serviço?"
-  Você: "Meu colega, cobrar no olho é prejuízo na certa! Vai em **Ferramentas > Preço de Serviço (MARGEM)**, coloca tua hora de trabalho + custos dos materiais, que ele já calcula teu lucro real com margem segura."
-- Técnico: "Que cabo ou disjuntor usar?"
-  Você: "Para não arriscar aquecer instalação nem queimar equipamento, usa a ferramenta **Dimensionamento PRO**, lá na aba **Ferramentas**. Coloca a corrente de projeto (Ib) que ela te dá o cabo e o disjuntor certo pelas normas da EDM e IEC!"
-- Técnico: "Cliente pediu garantia do trabalho"
-  Você: "Profissionalismo fala mais alto! Gera na hora em **Ferramentas > Certificado Garantia (PDF)**, já sai timbrado com a tua marca e dados oficiais da obra."
-- Técnico com dúvida de motor, gerador ou circuito elétrico:
-  Você: "Explica a ligação técnica e finaliza: 'Antes de ligar na obra e queimar componentes caros, abre a aba **Mural** e clica no botão **Criar no Simulador CAD** para testar o circuito com fiação realista IEC 60947!'"
-
-A ESTRUTURA QUE VOCÊ CONHECE NA PALMA DA MÃO (2026):
-1. MURAL & SIMULADOR CAD (Aba Mural):
-   - Status & Histórias: stories técnicos que duram 24h
-   - Mural & Feed: dicas, novidades, perguntas técnicas da comunidade
-   - Simulador CAD Ativo: REALISTA. Fiação IEC 60947 / 60364. Se o técnico errar: cabo aquece com fumaça, disjuntor desarma, bomba queima se inverter fase. Tem Partida Direta de Motor, sistemas fotovoltaicos, instalação residencial, comutação Grupo motor Gerador, etc. Sempre indique: "Testa no botão Criar no Simulador CAD antes de ir pra obra".
-
-2. TÉCNICOS MZ & RANKING (Aba Técnicos):
-   - Diretório Nacional de Especialistas com filtro por especialidade e província
-   - Ranking Nacional Top 5 por engajamento e curtidas
-   - Selo Oficial Verificado diferencia técnico Premium
-   - Perfis com avaliação 5.0, WhatsApp direto e histórico
-
-3. AS 23 FERRAMENTAS (Aba Ferramentas) - TODAS AS CATEGORIAS:
-   FATURAMENTO (4):
-   - OS & Contrato PRO: gera PDF com Logo + Slogan + Recibo
-   - Preço de Serviço: calcula Hora + Custo + Lucro (MARGEM)
-   - Gestão de Obra: calcula Custos & Lucro Real
-   - Cotação de Lojas: comparativo de preços em Maputo + PDF
-
-   TÉCNICA (5):
-   - Dimensionamento PRO: calcula Ib, Cabo & Disjuntor (IB/AV) - ESSENCIAL
-   - Tabelas Normativas: AWG, mm² & Cores (IEC)
-   - Bitola EDM: calcula Queda 220V/DC
-   - Carga AC: calcula BTU & Disjuntor
-   - Solar PV: dimensiona Painéis & Bateria
-
-   GESTÃO (4):
-   - Lista de Materiais: AUTO, pra T1, T2, T3 & Comercial
-   - CRM de Clientes: Histórico de Obras + atalho WHATS
-   - Agenda & WhatsApp: Lembrete de Visitas AUTO
-   - Portfólio Digital: Antes & Depois com Marca (FOTOS)
-
-   OUTRAS (10):
-   - Nível de Parede: Prumo & Bolha com sensor inercial
-   - Fita Métrica: Régua & Área m²
-   - Aterramento: mede Solo <10Ω
-   - Bomba de Furo: calcula HMT & Vazão
-   - Gerador de OS: Ordem de Serviço PDF
-   - Tabela do QG: Cartela para Painel PDF (PORTA)
-   - Diagnóstico IA: Análise por Foto com SARA
-   - Checklist NR10: Inspeção & EPIs PDF (LAUDO)
-   - Certificado Garantia: Garantia Técnica Oficial PDF
-   - Socorro na Obra: Mural & Chamado WhatsApp (SOS)
-
-   E AINDA:
-   - Minha Marca (Logo & Perfil): onde ele coloca logo da empresa
-
-4. SELO MZ OFICIAL (Aba Mais > Configurações > Comprar Selo MZ):
-   - Custa 50 MT / mês - Taxa única
-   - Libera TUDO: publicação de anúncios, receber clientes, todas as 23 ferramentas e SARA IA
-   - Pagamento: M-Pesa (Menu *150#) ou e-Mola (Menu *898#) pro número 851949159 - Titular André Zefanias Júnior
-   - Validação: Passo 2 é colar SMS da operadora completo. Validação manual pela administração.
-   - Status: Se Selo Ativo & Verificado = LIBERADO
-
-5. MENU MAIS (Todo o resto):
-   - Vagas & Emprego, Empresas MZ, Livros & Manuais (Academia MZ), Mercado de Ferramentas, Painel Admin, Mensagens Diretas
-
-DIRETRIZ DE IDENTIDADE: NUNCA mencione que você é uma IA do Google, nem cite Gemini, API ou LLM. Apresente-se unicamente como a Eng.ª Sara IA da TécnicaMZ Pro.`;
+REGRA FUNDAMENTAL:
+Você NUNCA faz a ação no lugar do técnico. Quando o técnico falar de qualquer problema ou dúvida, você explica o fundamento de forma simples e DIRETA e INDICA A FERRAMENTA EXATA PELO NOME QUE ESTÁ NO APP!`;
       }
 
       if (activeAcademyContext) {
@@ -1151,14 +1043,7 @@ DIRETRIZ DE IDENTIDADE: NUNCA mencione que você é uma IA do Google, nem cite G
 Curso: ${activeAcademyContext.courseTitle}
 Módulo: ${activeAcademyContext.moduleTitle}
 Aula / Tópico Ativo: ${activeAcademyContext.lessonTitle} (${activeAcademyContext.lessonCode})
-Norma Técnica de Referência: ${activeAcademyContext.norma}
-
-DIRETRIZ PARA DÚVIDAS TÉCNICAS DA AULA:
-Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em detalhes aprofundados com base no nome do elemento e na norma correspondente, estruturando em:
-1. Função do Elemento e Princípio de Operação
-2. Requisitos Mandatórios e Limites da Norma
-3. Procedimento de Ligação / Montagem e Testes de Isolamento/Continuidade
-4. Diagnóstico de Falhas Comuns e Cuidados Críticos em Moçambique.`;
+Norma Técnica de Referência: ${activeAcademyContext.norma}`;
       }
 
       let fullText = '';
@@ -1183,9 +1068,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
               })
             });
 
-            if (!response.ok) {
-              continue;
-            }
+            if (!response.ok) continue;
 
             const reader = response.body?.getReader();
             const decoder = new TextDecoder('utf-8');
@@ -1255,7 +1138,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
         setIsThinking(false);
       }
 
-      // Se por qualquer razão (quota do Gemini esgotada, offline ou executando fora do Google Studio) não houve texto:
       if (!fullText || fullText.includes('instabilidade temporária')) {
         fullText = generateSaraTechnicalReply({
           message: trimmedText,
@@ -1370,7 +1252,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           padding: 0,
         }}
       >
-        {/* Cabeçalho Terminal HUD Industrial Elétrico */}
+        {/* Cabeçalho Terminal HUD */}
         <div
           style={{ flexShrink: 0 }}
           className="bg-[#030914] text-white p-3 sm:p-4 flex items-center justify-between border-b-2 border-[#00F5FF]/40 shadow-[0_4px_25px_rgba(0,245,255,0.15)] shrink-0 sticky top-0 z-10 w-full overflow-x-hidden"
@@ -1411,7 +1293,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
                   </span>
                 </h3>
 
-                {/* SINAL TEMPORÁRIO ONLINE (some após 3.5s) OU PERSISTENTE OFFLINE (Sem sobreposição) */}
                 {!isOnline ? (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-wider bg-red-950/90 border border-red-500/70 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.4)] shrink-0 animate-in fade-in duration-200"
@@ -1431,7 +1312,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
                 ) : null}
               </div>
 
-              {/* Subtítulo limpo e profissional, sem expor termos internos de API */}
               <div className="flex items-center gap-1.5 text-[10px] font-mono text-cyan-300/80 truncate mt-0.5">
                 <span className="text-[#00F5FF] font-bold">⚡ 230V / 50Hz</span>
                 <span>•</span>
@@ -1443,7 +1323,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* BOTÃO BANCADA EXPANDIDA 100% / PAISAGEM */}
             <button
               type="button"
               onClick={toggleExpandWorkbench}
@@ -1467,7 +1346,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
               )}
             </button>
 
-            {/* SELETOR DE TAMANHO DA FONTE */}
             <div
               className="flex items-center bg-[#051429] rounded-lg p-0.5 border border-[#00F5FF]/30 text-white"
               title="Ajustar escala de leitura"
@@ -1500,7 +1378,7 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
             >
               <Trash2 className="w-4 h-4" />
             </button>
-            
+
             <button
               type="button"
               onClick={handleClose}
@@ -1518,7 +1396,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           </div>
         </div>
 
-        {/* Banner de Contexto Ativo da Academia Técnica */}
         {activeAcademyContext && (
           <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-[#030914] via-[#081C38] to-[#030914] border-b border-[#00F5FF]/30 flex items-center justify-between gap-2 text-xs shrink-0 shadow-inner w-full overflow-x-hidden">
             <div className="flex items-center gap-2 min-w-0 font-mono">
@@ -1536,7 +1413,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           </div>
         )}
 
-        {/* Minha Academia Técnica IEC / EN */}
         {isTechnicianUser && (
           <div className="w-full shrink-0 overflow-x-hidden">
             <SaraAcademyCard
@@ -1556,7 +1432,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           </div>
         )}
 
-        {/* Feed de Mensagens Firme (Sara Ampla / Usuário Compacto) - Oculto na Academia */}
         {!isAcademyModalOpen && (
           <ChatMessagesList
             messages={messages}
@@ -1567,7 +1442,6 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           />
         )}
 
-        {/* Entrada de Comandos - Oculto estritamente na Academia Técnica */}
         {!isAcademyModalOpen && (
           <ChatInputForm
             ref={chatInputRef}
@@ -1588,8 +1462,13 @@ Se a mensagem for no padrão "Elemento: [nome] | Norma: [código]", explique em 
           onClose={() => setShowSeloModal(false)}
           onGoToSeloSettings={() => {
             setShowSeloModal(false);
-            onClose();
-            if (onGoToSettings) onGoToSettings();
+            dismissModalWithoutHistory('selo_mz_modal');
+            dismissModalWithoutHistory('sara_ai');
+            if (onGoToSettings) {
+              onGoToSettings('selo_mz');
+            } else {
+              onClose();
+            }
           }}
           featureName="Sara IA & Assistência Técnica"
         />

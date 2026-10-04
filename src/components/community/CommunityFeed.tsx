@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
-import { TECHNICAL_CATEGORIES, MOZAMBIQUE_PROVINCES, CadCircuitProject } from '../../types';
+import { TECHNICAL_CATEGORIES, CadCircuitProject } from '../../types';
 import { StoriesCarousel } from './StoriesCarousel';
 import { SeloMZModal } from '../common/SeloMZModal';
 import { CadCircuitPreviewCard } from './CadCircuitPreviewCard';
@@ -16,24 +16,16 @@ import {
   ThumbsUp,
   Lightbulb,
   Award,
-  HelpCircle,
-  Share2,
   Phone,
   Send,
-  Plus,
   Zap,
   Image as ImageIcon,
   Tag,
-  Search,
-  Filter,
   CheckCircle2,
   Trash2,
   Pin,
   Clock,
-  User,
-  ExternalLink,
   MessageCircle,
-  Flame,
   AlertCircle,
   Loader2
 } from 'lucide-react';
@@ -53,10 +45,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     toggleCommunityCommentLike,
     deleteCommunityComment,
     markAcceptedSolution,
-    markCommentAsUseful,
-    startOrGetConversation
+    markCommentAsUseful
   } = useData();
-  const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isClient } = useAuth();
+
+  const { currentUser, isTechnician, isCompany, isAdmin, temSeloMZ, isSeloExpired, isTrialValid, isClient } = useAuth();
 
   const roleStr = String(currentUser?.role || '');
   const tipoStr = String((currentUser as any)?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
@@ -72,24 +64,50 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   const getAuthorPoints = (authorId?: string) => {
     if (!authorId) return 0;
     if (currentUser && currentUser.uid === authorId) {
-      return currentUser.pontos ?? currentUser.scoreEngajamento ?? 0;
+      return (currentUser as any).pontos ?? (currentUser as any).scoreEngajamento ?? 0;
     }
     const tech = technicians?.find(t => t.userId === authorId);
     return tech?.pontos ?? tech?.scoreEngajamento ?? 0;
   };
 
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState<string>('');
   const [isCadSimulatorOpen, setIsCadSimulatorOpen] = useState<boolean>(false);
   const [activeCadCircuit, setActiveCadCircuit] = useState<CadCircuitProject | null>(null);
 
+  // Janela de bloqueio e ativação do Selo MZ
+  const [isSeloModalOpen, setIsSeloModalOpen] = useState<boolean>(false);
+  const [seloFeatureName, setSeloFeatureName] = useState<string>('Simulador CAD Interativo');
+
+  // Interceptação e verificação estrita: exige Selo MZ ativo ou 3 dias grátis válidos
   const handleOpenCadSimulator = (circuit?: CadCircuitProject | null) => {
-    soundFX.playClick();
+    try {
+      soundFX?.playClick?.();
+    } catch {}
+
+    if (!currentUser) {
+      alert('Inicie sessão para acessar o Simulador CAD.');
+      return;
+    }
+
+    // Apenas quem tiver selo válido OU estiver dentro dos 3 dias grátis pode testar circuito
+    const hasSimulatorAccess = Boolean(
+      isAdmin ||
+      (temSeloMZ && !isSeloExpired) ||
+      isTrialValid
+    );
+
+    if (!hasSimulatorAccess) {
+      try {
+        soundFX?.playModalOpen?.();
+      } catch {}
+      setSeloFeatureName('Simulador CAD Interativo');
+      setIsSeloModalOpen(true);
+      return;
+    }
+
     setActiveCadCircuit(circuit || null);
     setIsCadSimulatorOpen(true);
   };
 
-  // Suporte global para comando de voz "Sara, abra o simulador"
   useEffect(() => {
     const handleGlobalOpen = (e: any) => {
       handleOpenCadSimulator(e?.detail?.circuit || null);
@@ -98,10 +116,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     return () => {
       window.removeEventListener('open_cad_simulator', handleGlobalOpen);
     };
-  }, []);
+  }, [isAdmin, temSeloMZ, isSeloExpired, isTrialValid, currentUser]);
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
-  const [isSeloModalOpen, setIsSeloModalOpen] = useState<boolean>(false);
-  const [seloFeatureName, setSeloFeatureName] = useState<string>('Publicações no Mural');
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<{ [postId: string]: string }>({});
   const [replyingTo, setReplyingTo] = useState<{ [postId: string]: { id: string; authorName: string } | null }>({});
@@ -115,10 +132,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   const [newTags, setNewTags] = useState<string[]>(['Dica Técnica', 'Moçambique']);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null);
-
   const [isCompressingPostImage, setIsCompressingPostImage] = useState(false);
 
-  // Preset sample technical equipment photos
   const PRESET_POST_IMAGES = [
     { label: 'Instalação Solar', url: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=800&auto=format&fit=crop&q=80' },
     { label: 'Quadro Elétrico / QGBT', url: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=80' },
@@ -126,7 +141,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     { label: 'Medição & Instrumentação', url: 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=800&auto=format&fit=crop&q=80' }
   ];
 
-  // Handle local image upload with Canvas client-side compression
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -165,7 +179,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       setIsSeloModalOpen(true);
       return;
     }
-    soundFX.playModalOpen();
+    try {
+      soundFX?.playModalOpen?.();
+    } catch {}
     setIsCreateModalOpen(true);
   };
 
@@ -196,10 +212,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       images: imagesToSave
     });
 
-    // Sound effect on post creation
-    soundFX.playPost();
+    try {
+      soundFX?.playPost?.();
+    } catch {}
 
-    // Reset
     setNewTitle('');
     setNewContent('');
     setNewImageUrl('');
@@ -227,10 +243,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     try {
       const result = await addPostComment(postId, text, reply?.id, reply?.authorName);
       if (result?.success !== false) {
-        // Sound effect on successful comment submission
-        soundFX.playComment();
-
-        // Limpar o campo e o reply apenas após confirmação
+        try {
+          soundFX?.playComment?.();
+        } catch {}
         setCommentText(prev => ({ ...prev, [postId]: '' }));
         setReplyingTo(prev => ({ ...prev, [postId]: null }));
       } else {
@@ -244,7 +259,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     }
   };
 
-  // Resolve CAD circuit for each post
   const resolveCircuitForPost = (post: any): CadCircuitProject => {
     if (post.circuitData) return post.circuitData;
     const titleLower = (post.title || '').toLowerCase();
@@ -292,7 +306,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
     };
   };
 
-  // Filter posts (fallback or full feed)
   const filteredPosts = communityPosts;
 
   const formatDate = (isoString: string) => {
@@ -307,7 +320,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
   return (
     <div className="min-h-screen bg-slate-900/5 py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
-        {/* Header Hero / Slogan Banner - Image Occupies Entire Banner without Obstruction */}
+        {/* Header Hero / Slogan Banner */}
         <div className="relative rounded-3xl overflow-hidden shadow-xl border border-indigo-500/20 bg-slate-950 group">
           <img
             src="/tecnica_mz_slogan.jpg"
@@ -315,10 +328,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
             className="w-full h-40 sm:h-52 md:h-64 object-cover object-center"
             referrerPolicy="no-referrer"
           />
-          {/* Action Button: ⚡ Criar no Simulador CAD (Exclusivo Técnicos/Engenharia - Oculto para Clientes) */}
           {!isClientUser && (
             <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => handleOpenCadSimulator()}
                 className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50 active:scale-95 cursor-pointer backdrop-blur-md border border-white/20"
                 title="Abrir a bancada de simulação de circuitos CAD"
@@ -330,518 +343,520 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
           )}
         </div>
 
-        {/* Responsive Desktop Grid (Feed + Side Widgets) */}
+        {/* Responsive Desktop Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
           {/* Main Feed Column */}
           <div className="lg:col-span-8 space-y-6">
-            {/* Stories / Status 24h Carousel (Preservado Intacto) */}
+            {/* Stories / Status 24h Carousel */}
             <div className="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-xl">
               <StoriesCarousel />
             </div>
 
             {/* Posts List */}
             <div className="space-y-6">
-          {filteredPosts.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-xs space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                <Zap className="w-8 h-8 text-blue-600" />
-              </div>
-              <h3 className="text-lg font-black text-slate-800">Nenhum circuito publicado ainda</h3>
-              <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Abra a bancada de simulação CAD para desenhar seu primeiro circuito esquemático e compartilhá-lo no mural técnico!
-              </p>
-              {!isClientUser && (
-                <button
-                  onClick={() => handleOpenCadSimulator()}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-xs inline-flex items-center gap-2 cursor-pointer"
-                >
-                  <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
-                  <span>⚡ Abrir Simulador CAD</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            filteredPosts.map(post => {
-              const hasUseful = currentUser && post.reactions.useful?.includes(currentUser.uid);
-              const hasInsightful = currentUser && post.reactions.insightful?.includes(currentUser.uid);
-              const hasApplause = currentUser && post.reactions.applause?.includes(currentUser.uid);
-              const hasQuestion = currentUser && post.reactions.question?.includes(currentUser.uid);
-
-              const usefulCount = post.reactions.useful?.length || 0;
-              const insightfulCount = post.reactions.insightful?.length || 0;
-              const applauseCount = post.reactions.applause?.length || 0;
-              const questionCount = post.reactions.question?.length || 0;
-              const totalReactions = usefulCount + insightfulCount + applauseCount + questionCount;
-
-              const isPostAuthor = currentUser && currentUser.uid === post.authorId;
-              const canDelete = isPostAuthor || isAdmin;
-
-              const isCommentOpen = activeCommentPostId === post.id;
-
-              const postDisplayName = isPostAuthor ? (currentUser?.name || post.authorName || 'Usuário') : (post.authorName || 'Usuário');
-              const postDisplayAvatar = isPostAuthor ? (currentUser?.avatarUrl || currentUser?.photoURL || post.authorAvatar) : post.authorAvatar;
-              const postDisplayProvince = isPostAuthor ? (currentUser?.province || post.authorProvince || 'Moçambique') : (post.authorProvince || 'Moçambique');
-              const postDisplaySpecialty = isPostAuthor ? (currentUser?.specialty || currentUser?.specialties?.[0] || post.authorSpecialty) : post.authorSpecialty;
-              const postWhatsappNumber = isPostAuthor ? (currentUser?.whatsapp || currentUser?.phone || post.authorWhatsapp) : post.authorWhatsapp;
-              const postCircuit = resolveCircuitForPost(post);
-
-              return (
-                <article
-                  key={post.id}
-                  className={`bg-white rounded-3xl border transition-all duration-200 overflow-hidden shadow-xs hover:shadow-md ${
-                    post.pinned ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200'
-                  }`}
-                >
-                  {/* Pinned badge */}
-                  {post.pinned && (
-                    <div className="bg-amber-500/10 border-b border-amber-200 px-6 py-2 flex items-center justify-between text-amber-800 text-xs font-bold">
-                      <div className="flex items-center gap-1.5">
-                        <Pin className="w-3.5 h-3.5 fill-amber-600 text-amber-600" />
-                        <span>Publicação Técnica em Destaque pela Moderação</span>
-                      </div>
-                      <span className="text-[10px] uppercase font-black tracking-wider text-amber-700">Verificado</span>
-                    </div>
-                  )}
-
-                  <div className="p-5 sm:p-7 space-y-5">
-                    {/* a) Cabeçalho do Técnico (Foto, Nome e Titulação) */}
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3.5">
-                        <UserAvatar
-                          name={postDisplayName}
-                          photoURL={postDisplayAvatar}
-                          size="lg"
-                          className="border border-slate-200"
-                        />
-
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm sm:text-base font-black text-slate-900">{postDisplayName}</h3>
-                            <UserRankBadge points={getAuthorPoints(post.authorId)} size="xs" />
-                            {post.authorRole === 'super_admin' && (
-                              <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black">
-                                Super Admin
-                              </span>
-                            )}
-                            {post.authorRole === 'technician' && (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black flex items-center gap-1">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                                Técnico Certificado
-                              </span>
-                            )}
-                            {post.authorRole === 'company' && (
-                              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black">
-                                Empresa
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
-                            {postDisplaySpecialty && (
-                              <span className="font-semibold text-slate-600">{postDisplaySpecialty}</span>
-                            )}
-                            <span>•</span>
-                            <span>📍 {postDisplayProvince}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              {formatDate(post.createdAt)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Top actions: Category badge, Solution badge & Delete */}
-                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                        {post.solucaoAceita && (
-                          <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Solução Aceita</span>
-                          </span>
-                        )}
-
-                        <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
-                          {post.category}
-                        </span>
-
-                        {canDelete && (
-                          <button
-                            onClick={() => {
-                              if (confirm('Tem certeza que deseja excluir esta publicação?')) {
-                                deleteCommunityPost(post.id);
-                              }
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                            title="Excluir Publicação"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* b) Área do Diagrama CAD (Preview visual interativo do circuito projetado) */}
-                    {postCircuit && (
-                      <div className="pt-1">
-                        <CadCircuitPreviewCard
-                          circuit={postCircuit}
-                          onTestCircuit={() => handleOpenCadSimulator(postCircuit)}
-                          hideTestButton={isClientUser}
-                        />
-                      </div>
-                    )}
-
-                    {/* c) Descrição / Legenda técnica do circuito */}
-                    <div className="space-y-2.5">
-                      <h2 className="text-base sm:text-lg font-black text-slate-900 leading-snug">
-                        {post.title}
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-                        {post.content}
-                      </p>
-                    </div>
-
-                    {/* Tags */}
-                    {post.tags && post.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {post.tags.map(tag => (
-                          <span
-                            key={tag}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-semibold flex items-center gap-1"
-                          >
-                            <Tag className="w-3 h-3 text-slate-400" />
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Action Bar (Reactions, Test Circuit, Comments, WhatsApp Contact) */}
-                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                      {/* e) Botões de interação técnica (Curtir) */}
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                        {/* 1. Useful / Prático */}
-                        <button
-                          onClick={() => {
-                            soundFX.playLike();
-                            togglePostReaction(post.id, 'useful');
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                            hasUseful
-                              ? 'bg-amber-100 text-amber-800 border border-amber-300 font-black'
-                              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-                          }`}
-                          title="Marcar como Útil / Prático"
-                        >
-                          <Lightbulb className={`w-3.5 h-3.5 ${hasUseful ? 'fill-amber-500 text-amber-600' : 'text-slate-500'}`} />
-                          <span>Útil</span>
-                          {usefulCount > 0 && (
-                            <span className="ml-1 px-1.5 py-0.2 bg-white/80 rounded-full text-[10px]">
-                              {usefulCount}
-                            </span>
-                          )}
-                        </button>
-
-                        {/* 2. Insightful / Técnico */}
-                        <button
-                          onClick={() => {
-                            soundFX.playLike();
-                            togglePostReaction(post.id, 'insightful');
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                            hasInsightful
-                              ? 'bg-blue-100 text-blue-800 border border-blue-300 font-black'
-                              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-                          }`}
-                          title="Insight Técnico de Engenharia"
-                        >
-                          <Sparkles className={`w-3.5 h-3.5 ${hasInsightful ? 'text-blue-600' : 'text-slate-500'}`} />
-                          <span>Técnico</span>
-                          {insightfulCount > 0 && (
-                            <span className="ml-1 px-1.5 py-0.2 bg-white/80 rounded-full text-[10px]">
-                              {insightfulCount}
-                            </span>
-                          )}
-                        </button>
-
-                        {/* 3. Applause / Parabéns */}
-                        <button
-                          onClick={() => {
-                            soundFX.playLike();
-                            togglePostReaction(post.id, 'applause');
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                            hasApplause
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-black'
-                              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-                          }`}
-                          title="Excelente Trabalho / Parabéns"
-                        >
-                          <Award className={`w-3.5 h-3.5 ${hasApplause ? 'text-emerald-600' : 'text-slate-500'}`} />
-                          <span>Excelente</span>
-                          {applauseCount > 0 && (
-                            <span className="ml-1 px-1.5 py-0.2 bg-white/80 rounded-full text-[10px]">
-                              {applauseCount}
-                            </span>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Right: d) Botão de Ação Destacado: "⚡ Testar Circuito", Comments & Contact */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {!isClientUser && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenCadSimulator(postCircuit)}
-                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs transition flex items-center gap-1.5 shadow-md shadow-blue-900/30 cursor-pointer active:scale-95"
-                            title="Carregar e testar o circuito na bancada CAD interativa"
-                          >
-                            <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300 animate-pulse" />
-                            <span>⚡ Testar Circuito</span>
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => setActiveCommentPostId(isCommentOpen ? null : post.id)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-slate-600" />
-                          <span>Comentários ({post.commentsCount || 0})</span>
-                        </button>
-
-                        {postWhatsappNumber && (
-                          <a
-                            href={`https://wa.me/${(postWhatsappNumber || '').replace(/\D/g, '')}?text=${encodeURIComponent(
-                              `Olá ${postDisplayName}, vi o seu circuito técnico no Mural da TécnicaMZ ("${post.title}") e gostaria de conversar.`
-                            )}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-xs"
-                            title="Conversar no WhatsApp"
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            <span>WhatsApp</span>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Expandable Comments Section */}
-                    {isCommentOpen && (
-                      <div className="pt-4 border-t border-slate-100 space-y-4 bg-slate-50/70 p-4 rounded-2xl">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                            <MessageCircle className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Discussão Técnica & Respostas ({post.comments?.length || 0})</span>
-                          </h4>
-                          {replyingTo[post.id] && (
-                            <span className="text-[11px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                              Respondendo a @{replyingTo[post.id]?.authorName}
-                              <button
-                                onClick={() => setReplyingTo(prev => ({ ...prev, [post.id]: null }))}
-                                className="ml-1 text-indigo-500 hover:text-indigo-900 font-black"
-                              >
-                                ✕
-                              </button>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Comments list */}
-                        {post.comments && post.comments.length > 0 ? (
-                          <div className="space-y-3">
-                            {post.comments.map(comment => {
-                              const isCommentAuthor = currentUser && currentUser.uid === comment.authorId;
-                              const commentDisplayName = isCommentAuthor ? (currentUser?.name || comment.authorName || 'Usuário') : (comment.authorName || 'Usuário');
-                              const commentDisplaySpecialty = isCommentAuthor ? (currentUser?.specialty || currentUser?.specialties?.[0] || comment.authorSpecialty) : comment.authorSpecialty;
-                              const isPostOwner = comment.authorId === post.authorId;
-                              const hasLikedComment = currentUser && comment.likes?.includes(currentUser.uid);
-                              const canDeleteComment = isCommentAuthor || isPostAuthor || isAdmin;
-                              const isAcceptedSolution = Boolean(
-                                comment.solucaoAceita ||
-                                (post.comentarioSolucaoId && post.comentarioSolucaoId === comment.id)
-                              );
-                              const canMarkSolution = (isPostAuthor || isAdmin) && !isAcceptedSolution;
-
-                              return (
-                                <div
-                                  key={comment.id}
-                                  className={`p-3.5 rounded-xl transition-all space-y-2 ${
-                                    isAcceptedSolution
-                                      ? 'bg-emerald-50/70 border-2 border-emerald-500 ring-2 ring-emerald-200 shadow-md'
-                                      : 'bg-white border border-slate-200 shadow-2xs'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between text-xs flex-wrap gap-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-black text-slate-900">{commentDisplayName}</span>
-                                      <UserRankBadge points={getAuthorPoints(comment.authorId)} size="xs" />
-                                      {isAcceptedSolution && (
-                                        <span className="text-[10px] px-2.5 py-0.5 bg-emerald-600 text-white rounded-full font-black flex items-center gap-1 shadow-xs animate-pulse">
-                                          <CheckCircle2 className="w-3 h-3 text-white" />
-                                          ✔ Solução Oficial
-                                        </span>
-                                      )}
-                                      {isPostOwner && (
-                                        <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-900 rounded-full font-black border border-amber-200 flex items-center gap-1">
-                                          ★ Autor da Publicação
-                                        </span>
-                                      )}
-                                      {commentDisplaySpecialty && !isPostOwner && (
-                                        <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md font-semibold">
-                                          {commentDisplaySpecialty}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <span className="text-[10px] text-slate-400">{formatDate(comment.createdAt)}</span>
-                                  </div>
-
-                                  <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                                    {comment.text}
-                                  </p>
-
-                                  {/* Comment Footer: Like, Reply, Accept Solution, Delete */}
-                                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] flex-wrap gap-2">
-                                    <div className="flex items-center gap-3">
-                                      {/* Like comment */}
-                                      <button
-                                        onClick={() => {
-                                          soundFX.playLike();
-                                          toggleCommunityCommentLike(post.id, comment.id);
-                                        }}
-                                        className={`flex items-center gap-1 font-bold transition px-2 py-0.5 rounded-lg ${
-                                          hasLikedComment
-                                            ? 'text-rose-600 bg-rose-50'
-                                            : 'text-slate-500 hover:text-rose-600 hover:bg-slate-50'
-                                        }`}
-                                      >
-                                        <ThumbsUp className="w-3 h-3" />
-                                        <span>{comment.likes?.length || 0}</span>
-                                      </button>
-
-                                      {/* Reply */}
-                                      <button
-                                        onClick={() => {
-                                          setReplyingTo(prev => ({
-                                            ...prev,
-                                            [post.id]: { id: comment.id, authorName: comment.authorName }
-                                          }));
-                                          setCommentText(prev => ({
-                                            ...prev,
-                                            [post.id]: `@${comment.authorName} `
-                                          }));
-                                        }}
-                                        className="text-slate-500 hover:text-indigo-600 font-bold transition flex items-center gap-1"
-                                      >
-                                        <span>↩ Responder</span>
-                                      </button>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                      {/* Mark Useful Comment Button (+5 pts) */}
-                                      {canMarkSolution && (
-                                        <button
-                                          onClick={async () => {
-                                            soundFX.playSuccess();
-                                            await markCommentAsUseful(
-                                              post.id,
-                                              post.authorId,
-                                              comment.id,
-                                              comment.authorId,
-                                              currentUser?.uid || ''
-                                            );
-                                          }}
-                                          className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black flex items-center gap-1 transition shadow-2xs active:scale-95 cursor-pointer"
-                                          title="Parabenizar e marcar comentário como Útil (+5 pts e badge ao autor)"
-                                        >
-                                          <span>💡</span>
-                                          <span>Útil (+5 pts)</span>
-                                        </button>
-                                      )}
-
-                                      {/* Mark Accepted Solution Button */}
-                                      {canMarkSolution && (
-                                        <button
-                                          onClick={() => {
-                                            markAcceptedSolution(post.id, comment.id);
-                                          }}
-                                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-[10px] font-black flex items-center gap-1 transition shadow-2xs active:scale-95 cursor-pointer"
-                                          title="Marcar este comentário como a Solução Oficial (+50 pontos ao autor)"
-                                        >
-                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                          <span>Aceitar Solução (+50 pts)</span>
-                                        </button>
-                                      )}
-
-                                      {canDeleteComment && (
-                                        <button
-                                          onClick={() => {
-                                            if (confirm('Excluir este comentário?')) {
-                                              deleteCommunityComment(post.id, comment.id);
-                                            }
-                                          }}
-                                          className="text-slate-400 hover:text-red-600 p-1 rounded transition"
-                                          title="Excluir comentário"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-slate-400 italic">
-                            Nenhum comentário ainda. Seja o primeiro a comentar ou esclarecer uma dúvida técnica!
-                          </p>
-                        )}
-
-                        {/* Add Comment Input Form */}
-                        <form
-                          onSubmit={(e) => handleSendComment(post.id, e)}
-                          className="flex items-center gap-2 pt-2"
-                        >
-                          <input
-                            type="text"
-                            value={commentText[post.id] || ''}
-                            onChange={e => setCommentText({ ...commentText, [post.id]: e.target.value })}
-                            placeholder={currentUser ? (replyingTo[post.id] ? `Respondendo a @${replyingTo[post.id]?.authorName}...` : 'Escreva uma resposta técnica ou dica...') : 'Faça login para comentar'}
-                            disabled={!currentUser || isSubmittingComment[post.id]}
-                            className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
-                          />
-                          <button
-                            type="submit"
-                            disabled={!currentUser || !commentText[post.id]?.trim() || isSubmittingComment[post.id]}
-                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0"
-                          >
-                            {isSubmittingComment[post.id] ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>A enviar...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Send className="w-3.5 h-3.5" />
-                                <span>{replyingTo[post.id] ? 'Enviar Resposta' : 'Comentar'}</span>
-                              </>
-                            )}
-                          </button>
-                        </form>
-                      </div>
-                    )}
+              {filteredPosts.length === 0 ? (
+                <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-xs space-y-4">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                    <Zap className="w-8 h-8 text-blue-600" />
                   </div>
-                </article>
-              );
-            })
-          )}
+                  <h3 className="text-lg font-black text-slate-800">Nenhum circuito publicado ainda</h3>
+                  <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+                    Abra a bancada de simulação CAD para desenhar seu primeiro circuito esquemático e compartilhá-lo no mural técnico!
+                  </p>
+                  {!isClientUser && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCadSimulator()}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-xs inline-flex items-center gap-2 cursor-pointer"
+                    >
+                      <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                      <span>⚡ Abrir Simulador CAD</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                filteredPosts.map(post => {
+                  const usefulList = Array.isArray(post.reactions?.useful) ? post.reactions.useful : [];
+                  const insightfulList = Array.isArray(post.reactions?.insightful) ? post.reactions.insightful : [];
+                  const applauseList = Array.isArray(post.reactions?.applause) ? post.reactions.applause : [];
+
+                  const hasUseful = Boolean(currentUser && usefulList.includes(currentUser.uid));
+                  const hasInsightful = Boolean(currentUser && insightfulList.includes(currentUser.uid));
+                  const hasApplause = Boolean(currentUser && applauseList.includes(currentUser.uid));
+
+                  const usefulCount = usefulList.length;
+                  const insightfulCount = insightfulList.length;
+                  const applauseCount = applauseList.length;
+
+                  const isPostAuthor = Boolean(currentUser && currentUser.uid === post.authorId);
+                  const canDelete = isPostAuthor || isAdmin;
+
+                  const isCommentOpen = activeCommentPostId === post.id;
+
+                  const postDisplayName = isPostAuthor ? (currentUser?.name || post.authorName || 'Usuário') : (post.authorName || 'Usuário');
+                  const postDisplayAvatar = isPostAuthor ? (currentUser?.avatarUrl || currentUser?.photoURL || post.authorAvatar) : post.authorAvatar;
+                  const postDisplayProvince = isPostAuthor ? (currentUser?.province || post.authorProvince || 'Moçambique') : (post.authorProvince || 'Moçambique');
+                  const postDisplaySpecialty = isPostAuthor ? (currentUser?.specialty || currentUser?.specialties?.[0] || post.authorSpecialty) : post.authorSpecialty;
+                  const postWhatsappNumber = isPostAuthor ? (currentUser?.whatsapp || currentUser?.phone || post.authorWhatsapp) : post.authorWhatsapp;
+                  const postCircuit = resolveCircuitForPost(post);
+
+                  return (
+                    <article
+                      key={post.id}
+                      className={`bg-white rounded-3xl border transition-all duration-200 overflow-hidden shadow-xs hover:shadow-md ${
+                        post.pinned ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200'
+                      }`}
+                    >
+                      {post.pinned && (
+                        <div className="bg-amber-500/10 border-b border-amber-200 px-6 py-2 flex items-center justify-between text-amber-800 text-xs font-bold">
+                          <div className="flex items-center gap-1.5">
+                            <Pin className="w-3.5 h-3.5 fill-amber-600 text-amber-600" />
+                            <span>Publicação Técnica em Destaque pela Moderação</span>
+                          </div>
+                          <span className="text-[10px] uppercase font-black tracking-wider text-amber-700">Verificado</span>
+                        </div>
+                      )}
+
+                      <div className="p-5 sm:p-7 space-y-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3.5">
+                            <UserAvatar
+                              name={postDisplayName}
+                              photoURL={postDisplayAvatar}
+                              size="lg"
+                              className="border border-slate-200"
+                            />
+
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-sm sm:text-base font-black text-slate-900">{postDisplayName}</h3>
+                                <UserRankBadge points={getAuthorPoints(post.authorId)} size="xs" />
+                                {post.authorRole === 'super_admin' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black">
+                                    Super Admin
+                                  </span>
+                                )}
+                                {post.authorRole === 'technician' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black flex items-center gap-1">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                    Técnico Certificado
+                                  </span>
+                                )}
+                                {post.authorRole === 'company' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black">
+                                    Empresa
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
+                                {postDisplaySpecialty && (
+                                  <span className="font-semibold text-slate-600">{postDisplaySpecialty}</span>
+                                )}
+                                <span>•</span>
+                                <span>📍 {postDisplayProvince}</span>
+                                <span>•</span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  {formatDate(post.createdAt)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                            {post.solucaoAceita && (
+                              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Solução Aceita</span>
+                              </span>
+                            )}
+
+                            <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
+                              {post.category}
+                            </span>
+
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm('Tem certeza que deseja excluir esta publicação?')) {
+                                    deleteCommunityPost(post.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                title="Excluir Publicação"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {postCircuit && (
+                          <div className="pt-1">
+                            <CadCircuitPreviewCard
+                              circuit={postCircuit}
+                              onTestCircuit={() => handleOpenCadSimulator(postCircuit)}
+                              hideTestButton={isClientUser}
+                            />
+                          </div>
+                        )}
+
+                        <div className="space-y-2.5">
+                          <h2 className="text-base sm:text-lg font-black text-slate-900 leading-snug">
+                            {post.title}
+                          </h2>
+                          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                            {post.content}
+                          </p>
+                        </div>
+
+                        {post.tags && post.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {post.tags.map(tag => (
+                              <span
+                                key={tag}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-semibold flex items-center gap-1"
+                              >
+                                <Tag className="w-3 h-3 text-slate-400" />
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                try {
+                                  soundFX?.playLike?.();
+                                } catch {}
+                                togglePostReaction(post.id, 'useful');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                                hasUseful
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300 font-black'
+                                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                              }`}
+                              title="Marcar como Útil / Prático"
+                            >
+                              <Lightbulb className={`w-3.5 h-3.5 ${hasUseful ? 'fill-amber-500 text-amber-600' : 'text-slate-500'}`} />
+                              <span>Útil</span>
+                              {usefulCount > 0 && (
+                                <span className="ml-1 px-1.5 py-0.2 bg-white/80 rounded-full text-[10px]">
+                                  {usefulCount}
+                                </span>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                try {
+                                  soundFX?.playLike?.();
+                                } catch {}
+                                togglePostReaction(post.id, 'insightful');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                                hasInsightful
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-300 font-black'
+                                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                              }`}
+                              title="Insight Técnico de Engenharia"
+                            >
+                              <Sparkles className={`w-3.5 h-3.5 ${hasInsightful ? 'text-blue-600' : 'text-slate-500'}`} />
+                              <span>Técnico</span>
+                              {insightfulCount > 0 && (
+                                <span className="ml-1 px-1.5 py-0.2 bg-white/80 rounded-full text-[10px]">
+                                  {insightfulCount}
+                                </span>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                try {
+                                  soundFX?.playLike?.();
+                                } catch {}
+                                togglePostReaction(post.id, 'applause');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                                hasApplause
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-black'
+                                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                              }`}
+                              title="Excelente Trabalho / Parabéns"
+                            >
+                              <Award className={`w-3.5 h-3.5 ${hasApplause ? 'text-emerald-600' : 'text-slate-500'}`} />
+                              <span>Excelente</span>
+                              {applauseCount > 0 && (
+                                <span className="ml-1 px-1.5 py-0.2 bg-white/80 rounded-full text-[10px]">
+                                  {applauseCount}
+                                </span>
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {!isClientUser && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCadSimulator(postCircuit)}
+                                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs transition flex items-center gap-1.5 shadow-md shadow-blue-900/30 cursor-pointer active:scale-95"
+                                title="Carregar e testar o circuito na bancada CAD interativa"
+                              >
+                                <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300 animate-pulse" />
+                                <span>⚡ Testar Circuito</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveCommentPostId(isCommentOpen ? null : post.id)}
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 text-slate-600" />
+                              <span>Comentários ({post.commentsCount || 0})</span>
+                            </button>
+
+                            {postWhatsappNumber && (
+                              <a
+                                href={`https://wa.me/${(postWhatsappNumber || '').replace(/\D/g, '')}?text=${encodeURIComponent(
+                                  `Olá ${postDisplayName}, vi o seu circuito técnico no Mural da TécnicaMZ ("${post.title}") e gostaria de conversar.`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-xs"
+                                title="Conversar no WhatsApp"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                                <span>WhatsApp</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        {isCommentOpen && (
+                          <div className="pt-4 border-t border-slate-100 space-y-4 bg-slate-50/70 p-4 rounded-2xl">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <MessageCircle className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>Discussão Técnica & Respostas ({post.comments?.length || 0})</span>
+                              </h4>
+                              {replyingTo[post.id] && (
+                                <span className="text-[11px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                  Respondendo a @{replyingTo[post.id]?.authorName}
+                                  <button
+                                    type="button"
+                                    onClick={() => setReplyingTo(prev => ({ ...prev, [post.id]: null }))}
+                                    className="ml-1 text-indigo-500 hover:text-indigo-900 font-black cursor-pointer"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              )}
+                            </div>
+
+                            {post.comments && post.comments.length > 0 ? (
+                              <div className="space-y-3">
+                                {post.comments.map(comment => {
+                                  const isCommentAuthor = Boolean(currentUser && currentUser.uid === comment.authorId);
+                                  const commentDisplayName = isCommentAuthor ? (currentUser?.name || comment.authorName || 'Usuário') : (comment.authorName || 'Usuário');
+                                  const commentDisplaySpecialty = isCommentAuthor ? (currentUser?.specialty || currentUser?.specialties?.[0] || comment.authorSpecialty) : comment.authorSpecialty;
+                                  const isPostOwner = comment.authorId === post.authorId;
+                                  const hasLikedComment = Boolean(currentUser && comment.likes?.includes(currentUser.uid));
+                                  const canDeleteComment = isCommentAuthor || isPostAuthor || isAdmin;
+                                  const isAcceptedSolution = Boolean(
+                                    comment.solucaoAceita ||
+                                    (post.comentarioSolucaoId && post.comentarioSolucaoId === comment.id)
+                                  );
+                                  const canMarkSolution = (isPostAuthor || isAdmin) && !isAcceptedSolution;
+
+                                  return (
+                                    <div
+                                      key={comment.id}
+                                      className={`p-3.5 rounded-xl transition-all space-y-2 ${
+                                        isAcceptedSolution
+                                          ? 'bg-emerald-50/70 border-2 border-emerald-500 ring-2 ring-emerald-200 shadow-md'
+                                          : 'bg-white border border-slate-200 shadow-2xs'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between text-xs flex-wrap gap-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-black text-slate-900">{commentDisplayName}</span>
+                                          <UserRankBadge points={getAuthorPoints(comment.authorId)} size="xs" />
+                                          {isAcceptedSolution && (
+                                            <span className="text-[10px] px-2.5 py-0.5 bg-emerald-600 text-white rounded-full font-black flex items-center gap-1 shadow-xs animate-pulse">
+                                              <CheckCircle2 className="w-3 h-3 text-white" />
+                                              ✔ Solução Oficial
+                                            </span>
+                                          )}
+                                          {isPostOwner && (
+                                            <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-900 rounded-full font-black border border-amber-200 flex items-center gap-1">
+                                              ★ Autor da Publicação
+                                            </span>
+                                          )}
+                                          {commentDisplaySpecialty && !isPostOwner && (
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md font-semibold">
+                                              {commentDisplaySpecialty}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400">{formatDate(comment.createdAt)}</span>
+                                      </div>
+
+                                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                                        {comment.text}
+                                      </p>
+
+                                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] flex-wrap gap-2">
+                                        <div className="flex items-center gap-3">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              try {
+                                                soundFX?.playLike?.();
+                                              } catch {}
+                                              toggleCommunityCommentLike(post.id, comment.id);
+                                            }}
+                                            className={`flex items-center gap-1 font-bold transition px-2 py-0.5 rounded-lg cursor-pointer ${
+                                              hasLikedComment
+                                                ? 'text-rose-600 bg-rose-50'
+                                                : 'text-slate-500 hover:text-rose-600 hover:bg-slate-50'
+                                            }`}
+                                          >
+                                            <ThumbsUp className="w-3 h-3" />
+                                            <span>{comment.likes?.length || 0}</span>
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setReplyingTo(prev => ({
+                                                ...prev,
+                                                [post.id]: { id: comment.id, authorName: comment.authorName }
+                                              }));
+                                              setCommentText(prev => ({
+                                                ...prev,
+                                                [post.id]: `@${comment.authorName} `
+                                              }));
+                                            }}
+                                            className="text-slate-500 hover:text-indigo-600 font-bold transition flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <span>↩ Responder</span>
+                                          </button>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                          {canMarkSolution && (
+                                            <button
+                                              type="button"
+                                              onClick={async () => {
+                                                try {
+                                                  soundFX?.playSuccess?.();
+                                                } catch {}
+                                                await markCommentAsUseful(
+                                                  post.id,
+                                                  post.authorId,
+                                                  comment.id,
+                                                  comment.authorId,
+                                                  currentUser?.uid || ''
+                                                );
+                                              }}
+                                              className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black flex items-center gap-1 transition shadow-2xs active:scale-95 cursor-pointer"
+                                              title="Parabenizar e marcar comentário como Útil (+5 pts e badge ao autor)"
+                                            >
+                                              <span>💡</span>
+                                              <span>Útil (+5 pts)</span>
+                                            </button>
+                                          )}
+
+                                          {canMarkSolution && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                markAcceptedSolution(post.id, comment.id);
+                                              }}
+                                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-[10px] font-black flex items-center gap-1 transition shadow-2xs active:scale-95 cursor-pointer"
+                                              title="Marcar este comentário como a Solução Oficial (+50 pontos ao autor)"
+                                            >
+                                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                              <span>Aceitar Solução (+50 pts)</span>
+                                            </button>
+                                          )}
+
+                                          {canDeleteComment && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (confirm('Excluir este comentário?')) {
+                                                  deleteCommunityComment(post.id, comment.id);
+                                                }
+                                              }}
+                                              className="text-slate-400 hover:text-red-600 p-1 rounded transition cursor-pointer"
+                                              title="Excluir comentário"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-400 italic">
+                                Nenhum comentário ainda. Seja o primeiro a comentar ou esclarecer uma dúvida técnica!
+                              </p>
+                            )}
+
+                            <form
+                              onSubmit={(e) => handleSendComment(post.id, e)}
+                              className="flex items-center gap-2 pt-2"
+                            >
+                              <input
+                                type="text"
+                                value={commentText[post.id] || ''}
+                                onChange={e => setCommentText({ ...commentText, [post.id]: e.target.value })}
+                                placeholder={currentUser ? (replyingTo[post.id] ? `Respondendo a @${replyingTo[post.id]?.authorName}...` : 'Escreva uma resposta técnica ou dica...') : 'Faça login para comentar'}
+                                disabled={!currentUser || isSubmittingComment[post.id]}
+                                className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+                              />
+                              <button
+                                type="submit"
+                                disabled={!currentUser || !commentText[post.id]?.trim() || isSubmittingComment[post.id]}
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
+                              >
+                                {isSubmittingComment[post.id] ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>A enviar...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="w-3.5 h-3.5" />
+                                    <span>{replyingTo[post.id] ? 'Enviar Resposta' : 'Comentar'}</span>
+                                  </>
+                                )}
+                              </button>
+                            </form>
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })
+              )}
             </div>
           </div>
 
-          {/* Desktop Right Sidebar Column (Hidden on mobile, visible on lg) */}
+          {/* Desktop Right Sidebar Column */}
           <aside className="hidden lg:block lg:col-span-4 space-y-5 sticky top-20">
-            {/* Widget 0: Ranking da Bancada / Gamificação */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
@@ -906,7 +921,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
               </div>
             </div>
 
-            {/* Widget 1: Official Emergency & EDM Contacts */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-3">
               <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
                 <AlertCircle className="w-4 h-4 text-amber-500" />
@@ -931,7 +945,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
               </div>
             </div>
 
-            {/* Widget 2: Quick Engineering Calculators */}
             <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-2 font-black text-sm text-indigo-300">
                 <Sparkles className="w-4 h-4 text-indigo-400" />
@@ -942,33 +955,36 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
               </p>
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
+                  type="button"
                   onClick={() => onNavigateTab('tools')}
-                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition"
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition cursor-pointer"
                 >
                   📐 Nível de Parede
                 </button>
                 <button
+                  type="button"
                   onClick={() => onNavigateTab('tools')}
-                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition"
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition cursor-pointer"
                 >
                   ☀️ Solar PV
                 </button>
                 <button
+                  type="button"
                   onClick={() => onNavigateTab('tools')}
-                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition"
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition cursor-pointer"
                 >
                   ⚡ Queda Tensão
                 </button>
                 <button
+                  type="button"
                   onClick={() => onNavigateTab('market')}
-                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition"
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-left transition cursor-pointer"
                 >
                   🛍️ Mercado MZ
                 </button>
               </div>
             </div>
 
-            {/* Widget 3: WhatsApp Support & Community */}
             <div className="bg-emerald-50 rounded-3xl p-5 border border-emerald-200 space-y-3">
               <div className="flex items-center gap-2 text-emerald-950 font-black text-sm">
                 <Phone className="w-4 h-4 text-emerald-600" />
@@ -991,216 +1007,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
         </div>
       </div>
 
-      {/* Modal: Criar Publicação Técnica */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
-            <div className="bg-slate-900 text-white p-5 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-sm font-black">Nova Publicação no Mural dos Técnicos MZ</h3>
-              </div>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreatePost} className="p-6 space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Título da Publicação Técnica *
-                </label>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={e => setNewTitle(e.target.value)}
-                  placeholder="Ex: Como evitar sobreaquecimento em inversores Deye no clima de Tete"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:border-indigo-500 focus:bg-white"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Área Técnica / Especialidade
-                  </label>
-                  <select
-                    value={newCategory}
-                    onChange={e => setNewCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500"
-                  >
-                    {TECHNICAL_CATEGORIES.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Adicionar Tags Técnicas
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={newTagInput}
-                      onChange={e => setNewTagInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddTag();
-                        }
-                      }}
-                      placeholder="Ex: Inversor 5kVA, EDM"
-                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddTag}
-                      className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tags Display */}
-              {newTags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {newTags.map(tag => (
-                    <span
-                      key={tag}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-bold flex items-center gap-1"
-                    >
-                      <span>#{tag}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(tag)}
-                        className="hover:text-red-500 ml-1 text-xs"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Conteúdo Técnico & Recomendações *
-                </label>
-                <textarea
-                  rows={4}
-                  value={newContent}
-                  onChange={e => setNewContent(e.target.value)}
-                  placeholder="Descreva o procedimento técnico, normas de segurança aplicadas, cálculos, desafios enfrentados no local e soluções práticas..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-indigo-500 focus:bg-white leading-relaxed"
-                  required
-                />
-              </div>
-
-              {/* Photo Upload or Preset selection */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700">
-                  Foto ou Esquema Técnico (Opcional)
-                </label>
-
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <label className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border border-slate-200">
-                    <ImageIcon className="w-4 h-4 text-indigo-600" />
-                    <span>Carregar Foto do Dispositivo / Câmera</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageFileChange}
-                      className="hidden"
-                    />
-                  </label>
-
-                  <span className="text-xs text-slate-400 font-semibold">ou escolha um modelo:</span>
-                </div>
-
-                {/* Preset Thumbnails */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                  {PRESET_POST_IMAGES.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setNewImageUrl(preset.url);
-                        setUploadedImagePreview(preset.url);
-                      }}
-                      className={`p-1.5 rounded-xl border text-left transition flex items-center gap-2 ${
-                        newImageUrl === preset.url
-                          ? 'border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-200'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <img src={preset.url} alt={preset.label} className="w-8 h-8 rounded-lg object-cover" />
-                      <span className="text-[10px] font-bold text-slate-700 truncate">{preset.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Preview */}
-                {uploadedImagePreview && (
-                  <div className="relative mt-2 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 max-h-48">
-                    <img src={uploadedImagePreview} alt="Preview" className="w-full h-full object-cover max-h-48" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUploadedImagePreview(null);
-                        setNewImageUrl('');
-                      }}
-                      className="absolute top-2 right-2 px-2 py-1 bg-slate-900/80 text-white rounded-lg text-xs font-bold"
-                    >
-                      Remover Foto
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isCompressingPostImage}
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs transition flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isCompressingPostImage ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Comprimindo foto...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Publicar no Mural</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Selo MZ Blocking Modal */}
+      {/* Modal Bloqueio: Selo MZ Necessário para o Simulador CAD */}
       <SeloMZModal
         isOpen={isSeloModalOpen}
         onClose={() => setIsSeloModalOpen(false)}
         onGoToSeloSettings={() => {
           setIsSeloModalOpen(false);
+          window.dispatchEvent(new CustomEvent('navigate_tab', { detail: { tab: 'settings', subTab: 'selo_mz' } }));
           onNavigateTab('settings');
         }}
         featureName={seloFeatureName}

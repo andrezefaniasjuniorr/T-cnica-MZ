@@ -35,12 +35,10 @@ import { WelcomeModal } from './components/common/WelcomeModal';
 import { AccessDeniedModal } from './components/common/AccessDeniedModal';
 import { SeloMZModal } from './components/common/SeloMZModal';
 import { PWAInstallBanner } from './components/common/PWAInstallBanner';
-import { SubscriptionPaywall } from './components/subscription/SubscriptionPaywall';
-import { WaitingApprovalScreen } from './components/auth/WaitingApprovalScreen';
 import { SplashScreen } from './components/common/SplashScreen';
 
 import { UserRole } from './types';
-import { Wrench, Phone, Mail, ShieldCheck, Heart, Sparkles } from 'lucide-react';
+import { Wrench, Phone, Mail, ShieldCheck } from 'lucide-react';
 import { soundFX } from './utils/audio';
 import { hasActiveModals, setupModalHistoryListener, dismissModalWithoutHistory, fecharModalAtivo, isManualBackPoppingActive } from './utils/modalHistory';
 import {
@@ -84,7 +82,7 @@ const resolveTabFromLocation = (): string | null => {
   if (rawPath === 'gestao-pro-mz' || rawPath === 'admin' || rawHash === 'gestao-pro-mz' || rawHash === 'admin') {
     return 'gestao-pro-mz';
   }
-  // Company aliases (including painel-empresa.html and aliases)
+  // Company aliases
   if (
     rawPath === 'empresa' ||
     rawPath === 'painel-empresa' ||
@@ -96,7 +94,7 @@ const resolveTabFromLocation = (): string | null => {
   ) {
     return 'company';
   }
-  // Technician aliases (including painel-tecnico.html and aliases)
+  // Technician aliases
   if (
     rawPath === 'tecnico' ||
     rawPath === 'painel-tecnico' ||
@@ -150,7 +148,7 @@ const resolveTabFromLocation = (): string | null => {
 };
 
 const AppContent: React.FC = () => {
-  const { currentUser, isLoading, isClient, isTechnician, isCompany, isAdmin, isSubscriptionActive, temSeloMZ, isSeloExpired } = useAuth();
+  const { currentUser, isLoading, isClient, isTechnician, isCompany, isAdmin, temSeloMZ, isSeloExpired } = useAuth();
 
   const roleStr = String(currentUser?.role || '');
   const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
@@ -195,19 +193,20 @@ const AppContent: React.FC = () => {
   const handleCloseSaraAi = () => {
     setIsSaraAiOpen(false);
     dismissModalWithoutHistory('sara_ai');
-    setActiveTab(prev => (prev === 'sara' ? 'technician' : prev));
-    try {
-      localStorage.setItem('tecnicamz_last_route', 'technician');
-      localStorage.setItem('lastRoute', 'technician');
-      const rawPath = window.location.pathname.replace(/^\//, '').trim().toLowerCase();
-      const rawHash = window.location.hash.replace(/^#/, '').trim().toLowerCase();
-      if (rawPath === 'sara' || rawPath === 'sara-ia' || rawHash === 'sara' || rawHash === 'sara-ia') {
-        window.history.replaceState({ tab: 'technician' }, '', '/#tecnico');
+    setActiveTab(prev => {
+      if (prev === 'sara') {
+        try {
+          localStorage.setItem('tecnicamz_last_route', 'technician');
+          localStorage.setItem('lastRoute', 'technician');
+          window.history.replaceState({ tab: 'technician' }, '', '/#tecnico');
+        } catch {}
+        return 'technician';
       }
-    } catch {}
+      return prev;
+    });
   };
 
-  // Navigation State initialized from URL location or cached lastRoute (Instant WhatsApp-style opening)
+  // Navigation State initialized from URL location or cached lastRoute
   const [activeTab, setActiveTab] = useState<string>(() => {
     const detected = resolveTabFromLocation();
     if (detected && VALID_TABS.includes(detected)) {
@@ -238,8 +237,41 @@ const AppContent: React.FC = () => {
 
   const [isAccessDeniedOpen, setIsAccessDeniedOpen] = useState(false);
   const [requiredRoleForDenied, setRequiredRoleForDenied] = useState<UserRole>('client');
+  const [settingsInitialSubTab, setSettingsInitialSubTab] = useState<'perfil' | 'selo_mz' | 'aparencia' | 'suporte' | 'seguranca'>('perfil');
 
-  // Splash Screen Preview State (?preview=splash ou ?splash)
+  // Navegação direta, atômica e imune a conflitos de histórico para as Definições / Selo MZ
+  const handleNavigateToSettings = (subTab: 'perfil' | 'selo_mz' | 'aparencia' | 'suporte' | 'seguranca' = 'selo_mz') => {
+    setIsSaraAiOpen(false);
+    dismissModalWithoutHistory('sara_ai');
+    dismissModalWithoutHistory('selo_mz_modal');
+    setIsSeloModalOpen(false);
+    setIsMobileMenuOpen(false);
+    dismissModalWithoutHistory('mobile_menu');
+
+    setSettingsInitialSubTab(subTab);
+
+    try {
+      localStorage.setItem('tecnicamz_last_route', 'settings');
+      localStorage.setItem('lastRoute', 'settings');
+      if (window.location.hash !== '#settings') {
+        window.history.pushState({ tab: 'settings', subTab }, '', '#settings');
+      }
+    } catch {
+      try {
+        window.location.hash = '#settings';
+      } catch {}
+    }
+
+    setActiveTab('settings');
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {}
+    }
+  };
+
+  // Splash Screen Preview State
   const [showSplashPreview, setShowSplashPreview] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -250,17 +282,14 @@ const AppContent: React.FC = () => {
 
   // Selo MZ Interception Modal State
   const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
-  const [seloFeatureName, setSeloFeatureName] = useState('Ferramentas & Recursos');
+  const [seloFeatureName, setSeloFeatureName] = useState('Simulador CAD Interativo');
 
-  // ==========================================================================
-  // CARREGAMENTO INICIAL NO BOOT/MOUNT: Hidratação imediata do logotipo dos PDFs
-  // ==========================================================================
+  // Hydration on boot
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const hydrateLogoOnBoot = async () => {
       try {
-        // 1. Busca imediatamente o logotipo salvo no LocalStorage (prioridade 'user_logo')
         let rawLogo =
           localStorage.getItem('user_logo') ||
           localStorage.getItem('company_logo_base64') ||
@@ -268,7 +297,6 @@ const AppContent: React.FC = () => {
           localStorage.getItem('tecnico_logo') ||
           getSavedCompanyLogoSync();
 
-        // 2. Fallback resiliente no IndexedDB caso LocalStorage esteja vazio
         if (!rawLogo) {
           try {
             rawLogo = await getSavedCompanyLogoAsync();
@@ -280,7 +308,6 @@ const AppContent: React.FC = () => {
         if (rawLogo) {
           let validBase64 = rawLogo;
 
-          // Se a imagem não for um Data URL Base64 válido (PNG/JPEG), converte via canvas
           if (!isPdfCompatibleImage(rawLogo)) {
             try {
               validBase64 = await compressImage(rawLogo, 900, 0.92);
@@ -290,7 +317,6 @@ const AppContent: React.FC = () => {
           }
 
           if (validBase64 && isPdfCompatibleImage(validBase64)) {
-            // Sincroniza em todas as chaves do localStorage para leitura síncrona dos geradores
             try {
               localStorage.setItem('user_logo', validBase64);
               localStorage.setItem('company_logo_base64', validBase64);
@@ -300,17 +326,14 @@ const AppContent: React.FC = () => {
               console.warn('[LogoHydration] localStorage quota:', stErr);
             }
 
-            // Persiste no IndexedDB como garantia
             persistCompanyLogo(validBase64).catch(() => {});
 
-            // Popula o estado global do PerfilTecnico / PDFs imediatamente
             const helper = (window as any).PerfilTecnico;
             if (helper && typeof helper.salvar === 'function') {
               helper.salvar({ logoBase64: validBase64 });
             }
             saveBrandCustomization({ logoBase64: validBase64 });
 
-            // Dispara evento para sincronizar qualquer componente em escuta
             window.dispatchEvent(
               new CustomEvent('perfilTecnicoAtualizado', {
                 detail: { logoBase64: validBase64 }
@@ -326,18 +349,16 @@ const AppContent: React.FC = () => {
     hydrateLogoOnBoot();
   }, []);
 
-  // Desbloqueio da rotação de tela para suporte completo ao modo paisagem (landscape) no PWA mobile
+  // Screen orientation unlock
   useEffect(() => {
     try {
       if (typeof window !== 'undefined' && 'screen' in window && window.screen.orientation) {
         (window.screen.orientation as any).unlock?.();
       }
-    } catch {
-      // Ignora plataformas ou navegadores que restringem unlock() fora de fullscreen
-    }
+    } catch {}
   }, []);
 
-  // Persistência contínua da última rota navegada (ocupando < 50 bytes)
+  // Last route persistence
   useEffect(() => {
     if (typeof window !== 'undefined' && activeTab) {
       try {
@@ -347,24 +368,35 @@ const AppContent: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Sincronização e escuta de eventos Vanilla para abertura/fechamento do Modal Selo MZ
+  // Event listeners for Selo MZ modal and tab navigation
   useEffect(() => {
     const handleOpen = (e: any) => {
-      setSeloFeatureName(e.detail?.featureName || 'Ferramentas & Recursos');
+      setSeloFeatureName(e.detail?.featureName || 'Simulador CAD Interativo');
       setIsSeloModalOpen(true);
     };
-    const handleClose = () => setIsSeloModalOpen(false);
+    const handleClose = () => {
+      dismissModalWithoutHistory('selo_mz_modal');
+      setIsSeloModalOpen(false);
+    };
+
     const handleNavegar = (e: any) => {
-      if (e.detail?.tab) handleNavigate(e.detail.tab);
+      if (e.detail?.tab === 'settings') {
+        handleNavigateToSettings(e.detail?.subTab || 'selo_mz');
+      } else if (e.detail?.tab) {
+        handleNavigate(e.detail.tab);
+      }
     };
 
     window.addEventListener('tecnicamz:abrir_selo_modal', handleOpen);
     window.addEventListener('tecnicamz:fechar_selo_modal', handleClose);
     window.addEventListener('tecnicamz:navegar', handleNavegar);
+    window.addEventListener('navigate_tab', handleNavegar);
+
     return () => {
       window.removeEventListener('tecnicamz:abrir_selo_modal', handleOpen);
       window.removeEventListener('tecnicamz:fechar_selo_modal', handleClose);
       window.removeEventListener('tecnicamz:navegar', handleNavegar);
+      window.removeEventListener('navigate_tab', handleNavegar);
     };
   }, []);
 
@@ -397,14 +429,11 @@ const AppContent: React.FC = () => {
     };
 
     const handlePopState = (event: PopStateEvent) => {
-      // Se foi disparado por um history.back programático interno de fechar modal, não feche modais pai
       if (isManualBackPoppingActive()) {
         event.preventDefault?.();
         return;
       }
 
-      // 1. INTERCEPTAÇÃO ESTRITA: Se houver qualquer modal ou gaveta ativa na pilha,
-      // a navegação histórica pertence exclusivamente ao fechamento do modal!
       if (hasActiveModals()) {
         event.preventDefault?.();
         fecharModalAtivo();
@@ -419,6 +448,11 @@ const AppContent: React.FC = () => {
             localStorage.setItem('tecnicamz_last_route', 'gestao-pro-mz');
             localStorage.setItem('lastRoute', 'gestao-pro-mz');
           } catch {}
+          return;
+        }
+        if (sTab === 'settings') {
+          setSettingsInitialSubTab(event.state.subTab || 'selo_mz');
+          setActiveTab('settings');
           return;
         }
         if (VALID_TABS.includes(sTab)) {
@@ -447,11 +481,10 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
-  // 2. Dynamic Redirection and Role Alignment upon Login and Session Refresh (F5)
+  // 2. Dynamic Redirection upon Login and Session Refresh (F5)
   useEffect(() => {
     if (!currentUser || isLoading) return;
 
-    // Se o usuário JÁ ESTÁ logado e a URL atual for de Login/Cadastro, manda para o painel correto sem recarregar
     if (typeof window !== 'undefined' && (window.location.pathname.includes('login') || window.location.pathname.includes('cadastro'))) {
       if (isCompany || currentUser.tipo === 'empresa' || currentUser.tipoConta === 'empresa' || currentUser.role === 'company') {
         setActiveTab('company');
@@ -480,6 +513,11 @@ const AppContent: React.FC = () => {
       }
     }
 
+    // Se a aba atual for 'settings', JAMAIS sobrescrever para 'technician' ou 'client'
+    if (activeTab === 'settings') {
+      return;
+    }
+
     const detected = resolveTabFromLocation() || (() => {
       try {
         const saved = localStorage.getItem('tecnicamz_last_route') || localStorage.getItem('lastRoute');
@@ -488,8 +526,11 @@ const AppContent: React.FC = () => {
       return null;
     })();
 
-    // 2. Dynamic Redirection and Role Alignment upon Login and Session Refresh (F5)
-    // If Admin
+    if (detected === 'settings') {
+      setActiveTab('settings');
+      return;
+    }
+
     if (isAdmin) {
       if (detected && VALID_TABS.includes(detected)) {
         setActiveTab(detected);
@@ -502,12 +543,10 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // If Company (tipo === 'empresa' or tipoConta === 'empresa' or role === 'company')
     if (isCompany || currentUser.tipo === 'empresa' || currentUser.tipoConta === 'empresa' || currentUser.role === 'company') {
       if (detected && ['company', 'jobs', 'company_directory', 'technicians_directory', 'market', 'community', 'settings', 'academy'].includes(detected)) {
         setActiveTab(detected);
       } else {
-        // Strict redirection: Company is NEVER sent to client dashboard
         setActiveTab('company');
         try {
           window.history.replaceState({ tab: 'company' }, '', '#empresa');
@@ -516,7 +555,6 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // If Technician (tipo === 'tecnico' or tipoConta === 'tecnico' or role === 'technician')
     if (isTechnician || currentUser.tipo === 'tecnico' || currentUser.tipoConta === 'tecnico' || currentUser.role === 'technician') {
       if (detected && ['technician', 'tools', 'jobs', 'market', 'community', 'academy', 'technicians_directory', 'company_directory', 'settings', 'sara'].includes(detected)) {
         setActiveTab(detected);
@@ -524,7 +562,6 @@ const AppContent: React.FC = () => {
           setIsSaraAiOpen(true);
         }
       } else {
-        // Strict redirection: Technician is NEVER sent to client dashboard
         setActiveTab('technician');
         try {
           window.history.replaceState({ tab: 'technician' }, '', '#tecnico');
@@ -533,9 +570,7 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // If Client (tipo === 'cliente' or tipoConta === 'cliente' or role === 'client')
     if (isClient || currentUser.tipo === 'cliente' || currentUser.tipoConta === 'cliente' || currentUser.role === 'client') {
-      // If client attempts to access technician/company/admin tabs, redirect to client portal
       if (detected === 'tools' || detected === 'technician' || detected === 'company' || detected === 'gestao-pro-mz') {
         setActiveTab('client');
         try {
@@ -550,24 +585,20 @@ const AppContent: React.FC = () => {
         } catch {}
       }
     }
-  }, [currentUser?.uid, currentUser?.tipo, currentUser?.tipoConta, currentUser?.role, currentUser?.statusAprovacao, currentUser?.status, isClient, isTechnician, isCompany, isAdmin, isLoading]);
+  }, [currentUser?.uid, currentUser?.tipo, currentUser?.tipoConta, currentUser?.role, currentUser?.statusAprovacao, currentUser?.status, isClient, isTechnician, isCompany, isAdmin, isLoading, activeTab]);
 
-  // 3. First-time login onboarding check (tecnica_mz_onboarding_completed)
+  // 3. First-time login onboarding check
   useEffect(() => {
     if (currentUser?.uid) {
       try {
         const completed = localStorage.getItem('tecnica_mz_onboarding_completed');
-        // Se a chave for 'false' ou inexistente/null, abre automaticamente o Tour de Boas-Vindas
         if (completed !== 'true') {
           setIsWelcomeOpen(true);
         }
-      } catch {
-        // Ignore localStorage restrictions
-      }
+      } catch {}
     }
   }, [currentUser?.uid]);
 
-  // Listener para reabertura manual do Guia de Integração / Onboarding Tour
   useEffect(() => {
     const handleOpenOnboarding = () => {
       setIsWelcomeOpen(true);
@@ -578,15 +609,18 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
-  const handleNavigate = (tab: string, addToHistory = true) => {
+  const handleNavigate = (tab: string, addToHistory = true, subTab?: string) => {
     let targetTab = tab;
-    // Map aliases
     if (tab === 'tecnico' || tab === 'painel-tecnico') targetTab = 'technician';
     if (tab === 'feed' || tab === 'mural') targetTab = 'community';
     if (tab === 'gestao-pro-mz' || tab === 'admin') targetTab = 'gestao-pro-mz';
 
-    // 1. LÓGICA DE INTERCEPTAÇÃO E VERIFICAÇÃO DO SELO MZ:
-    // Cheque no localStorage a chave: 'tecnico_verificado' (booleano).
+    // Roteamento imediato e seguro para as Definições do Selo MZ
+    if (targetTab === 'settings') {
+      handleNavigateToSettings((subTab as any) || 'selo_mz');
+      return;
+    }
+
     if (targetTab === 'sara') {
       setIsMobileMenuOpen(false);
       dismissModalWithoutHistory('mobile_menu');
@@ -594,9 +628,6 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // Ao tentar acessar a aba "Ferramentas" (ou qualquer recurso restrito), caso sem Selo MZ ou expirado:
-    // * Impede a abertura do conteúdo da aba.
-    // * Exibe o Modal "Selo MZ Necessário".
     if (targetTab === 'tools') {
       let isVerificado = false;
       try {
@@ -606,11 +637,10 @@ const AppContent: React.FC = () => {
       if ((!isVerificado || !temSeloMZ || isSeloExpired) && !isAdmin) {
         setSeloFeatureName('Ferramentas & Recursos');
         setIsSeloModalOpen(true);
-        return; // Impede a abertura do conteúdo da aba!
+        return;
       }
     }
 
-    // RBAC Route Guard Checks
     if (isClient && (targetTab === 'tools' || targetTab === 'technician' || targetTab === 'company' || targetTab === 'gestao-pro-mz')) {
       if (targetTab === 'tools') {
         alert('As ferramentas de emissão de OS e dimensionamento técnico são exclusivas para técnicos e empresas credenciados.');
@@ -641,7 +671,6 @@ const AppContent: React.FC = () => {
       }
     }
 
-    // Fecha gaveta mobile sem conflito de popstate
     setIsMobileMenuOpen(false);
     dismissModalWithoutHistory('mobile_menu');
 
@@ -678,9 +707,6 @@ const AppContent: React.FC = () => {
     setIsMessagesOpen(true);
   };
 
-  // =========================================================================
-  // SPLASH SCREEN & STRICT ACCESS CONTROL
-  // =========================================================================
   if (showSplashPreview) {
     return (
       <SplashScreen
@@ -698,7 +724,6 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Se estiver carregando inicialmente, exibe o Splash Screen oficial com ícone de 220px e neon
   if (isLoading && !currentUser) {
     return <SplashScreen />;
   }
@@ -707,9 +732,6 @@ const AppContent: React.FC = () => {
     return <AuthScreen initialMode="login" initialRole="client" />;
   }
 
-  // =========================================================================
-  // SECRET ADMIN ROUTE: /gestao-pro-mz (Protected by Firestore role === 'admin')
-  // =========================================================================
   if (activeTab === 'gestao-pro-mz' || activeTab === 'admin') {
     return (
       <AdminRoute onRedirectToFeed={() => handleNavigate('community')}>
@@ -718,7 +740,6 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Blocked account screen
   if (currentUser.status === 'blocked' || currentUser.statusConta === 'bloqueada') {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
@@ -750,14 +771,11 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // =========================================================================
-  // AUTHENTICATED USER DASHBOARD & PLATFORM
-  // =========================================================================
   return (
     <div className={`min-h-screen flex flex-col font-sans antialiased selection:bg-blue-500 selection:text-white ${
       isDarkMode ? 'bg-[#0B1120] text-slate-100' : 'bg-[#F0F2F5] text-slate-900'
     }`}>
-      {/* 1. Global Facebook-Inspired Header */}
+      {/* 1. Global Header */}
       <Header
         activeTab={activeTab}
         onNavigateTab={handleNavigate}
@@ -798,6 +816,7 @@ const AppContent: React.FC = () => {
             onNavigateTab={handleNavigate}
             isDarkMode={isDarkMode}
             onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+            initialSubTab={settingsInitialSubTab}
           />
         )}
 
@@ -845,7 +864,7 @@ const AppContent: React.FC = () => {
         )}
       </main>
 
-      {/* 3. Mobile Bottom Navigation Bar - ESCONDA completamente quando rota for /sara ou Sara IA ativa */}
+      {/* 3. Mobile Bottom Navigation Bar */}
       {!(activeTab === 'sara' || isSaraAiOpen) && (
         <BottomNav
           activeTab={activeTab}
@@ -856,7 +875,7 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {/* 4. Desktop Floating Quick Launcher for Sara IA (Exclusivo Técnicos / Oculto para Clientes e quando Sara aberta) */}
+      {/* 4. Desktop Floating Quick Launcher for Sara IA */}
       {!(activeTab === 'sara' || isSaraAiOpen) && (
         <SaraAiFloatingButton onClick={handleOpenSaraAi} />
       )}
@@ -865,7 +884,6 @@ const AppContent: React.FC = () => {
       <footer className="bg-slate-950 text-slate-400 border-t border-slate-800 text-xs mt-auto hidden md:block">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-800/80">
-            {/* Brand & Slogan */}
             <div className="space-y-3 md:col-span-1">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black">
@@ -882,7 +900,6 @@ const AppContent: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick Links */}
             <div className="space-y-2">
               <h4 className="font-bold text-white uppercase text-[11px] tracking-wider">Módulos Principais</h4>
               <ul className="space-y-1 text-[11px]">
@@ -893,7 +910,6 @@ const AppContent: React.FC = () => {
               </ul>
             </div>
 
-            {/* Provinces */}
             <div className="space-y-2">
               <h4 className="font-bold text-white uppercase text-[11px] tracking-wider">Cobertura Nacional</h4>
               <p className="text-[11px] leading-relaxed text-slate-400">
@@ -901,7 +917,6 @@ const AppContent: React.FC = () => {
               </p>
             </div>
 
-            {/* Official Support */}
             <div className="space-y-2">
               <h4 className="font-bold text-white uppercase text-[11px] tracking-wider">Suporte Técnico Oficial</h4>
               <div className="space-y-1.5 text-[11px] text-slate-400">
@@ -945,7 +960,7 @@ const AppContent: React.FC = () => {
       <SaraAiModal
         isOpen={(isSaraAiOpen || activeTab === 'sara') && !isClientUser && isTechnicianUser}
         onClose={handleCloseSaraAi}
-        onGoToSettings={() => handleNavigate('settings')}
+        onGoToSettings={handleNavigateToSettings}
       />
 
       <NotificationsModal
@@ -979,18 +994,16 @@ const AppContent: React.FC = () => {
         onOpenAuth={() => handleNavigate('settings')}
       />
 
-      {/* Modal de Bloqueio de Verificação "Selo MZ Necessário" */}
+      {/* Modal Bloqueio: Selo MZ Necessário */}
       <SeloMZModal
         isOpen={isSeloModalOpen}
         onClose={() => setIsSeloModalOpen(false)}
         onGoToSeloSettings={() => {
-          setIsSeloModalOpen(false);
-          handleNavigate('settings');
+          handleNavigateToSettings('selo_mz');
         }}
         featureName={seloFeatureName}
       />
 
-      {/* 5. Mobile Extra Menu Drawer (All Options Grid & Sound Settings) */}
       <MobileExtraMenuDrawer
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
@@ -1004,7 +1017,6 @@ const AppContent: React.FC = () => {
         onOpenNotifications={() => setIsNotificationsOpen(true)}
       />
 
-      {/* PWA: In-App Installation Banner */}
       <PWAInstallBanner />
     </div>
   );

@@ -139,67 +139,67 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   };
 
   return (
-    <div id="notifications_modal_overlay" className="modal-useful-fullscreen-overlay animate-in fade-in duration-150">
-      <div id="notifications_modal_window" className="modal-useful-fullscreen-window bg-white dark:bg-slate-900">
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 shrink-0 sticky top-0 z-10">
+    <div id="notifications_modal_overlay" className="modal-useful-fullscreen-overlay animate-in fade-in duration-150 bg-black/60 backdrop-blur-xs">
+      <div id="notifications_modal_window" className="modal-useful-fullscreen-window bg-white text-slate-900">
+        {/* Header - Fundo Branco e Textos Pretos */}
+        <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0 sticky top-0 z-10 shadow-xs">
           <div className="flex items-center gap-2.5">
             <button
               onClick={handleClose}
-              className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-xs font-bold transition shadow-2xs cursor-pointer"
+              className="p-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-900 flex items-center gap-1.5 text-xs font-black transition cursor-pointer"
               title="Voltar / Sair"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 text-slate-900" />
               <span className="hidden sm:inline">Voltar</span>
             </button>
-            <div className="relative w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-              <Bell className="w-4 h-4" />
+            <div className="relative w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0">
+              <Bell className="w-4 h-4 text-blue-600" />
               {modalUnreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-600 ring-2 ring-white animate-pulse" />
               )}
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-2 tracking-tight">
                 Central de Notificações
                 {modalUnreadCount > 0 && (
-                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
                     {modalUnreadCount} nova{modalUnreadCount > 1 ? 's' : ''}
                   </span>
                 )}
               </h2>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] text-slate-600 font-medium">
                 Pontos, soluções técnicas e avisos oficiais do sistema
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
+            className="p-2 rounded-xl hover:bg-slate-100 text-slate-700 hover:text-slate-950 transition cursor-pointer"
             title="Fechar (X)"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Filter bar & Mark All Read */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs">
-          <div className="flex items-center gap-1">
+        {/* Filter bar & Mark All Read - Fundo Branco */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white text-xs">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setFilter('all')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
                 filter === 'all'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200'
               }`}
             >
               Todas ({userNotifications.length})
             </button>
             <button
               onClick={() => setFilter('unread')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
                 filter === 'unread'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200'
               }`}
             >
               Não Lidas ({modalUnreadCount})
@@ -209,7 +209,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           {modalUnreadCount > 0 && (
             <button
               onClick={handleMarkAllRead}
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+              className="text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               title="Marcar todas como lidas"
             >
               <CheckCheck className="w-3.5 h-3.5" />
@@ -218,18 +218,18 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           )}
         </div>
 
-        {/* Notifications List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+        {/* Notifications List - Fundo Branco e Textos Nítidos */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white">
           {displayedNotifications.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 dark:text-slate-500">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                <Bell className="w-6 h-6 opacity-40" />
+            <div className="py-14 text-center text-slate-500 bg-white rounded-2xl border border-dashed border-slate-200 p-6">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200">
+                <Bell className="w-6 h-6" />
               </div>
-              <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+              <p className="text-sm font-black text-slate-900">
                 {filter === 'unread' ? 'Nenhuma notificação não lida' : 'Nenhuma notificação ainda'}
               </p>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 max-w-xs mx-auto">
-                Quando receber pontos, soluções aceitas ou novas respostas no Mural, elas aparecerão aqui.
+              <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto">
+                Quando receber pontos, soluções aceitas ou novos avisos oficiais, eles aparecerão aqui com leitura nítida.
               </p>
             </div>
           ) : (
@@ -239,18 +239,18 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                 <div
                   key={item.id}
                   onClick={() => handleNotificationClick(item)}
-                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 relative group ${
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 relative group shadow-2xs ${
                     isUnread
-                      ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/60 hover:bg-blue-50 dark:hover:bg-blue-950/50 shadow-2xs'
-                      : 'bg-slate-50 dark:bg-slate-800/50 border-slate-150 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      ? 'bg-blue-50/90 border-blue-300 hover:bg-blue-100/70 hover:border-blue-400'
+                      : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                   }`}
                 >
                   {/* Icon container */}
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
                       isUnread
-                        ? 'bg-white dark:bg-slate-800 shadow-2xs'
-                        : 'bg-slate-200/70 dark:bg-slate-700/60'
+                        ? 'bg-white border-blue-200 shadow-xs'
+                        : 'bg-slate-100 border-slate-200 text-slate-700'
                     }`}
                   >
                     {getNotificationIcon(item)}
@@ -258,34 +258,34 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
                   {/* Content */}
                   <div className="flex-1 min-w-0 pr-4">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
                       <h4
-                        className={`text-xs font-black truncate ${
-                          isUnread ? 'text-blue-950 dark:text-blue-200 font-black' : 'text-slate-800 dark:text-slate-200'
+                        className={`text-xs sm:text-sm font-black truncate tracking-tight ${
+                          isUnread ? 'text-slate-950 font-black' : 'text-slate-900 font-bold'
                         }`}
                       >
                         {item.title}
                       </h4>
-                      <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">
+                      <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap shrink-0">
                         {formatNotificationTime(item.createdAt)}
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-800 line-clamp-2 leading-relaxed font-medium">
                       {item.message}
                     </p>
 
                     {item.linkTab && (
-                      <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                      <div className="mt-2.5 flex items-center gap-1.5 text-xs font-black text-blue-700">
                         <span>Ver no aplicativo</span>
-                        <ExternalLink className="w-3 h-3" />
+                        <ExternalLink className="w-3.5 h-3.5" />
                       </div>
                     )}
                   </div>
 
                   {/* Unread indicator dot */}
                   {isUnread && (
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0 absolute top-4 right-3.5 ring-2 ring-white dark:ring-slate-900" />
+                    <span className="w-3 h-3 rounded-full bg-blue-600 shrink-0 absolute top-4 right-4 ring-2 ring-white" />
                   )}
                 </div>
               );
@@ -293,14 +293,14 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-3 bg-slate-50 dark:bg-slate-800/70 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+        {/* Footer - Fundo Branco */}
+        <div className="p-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs">
+          <span className="text-xs font-semibold text-slate-600">
             TécnicaMZ Pro • Notificações em Tempo Real
           </span>
           <button
             onClick={handleClose}
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition cursor-pointer shadow-2xs active:scale-95"
+            className="px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl font-black text-xs transition cursor-pointer shadow-xs active:scale-95"
           >
             Fechar
           </button>

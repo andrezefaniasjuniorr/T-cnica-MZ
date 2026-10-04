@@ -42,8 +42,8 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   onRequestQuote,
   onOpenMessages
 }) => {
-  const { reviews, portfolio, isFavorite, toggleFavorite, submitReport } = useData();
-  const { currentUser, giveTechnicianLike } = useAuth();
+  const { reviews, portfolio, isFavorite, toggleFavorite, submitReport, technicians } = useData();
+  const { currentUser, currentTechProfile, giveTechnicianLike } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'about' | 'portfolio' | 'reviews'>('about');
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -51,14 +51,25 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   const [reportDetails, setReportDetails] = useState('');
   const [reportSent, setReportSent] = useState(false);
 
-  const [likeCount, setLikeCount] = useState<number>(technician?.totalLikes ?? 0);
+  // Sincroniza em tempo real caso os dados do técnico tenham sido atualizados nas configurações
+  const liveTechnician = technician
+    ? (technicians.find(t => t.userId === technician.userId) || technician)
+    : null;
+
+  const isSelf = Boolean(currentUser && liveTechnician && currentUser.uid === liveTechnician.userId);
+
+  const effectiveExperienceYears = isSelf
+    ? ((currentUser as any)?.experienceYears ?? currentTechProfile?.experienceYears ?? liveTechnician?.experienceYears ?? (liveTechnician as any)?.anosExperiencia)
+    : (liveTechnician?.experienceYears ?? (liveTechnician as any)?.anosExperiencia);
+
+  const [likeCount, setLikeCount] = useState<number>(liveTechnician?.totalLikes ?? 0);
   const [hasLiked, setHasLiked] = useState(() => {
-    if (!technician?.userId) return false;
+    if (!liveTechnician?.userId) return false;
     try {
       const raw = localStorage.getItem('tecnicamz_liked_techs_list');
       if (raw) {
         const list = JSON.parse(raw);
-        return Array.isArray(list) && list.includes(technician.userId);
+        return Array.isArray(list) && list.includes(liveTechnician.userId);
       }
       return false;
     } catch {
@@ -68,10 +79,10 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
   const [isLiking, setIsLiking] = useState(false);
 
   React.useEffect(() => {
-    if (technician) {
-      setLikeCount(technician.totalLikes ?? 0);
+    if (liveTechnician) {
+      setLikeCount(liveTechnician.totalLikes ?? 0);
       const voterId = currentUser?.uid;
-      const likedInArray = Boolean(voterId && Array.isArray(technician.likedByUsers) && technician.likedByUsers.includes(voterId));
+      const likedInArray = Boolean(voterId && Array.isArray(liveTechnician.likedByUsers) && liveTechnician.likedByUsers.includes(voterId));
       if (likedInArray) {
         setHasLiked(true);
         return;
@@ -80,19 +91,16 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
         const raw = localStorage.getItem('tecnicamz_liked_techs_list');
         if (raw) {
           const list = JSON.parse(raw);
-          setHasLiked(Array.isArray(list) && list.includes(technician.userId));
+          setHasLiked(Array.isArray(list) && list.includes(liveTechnician.userId));
         }
       } catch {}
     }
-  }, [technician?.totalLikes, technician?.likedByUsers, technician?.userId, currentUser?.uid]);
+  }, [liveTechnician?.totalLikes, liveTechnician?.likedByUsers, liveTechnician?.userId, currentUser?.uid]);
 
-  // Bloqueio de rolagem do fundo (body scroll lock)
-  useBodyScrollLock(Boolean(technician));
+  useBodyScrollLock(Boolean(liveTechnician));
+  useModalHistory(Boolean(liveTechnician), 'perfil_tecnico_detalhe', onClose);
 
-  // Interceptação estrita do botão voltar do celular via History API
-  useModalHistory(Boolean(technician), 'perfil_tecnico_detalhe', onClose);
-
-  if (!technician) return null;
+  if (!liveTechnician) return null;
 
   const handleGiveLike = async () => {
     if (isLiking) return;
@@ -102,7 +110,7 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
     setLikeCount(prev => Math.max(0, prev + (willBeLiked ? 1 : -1)));
 
     try {
-      const res = await giveTechnicianLike(technician.userId);
+      const res = await giveTechnicianLike(liveTechnician.userId);
       if (res.totalLikes !== undefined) {
         setLikeCount(res.totalLikes);
       }
@@ -116,12 +124,12 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
     }
   };
 
-  const techReviews = reviews.filter(r => r.technicianId === technician.userId);
-  const techPortfolio = portfolio.filter(p => p.technicianId === technician.userId);
-  const isFav = isFavorite(technician.userId);
+  const techReviews = reviews.filter(r => r.technicianId === liveTechnician.userId);
+  const techPortfolio = portfolio.filter(p => p.technicianId === liveTechnician.userId);
+  const isFav = isFavorite(liveTechnician.userId);
 
-  const isVerified = technician.verificationStatus === 'approved';
-  const isPremium = technician.subscriptionStatus === 'active';
+  const isVerified = liveTechnician.verificationStatus === 'approved' || liveTechnician.isVerified || (liveTechnician as any).temSeloMZ;
+  const isPremium = liveTechnician.subscriptionStatus === 'active';
 
   const handleSendReport = (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,8 +138,8 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
       reporterId: currentUser.uid,
       reporterName: currentUser.name,
       reporterRole: currentUser.role,
-      targetId: technician.userId,
-      targetName: technician.name,
+      targetId: liveTechnician.userId,
+      targetName: liveTechnician.name,
       targetType: 'technician',
       reason: reportReason,
       details: reportDetails
@@ -141,6 +149,23 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
       setReportModalOpen(false);
       setReportSent(false);
     }, 1500);
+  };
+
+  const renderExperienceText = () => {
+    if (effectiveExperienceYears === undefined || effectiveExperienceYears === null || effectiveExperienceYears === '') {
+      return 'Técnico Especialista';
+    }
+    const yearsNum = Number(effectiveExperienceYears);
+    if (isNaN(yearsNum) || yearsNum < 0) {
+      return 'Técnico Especialista';
+    }
+    if (yearsNum === 0) {
+      return 'Início de carreira / Recém-formado';
+    }
+    if (yearsNum === 1) {
+      return '1 ano de experiência prática';
+    }
+    return `${yearsNum} anos de experiência prática`;
   };
 
   return (
@@ -157,7 +182,7 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={onClose}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-bold shrink-0"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-bold shrink-0 cursor-pointer"
               title="Voltar aos técnicos"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -166,22 +191,22 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
             <div className="min-w-0">
               <h3 className="text-sm sm:text-base font-black text-white truncate flex items-center gap-2">
                 <span>Perfil do Técnico</span>
-                {technician.featured && (
+                {liveTechnician.featured && (
                   <span className="px-2 py-0.5 bg-amber-400 text-slate-950 rounded-full text-[10px] font-black uppercase">
                     ⭐ Destaque
                   </span>
                 )}
               </h3>
               <p className="text-[11px] text-slate-400 truncate">
-                {technician.name}
+                {liveTechnician.name}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => toggleFavorite(technician.userId)}
-              className={`p-2 rounded-xl transition ${
+              onClick={() => toggleFavorite(liveTechnician.userId)}
+              className={`p-2 rounded-xl transition cursor-pointer ${
                 isFav
                   ? 'bg-rose-500 text-white'
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
@@ -192,7 +217,7 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition shadow-sm"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition shadow-sm cursor-pointer"
               title="Fechar (X)"
               aria-label="Fechar"
             >
@@ -204,7 +229,7 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
         {/* Conteúdo interno do modal com rolagem própria */}
         <div className="overflow-y-auto flex-1 text-xs text-slate-700">
           {/* Header Cover Banner */}
-          <div className="h-28 sm:h-32 bg-linear-to-r from-blue-900 via-indigo-900 to-slate-900 relative p-4 flex justify-between items-start">
+          <div className="h-28 sm:h-32 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 relative p-4 flex justify-between items-start">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-1 bg-white/10 backdrop-blur-md text-white rounded-lg text-[11px] font-bold">
                 TécnicaMZ Pro
@@ -217,8 +242,8 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
             <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-14 sm:-mt-16 mb-4">
               <div className="relative">
                 <UserAvatar
-                  name={technician.name}
-                  photoURL={technician.photoURL || technician.avatarUrl}
+                  name={liveTechnician.name}
+                  photoURL={liveTechnician.photoURL || liveTechnician.avatarUrl}
                   size="custom"
                   className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl sm:rounded-3xl border-4 border-white shadow-xl text-2xl sm:text-3xl"
                 />
@@ -232,304 +257,306 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
                 )}
               </div>
 
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={handleGiveLike}
-                className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
-                  hasLiked
-                    ? 'bg-rose-100 text-rose-700 border border-rose-300'
-                    : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200'
-                }`}
-                title="Curtir perfil deste técnico"
-              >
-                <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-600 text-rose-600' : 'text-rose-600'}`} />
-                <span>{likeCount} Curtidas</span>
-              </button>
-
-              <WhatsAppButton
-                phone={technician.whatsapp || technician.phone}
-                technicianName={technician.name}
-                className="flex-1 sm:flex-none"
-              />
-              {onOpenMessages && (
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 <button
-                  onClick={() => {
-                    onClose();
-                    onOpenMessages(technician.userId || (technician as any).id, technician.name, 'technician');
-                  }}
-                  className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Mensagem Direta / Chat</span>
-                </button>
-              )}
-              <button
-                onClick={() => onRequestQuote(technician)}
-                className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Pedir Orçamento</span>
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                {technician.name}
-              </h2>
-              <UserRankBadge points={technician.pontos ?? technician.scoreEngajamento ?? 0} showPoints size="sm" />
-              {(technician.streakCount && technician.streakCount > 0) && (
-                <span className="px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-black flex items-center gap-1 border border-orange-200">
-                  <span className="text-sm">🔥</span>
-                  <span>{technician.streakCount} dias na bancada</span>
-                </span>
-              )}
-              {/* Age badge */}
-              {technician.idade ? (
-                <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1 border border-slate-200">
-                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{technician.idade} anos</span>
-                </span>
-              ) : null}
-              {isVerified && (
-                <Badge variant="primary" icon={<CheckCircle2 className="w-3.5 h-3.5" />}>
-                  Técnico Verificado
-                </Badge>
-              )}
-              {isPremium && (
-                <Badge variant="gold" icon={<Star className="w-3 h-3 fill-amber-500 text-amber-500" />}>
-                  Profissional Premium
-                </Badge>
-              )}
-            </div>
-
-            <p className="text-xs sm:text-sm font-semibold text-blue-700 flex items-center gap-1">
-              <Briefcase className="w-3.5 h-3.5" />
-              {technician.specialties.join(' • ')}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-y-2 gap-x-4 mt-3 text-xs text-slate-600">
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                <strong>{technician.city}</strong>, {technician.province}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                {technician.experienceYears} anos de experiência
-              </span>
-              <span className="flex items-center gap-1 text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                {technician.rating.toFixed(1)} ({technician.reviewsCount} avaliações)
-              </span>
-              <span className="flex items-center gap-1 text-emerald-700 font-medium">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    technician.availability === 'available'
-                      ? 'bg-emerald-500'
-                      : technician.availability === 'busy'
-                      ? 'bg-amber-500'
-                      : 'bg-slate-400'
+                  onClick={handleGiveLike}
+                  className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
+                    hasLiked
+                      ? 'bg-rose-100 text-rose-700 border border-rose-300'
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200'
                   }`}
-                ></span>
-                {technician.availability === 'available'
-                  ? 'Disponível para novos trabalhos'
-                  : technician.availability === 'busy'
-                  ? 'Agenda cheia no momento'
-                  : 'Indisponível'}
-              </span>
-            </div>
-
-            {/* Painel Unificado de Engajamento, Estrelas e Badges */}
-            <div 
-              className="mt-3" 
-              dangerouslySetInnerHTML={{ __html: renderProfileEngagement(technician) }} 
-            />
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="px-6 sm:px-8 border-b border-slate-200 flex items-center gap-6 text-xs font-bold">
-          <button
-            onClick={() => setActiveTab('about')}
-            className={`py-3 border-b-2 transition ${
-              activeTab === 'about'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            Sobre & Serviços
-          </button>
-          <button
-            onClick={() => setActiveTab('portfolio')}
-            className={`py-3 border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === 'portfolio'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <span>Portfólio de Obras</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 text-[10px]">
-              {techPortfolio.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab('reviews')}
-            className={`py-3 border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === 'reviews'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <span>Avaliações Reais</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 text-[10px]">
-              {techReviews.length}
-            </span>
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        <div className="p-5 sm:p-6">
-          {activeTab === 'about' && (
-            <div className="space-y-6 text-xs sm:text-sm text-slate-700">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                  Biografia Profissional
-                </h3>
-                <p className="leading-relaxed whitespace-pre-line bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  {technician.bio}
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                  Especialidades e Habilidades
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {technician.specialties.map(spec => (
-                    <span
-                      key={spec}
-                      className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold"
-                    >
-                      {spec}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs">
-                <div>
-                  <p className="text-slate-500 font-medium">Trabalhos Realizados</p>
-                  <p className="text-base font-extrabold text-slate-900 mt-0.5">
-                    {technician.completedJobsCount} serviços concluídos
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500 font-medium">Região de Cobertura</p>
-                  <p className="text-base font-extrabold text-slate-900 mt-0.5">
-                    {technician.province} ({technician.city})
-                  </p>
-                </div>
-              </div>
-
-              {/* Action bar inside about */}
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  onClick={() => setReportModalOpen(true)}
-                  className="text-xs text-slate-400 hover:text-rose-600 transition flex items-center gap-1.5"
+                  title="Curtir perfil deste técnico"
                 >
-                  <Flag className="w-3.5 h-3.5" />
-                  <span>Denunciar este perfil</span>
+                  <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-600 text-rose-600' : 'text-rose-600'}`} />
+                  <span>{likeCount} Curtidas</span>
+                </button>
+
+                <WhatsAppButton
+                  phone={liveTechnician.whatsapp || liveTechnician.phone}
+                  technicianName={liveTechnician.name}
+                  className="flex-1 sm:flex-none"
+                />
+                {onOpenMessages && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onOpenMessages(liveTechnician.userId || (liveTechnician as any).id, liveTechnician.name, 'technician');
+                    }}
+                    className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Mensagem Direta / Chat</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => onRequestQuote(liveTechnician)}
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Pedir Orçamento</span>
                 </button>
               </div>
             </div>
-          )}
 
-          {activeTab === 'portfolio' && (
             <div>
-              {techPortfolio.length === 0 ? (
-                <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs">
-                  <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                  <p className="font-semibold text-slate-700">Nenhum projeto no portfólio ainda.</p>
-                  <p className="text-slate-500 mt-1">
-                    O técnico em breve publicará fotos das instalações concluídas.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {techPortfolio.map(item => (
-                    <div
-                      key={item.id}
-                      className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 shadow-xs flex flex-col"
-                    >
-                      {item.photos[0] && (
-                        <img
-                          src={item.photos[0]}
-                          alt={item.title}
-                          className="w-full h-44 object-cover"
-                        />
-                      )}
-                      <div className="p-4 flex-1 flex flex-col justify-between">
-                        <div>
-                          <span className="text-[10px] font-bold uppercase text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
-                            {item.category}
-                          </span>
-                          <h4 className="text-sm font-bold text-slate-900 mt-1.5">{item.title}</h4>
-                          <p className="text-xs text-slate-600 mt-1 line-clamp-2">
-                            {item.description}
-                          </p>
-                        </div>
-                        <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
-                          <span>{item.province}</span>
-                          <span>{item.date}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  {liveTechnician.name}
+                </h2>
+                <UserRankBadge points={liveTechnician.pontos ?? liveTechnician.scoreEngajamento ?? 0} showPoints size="sm" />
+                {(liveTechnician.streakCount && liveTechnician.streakCount > 0) && (
+                  <span className="px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-black flex items-center gap-1 border border-orange-200">
+                    <span className="text-sm">🔥</span>
+                    <span>{liveTechnician.streakCount} dias na bancada</span>
+                  </span>
+                )}
+                {liveTechnician.idade ? (
+                  <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1 border border-slate-200">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{liveTechnician.idade} anos</span>
+                  </span>
+                ) : null}
+                {isVerified && (
+                  <Badge variant="primary" icon={<CheckCircle2 className="w-3.5 h-3.5" />}>
+                    Técnico Verificado
+                  </Badge>
+                )}
+                {isPremium && (
+                  <Badge variant="gold" icon={<Star className="w-3 h-3 fill-amber-500 text-amber-500" />}>
+                    Profissional Premium
+                  </Badge>
+                )}
+              </div>
 
-          {activeTab === 'reviews' && (
-            <div className="space-y-4">
-              {techReviews.length === 0 ? (
-                <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs">
-                  <Star className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                  <p className="font-semibold text-slate-700">Ainda sem avaliações públicas.</p>
-                  <p className="text-slate-500 mt-1">
-                    Seja o primeiro a contratar e avaliar este técnico!
+              <p className="text-xs sm:text-sm font-semibold text-blue-700 flex items-center gap-1">
+                <Briefcase className="w-3.5 h-3.5" />
+                {liveTechnician.specialties.join(' • ')}
+              </p>
+
+              <div className="flex flex-wrap items-center gap-y-2 gap-x-4 mt-3 text-xs text-slate-600">
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                  <strong>{liveTechnician.city}</strong>, {liveTechnician.province}
+                </span>
+
+                {/* Exibição Precisa do Tempo Real de Experiência Prática */}
+                <span className="flex items-center gap-1 font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{renderExperienceText()}</span>
+                </span>
+
+                <span className="flex items-center gap-1 text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                  {liveTechnician.rating.toFixed(1)} ({liveTechnician.reviewsCount} avaliações)
+                </span>
+
+                <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      liveTechnician.availability === 'available'
+                        ? 'bg-emerald-500'
+                        : liveTechnician.availability === 'busy'
+                        ? 'bg-amber-500'
+                        : 'bg-slate-400'
+                    }`}
+                  ></span>
+                  {liveTechnician.availability === 'available'
+                    ? 'Disponível para novos trabalhos'
+                    : liveTechnician.availability === 'busy'
+                    ? 'Agenda cheia no momento'
+                    : 'Indisponível'}
+                </span>
+              </div>
+
+              {/* Painel Unificado de Engajamento, Estrelas e Badges */}
+              <div 
+                className="mt-3" 
+                dangerouslySetInnerHTML={{ __html: renderProfileEngagement(liveTechnician) }} 
+              />
+            </div>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className="px-6 sm:px-8 border-b border-slate-200 flex items-center gap-6 text-xs font-bold">
+            <button
+              onClick={() => setActiveTab('about')}
+              className={`py-3 border-b-2 transition cursor-pointer ${
+                activeTab === 'about'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Sobre & Serviços
+            </button>
+            <button
+              onClick={() => setActiveTab('portfolio')}
+              className={`py-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'portfolio'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <span>Portfólio de Obras</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 text-[10px]">
+                {techPortfolio.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`py-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'reviews'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <span>Avaliações Reais</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 text-[10px]">
+                {techReviews.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-5 sm:p-6">
+            {activeTab === 'about' && (
+              <div className="space-y-6 text-xs sm:text-sm text-slate-700">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Biografia Profissional
+                  </h3>
+                  <p className="leading-relaxed whitespace-pre-line bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    {liveTechnician.bio}
                   </p>
                 </div>
-              ) : (
-                techReviews.map(rev => (
-                  <div
-                    key={rev.id}
-                    className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <UserAvatar
-                          name={rev.clientName}
-                          photoURL={rev.clientAvatar}
-                          size="xs"
-                          className="w-7 h-7"
-                        />
-                        <span className="font-bold text-slate-900">{rev.clientName}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-amber-500">
-                        {Array.from({ length: rev.rating }).map((_, i) => (
-                          <Star key={i} className="w-3.5 h-3.5 fill-current" />
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-slate-700 italic">"{rev.comment}"</p>
+
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Especialidades e Habilidades
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {liveTechnician.specialties.map(spec => (
+                      <span
+                        key={spec}
+                        className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold"
+                      >
+                        {spec}
+                      </span>
+                    ))}
                   </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs">
+                  <div>
+                    <p className="text-slate-500 font-medium">Trabalhos Realizados</p>
+                    <p className="text-base font-extrabold text-slate-900 mt-0.5">
+                      {liveTechnician.completedJobsCount} serviços concluídos
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 font-medium">Região de Cobertura</p>
+                    <p className="text-base font-extrabold text-slate-900 mt-0.5">
+                      {liveTechnician.province} ({liveTechnician.city})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    onClick={() => setReportModalOpen(true)}
+                    className="text-xs text-slate-400 hover:text-rose-600 transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Flag className="w-3.5 h-3.5" />
+                    <span>Denunciar este perfil</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'portfolio' && (
+              <div>
+                {techPortfolio.length === 0 ? (
+                  <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs">
+                    <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-700">Nenhum projeto no portfólio ainda.</p>
+                    <p className="text-slate-500 mt-1">
+                      O técnico em breve publicará fotos das instalações concluídas.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {techPortfolio.map(item => (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 shadow-xs flex flex-col"
+                      >
+                        {item.photos[0] && (
+                          <img
+                            src={item.photos[0]}
+                            alt={item.title}
+                            className="w-full h-44 object-cover"
+                          />
+                        )}
+                        <div className="p-4 flex-1 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
+                              {item.category}
+                            </span>
+                            <h4 className="text-sm font-bold text-slate-900 mt-1.5">{item.title}</h4>
+                            <p className="text-xs text-slate-600 mt-1 line-clamp-2">
+                              {item.description}
+                            </p>
+                          </div>
+                          <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
+                            <span>{item.province}</span>
+                            <span>{item.date}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'reviews' && (
+              <div className="space-y-4">
+                {techReviews.length === 0 ? (
+                  <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs">
+                    <Star className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-700">Ainda sem avaliações públicas.</p>
+                    <p className="text-slate-500 mt-1">
+                      Seja o primeiro a contratar e avaliar este técnico!
+                    </p>
+                  </div>
+                ) : (
+                  techReviews.map(rev => (
+                    <div
+                      key={rev.id}
+                      className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <UserAvatar
+                            name={rev.clientName}
+                            photoURL={rev.clientAvatar}
+                            size="xs"
+                            className="w-7 h-7"
+                          />
+                          <span className="font-bold text-slate-900">{rev.clientName}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-amber-500">
+                          {Array.from({ length: rev.rating }).map((_, i) => (
+                            <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-slate-700 italic">"{rev.comment}"</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Report Submodal */}
@@ -540,7 +567,7 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
                 <h4 className="text-sm font-black text-slate-900">Denunciar Técnico</h4>
                 <button
                   onClick={() => setReportModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -583,13 +610,13 @@ export const TechnicianDetailModal: React.FC<TechnicianDetailModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setReportModalOpen(false)}
-                      className="px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold"
+                      className="px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold cursor-pointer"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 shadow-sm"
+                      className="px-4 py-2 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 shadow-sm cursor-pointer"
                     >
                       Enviar Denúncia
                     </button>

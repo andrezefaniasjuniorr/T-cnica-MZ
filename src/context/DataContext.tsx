@@ -465,7 +465,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 2. Mural / Community Posts real-time sync & subcollection comments
     const postsMap = new Map<string, CommunityPost>();
-    // Pre-popular com dados em cache para não sumir publicações em oscilações de rede
     communityPosts.forEach(p => postsMap.set(p.id, p));
     const commentUnsubs = new Map<string, () => void>();
 
@@ -505,7 +504,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               });
               loadedComments.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
 
-              // Update post map and state
               const existing = postsMap.get(postId);
               if (existing) {
                 const mergedPost = {
@@ -612,7 +610,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     const convsMap = new Map<string, ConversationItem>();
-    // Pre-popular com conversas em cache para não sumir mensagens ou chats
     (conversations || []).forEach(c => {
       if (c && c.id) convsMap.set(c.id, c);
     });
@@ -733,7 +730,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     technicians.forEach(t => techsMap.set(t.userId, t));
     const updateMergedTechs = () => {
       const list = Array.from(techsMap.values());
-      // Sort strictly descending based on total engagement (totalLikes / scoreEngajamento / pontos / curtidas)
       list.sort((a, b) => {
         const likesA = (a.totalLikes ?? (a as any).curtidas ?? (a as any).pontos ?? 0);
         const likesB = (b.totalLikes ?? (b as any).curtidas ?? (b as any).pontos ?? 0);
@@ -779,6 +775,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : totalLikes));
 
       const scoreEngajamento = effectivePoints;
+      const experienceYears = typeof data.experienceYears === 'number'
+        ? data.experienceYears
+        : (typeof data.anosExperiencia === 'number' ? data.anosExperiencia : 2);
 
       return {
         userId: docSnap.id,
@@ -793,7 +792,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         district: data.district || data.distrito,
         specialties: specialties,
         bio: data.bio || `Profissional qualificado em ${specialties.join(', ')} em Moçambique.`,
-        experienceYears: typeof data.experienceYears === 'number' ? data.experienceYears : 2,
+        experienceYears,
         avatarUrl: data.avatarUrl || data.photoURL || data.foto || '',
         photoURL: data.photoURL || data.avatarUrl || data.foto || '',
         totalLikes,
@@ -1013,9 +1012,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         commentUnsubs.forEach(u => {
           try {
             if (typeof u === 'function') u();
-          } catch {
-            // no-op
-          }
+          } catch {}
         });
         if (typeof unsubMarket === 'function') unsubMarket();
         if (typeof unsubConversations === 'function') unsubConversations();
@@ -1041,7 +1038,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Real-time listener for current user's dedicated subcollection: /users/{uid}/notifications and /users/{uid}/notificacoes
+  // Real-time listener for current user's dedicated subcollections
   useEffect(() => {
     if (!isFirebaseConfigured || !db || !currentUser?.uid) return;
 
@@ -1097,119 +1094,81 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [currentUser?.uid]);
 
-  // Sync to localStorage (apenas preferências e fallbacks quando Firebase não estiver ativo)
+  // Sync to localStorage fallbacks
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_stories', stories);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_stories', stories);
   }, [stories]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_technicians', technicians);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_technicians', technicians);
   }, [technicians]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_companies', companies);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_companies', companies);
   }, [companies]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_jobs', jobs);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_jobs', jobs);
   }, [jobs]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_job_applications', applications);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_job_applications', applications);
   }, [applications]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_plans', plans);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_plans', plans);
   }, [plans]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_payments', payments);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_payments', payments);
   }, [payments]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_requests', serviceRequests);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_requests', serviceRequests);
   }, [serviceRequests]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_proposals', proposals);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_proposals', proposals);
   }, [proposals]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_reviews', reviews);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_reviews', reviews);
   }, [reviews]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_portfolio', portfolio);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_portfolio', portfolio);
   }, [portfolio]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_market', marketItems);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_market', marketItems);
   }, [marketItems]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_community_posts', communityPosts);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_community_posts', communityPosts);
   }, [communityPosts]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_academy', academyArticles);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_academy', academyArticles);
   }, [academyArticles]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_conversations', conversations);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_conversations', conversations);
   }, [conversations]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_messages', messages);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_messages', messages);
   }, [messages]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_notifications', notifications);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_notifications', notifications);
   }, [notifications]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_reports', reports);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_reports', reports);
   }, [reports]);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      safeSetStorageItem('tecnicamz_admin_logs', adminLogs);
-    }
+    if (!isFirebaseConfigured) safeSetStorageItem('tecnicamz_admin_logs', adminLogs);
   }, [adminLogs]);
 
   useEffect(() => {
@@ -1228,6 +1187,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!currentUser) return;
 
+    const userExp = (currentUser as any).experienceYears !== undefined
+      ? (currentUser as any).experienceYears
+      : ((currentUser as any).anosExperiencia !== undefined ? (currentUser as any).anosExperiencia : undefined);
+
     // 1. Sincroniza cards de técnicos / Ranking
     setTechnicians(prev => {
       let changed = false;
@@ -1242,6 +1205,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             city: currentUser.city || t.city,
             province: currentUser.province || t.province,
             idade: currentUser.idade !== undefined ? currentUser.idade : t.idade,
+            experienceYears: userExp !== undefined ? userExp : t.experienceYears,
             specialties: currentUser.specialties || (currentUser.specialty ? [currentUser.specialty] : t.specialties),
             bio: currentUser.bio || t.bio,
             phone: currentUser.phone || t.phone,
@@ -1307,13 +1271,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     currentUser?.city,
     currentUser?.province,
     currentUser?.idade,
+    (currentUser as any)?.experienceYears,
+    (currentUser as any)?.anosExperiencia,
     currentUser?.specialty,
     currentUser?.specialties,
     currentUser?.bio,
     currentUser?.phone
   ]);
 
-  // Helper log generator
   const addAdminLog = (action: string, targetId?: string, targetName?: string, details?: string) => {
     if (!currentUser) return;
     const newLog: AdminLogItem = {
@@ -1330,7 +1295,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAdminLogs(prev => [newLog, ...prev]);
   };
 
-  // Helper notification generator
   const createNotification = (userId: string, title: string, message: string, type: 'info' | 'success' | 'warning' | 'alert', linkTab?: string, deeplink?: string) => {
     const newNotif: NotificationItem = {
       id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -1347,12 +1311,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isFirebaseConfigured && db && userId) {
       try {
-        // 1. Salvar na coleção geral de notificações
         setDoc(doc(db, 'notifications', newNotif.id), newNotif).catch(() => {});
-        // 2. Salvar na subcoleção notificacoes do usuário no Firestore
         setDoc(doc(db, 'users', userId, 'notificacoes', newNotif.id), newNotif).catch(() => {});
         setDoc(doc(db, 'usuarios', userId, 'notificacoes', newNotif.id), newNotif).catch(() => {});
-        // 3. Salvar no array notificacoes do documento de usuário
         updateDoc(doc(db, 'users', userId), {
           notificacoes: arrayUnion(newNotif)
         }).catch(() => {});
@@ -1365,7 +1326,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Technician Get & Updates
   const getTechnicianById = (userId: string) => technicians.find(t => t.userId === userId);
 
   const updateTechnicianStatus = (userId: string, status: UserStatus, reason?: string) => {
@@ -1434,7 +1394,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
-    // Notify admins
     createNotification(
       'admin_owner',
       'Nova Documentação para Análise',
@@ -1445,7 +1404,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  // Company Get & Updates
   const getCompanyById = (userId: string) => companies.find(c => c.userId === userId);
 
   const verifyCompany = (userId: string, status: CompanyVerificationStatus, reason?: string) => {
@@ -1487,7 +1445,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addAdminLog(`Empresa removida/expulsa permanentemente`, userId);
   };
 
-  // Job Openings
   const createJobOpening = (jobData: Omit<JobOpening, 'id' | 'createdAt' | 'applicationsCount' | 'status'>) => {
     const newJob: JobOpening = {
       ...jobData,
@@ -1498,7 +1455,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setJobs(prev => [newJob, ...prev]);
 
-    // Update company active jobs count
     setCompanies(prev =>
       prev.map(c => (c.userId === jobData.companyId ? { ...c, activeJobsCount: (c.activeJobsCount || 0) + 1 } : c))
     );
@@ -1519,7 +1475,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const applyToJob = async (data: Omit<JobApplication, 'id' | 'createdAt' | 'status'>): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Check if already applied
       const existing = applications.find(a => a.jobId === data.jobId && a.technicianId === data.technicianId);
       if (existing) {
         return { success: false, error: 'Você já submeteu uma candidatura para esta vaga.' };
@@ -1534,12 +1489,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setApplications(prev => [newApp, ...prev]);
 
-      // Increment job counter
       setJobs(prev =>
         prev.map(j => (j.id === data.jobId ? { ...j, applicationsCount: j.applicationsCount + 1 } : j))
       );
 
-      // Notify company
       createNotification(
         data.companyId,
         'Nova Candidatura Recebida',
@@ -1549,7 +1502,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'applications'
       );
 
-      // Notify technician
       createNotification(
         data.technicianId,
         'Candidatura Enviada',
@@ -1577,7 +1529,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
-    // Notify technician of progress
     createNotification(
       targetApp.technicianId,
       `Status de Candidatura: ${status}`,
@@ -1588,7 +1539,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  // Plans & Payments
   const updatePlan = (planId: string, data: Partial<SubscriptionPlan>) => {
     setPlans(prev => prev.map(p => (p.id === planId ? { ...p, ...data, updatedAt: new Date().toISOString() } : p)));
     addAdminLog('Atualização de plano de assinatura', planId);
@@ -1637,7 +1587,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setPayments(prev => [newPayment, ...prev]);
 
-      // Save to Firestore collections 'pagamentos' and 'payments'
       if (isFirebaseConfigured && db) {
         try {
           await setDoc(doc(db, 'pagamentos', paymentId), newPayment);
@@ -1647,7 +1596,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Notify Admins
       createNotification(
         'admin_owner',
         'Novo Pagamento Registado',
@@ -1672,9 +1620,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const approvePayment = (paymentId: string, adminId: string, adminName: string) => {
+  const approvePayment = async (paymentId: string, adminId: string, adminName: string) => {
     const pay = payments.find(p => p.id === paymentId);
     if (!pay) return;
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(now.getTime() + thirtyDaysMs);
+    const expiresAtIso = expiresAt.toISOString();
 
     setPayments(prev =>
       prev.map(p =>
@@ -1684,16 +1638,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               status: 'approved',
               reviewedBy: adminId,
               reviewedByName: adminName,
-              reviewedAt: new Date().toISOString()
+              reviewedAt: nowIso
             }
           : p
       )
     );
-
-    // Calculate expiry (30 days from now)
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-    const expiresAtIso = expiresAt.toISOString();
 
     if (pay.userRole === 'technician') {
       setTechnicians(prev =>
@@ -1701,10 +1650,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           t.userId === pay.userId
             ? {
                 ...t,
+                temSeloMZ: true,
+                statusSelo: 'aprovado',
+                isVerified: true,
+                verificationStatus: 'approved',
                 subscriptionStatus: 'active',
-                activePlanId: pay.planId,
+                activePlanId: pay.planId || 'pro',
                 subscriptionExpiresAt: expiresAtIso,
-                updatedAt: new Date().toISOString()
+                verifiedUntil: expiresAtIso,
+                updatedAt: nowIso
               }
             : t
         )
@@ -1715,17 +1669,78 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     createNotification(
       pay.userId,
-      '🎉 Assinatura Ativada com Sucesso!',
-      `Seu pagamento de ${pay.amountMZN} MZN foi aprovado! Seu plano "${pay.planName}" está ativo por 30 dias.`,
+      '🎉 Assinatura e Selo MZ Ativados!',
+      `Seu pagamento de ${pay.amountMZN} MZN foi aprovado! Seu Selo MZ e plano "${pay.planName}" estão 100% ativos por 30 dias a partir deste exato momento.`,
       'success',
       pay.userRole === 'technician' ? 'technician' : 'company',
       'overview'
     );
+
+    if (isFirebaseConfigured && db) {
+      try {
+        const updatePayload = {
+          status: 'aprovado',
+          statusAprovacao: 'aprovado',
+          reviewedBy: adminId,
+          reviewedByName: adminName,
+          reviewedAt: nowIso,
+          dataResposta: nowIso,
+          expiresAt: expiresAtIso,
+          updatedAt: nowIso
+        };
+        await updateDoc(doc(db, 'pagamentos', paymentId), updatePayload).catch(() => {});
+        await updateDoc(doc(db, 'payments', paymentId), {
+          ...updatePayload,
+          status: 'approved'
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('Erro ao atualizar pagamento no Firestore:', err);
+      }
+
+      try {
+        const userSeloPayload = {
+          temSeloMZ: true,
+          statusSelo: 'aprovado',
+          isVerified: true,
+          statusAprovacao: 'aprovado',
+          statusConta: 'ativa',
+          status: 'active',
+          statusAssinatura: 'ativa',
+          subscriptionStatus: 'active',
+          plano: 'pro',
+          activePlanId: pay.planId || 'pro',
+          verifiedAt: nowIso,
+          dataSeloAprovacao: nowIso,
+          verifiedUntil: expiresAtIso,
+          subscriptionExpiresAt: expiresAtIso,
+          dataExpiracao: expiresAtIso,
+          updatedAt: nowIso
+        };
+        await updateDoc(doc(db, 'users', pay.userId), userSeloPayload).catch(() => {});
+        await updateDoc(doc(db, 'usuarios', pay.userId), userSeloPayload).catch(() => {});
+        await updateDoc(doc(db, 'technicians', pay.userId), {
+          temSeloMZ: true,
+          statusSelo: 'aprovado',
+          isVerified: true,
+          verificationStatus: 'approved',
+          subscriptionStatus: 'active',
+          activePlanId: pay.planId || 'pro',
+          verifiedAt: nowIso,
+          verifiedUntil: expiresAtIso,
+          subscriptionExpiresAt: expiresAtIso,
+          updatedAt: nowIso
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('Erro ao sincronizar ativação de selo de usuário no Firestore:', err);
+      }
+    }
   };
 
-  const rejectPayment = (paymentId: string, adminId: string, adminName: string, reason: string) => {
+  const rejectPayment = async (paymentId: string, adminId: string, adminName: string, reason: string) => {
     const pay = payments.find(p => p.id === paymentId);
     if (!pay) return;
+
+    const nowIso = new Date().toISOString();
 
     setPayments(prev =>
       prev.map(p =>
@@ -1736,7 +1751,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               rejectionReason: reason,
               reviewedBy: adminId,
               reviewedByName: adminName,
-              reviewedAt: new Date().toISOString()
+              reviewedAt: nowIso
             }
           : p
       )
@@ -1752,9 +1767,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pay.userRole === 'technician' ? 'technician' : 'company',
       'payments'
     );
+
+    if (isFirebaseConfigured && db) {
+      try {
+        const rejectPayload = {
+          status: 'rejeitado',
+          rejectionReason: reason,
+          reviewedBy: adminId,
+          reviewedByName: adminName,
+          reviewedAt: nowIso,
+          updatedAt: nowIso
+        };
+        await updateDoc(doc(db, 'pagamentos', paymentId), rejectPayload).catch(() => {});
+        await updateDoc(doc(db, 'payments', paymentId), {
+          ...rejectPayload,
+          status: 'rejected'
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('Erro ao rejeitar pagamento no Firestore:', err);
+      }
+    }
   };
 
-  // Service Requests & Proposals
   const createServiceRequest = async (data: Omit<ServiceRequest, 'id' | 'createdAt' | 'status' | 'proposalsCount'>) => {
     const newReq: ServiceRequest = {
       ...data,
@@ -1774,7 +1808,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Notify technicians matching category
     technicians
       .filter(t => t.specialties.includes(data.category) && t.subscriptionStatus === 'active')
       .forEach(t => {
@@ -1814,7 +1847,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setProposals(prev => [newProp, ...prev]);
 
-    // Increment request proposal count
     setServiceRequests(prev =>
       prev.map(r =>
         r.id === data.requestId
@@ -1846,7 +1878,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Notify client
     createNotification(
       data.clientId,
       'Nova Proposta Recebida!',
@@ -1894,7 +1925,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProposals(prev => prev.map(p => (p.id === proposalId ? { ...p, status: 'rejected' } : p)));
   };
 
-  // Reviews
   const addReview = (data: Omit<Review, 'id' | 'createdAt'>) => {
     const newRev: Review = {
       ...data,
@@ -1904,7 +1934,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setReviews(prev => [newRev, ...prev]);
 
     if (data.technicianId) {
-      // Recalculate technician rating
       const techReviews = [...reviews.filter(r => r.technicianId === data.technicianId), newRev];
       const avg = Number((techReviews.reduce((sum, r) => sum + r.rating, 0) / techReviews.length).toFixed(1));
 
@@ -1932,7 +1961,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Portfolio
   const addPortfolioItem = async (item: Omit<PortfolioItem, 'id' | 'createdAt'>) => {
     const newItem: PortfolioItem = {
       ...item,
@@ -1962,7 +1990,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Market
   const addMarketItem = async (itemData: Omit<MarketItem, 'id' | 'createdAt' | 'status'>) => {
     const newItem: MarketItem = {
       ...itemData,
@@ -2049,7 +2076,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await setDoc(doc(db, 'market_items', itemId), updatedItem, { merge: true });
 
-        // Update seller's score & totalLikes if seller is a technician
         if (sellerIdToUpdate && sellerIdToUpdate !== userId) {
           const delta = isLikeAdded ? 1 : -1;
           const targetTech = technicians.find(t => t.userId === sellerIdToUpdate);
@@ -2188,7 +2214,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Technical Community Feed
   const addCommunityPost = async (postData: {
     title: string;
     content: string;
@@ -2200,7 +2225,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }) => {
     if (!currentUser) return;
 
-    // Find if user is technician with specialty
     const techProfile = technicians.find(t => t.userId === currentUser.uid);
     const compProfile = companies.find(c => c.userId === currentUser.uid);
 
@@ -2284,9 +2308,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAtIso: isoNow
         });
 
-        // Salvar diretamente na coleção mural_posts
         await setDoc(doc(db, 'mural_posts', newPost.id), firestoreData);
-        // Também salvar na coleção community_posts para máxima retrocompatibilidade
         await setDoc(doc(db, 'community_posts', newPost.id), firestoreData).catch(() => {});
       } catch (err) {
         console.warn('Firestore add community post error:', err);
@@ -2341,7 +2363,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setDoc(doc(db, 'mural_posts', postId), payloadToUpdate, { merge: true }).catch((e) => console.warn('setDoc mural_posts reaction error:', e));
         await setDoc(doc(db, 'community_posts', postId), payloadToUpdate, { merge: true }).catch(() => {});
 
-        // Update post author's score & totalLikes if author is a technician
         if (authorIdToUpdate && authorIdToUpdate !== userId) {
           const isScoreReaction = reactionType === 'useful' || reactionType === 'insightful' || reactionType === 'applause';
 
@@ -2356,7 +2377,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               prev.map(t => (t.userId === authorIdToUpdate ? { ...t, totalLikes: newLikes, scoreEngajamento: newScore } : t))
             );
 
-            // Integração com sistema unificado de engajamento e recálculo de ranking
             if (isReactionAdded) {
               const reactionBadge = reactionType === 'insightful' ? 'tecnico' : (reactionType === 'applause' ? 'excelente' : 'util');
               await reactToPost(authorIdToUpdate, reactionBadge).catch(() => {});
@@ -2380,7 +2400,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               updatedAt: new Date().toISOString()
             }).catch(() => {});
 
-            // Sincroniza o ranking de técnicos para subir/descer instantaneamente no ranking
             await recalculateUserStarsAndRanking(authorIdToUpdate).catch(() => {});
           }
 
@@ -2476,11 +2495,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAtIso: nowIso
         });
 
-        // Salvar na subcoleção comentarios de mural_posts e community_posts
         await setDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), commentFirestoreData);
         await setDoc(doc(db, 'community_posts', postId, 'comentarios', commentId), commentFirestoreData).catch(() => {});
 
-        // Atualizar documento pai
         if (updatedPost) {
           const sanitizedPost = sanitizeFirestorePayload(updatedPost);
           await setDoc(doc(db, 'mural_posts', postId), sanitizedPost, { merge: true }).catch((e) => console.warn('setDoc mural_posts comment error:', e));
@@ -2492,7 +2509,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Notificar autor do post se for outra pessoa
     if (updatedPost && (updatedPost as any).authorId && (updatedPost as any).authorId !== currentUser.uid) {
       createNotification(
         (updatedPost as any).authorId,
@@ -2540,7 +2556,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const sanitizedPost = sanitizeFirestorePayload(updatedPost);
         await setDoc(doc(db, 'mural_posts', postId), sanitizedPost, { merge: true }).catch(() => {});
         await setDoc(doc(db, 'community_posts', postId), sanitizedPost, { merge: true }).catch(() => {});
-        // Atualizar também na subcoleção se existir
+
         const currentComm = updatedPost.comments.find(c => c.id === commentId);
         if (currentComm) {
           const commentLikesPayload = sanitizeFirestorePayload({
@@ -2621,7 +2637,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Publicação não encontrada.' };
     }
 
-    // Apenas o autor do post ou admin pode marcar como solução oficial
     const isAuthor = post.authorId === currentUser.uid;
     const isAdminUser = currentUser.role === 'admin' || currentUser.role === 'super_admin';
     if (!isAuthor && !isAdminUser) {
@@ -2657,14 +2672,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     );
 
-    // Tocar som de sucesso/recompensa
     try {
       soundFX.playSuccess();
     } catch (e) {
       console.warn('Audio notice:', e);
     }
 
-    // Persistir no Firestore e bonificar autor da resposta com +50 pontos
     const commentAuthorId = targetComment.authorId;
     if (isFirebaseConfigured && db) {
       try {
@@ -2674,11 +2687,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updatedAt: serverTimestamp()
         });
 
-        // Atualizar documento do post
         await setDoc(doc(db, 'mural_posts', postId), postSolutionPayload, { merge: true }).catch(() => {});
         await setDoc(doc(db, 'community_posts', postId), postSolutionPayload, { merge: true }).catch(() => {});
 
-        // Atualizar comentário na subcoleção
         const commentSolutionPayload = sanitizeFirestorePayload({
           solucaoAceita: true,
           isAcceptedSolution: true,
@@ -2688,7 +2699,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setDoc(doc(db, 'mural_posts', postId, 'comentarios', commentId), commentSolutionPayload, { merge: true }).catch(() => {});
         await setDoc(doc(db, 'community_posts', postId, 'comentarios', commentId), commentSolutionPayload, { merge: true }).catch(() => {});
 
-        // Incrementar +50 pontos para o autor da resposta usando increment(50)
         if (commentAuthorId) {
           const pointsPayload = {
             pontos: increment(50),
@@ -2701,7 +2711,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updateDoc(doc(db, 'usuarios', commentAuthorId), pointsPayload).catch(() => {});
           updateDoc(doc(db, 'technicians', commentAuthorId), pointsPayload).catch(() => {});
 
-          // Recalcular estrelas e ranking no Firestore
           recalculateUserStarsAndRanking(commentAuthorId).catch(() => {});
         }
       } catch (err: any) {
@@ -2709,7 +2718,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Atualizar pontos locais do técnico
     if (commentAuthorId) {
       setTechnicians(prev =>
         prev.map(t =>
@@ -2723,7 +2731,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         )
       );
 
-      // Notificação em tempo real para o autor da resposta
       createNotification(
         commentAuthorId,
         '✔ Solução Aceita (+50 Pontos)!',
@@ -2737,7 +2744,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  // Stories / Status (24h) System
   const createStory = async (storyData: {
     imageUrl?: string;
     text?: string;
@@ -2752,8 +2758,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const compProfile = companies.find(c => c.userId === currentUser.uid);
 
     const now = new Date();
-    const expiresAtDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
-    const deleteAtDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const expiresAtDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const deleteAtDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const storyId = `historia_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     const newStory: StoryItem = {
@@ -2812,7 +2818,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           deleteAt: deleteAtDate.toISOString()
         };
 
-        // Incluir mídia se for história com imagem
         if (storyData.imageUrl) {
           firestoreStoryPayload.mediaUrl = storyData.imageUrl;
           firestoreStoryPayload.imageUrl = storyData.imageUrl;
@@ -2820,9 +2825,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           firestoreStoryPayload.imagem = storyData.imageUrl;
         }
 
-        // Salvar diretamente na coleção historias
         await setDoc(doc(db, 'historias', storyId), firestoreStoryPayload);
-        // Também salvar na coleção stories para compatibilidade total
         await setDoc(doc(db, 'stories', storyId), firestoreStoryPayload).catch(() => {});
       } catch (err: any) {
         console.warn('Firestore create story error:', err);
@@ -2840,7 +2843,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const currentStory = stories.find(s => s.id === storyId);
     if (!currentStory) return;
 
-    // Check if already viewed by this user
     const alreadyViewed = (currentStory.viewers || []).some(v => v.userId === userId) ||
                           (currentStory.visualizadores || []).includes(userId);
     if (alreadyViewed) return;
@@ -2942,7 +2944,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Send notification to story author if it's someone else
     if (currentStory.authorId !== currentUser.uid) {
       createNotification(
         currentStory.authorId,
@@ -2967,7 +2968,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Academy
   const addAcademyArticle = (articleData: Omit<AcademyArticle, 'id' | 'verifiedByAdmin'>) => {
     const newArt: AcademyArticle = {
       ...articleData,
@@ -2981,7 +2981,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAcademyArticles(prev => prev.map(a => (a.id === articleId ? { ...a, verifiedByAdmin: true } : a)));
   };
 
-  // Messaging System
   const sendMessage = async (conversationId: string, text: string) => {
     if (!currentUser || !text.trim()) return;
 
@@ -3008,7 +3007,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unreadCount: increment(1)
     };
 
-    // Update conversation metadata
     setConversations(prev =>
       prev.map(c =>
         c.id === conversationId
@@ -3039,12 +3037,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const markConversationAsRead = async (conversationId: string) => {
     if (!currentUser || !conversationId) return;
 
-    // Reset unread count in conversations state
     setConversations(prev =>
       prev.map(c => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
     );
 
-    // Mark messages as read in messages state
     setMessages(prev =>
       prev.map(m =>
         m.conversationId === conversationId && m.senderId !== currentUser.uid
@@ -3053,7 +3049,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
-    // Sync to Firestore
     if (isFirebaseConfigured && db) {
       try {
         await updateDoc(doc(db, 'conversations', conversationId), {
@@ -3070,7 +3065,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Contagem de conversas ou mensagens diretas não lidas para o usuário atual
   const unreadMessagesCount = currentUser
     ? (conversations || []).filter(c => {
         if (!Array.isArray(c?.participantIds) || !c.participantIds.includes(currentUser.uid)) return false;
@@ -3089,7 +3083,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ): string => {
     if (!currentUser) return '';
 
-    // Check if conversation already exists between these 2 users
     const existing = conversations.find(
       c => Array.isArray(c?.participantIds) && c.participantIds.includes(currentUser.uid) && c.participantIds.includes(targetUserId)
     );
@@ -3138,7 +3131,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newId;
   };
 
-  // Budget Estimate Generator Save
   const saveBudgetEstimate = (data: Omit<BudgetEstimate, 'id' | 'createdAt'>): BudgetEstimate => {
     const newEst: BudgetEstimate = {
       ...data,
@@ -3149,7 +3141,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newEst;
   };
 
-  // Notifications Actions
   const markNotificationAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
     if (isFirebaseConfigured && db && currentUser) {
@@ -3185,7 +3176,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isSystemNotification = (n: NotificationItem) => {
-    // Bloqueia e descarta notificações de mensagens comuns entre usuários/técnicos
     if (
       n.linkTab === 'messages' ||
       n.deeplink === 'messages' ||
@@ -3267,11 +3257,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Firestore notification broadcast error:', err);
       }
       try {
-        // Also save to notificacoes if schema requires
         await setDoc(doc(db, 'notificacoes', newNotif.id), newNotif);
       } catch (e) {}
 
-      // If targeting a specific user ID (not broadcast), also save to user's subcollections
       if (target !== 'all' && target !== 'client' && target !== 'technician' && target !== 'company' && target !== 'admin') {
         try {
           await setDoc(doc(db, 'users', target, 'notifications', newNotif.id), newNotif);
@@ -3284,14 +3272,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  // Favorites
   const toggleFavorite = (targetId: string) => {
     setFavorites(prev => (prev.includes(targetId) ? prev.filter(id => id !== targetId) : [...prev, targetId]));
   };
 
   const isFavorite = (targetId: string) => favorites.includes(targetId);
 
-  // Settings
   const updateSettings = async (newSettings: Partial<PlatformSettings>) => {
     setSettings(prev => {
       const merged = { ...prev, ...newSettings };
@@ -3309,7 +3295,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Reports
   const submitReport = (reportData: Omit<ReportItem, 'id' | 'createdAt' | 'status'>) => {
     const newReport: ReportItem = {
       ...reportData,
