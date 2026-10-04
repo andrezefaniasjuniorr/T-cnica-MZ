@@ -137,8 +137,8 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   // ==========================================
   // TOOL 1: WALL & SURFACE LEVEL (NÍVEL DE PAREDE E PRUMO)
   // ==========================================
-  const [pitch, setPitch] = useState<number>(0); // Beta (-180 to 180, vertical tilt)
-  const [roll, setRoll] = useState<number>(0); // Gamma (-90 to 90, horizontal tilt)
+  const [pitch, setPitch] = useState<number>(0);
+  const [roll, setRoll] = useState<number>(0);
   const [isCalibrated, setIsCalibrated] = useState<boolean>(false);
   const [calibratedOffsetPitch, setCalibratedOffsetPitch] = useState<number>(0);
   const [calibratedOffsetRoll, setCalibratedOffsetRoll] = useState<number>(0);
@@ -152,7 +152,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const [simulatedRoll, setSimulatedRoll] = useState<number>(0);
   const [useSimulation, setUseSimulation] = useState<boolean>(false);
 
-  // Check if iOS requires permission
   useEffect(() => {
     if (typeof (window as any).DeviceOrientationEvent !== 'undefined') {
       if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
@@ -161,7 +160,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     }
   }, []);
 
-  // Device orientation listener with smooth filtering
   useEffect(() => {
     let receivedEvents = 0;
     const handleOrientation = (e: DeviceOrientationEvent) => {
@@ -172,7 +170,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
           setUseSimulation(false);
         }
         if (!isHold) {
-          // Normalize roll (-90 to +90) and pitch (-90 to +90)
           const rawRoll = Math.max(-90, Math.min(90, e.gamma));
           const rawPitch = Math.max(-90, Math.min(90, e.beta));
           setRoll(Number((rawRoll - calibratedOffsetRoll).toFixed(1)));
@@ -185,7 +182,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
       window.addEventListener('deviceorientation', handleOrientation, true);
     }
 
-    // Fallback check after 1.5s: if no motion events received, enable simulation mode gracefully
     const timer = setTimeout(() => {
       if (receivedEvents === 0) {
         setUseSimulation(true);
@@ -222,7 +218,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     }
   };
 
-  // Update angles if simulation is active
   useEffect(() => {
     if (useSimulation && !isHold) {
       setPitch(Number((simulatedPitch - calibratedOffsetPitch).toFixed(1)));
@@ -230,7 +225,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     }
   }, [simulatedPitch, simulatedRoll, useSimulation, isHold, calibratedOffsetPitch, calibratedOffsetRoll]);
 
-  // Calibration zeroing
   const handleCalibrateZero = () => {
     if (useSimulation) {
       setCalibratedOffsetPitch(simulatedPitch);
@@ -248,7 +242,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     setIsCalibrated(false);
   };
 
-  // Level calculations
   const effectiveRoll = isHold ? roll : (useSimulation ? Number((simulatedRoll - calibratedOffsetRoll).toFixed(1)) : roll);
   const effectivePitch = isHold ? pitch : (useSimulation ? Number((simulatedPitch - calibratedOffsetPitch).toFixed(1)) : pitch);
 
@@ -256,7 +249,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const isVerticalPlumb = Math.abs(effectivePitch) <= 0.4 || Math.abs(Math.abs(effectivePitch) - 90) <= 0.4;
   const isSurfaceBullseyeLevel = Math.abs(effectiveRoll) <= 0.4 && Math.abs(effectivePitch) <= 0.4;
 
-  // Haptic feedback on perfect 0.0°
   useEffect(() => {
     if (isHorizontalLevel && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
@@ -265,20 +257,18 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     }
   }, [isHorizontalLevel]);
 
-  // Deviation in mm per meter: tan(angle in radians) * 1000
   const rollMmPerMeter = (Math.tan((effectiveRoll * Math.PI) / 180) * 1000).toFixed(1);
   const rollSlopePercent = (Math.tan((effectiveRoll * Math.PI) / 180) * 100).toFixed(1);
 
   // ==========================================
-  // TOOL 2: TAPE MEASURE & SCREEN RULER (FITA MÉTRICA DIGITAL)
+  // TOOL 2: TAPE MEASURE & SCREEN RULER
   // ==========================================
   const [rulerLengthCm, setRulerLengthCm] = useState<number>(30);
   const [pinAPosMm, setPinAPosMm] = useState<number>(0);
-  const [pinBPosMm, setPinBPosMm] = useState<number>(185); // 18.5 cm
+  const [pinBPosMm, setPinBPosMm] = useState<number>(185);
   const [unitMode, setUnitMode] = useState<'metric' | 'imperial'>('metric');
-  const [rulerScaleFactor, setRulerScaleFactor] = useState<number>(3.78); // px per mm for standard 96dpi
+  const [rulerScaleFactor, setRulerScaleFactor] = useState<number>(3.78);
 
-  // Area & Room measurement calculator
   const [roomLengthM, setRoomLengthM] = useState<number>(5.5);
   const [roomWidthM, setRoomWidthM] = useState<number>(4.2);
   const [roomHeightM, setRoomHeightM] = useState<number>(2.8);
@@ -290,17 +280,15 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const roomVolumeM3 = Number((roomFloorArea * roomHeightM).toFixed(2));
   const roomDiagonalM = Number((Math.sqrt(roomLengthM * roomLengthM + roomWidthM * roomWidthM)).toFixed(2));
 
-  // Estimation helpers
-  const paintLitersNeeded = Number((roomWallArea / 10).toFixed(1)); // 10m²/L
+  const paintLitersNeeded = Number((roomWallArea / 10).toFixed(1));
   const conduitMetersNeeded = Number((roomPerimeter + roomHeightM * 4).toFixed(1));
 
-  // Optical Triangulation AR measurement tool
-  const [cameraHeightM, setCameraHeightM] = useState<number>(1.5); // phone eye height
-  const [tiltAngleDeg, setTiltAngleDeg] = useState<number>(25); // angle looking down to ground base
+  const [cameraHeightM, setCameraHeightM] = useState<number>(1.5);
+  const [tiltAngleDeg, setTiltAngleDeg] = useState<number>(25);
   const estimatedDistanceM = Number((cameraHeightM / Math.tan((tiltAngleDeg * Math.PI) / 180)).toFixed(2));
 
   // ==========================================
-  // TOOL 3: SOLAR PV SIZING (DIMENSIONAMENTO SOLAR)
+  // TOOL 3: SOLAR PV SIZING
   // ==========================================
   const [solarDailyKwh, setSolarDailyKwh] = useState<number>(14);
   const [solarProvince, setSolarProvince] = useState<string>('Maputo Província');
@@ -316,7 +304,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const recommendedInverterKva = Math.max(3, Math.ceil((totalKwPNeeded * 1.25) / 1.5) * 1.5);
 
   // ==========================================
-  // TOOL 4: CABLE DROP & SIZING (BITOLA E QUEDA DE TENSÃO EDM)
+  // TOOL 4: CABLE DROP & SIZING
   // ==========================================
   const [cableVoltageType, setCableVoltageType] = useState<'220V_mono' | '380V_tri' | 'solar_dc'>('220V_mono');
   const [cableVoltage, setCableVoltage] = useState<number>(220);
@@ -326,7 +314,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
   const rho = cableConductor === 'copper' ? 0.0178 : 0.0285;
   const factor = cableVoltageType === '380V_tri' ? Math.sqrt(3) : 2;
-  const allowedDropPct = 3.0; // 3% max by EDM
+  const allowedDropPct = 3.0;
   const allowedDropVolts = (cableVoltage * allowedDropPct) / 100;
   const calculatedSectionMm2 = (factor * rho * cableDistanceMeters * cableCurrentAmps) / allowedDropVolts;
 
@@ -344,7 +332,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const heatLossWatts = Number((actualDropVolts * cableCurrentAmps).toFixed(0));
 
   // ==========================================
-  // TOOL 5: AC BTU SIZING (CARGA TÉRMICA CLIMATIZAÇÃO)
+  // TOOL 5: AC BTU SIZING
   // ==========================================
   const [acAreaM2, setAcAreaM2] = useState<number>(25);
   const [acPeopleCount, setAcPeopleCount] = useState<number>(3);
@@ -352,8 +340,8 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const [acAppliancesWatts, setAcAppliancesWatts] = useState<number>(600);
 
   let btuPerM2 = 600;
-  if (acSunExposure === 'afternoon_coastal') btuPerM2 = 800; // Maputo, Beira, Pemba
-  if (acSunExposure === 'afternoon_inland') btuPerM2 = 900; // Tete, Chimoio, Nampula
+  if (acSunExposure === 'afternoon_coastal') btuPerM2 = 800;
+  if (acSunExposure === 'afternoon_inland') btuPerM2 = 900;
 
   const btuBaseCalc = acAreaM2 * btuPerM2;
   const btuPeopleCalc = (acPeopleCount - 1 > 0 ? (acPeopleCount - 1) * 600 : 0);
@@ -367,7 +355,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   else if (totalBtuNeeded > 11000) standardBtuUnit = '12.000 BTU';
 
   // ==========================================
-  // TOOL 6: GROUNDING RESISTANCE (ATERRAMENTO EDM)
+  // TOOL 6: GROUNDING RESISTANCE
   // ==========================================
   const [soilType, setSoilType] = useState<string>('argila');
   const [rodLengthM, setRodLengthM] = useState<number>(2.4);
@@ -375,7 +363,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const [rodsCount, setRodsCount] = useState<number>(2);
   const [soilTreatment, setSoilTreatment] = useState<boolean>(false);
 
-  // Resistivity in Ohm*m
   const SOIL_RESISTIVITIES: { [key: string]: { name: string; rho: number } } = {
     praia_arenosa: { name: 'Praia / Areia Litorânea (Maputo Costa / Vilankulo)', rho: 350 },
     terra_vermelha: { name: 'Terra Vermelha / Humífera (Matola / Gaza)', rho: 120 },
@@ -386,16 +373,14 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
   const currentSoil = SOIL_RESISTIVITIES[soilType] || SOIL_RESISTIVITIES.terra_vermelha;
   const effectiveRho = soilTreatment ? currentSoil.rho * 0.5 : currentSoil.rho;
 
-  // Rod formula: R = (rho / 2*pi*L) * (ln(4L / d))
   const rodDiameterM = rodDiameterMm / 1000;
   const singleRodResistance = (effectiveRho / (2 * Math.PI * rodLengthM)) * Math.log((4 * rodLengthM) / rodDiameterM);
-  // Group efficiency factor for rods spaced 1x length apart
   const parallelFactor = rodsCount === 1 ? 1 : rodsCount === 2 ? 0.58 : rodsCount === 3 ? 0.42 : 0.32;
   const calculatedGroundResistance = Number((singleRodResistance * parallelFactor).toFixed(1));
   const isEdmCompliant = calculatedGroundResistance <= 10.0;
 
   // ==========================================
-  // TOOL 7: SUBMERSIBLE WATER PUMP (BOMBA SUBMERSA & FURO)
+  // TOOL 7: SUBMERSIBLE WATER PUMP
   // ==========================================
   const [wellDynamicDepthM, setWellDynamicDepthM] = useState<number>(45);
   const [tankElevationM, setTankElevationM] = useState<number>(10);
@@ -404,8 +389,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
   const flowRateLitersPerHour = Math.round(dailyWaterLiters / pumpingHours);
   const flowRateM3PerHour = Number((flowRateLitersPerHour / 1000).toFixed(2));
-  const totalHeadM = wellDynamicDepthM + tankElevationM + (wellDynamicDepthM * 0.1); // +10% pipe friction loss
-  // Hydraulic power P = (Q in m³/s * rho * g * H) / pump_efficiency (0.55)
+  const totalHeadM = wellDynamicDepthM + tankElevationM + (wellDynamicDepthM * 0.1);
   const pumpPowerKw = Number(((flowRateM3PerHour / 3600) * 1000 * 9.81 * totalHeadM / (0.5 * 1000)).toFixed(2));
   const pumpPowerHp = Number((pumpPowerKw * 1.341).toFixed(2));
   const solarPanelsKwpForPump = Number((pumpPowerKw * 1.4).toFixed(2));
@@ -419,6 +403,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     }
   })();
 
+  // SE NÃO FOR VERIFICADO: Mantém o card de fundo estático, SEM renderizar a segunda janela <SeloMZModal isOpen={true} /> duplicada
   if (!isTecnicoVerificado) {
     return (
       <div id="screen-ferramentas" className="screen-ferramentas active min-h-screen bg-slate-900/5 py-12 px-3 sm:px-6 flex flex-col items-center justify-center">
@@ -433,7 +418,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
           <button
             onClick={() => {
               if (onNavigateTab) onNavigateTab('settings');
-              else if (typeof window !== 'undefined') window.location.hash = '#definicoes';
+              else if (typeof window !== 'undefined') window.location.hash = '#settings';
             }}
             className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition cursor-pointer active:scale-[0.98]"
           >
@@ -442,19 +427,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-
-        <SeloMZModal
-          isOpen={true}
-          onClose={() => {
-            if (onNavigateTab) onNavigateTab('technician');
-            else if (typeof window !== 'undefined') window.location.hash = '#tecnico';
-          }}
-          onGoToSeloSettings={() => {
-            if (onNavigateTab) onNavigateTab('settings');
-            else if (typeof window !== 'undefined') window.location.hash = '#definicoes';
-          }}
-          featureName="Ferramentas & Recursos"
-        />
       </div>
     );
   }
@@ -490,7 +462,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
         {/* FILTRO DE BUSCA RÁPIDA & ABAS / PILLS */}
         <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3.5">
-          {/* Input de Busca Rápida + Botão Minha Marca */}
           <div className="flex flex-col sm:flex-row gap-2.5">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -525,14 +496,13 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
             <button
               onClick={() => setActiveKitProModal('perfil_tecnico')}
-              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-xs transition shrink-0 group active:scale-95"
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-xs transition shrink-0 group active:scale-95 cursor-pointer"
             >
               <Building className="w-4 h-4 text-blue-200 group-hover:scale-110 transition" />
               <span>Minha Marca (Logo & Perfil)</span>
             </button>
           </div>
 
-          {/* Abas / Pills de Categorização */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[
               { id: 'todas', label: 'Todas', count: 23 },
@@ -552,7 +522,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                       (window as any).filtrarCardsFerramentas(searchTerm, newCat);
                     }
                   }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${
                     isSelected
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
@@ -570,11 +540,8 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
           </div>
         </div>
 
-        {/* Tool Navigation Grid - Existing Tools + 15 Kit PRO Tools */}
+        {/* Tool Navigation Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-          {/* =========================================================================
-              BLOCO DE FERRAMENTAS JÁ EXISTENTES (PRESERVADAS)
-             ========================================================================= */}
           {/* 1. Nível de Parede */}
           {(categoryFilter === 'todas' || categoryFilter === 'existentes') &&
            (!searchTerm || 'nível de parede prumo bolha'.includes(searchTerm.toLowerCase())) && (
@@ -582,7 +549,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="existentes"
               data-tool-name="Nível de Parede"
               onClick={() => setActiveTool('wall_level')}
-              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
                 activeTool === 'wall_level'
                   ? 'bg-cyan-600 text-white border-cyan-500 shadow-md ring-2 ring-cyan-400/30'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -609,7 +576,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="existentes"
               data-tool-name="Fita Métrica"
               onClick={() => setActiveTool('tape_measure')}
-              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
                 activeTool === 'tape_measure'
                   ? 'bg-indigo-600 text-white border-indigo-500 shadow-md ring-2 ring-indigo-400/30'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -636,7 +603,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="existentes"
               data-tool-name="Solar PV"
               onClick={() => setActiveTool('solar')}
-              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
                 activeTool === 'solar'
                   ? 'bg-amber-600 text-white border-amber-500 shadow-md ring-2 ring-amber-400/30'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -663,7 +630,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="existentes"
               data-tool-name="Bitola EDM"
               onClick={() => setActiveTool('cable')}
-              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
                 activeTool === 'cable'
                   ? 'bg-emerald-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-400/30'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -690,7 +657,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="existentes"
               data-tool-name="Aterramento"
               onClick={() => setActiveTool('grounding')}
-              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
                 activeTool === 'grounding'
                   ? 'bg-teal-600 text-white border-teal-500 shadow-md ring-2 ring-teal-400/30'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -717,7 +684,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="existentes"
               data-tool-name="Carga AC"
               onClick={() => setActiveTool('ac')}
-              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
                 activeTool === 'ac'
                   ? 'bg-blue-600 text-white border-blue-500 shadow-md ring-2 ring-blue-400/30'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -744,7 +711,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="existentes"
               data-tool-name="Bomba de Furo"
               onClick={() => setActiveTool('water_pump')}
-              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
                 activeTool === 'water_pump'
                   ? 'bg-sky-600 text-white border-sky-500 shadow-md ring-2 ring-sky-400/30'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -772,7 +739,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="existentes"
               data-tool-name="Gerador de OS"
               onClick={() => setActiveTool('service_order')}
-              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 ${
+              className={`card-ferramenta p-3.5 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
                 activeTool === 'service_order'
                   ? 'bg-purple-600 text-white border-purple-500 shadow-md ring-2 ring-purple-400/30'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -792,12 +759,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </button>
           )}
 
-          {/* =========================================================================
-              NOVAS 15 FERRAMENTAS DO KIT ELETRICISTA & TÉCNICO PRO (ANEXADAS AO GRID)
-             ========================================================================= */}
-
-          {/* BLOCO 1: FATURAMENTO E VENDAS */}
-
           {/* 9. Gerador de OS + Contrato + Recibo (PRO) */}
           {(categoryFilter === 'todas' || categoryFilter === 'faturamento') &&
            (!searchTerm || 'os contrato recibo logotipo slogan garantia faturamento'.includes(searchTerm.toLowerCase())) && (
@@ -805,7 +766,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="faturamento"
               data-tool-name="OS & Contrato PRO"
               onClick={() => setActiveKitProModal('gerador_os')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-blue-600 text-white shadow-xs group-hover:scale-105 transition">
                 <FileText className="w-4 h-4" />
@@ -827,7 +788,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="faturamento"
               data-tool-name="Preço de Serviço"
               onClick={() => setActiveKitProModal('calculadora_preco')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-indigo-600 text-white shadow-xs group-hover:scale-105 transition">
                 <Calculator className="w-4 h-4" />
@@ -849,7 +810,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="faturamento"
               data-tool-name="Lista de Materiais"
               onClick={() => setActiveKitProModal('lista_materiais')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-emerald-600 text-white shadow-xs group-hover:scale-105 transition">
                 <ListPlus className="w-4 h-4" />
@@ -871,7 +832,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="faturamento"
               data-tool-name="CRM Clientes"
               onClick={() => setActiveKitProModal('crm_clientes')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-blue-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-violet-600 text-white shadow-xs group-hover:scale-105 transition">
                 <Users className="w-4 h-4" />
@@ -886,8 +847,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </button>
           )}
 
-          {/* BLOCO 2: TÉCNICA E NORMAS */}
-
           {/* 13. Tabela do Quadro Geral (QG) */}
           {(categoryFilter === 'todas' || categoryFilter === 'tecnica') &&
            (!searchTerm || 'quadro geral qg porta painel circuitos identificação disjuntor tabela pdf'.includes(searchTerm.toLowerCase())) && (
@@ -895,7 +854,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="tecnica"
               data-tool-name="Tabela do Quadro"
               onClick={() => setActiveKitProModal('tabela_quadro')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-amber-600 text-white shadow-xs group-hover:scale-105 transition">
                 <Grid className="w-4 h-4" />
@@ -917,7 +876,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="tecnica"
               data-tool-name="Dimensionamento PRO"
               onClick={() => setActiveKitProModal('dimensionamento')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-orange-600 text-white shadow-xs group-hover:scale-105 transition">
                 <Zap className="w-4 h-4" />
@@ -939,7 +898,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="tecnica"
               data-tool-name="Tabelas Normativas"
               onClick={() => setActiveKitProModal('tabelas_normativas')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-amber-700 text-white shadow-xs group-hover:scale-105 transition">
                 <BookOpen className="w-4 h-4" />
@@ -961,7 +920,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="tecnica"
               data-tool-name="Diagnóstico IA Foto"
               onClick={() => setActiveKitProModal('diagnostico_foto')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-teal-600 text-white shadow-xs group-hover:scale-105 transition">
                 <Camera className="w-4 h-4" />
@@ -983,7 +942,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="tecnica"
               data-tool-name="Checklist NR10"
               onClick={() => setActiveKitProModal('checklist_nr10')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-amber-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-emerald-700 text-white shadow-xs group-hover:scale-105 transition">
                 <Shield className="w-4 h-4" />
@@ -998,8 +957,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </button>
           )}
 
-          {/* BLOCO 3: GESTÃO E ORGANIZAÇÃO */}
-
           {/* 18. Agenda & WhatsApp */}
           {(categoryFilter === 'todas' || categoryFilter === 'gestao') &&
            (!searchTerm || 'agenda whatsapp lembretes visitas clientes mensagem agendamento'.includes(searchTerm.toLowerCase())) && (
@@ -1007,7 +964,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="gestao"
               data-tool-name="Agenda WhatsApp"
               onClick={() => setActiveKitProModal('agenda_whatsapp')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-emerald-600 text-white shadow-xs group-hover:scale-105 transition">
                 <Calendar className="w-4 h-4" />
@@ -1029,7 +986,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="gestao"
               data-tool-name="Gestão Financeira"
               onClick={() => setActiveKitProModal('gestao_financeira')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-green-600 text-white shadow-xs group-hover:scale-105 transition">
                 <DollarSign className="w-4 h-4" />
@@ -1051,7 +1008,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="gestao"
               data-tool-name="Portfólio Digital"
               onClick={() => setActiveKitProModal('portfolio')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-teal-700 text-white shadow-xs group-hover:scale-105 transition">
                 <Layers className="w-4 h-4" />
@@ -1073,7 +1030,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="gestao"
               data-tool-name="Certificado Garantia"
               onClick={() => setActiveKitProModal('certificado_garantia')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-emerald-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-blue-700 text-white shadow-xs group-hover:scale-105 transition">
                 <Award className="w-4 h-4" />
@@ -1088,8 +1045,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </button>
           )}
 
-          {/* BLOCO 4: COMUNIDADE E REDE DE APOIO */}
-
           {/* 22. Socorro na Obra (SOS) */}
           {(categoryFilter === 'todas' || categoryFilter === 'comunidade') &&
            (!searchTerm || 'socorro na obra mural emergência duvida eletricista whatsapp ajuda'.includes(searchTerm.toLowerCase())) && (
@@ -1097,7 +1052,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="comunidade"
               data-tool-name="Socorro na Obra"
               onClick={() => setActiveKitProModal('socorro_obra')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-rose-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-rose-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-rose-600 text-white shadow-xs group-hover:scale-105 transition">
                 <AlertCircle className="w-4 h-4" />
@@ -1119,7 +1074,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
               data-tool-category="comunidade"
               data-tool-name="Cotação de Lojas"
               onClick={() => setActiveKitProModal('cotacao_material')}
-              className="card-ferramenta p-3.5 rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-rose-400 hover:shadow-md group active:scale-95"
+              className="card-ferramenta p-3.5 rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/70 to-white text-left transition flex flex-col justify-between gap-2.5 hover:border-rose-400 hover:shadow-md group active:scale-95 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-slate-800 text-white shadow-xs group-hover:scale-105 transition">
                 <ShoppingCart className="w-4 h-4" />
@@ -1144,9 +1099,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
         {/* WORKSPACE AREA */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs">
-          {/* ========================================================================= */}
-          {/* TOOL 1: WALL & SURFACE LEVEL (NÍVEL DE PAREDE E PRUMO DIGITAL) */}
-          {/* ========================================================================= */}
+          {/* TOOL 1: WALL & SURFACE LEVEL */}
           {activeTool === 'wall_level' && (
             <div className="space-y-8">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
@@ -1166,7 +1119,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 <div className="flex items-center flex-wrap gap-2">
                   <button
                     onClick={requestOrientationPermission}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       hasDeviceMotion && !useSimulation
                         ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/40'
                         : 'bg-cyan-600 hover:bg-cyan-700 text-white animate-pulse'
@@ -1179,7 +1132,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
                   <button
                     onClick={() => setUseSimulation(!useSimulation)}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                       useSimulation ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                     }`}
                     title="Alternar entre modo sensor e modo ajuste manual por toque"
@@ -1190,7 +1143,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
                   <button
                     onClick={() => setIsHold(!isHold)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                       isHold ? 'bg-amber-500 text-white font-black' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                     }`}
                   >
@@ -1200,7 +1153,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
                   <button
                     onClick={handleCalibrateZero}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                     title="Definir ângulo atual como 0°"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -1244,7 +1197,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
               {/* VISUAL SPIRIT LEVEL GAUGES */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-2">
-                {/* 1. Horizontal Spirit Tube */}
                 <div className="bg-slate-900 p-6 rounded-3xl text-white space-y-4 shadow-inner">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
@@ -1257,9 +1209,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     </span>
                   </div>
 
-                  {/* Horizontal Liquid Tube */}
                   <div className="relative h-16 bg-gradient-to-b from-cyan-950 via-cyan-900 to-slate-950 rounded-2xl border-2 border-cyan-500/40 p-2 overflow-hidden shadow-inner">
-                    {/* Measurement lines */}
                     <div className="absolute inset-0 flex justify-between px-6 items-center pointer-events-none opacity-40">
                       <div className="h-6 w-0.5 bg-white"></div>
                       <div className="h-4 w-0.5 bg-white"></div>
@@ -1268,10 +1218,8 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                       <div className="h-6 w-0.5 bg-white"></div>
                     </div>
 
-                    {/* Center tolerance target box */}
                     <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-16 border-x-2 border-amber-400/80 bg-amber-400/10 pointer-events-none"></div>
 
-                    {/* Fluid Bubble */}
                     <div
                       className={`absolute top-2.5 bottom-2.5 w-12 rounded-full transition-all duration-75 shadow-lg flex items-center justify-center ${
                         isHorizontalLevel
@@ -1292,7 +1240,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                   </p>
                 </div>
 
-                {/* 2. 2D Circular Surface Bullseye Level */}
                 <div className="bg-slate-900 p-6 rounded-3xl text-white space-y-4 shadow-inner flex flex-col items-center justify-between">
                   <div className="w-full flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
@@ -1305,20 +1252,16 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     </span>
                   </div>
 
-                  {/* Bullseye Circular Ring */}
                   <div className="relative w-44 h-44 rounded-full bg-gradient-to-b from-cyan-950 via-slate-900 to-slate-950 border-4 border-cyan-500/50 p-2 shadow-inner flex items-center justify-center overflow-hidden">
-                    {/* Concentric rings */}
                     <div className="w-32 h-32 rounded-full border border-cyan-500/30 flex items-center justify-center">
                       <div className="w-20 h-20 rounded-full border border-cyan-400/40 flex items-center justify-center">
                         <div className="w-10 h-10 rounded-full border-2 border-amber-400/70 bg-amber-400/10"></div>
                       </div>
                     </div>
 
-                    {/* Crosshair lines */}
                     <div className="absolute inset-x-0 h-0.5 bg-cyan-500/20"></div>
                     <div className="absolute inset-y-0 w-0.5 bg-cyan-500/20"></div>
 
-                    {/* 2D Bubble */}
                     <div
                       className={`absolute w-8 h-8 rounded-full transition-all duration-75 shadow-lg flex items-center justify-center ${
                         isSurfaceBullseyeLevel
@@ -1339,7 +1282,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 </div>
               </div>
 
-              {/* Simulation / Desktop Calibration sliders */}
               <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1349,7 +1291,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                   {isCalibrated && (
                     <button
                       onClick={handleResetCalibration}
-                      className="text-[11px] font-bold text-red-600 hover:underline"
+                      className="text-[11px] font-bold text-red-600 hover:underline cursor-pointer"
                     >
                       Remover Calibração Tara
                     </button>
@@ -1369,7 +1311,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                       step="0.1"
                       value={simulatedRoll}
                       onChange={e => setSimulatedRoll(Number(e.target.value))}
-                      className="w-full accent-cyan-600"
+                      className="w-full accent-cyan-600 cursor-pointer"
                     />
                   </div>
 
@@ -1385,7 +1327,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                       step="0.1"
                       value={simulatedPitch}
                       onChange={e => setSimulatedPitch(Number(e.target.value))}
-                      className="w-full accent-cyan-600"
+                      className="w-full accent-cyan-600 cursor-pointer"
                     />
                   </div>
                 </div>
@@ -1393,9 +1335,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* TOOL 2: TAPE MEASURE & ROOM AREA (FITA MÉTRICA DIGITAL & ÁREA) */}
-          {/* ========================================================================= */}
+          {/* TOOL 2: TAPE MEASURE */}
           {activeTool === 'tape_measure' && (
             <div className="space-y-8">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
@@ -1415,14 +1355,13 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setUnitMode(unitMode === 'metric' ? 'imperial' : 'metric')}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer"
                   >
                     Unidade: {unitMode === 'metric' ? 'Métrico (cm/m)' : 'Polegadas (in/ft)'}
                   </button>
                 </div>
               </div>
 
-              {/* INTERACTIVE ON-SCREEN CALIPER / RULER */}
               <div className="space-y-4 bg-slate-900 p-6 rounded-3xl text-white">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1441,9 +1380,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                   </div>
                 </div>
 
-                {/* Ruler Visual Scale */}
                 <div className="relative h-20 bg-amber-100 rounded-2xl border-2 border-amber-300 p-2 overflow-x-auto select-none shadow-inner">
-                  {/* Graduations */}
                   <div className="flex justify-between items-end h-full px-2 text-[9px] font-mono font-bold text-slate-900">
                     {Array.from({ length: 21 }).map((_, i) => (
                       <div key={i} className="flex flex-col items-center">
@@ -1453,7 +1390,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     ))}
                   </div>
 
-                  {/* Pin A */}
                   <div
                     className="absolute top-0 bottom-0 w-3 bg-indigo-600 shadow-md cursor-ew-resize flex items-center justify-center text-[9px] font-black text-white rounded-xs"
                     style={{ left: `${Math.min(95, Math.max(2, (pinAPosMm / 200) * 100))}%` }}
@@ -1462,7 +1398,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     A
                   </div>
 
-                  {/* Pin B */}
                   <div
                     className="absolute top-0 bottom-0 w-3 bg-red-600 shadow-md cursor-ew-resize flex items-center justify-center text-[9px] font-black text-white rounded-xs"
                     style={{ left: `${Math.min(95, Math.max(2, (pinBPosMm / 200) * 100))}%` }}
@@ -1472,7 +1407,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                   </div>
                 </div>
 
-                {/* Draggable Slider Pins */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <div>
                     <label className="text-xs text-slate-300 font-semibold block mb-1">
@@ -1484,7 +1418,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                       max="200"
                       value={pinAPosMm}
                       onChange={e => setPinAPosMm(Number(e.target.value))}
-                      className="w-full accent-indigo-500"
+                      className="w-full accent-indigo-500 cursor-pointer"
                     />
                   </div>
                   <div>
@@ -1497,15 +1431,13 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                       max="200"
                       value={pinBPosMm}
                       onChange={e => setPinBPosMm(Number(e.target.value))}
-                      className="w-full accent-red-500"
+                      className="w-full accent-red-500 cursor-pointer"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* ROOM MEASUREMENT & AREA CALCULATOR */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Inputs */}
                 <div className="space-y-4">
                   <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                     <Maximize2 className="w-4 h-4 text-indigo-600" />
@@ -1559,7 +1491,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <span className="text-[11px] text-slate-400">Porta padrão ~1.6m² | Janela média ~1.5m²</span>
                   </div>
 
-                  {/* Optical AR Height Triangulation */}
                   <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
                       <Camera className="w-3.5 h-3.5 text-indigo-600" />
@@ -1592,7 +1523,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                   </div>
                 </div>
 
-                {/* Outputs */}
                 <div className="p-6 rounded-3xl bg-slate-900 text-white space-y-4 flex flex-col justify-between">
                   <div className="space-y-3">
                     <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">
@@ -1633,9 +1563,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* TOOL 3: SOLAR PV SIZING */}
-          {/* ========================================================================= */}
+          {/* TOOL 3: SOLAR PV */}
           {activeTool === 'solar' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="space-y-4">
@@ -1666,7 +1594,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <select
                       value={solarProvince}
                       onChange={e => setSolarProvince(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       {MOZAMBIQUE_PROVINCES.map(p => (
                         <option key={p} value={p}>{p}</option>
@@ -1691,7 +1619,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <select
                       value={panelWattage}
                       onChange={e => setPanelWattage(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <option value={450}>450W Mono Half-Cell</option>
                       <option value={550}>550W Tier-1 Mono Perc</option>
@@ -1703,7 +1631,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <select
                       value={systemVoltage}
                       onChange={e => setSystemVoltage(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <option value={24}>24V (Sistemas menores)</option>
                       <option value={48}>48V (Padrão Inversores 5kW/8kW)</option>
@@ -1712,7 +1640,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 </div>
               </div>
 
-              {/* Output */}
               <div className="p-6 rounded-3xl bg-amber-50/70 border border-amber-200 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
                   <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 bg-amber-200/70 px-2.5 py-1 rounded-full">
@@ -1744,9 +1671,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* TOOL 4: CABLE DROP & SIZING (AC & SOLAR DC) */}
-          {/* ========================================================================= */}
+          {/* TOOL 4: CABLE DROP */}
           {activeTool === 'cable' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="space-y-4">
@@ -1770,7 +1695,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                         if (val === '380V_tri') setCableVoltage(380);
                         if (val === 'solar_dc') setCableVoltage(48);
                       }}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <option value="220V_mono">220V Monofásico (EDM Residencial)</option>
                       <option value="380V_tri">380V Trifásico (Industrial)</option>
@@ -1782,7 +1707,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <select
                       value={cableConductor}
                       onChange={e => setCableConductor(e.target.value as any)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <option value="copper">Cobre Eletrolítico (Cu)</option>
                       <option value="aluminum">Alumínio (Al)</option>
@@ -1821,7 +1746,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 </div>
               </div>
 
-              {/* Output */}
               <div className="p-6 rounded-3xl bg-emerald-50/70 border border-emerald-200 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900 bg-emerald-200/70 px-2.5 py-1 rounded-full">
@@ -1849,9 +1773,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* TOOL 5: GROUNDING RESISTANCE (ATERRAMENTO EDM) */}
-          {/* ========================================================================= */}
+          {/* TOOL 5: GROUNDING */}
           {activeTool === 'grounding' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="space-y-4">
@@ -1868,7 +1790,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                   <select
                     value={soilType}
                     onChange={e => setSoilType(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                   >
                     {Object.keys(SOIL_RESISTIVITIES).map(key => (
                       <option key={key} value={key}>{SOIL_RESISTIVITIES[key].name}</option>
@@ -1882,7 +1804,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <select
                       value={rodLengthM}
                       onChange={e => setRodLengthM(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <option value={2.4}>2.4 metros (Padrão)</option>
                       <option value={3.0}>3.0 metros</option>
@@ -1894,7 +1816,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <select
                       value={rodDiameterMm}
                       onChange={e => setRodDiameterMm(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <option value={14}>14 mm (5/8")</option>
                       <option value={16}>16 mm (3/4")</option>
@@ -1906,7 +1828,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <select
                       value={rodsCount}
                       onChange={e => setRodsCount(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <option value={1}>1 Haste Simples</option>
                       <option value={2}>2 Hastes Paralelas</option>
@@ -1930,7 +1852,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 </div>
               </div>
 
-              {/* Output */}
               <div className="p-6 rounded-3xl bg-teal-50/70 border border-teal-200 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
                   <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 bg-teal-200/70 px-2.5 py-1 rounded-full">
@@ -1955,9 +1876,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* TOOL 6: AC BTU (CARGA TÉRMICA) */}
-          {/* ========================================================================= */}
+          {/* TOOL 6: AC BTU */}
           {activeTool === 'ac' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="space-y-4">
@@ -1994,7 +1913,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     <select
                       value={acSunExposure}
                       onChange={e => setAcSunExposure(e.target.value as any)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <option value="morning">Sol da Manhã / Suave</option>
                       <option value="afternoon_coastal">Sol da Tarde Litoral (Maputo/Beira)</option>
@@ -2004,7 +1923,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 </div>
               </div>
 
-              {/* Output */}
               <div className="p-6 rounded-3xl bg-blue-50/70 border border-blue-200 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
                   <span className="text-[10px] font-black uppercase tracking-wider text-blue-900 bg-blue-200/70 px-2.5 py-1 rounded-full">
@@ -2025,9 +1943,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </div>
           )}
 
-          {/* ========================================================================= */}
           {/* TOOL 7: SUBMERSIBLE WATER PUMP */}
-          {/* ========================================================================= */}
           {activeTool === 'water_pump' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="space-y-4">
@@ -2082,7 +1998,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 </div>
               </div>
 
-              {/* Output */}
               <div className="p-6 rounded-3xl bg-sky-50/70 border border-sky-200 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
                   <span className="text-[10px] font-black uppercase tracking-wider text-sky-900 bg-sky-200/70 px-2.5 py-1 rounded-full">
@@ -2110,9 +2025,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* TOOL 8: SERVICE ORDER GENERATOR (GERADOR DE ORDEM DE SERVIÇO EM PDF) */}
-          {/* ========================================================================= */}
+          {/* TOOL 8: SERVICE ORDER GENERATOR */}
           {activeTool === 'service_order' && (
             <div className="space-y-6">
               {!hasOSAccess ? (
@@ -2148,7 +2061,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Action Bar */}
                   <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-purple-50/70 border border-purple-200">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-sm">
@@ -2171,9 +2083,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                     </div>
                   </div>
 
-                  {/* Form & Live Preview Grid */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    {/* Left: Input Form */}
                     <div className="no-print lg:col-span-5 space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
                       <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">Dados do Orçamento / OS</h4>
 
@@ -2286,14 +2196,13 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                         </div>
                       </div>
 
-                      {/* Items & Materials table input */}
                       <div className="pt-2 space-y-2 border-t border-slate-200">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-extrabold uppercase text-slate-700">Itens e Mão de Obra</span>
                           <button
                             type="button"
                             onClick={handleAddOsItem}
-                            className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center gap-1 transition"
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
                           >
                             <Plus className="w-3 h-3" />
                             Adicionar Item
@@ -2301,7 +2210,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                         </div>
 
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {osItems.map((item, idx) => (
+                          {osItems.map((item) => (
                             <div key={item.id} className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5 text-xs">
                               <input
                                 type="text"
@@ -2342,7 +2251,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveOsItem(item.id)}
-                                  className="p-1 text-rose-500 hover:bg-rose-50 rounded-lg"
+                                  className="p-1 text-rose-500 hover:bg-rose-50 rounded-lg cursor-pointer"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -2353,9 +2262,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                       </div>
                     </div>
 
-                    {/* Right: Printable Sheet Document */}
                     <div className="print-only-sheet lg:col-span-7 bg-white p-6 sm:p-8 rounded-2xl border-2 border-slate-300 shadow-md text-slate-900 font-sans space-y-5 print:p-0 print:border-none print:shadow-none">
-                      {/* Document Header */}
                       <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
                         <div>
                           <div className="flex items-center gap-2">
@@ -2385,7 +2292,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                         </div>
                       </div>
 
-                      {/* Client and Tech Info Box */}
                       <div className="grid grid-cols-2 gap-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                         <div>
                           <span className="text-[10px] font-black uppercase text-slate-400 block">Cliente:</span>
@@ -2401,7 +2307,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                         </div>
                       </div>
 
-                      {/* Service Description */}
                       {osDescription && (
                         <div className="text-xs space-y-1">
                           <span className="text-[10px] font-black uppercase text-slate-500">Diagnóstico & Parecer Técnico:</span>
@@ -2411,7 +2316,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                         </div>
                       )}
 
-                      {/* Items Table */}
                       <div className="space-y-2">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
@@ -2435,7 +2339,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                         </table>
                       </div>
 
-                      {/* Total Amount Box */}
                       <div className="flex items-center justify-between p-4 rounded-xl bg-slate-900 text-white">
                         <div>
                           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Geral dos Serviços</span>
@@ -2448,7 +2351,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
                         </div>
                       </div>
 
-                      {/* Signatures */}
                       <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-200 text-center text-xs">
                         <div>
                           <div className="border-b border-slate-400 h-8 mb-1.5" />
@@ -2470,7 +2372,6 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
         </div>
       </div>
 
-      {/* Selo MZ Restriction Modal */}
       {showUpgradeModal && (
         <SeloMZModal
           isOpen={showUpgradeModal}
@@ -2485,3 +2386,5 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     </div>
   );
 };
+
+export default TecnicaTools;
