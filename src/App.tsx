@@ -172,22 +172,64 @@ const AppContent: React.FC = () => {
 
   // Verificação unificada do Selo MZ em todos os pontos
   const hasValidSelo = Boolean(
-    (temSeloMZ && !isSeloExpired) ||
-    (currentUser as any)?.temSeloMZ ||
-    (currentUser as any)?.hasSelo ||
-    (currentUser as any)?.selo ||
-    (currentUser as any)?.isVerified ||
-    (currentUser as any)?.seloStatus === 'aprovado' ||
-    (currentUser as any)?.statusSelo === 'aprovado' ||
     isAdmin ||
+    (temSeloMZ && !isSeloExpired) ||
+    temSeloMZ === true ||
+    (currentUser as any)?.temSeloMZ === true ||
+    (currentUser as any)?.hasSelo === true ||
+    (currentUser as any)?.selo === true ||
+    (currentUser as any)?.seloMZ === true ||
+    (currentUser as any)?.selo_mz === true ||
+    (currentUser as any)?.isVerified === true ||
+    (currentUser as any)?.verified === true ||
+    (currentUser as any)?.verificado === true ||
+    ['aprovado', 'ativo', 'active', 'pago', 'valid', 'confirmado', 'true'].includes(
+      String((currentUser as any)?.seloStatus || '').trim().toLowerCase()
+    ) ||
+    ['aprovado', 'ativo', 'active', 'pago', 'valid', 'confirmado', 'true'].includes(
+      String((currentUser as any)?.statusSelo || '').trim().toLowerCase()
+    ) ||
+    ['aprovado', 'ativo', 'active', 'pago', 'valid', 'confirmado', 'true'].includes(
+      String((currentUser as any)?.selo || '').trim().toLowerCase()
+    ) ||
+    ['aprovado', 'ativo', 'active', 'pago', 'valid', 'confirmado', 'true'].includes(
+      String((currentUser as any)?.seloMZ || '').trim().toLowerCase()
+    ) ||
+    ['aprovado', 'ativo', 'active', 'pago', 'valid', 'confirmado', 'true'].includes(
+      String((currentUser as any)?.selo_mz || '').trim().toLowerCase()
+    ) ||
+    ['aprovado', 'ativo', 'active', 'pago', 'valid', 'confirmado', 'true'].includes(
+      String((currentUser as any)?.statusAprovacaoSelo || '').trim().toLowerCase()
+    ) ||
     (() => {
       try {
-        return localStorage.getItem('tecnico_verificado') === 'true' || localStorage.getItem('selo_mz_active') === 'true';
+        if (typeof window === 'undefined') return false;
+        return (
+          localStorage.getItem('tecnico_verificado') === 'true' ||
+          localStorage.getItem('selo_mz_active') === 'true' ||
+          localStorage.getItem('selo_mz') === 'true' ||
+          localStorage.getItem('tem_selo_mz') === 'true' ||
+          localStorage.getItem('selo_mz_status') === 'aprovado' ||
+          localStorage.getItem('selo_mz_status') === 'ativo'
+        );
       } catch {
         return false;
       }
     })()
   );
+
+  // Sincroniza imediatamente o selo ativo no armazenamento do celular para impedir checagens falsas dos componentes filhos
+  useEffect(() => {
+    if (hasValidSelo && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('tecnico_verificado', 'true');
+        localStorage.setItem('selo_mz_active', 'true');
+        localStorage.setItem('selo_mz', 'true');
+        localStorage.setItem('tem_selo_mz', 'true');
+        localStorage.setItem('selo_mz_status', 'aprovado');
+      } catch {}
+    }
+  }, [hasValidSelo]);
 
   // Trava anti-duplicidade em milissegundos para evitar abertura de segunda janela concorrente
   const lastSeloModalOpenTimeRef = useRef<number>(0);
@@ -312,6 +354,14 @@ const AppContent: React.FC = () => {
   const [isSeloModalOpen, setIsSeloModalOpen] = useState(false);
   const [seloFeatureName, setSeloFeatureName] = useState('Ferramentas & Recursos');
 
+  // Trava de segurança: Se o selo já for ativo, garante que o modal permaneça fechado no celular
+  useEffect(() => {
+    if (hasValidSelo && isSeloModalOpen) {
+      setIsSeloModalOpen(false);
+      dismissModalWithoutHistory('selo_mz_modal');
+    }
+  }, [hasValidSelo, isSeloModalOpen]);
+
   // Hydration on boot
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -396,9 +446,16 @@ const AppContent: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Event listeners for Selo MZ modal and tab navigation (com proteção anti-duplicação)
+  // Event listeners for Selo MZ modal and tab navigation (com bloqueio para técnicos que já têm selo)
   useEffect(() => {
     const handleOpen = (e: any) => {
+      // Se já tiver selo ou for admin, bloqueia imediatamente a abertura no celular
+      if (hasValidSelo || isAdmin) {
+        setIsSeloModalOpen(false);
+        dismissModalWithoutHistory('selo_mz_modal');
+        return;
+      }
+
       const now = Date.now();
       if (now - lastSeloModalOpenTimeRef.current < 500) return;
       lastSeloModalOpenTimeRef.current = now;
@@ -431,7 +488,7 @@ const AppContent: React.FC = () => {
       window.removeEventListener('tecnicamz:navegar', handleNavegar);
       window.removeEventListener('navigate_tab', handleNavegar);
     };
-  }, []);
+  }, [hasValidSelo, isAdmin]);
 
   // 1. History API & Browser Navigation Synchronization
   useEffect(() => {
@@ -1036,9 +1093,9 @@ const AppContent: React.FC = () => {
         onOpenAuth={() => handleNavigate('settings')}
       />
 
-      {/* Modal Bloqueio: Selo MZ Necessário (Única Janela Oficial) */}
+      {/* Modal Bloqueio: Selo MZ Necessário (Bloqueado de renderizar caso o técnico já tenha selo ou seja admin) */}
       <SeloMZModal
-        isOpen={isSeloModalOpen}
+        isOpen={isSeloModalOpen && !hasValidSelo && !isAdmin}
         onClose={() => {
           dismissModalWithoutHistory('selo_mz_modal');
           setIsSeloModalOpen(false);
