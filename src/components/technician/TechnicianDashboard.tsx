@@ -117,7 +117,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
   // Portfolio modal state
   const [isAddPortfolioModalOpen, setIsAddPortfolioModalOpen] = useState(false);
   const [newPortTitle, setNewPortTitle] = useState('');
-  const [newPortCategory, setNewPortCategory] = useState(currentTechProfile?.specialties[0] || 'Eletricidade');
+  const [newPortCategory, setNewPortCategory] = useState(currentTechProfile?.specialties?.[0] || 'Eletricidade');
   const [newPortDesc, setNewPortDesc] = useState('');
   const [newPortImage, setNewPortImage] = useState('https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=60');
   const [newPortCity, setNewPortCity] = useState(currentTechProfile?.city || 'Maputo');
@@ -222,8 +222,27 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
   if (myPortfolio.length > 0) completionScore += 15;
   completionScore = Math.min(100, completionScore);
 
-  const isVerified = Boolean(temSeloMZ && !isSeloExpired);
-  const isSubActive = currentTechProfile?.subscriptionStatus === 'active';
+  // Verificação unificada e robusta do Selo MZ e Subscrição
+  const isVerified = Boolean(
+    (temSeloMZ && !isSeloExpired) ||
+    currentTechProfile?.verificationStatus === 'approved' ||
+    (currentUser as any)?.temSeloMZ ||
+    (currentUser as any)?.isVerified ||
+    (currentTechProfile as any)?.isVerified ||
+    (currentTechProfile as any)?.temSeloMZ
+  );
+
+  const isSubActive = Boolean(
+    currentTechProfile?.subscriptionStatus === 'active' ||
+    (currentTechProfile as any)?.subscription?.status === 'active' ||
+    (currentUser as any)?.subscriptionStatus === 'active' ||
+    (currentUser as any)?.subscription?.status === 'active' ||
+    (temSeloMZ && !isSeloExpired) ||
+    currentTechProfile?.verificationStatus === 'approved' ||
+    (currentUser as any)?.temSeloMZ ||
+    (currentUser as any)?.isVerified ||
+    (currentTechProfile as any)?.isVerified
+  );
 
   // Budget calculations
   const totalBudgetSum = budgetItems.reduce((acc, item) => acc + item.cost, 0);
@@ -247,7 +266,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
       technicianName: currentTechProfile?.name || currentUser.name,
       clientName: clientBudgetName,
       projectTitle: clientBudgetTitle,
-      category: currentTechProfile?.specialties[0] || 'Eletricidade',
+      category: currentTechProfile?.specialties?.[0] || 'Eletricidade',
       items: budgetItems,
       laborCostMZN: budgetItems.find(i => (i.description || '').toLowerCase().includes('mão de obra'))?.cost || 0,
       materialsCostMZN: budgetItems.filter(i => !(i.description || '').toLowerCase().includes('mão de obra')).reduce((a, b) => a + (b.cost || 0), 0),
@@ -350,9 +369,9 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
   const filteredRequests = serviceRequests.filter(req => {
     const matchesSearch =
       !requestsSearch ||
-      req.title.toLowerCase().includes(requestsSearch.toLowerCase()) ||
-      req.description.toLowerCase().includes(requestsSearch.toLowerCase()) ||
-      req.city.toLowerCase().includes(requestsSearch.toLowerCase());
+      (req.title || '').toLowerCase().includes(requestsSearch.toLowerCase()) ||
+      (req.description || '').toLowerCase().includes(requestsSearch.toLowerCase()) ||
+      (req.city || '').toLowerCase().includes(requestsSearch.toLowerCase());
 
     const matchesCategory =
       requestsCategoryFilter === 'all' || req.category === requestsCategoryFilter;
@@ -392,7 +411,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   {isVerified ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-300 bg-blue-950/80 px-3 py-0.5 rounded-full border border-blue-500/50">
                       <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Selo MZ: {seloDaysRemaining} {seloDaysRemaining === 1 ? 'dia' : 'dias'}</span>
+                      <span>Selo MZ: {seloDaysRemaining ?? 30} {(seloDaysRemaining ?? 30) === 1 ? 'dia' : 'dias'}</span>
                     </span>
                   ) : isSeloExpired ? (
                     <button
@@ -405,7 +424,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   ) : isTrialValid ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-500/40">
                       <Clock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Teste Grátis: {trialDaysRemaining} {trialDaysRemaining === 1 ? 'dia' : 'dias'}</span>
+                      <span>Teste Grátis: {trialDaysRemaining ?? 3} {(trialDaysRemaining ?? 3) === 1 ? 'dia' : 'dias'}</span>
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-300 bg-slate-800 px-2.5 py-0.5 rounded-full">
@@ -415,7 +434,9 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                 </div>
 
                 <p className="text-xs sm:text-sm text-blue-200">
-                  {currentTechProfile?.specialties?.join(', ') || 'Eletricidade'} • 📍{' '}
+                  {Array.isArray(currentTechProfile?.specialties)
+                    ? currentTechProfile.specialties.join(', ')
+                    : (currentTechProfile?.specialties || 'Eletricidade')} • 📍{' '}
                   {currentTechProfile?.city || 'Maputo'}, {currentTechProfile?.province || 'Maputo Cidade'}
                 </p>
 
@@ -650,11 +671,11 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                       : 'bg-slate-100 text-slate-700'
                   }`}>
                     {isVerified
-                      ? `✓ Selo MZ Ativo (${seloDaysRemaining} ${seloDaysRemaining === 1 ? 'dia' : 'dias'})`
+                      ? `✓ Selo MZ Ativo (${seloDaysRemaining ?? 30} ${(seloDaysRemaining ?? 30) === 1 ? 'dia' : 'dias'})`
                       : isSeloExpired
                       ? '✕ Selo Expirado'
                       : isTrialValid
-                      ? `⏳ Teste Grátis (${trialDaysRemaining} ${trialDaysRemaining === 1 ? 'dia' : 'dias'})`
+                      ? `⏳ Teste Grátis (${trialDaysRemaining ?? 3} ${(trialDaysRemaining ?? 3) === 1 ? 'dia' : 'dias'})`
                       : 'Pendente de Documentação'}
                   </span>
                 </div>
@@ -863,15 +884,15 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                       </div>
 
                       <span className={`self-start sm:self-auto text-xs font-bold px-3 py-1 rounded-full ${
-                        prop.status === 'accepted'
+                        (prop.status || '').toLowerCase() === 'accepted'
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          : prop.status === 'rejected'
+                          : (prop.status || '').toLowerCase() === 'rejected'
                           ? 'bg-rose-100 text-rose-800'
                           : 'bg-amber-100 text-amber-800'
                       }`}>
-                        {prop.status === 'accepted'
+                        {(prop.status || '').toLowerCase() === 'accepted'
                           ? '🎉 Aceite pelo Cliente!'
-                          : prop.status === 'rejected'
+                          : (prop.status || '').toLowerCase() === 'rejected'
                           ? '✕ Não Selecionada'
                           : '⏳ Aguardando Decisão'}
                       </span>
@@ -880,15 +901,15 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-xl text-xs">
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Mão de Obra</span>
-                        <p className="font-mono font-bold text-slate-800">{prop.laborCostMZN.toLocaleString()} MZN</p>
+                        <p className="font-mono font-bold text-slate-800">{(prop.laborCostMZN || 0).toLocaleString()} MZN</p>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Materiais</span>
-                        <p className="font-mono font-bold text-slate-800">{prop.materialsCostMZN.toLocaleString()} MZN</p>
+                        <p className="font-mono font-bold text-slate-800">{(prop.materialsCostMZN || 0).toLocaleString()} MZN</p>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Valor Total</span>
-                        <p className="font-mono font-black text-blue-700">{prop.totalCostMZN.toLocaleString()} MZN</p>
+                        <p className="font-mono font-black text-blue-700">{(prop.totalCostMZN || 0).toLocaleString()} MZN</p>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Prazo Estimado</span>
@@ -902,7 +923,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                       </p>
                     )}
 
-                    {prop.status === 'accepted' && (
+                    {(prop.status || '').toLowerCase() === 'accepted' && (
                       <div className="pt-1 flex items-center gap-2">
                         {onOpenMessages && (
                           <button
@@ -994,7 +1015,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   <div key={idx} className="p-3 sm:p-4 flex items-center justify-between gap-4 bg-white hover:bg-slate-50/80 transition">
                     <span className="text-xs font-semibold text-slate-800">{item.description}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-black font-mono text-slate-900">{item.cost.toLocaleString()} MZN</span>
+                      <span className="text-xs font-black font-mono text-slate-900">{(item.cost || 0).toLocaleString()} MZN</span>
                       <button
                         onClick={() => handleRemoveBudgetItem(idx)}
                         className="text-rose-500 hover:text-rose-700 text-xs font-bold p-1"
@@ -1047,7 +1068,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                     `*Orçamento TécnicaMZ - ${clientBudgetTitle}*\n` +
                     `Cliente: ${clientBudgetName}\n` +
                     `Técnico: ${currentTechProfile?.name || currentUser.name}\n\n` +
-                    budgetItems.map(i => `• ${i.description}: ${i.cost.toLocaleString()} MZN`).join('\n') +
+                    budgetItems.map(i => `• ${i.description}: ${(i.cost || 0).toLocaleString()} MZN`).join('\n') +
                     `\n\n*TOTAL: ${totalBudgetSum.toLocaleString()} MZN*`
                   )}`}
                   target="_blank"
@@ -1285,15 +1306,19 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({ onNavi
                   {myPayments.map(pay => (
                     <div key={pay.id} className="p-3.5 bg-white flex items-center justify-between text-xs">
                       <div>
-                        <p className="font-bold text-slate-900">{pay.planName}</p>
-                        <p className="text-[11px] text-slate-500 font-mono">Cód: {pay.transactionCode} • {pay.method.toUpperCase()}</p>
+                        <p className="font-bold text-slate-900">{pay.planName || 'Assinatura Profissional'}</p>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          Cód: {pay.transactionCode || 'N/A'} • {((pay.method || (pay as any).paymentMethod || 'M-Pesa') as string).toUpperCase()}
+                        </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-mono font-bold text-slate-900">{pay.amountMZN} MZN</p>
+                        <p className="font-mono font-bold text-slate-900">
+                          {pay.amountMZN ? `${pay.amountMZN.toLocaleString()} MZN` : 'Pago'}
+                        </p>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          pay.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          (pay.status || '').toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                         }`}>
-                          {pay.status === 'approved' ? 'Aprovado' : 'Em Análise'}
+                          {(pay.status || '').toLowerCase() === 'approved' ? 'Aprovado' : 'Em Análise'}
                         </span>
                       </div>
                     </div>
