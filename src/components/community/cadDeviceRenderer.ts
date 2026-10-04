@@ -3551,25 +3551,269 @@ export function renderCommercialRockerSwitch(
   ctx.fillText(`${shortBrand.toUpperCase()} • ${inA}A 250V~`, 0, plateH / 2 - 2 * zoom);
 }
 
-export function renderCommercialHarmonyPushButton(ctx: CanvasRenderingContext2D, c: any, st: any, cw: number, ch: number, zoom: number) {
+// ----------------------------------------------------------------------------
+// BOTONEIRA DE COMANDO INDUSTRIAL 3D ULTRA-REALISTA (PBNO / PBNC)
+// Padrão Schneider Harmony XB4 / XB5 / Siemens SIRIUS ACT — 22mm com Bezel Cromado
+// ----------------------------------------------------------------------------
+export function renderCommercialHarmonyPushButton(
+  ctx: CanvasRenderingContext2D,
+  c: any,
+  st: any,
+  cw: number,
+  ch: number,
+  zoom: number
+) {
   const isNO = c.code === 'PBNO';
-  const isPressed = Boolean(st.pressed);
-  ctx.fillStyle = '#1e293b';
+  const isPressed = Boolean(st?.pressed);
+  const brandName = (c?.brand || c?.brandName || 'Schneider Electric').toString();
+  const shortBrand = REAL_BRANDS[brandName as DeviceBrand]?.shortName || brandName.split(' ')[0];
+
+  ctx.save();
+
+  // 1. Sombra de profundidade e oclusão de ambiente
+  ctx.save();
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.65)';
+  ctx.beginPath();
+  ctx.roundRect(-cw / 2 + 2.5 * zoom, -ch / 2 + 3.5 * zoom, cw, ch, 8 * zoom);
+  ctx.fill();
+  ctx.restore();
+
+  // 2. Chassi / Caixa frontal de sobrepor (Cinza grafite industrial com chanfro 3D)
+  const chassisGrad = ctx.createLinearGradient(-cw / 2, -ch / 2, cw / 2, ch / 2);
+  chassisGrad.addColorStop(0, '#334155');
+  chassisGrad.addColorStop(0.12, '#1e293b');
+  chassisGrad.addColorStop(0.85, '#0f172a');
+  chassisGrad.addColorStop(1, '#020617');
+
+  ctx.fillStyle = chassisGrad;
   ctx.beginPath();
   ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 6 * zoom);
   ctx.fill();
 
-  const rBezel = Math.min(cw, ch) * 0.32;
-  ctx.fillStyle = isNO ? '#16a34a' : '#dc2626';
-  ctx.beginPath();
-  ctx.arc(0, isPressed ? 2 * zoom : 0, rBezel, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1.4 * zoom;
+  ctx.stroke();
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.max(8, 10 * zoom)}px sans-serif`;
+  // Filete metálico chanfrado interno de rigidez
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.lineWidth = 0.8 * zoom;
+  ctx.beginPath();
+  ctx.roundRect(-cw / 2 + 2 * zoom, -ch / 2 + 2 * zoom, cw - 4 * zoom, ch - 4 * zoom, 4.5 * zoom);
+  ctx.stroke();
+
+  // Parafusos de inox de travamento nos 4 cantos da tampa
+  const sOff = 4.5 * zoom;
+  const sR = 1.8 * zoom;
+  [
+    { x: -cw / 2 + sOff, y: -ch / 2 + sOff },
+    { x: cw / 2 - sOff, y: -ch / 2 + sOff },
+    { x: -cw / 2 + sOff, y: ch / 2 - sOff },
+    { x: cw / 2 - sOff, y: ch / 2 - sOff }
+  ].forEach(sc => {
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, sR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 0.5 * zoom;
+    ctx.stroke();
+    // Fenda cruzada usinada
+    ctx.strokeStyle = '#020617';
+    ctx.lineWidth = 0.7 * zoom;
+    ctx.beginPath();
+    ctx.moveTo(sc.x - 1 * zoom, sc.y);
+    ctx.lineTo(sc.x + 1 * zoom, sc.y);
+    ctx.stroke();
+  });
+
+  // 3. Plaqueta de identificação preta gravada (Legend Plate) em relevo
+  const plateW = cw * 0.78;
+  const plateH = 11 * zoom;
+  const plateY = -ch * 0.33;
+
+  ctx.fillStyle = '#020617';
+  ctx.beginPath();
+  ctx.roundRect(-plateW / 2, plateY - plateH / 2, plateW, plateH, 2 * zoom);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 0.8 * zoom;
+  ctx.stroke();
+
+  // Moldura fina colorida da plaqueta
+  ctx.strokeStyle = isNO ? '#10b981' : '#f87171';
+  ctx.lineWidth = 0.6 * zoom;
+  ctx.strokeRect(-plateW / 2 + 1.2 * zoom, plateY - plateH / 2 + 1.2 * zoom, plateW - 2.4 * zoom, plateH - 2.4 * zoom);
+
+  ctx.fillStyle = isNO ? '#34d399' : '#f87171';
+  ctx.font = `black ${Math.max(5.5, 6.8 * zoom)}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(isNO ? 'I' : 'O', 0, isPressed ? 2 * zoom : 0);
+  ctx.fillText(isNO ? 'START • LIGA' : 'STOP • DESLIGA', 0, plateY);
+
+  // 4. Aro / Colar Metálico de Fixação 22mm (Bezel Cromado PBR)
+  const centerY = ch * 0.05;
+  const bezelR = Math.min(cw, ch) * 0.36;
+
+  // Sombra do anel metálico
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.beginPath();
+  ctx.arc(1 * zoom, centerY + 2 * zoom, bezelR + 1 * zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Corpo metálico usinado do aro
+  const bGrad = ctx.createLinearGradient(-bezelR, centerY - bezelR, bezelR, centerY + bezelR);
+  bGrad.addColorStop(0, '#ffffff');
+  bGrad.addColorStop(0.18, '#e2e8f0');
+  bGrad.addColorStop(0.5, '#cbd5e1');
+  bGrad.addColorStop(0.82, '#64748b');
+  bGrad.addColorStop(1, '#1e293b');
+
+  ctx.fillStyle = bGrad;
+  ctx.beginPath();
+  ctx.arc(0, centerY, bezelR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 1.2 * zoom;
+  ctx.stroke();
+
+  // Anel de vedação de borracha preta IP66 (O-Ring interno)
+  const oRingR = bezelR * 0.88;
+  ctx.fillStyle = '#090d16';
+  ctx.beginPath();
+  ctx.arc(0, centerY, oRingR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1 * zoom;
+  ctx.stroke();
+
+  // 5. Atuador Pulsador de Silicone Faceado 3D (Flush Button)
+  const pushOffset = isPressed ? 2.5 * zoom : 0;
+  const btnR = bezelR * 0.74;
+  const btnY = centerY + pushOffset;
+
+  // Se pressionado: cria rebaixo interno escuro simulando afundamento mecânico
+  if (isPressed) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.beginPath();
+    ctx.arc(0, centerY, btnR + 1.2 * zoom, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Gradiente esférico do botão
+  const btnGrad = ctx.createRadialGradient(
+    -btnR * 0.35,
+    btnY - btnR * 0.35,
+    1 * zoom,
+    0,
+    btnY,
+    btnR
+  );
+
+  if (isNO) {
+    // BOTÃO VERDE NA (START) — Padrão RAL 6024
+    if (isPressed) {
+      btnGrad.addColorStop(0, '#10b981');
+      btnGrad.addColorStop(0.3, '#059669');
+      btnGrad.addColorStop(0.8, '#047857');
+      btnGrad.addColorStop(1, '#064e3b');
+    } else {
+      btnGrad.addColorStop(0, '#6ee7b7');
+      btnGrad.addColorStop(0.25, '#34d399');
+      btnGrad.addColorStop(0.65, '#059669');
+      btnGrad.addColorStop(0.9, '#047857');
+      btnGrad.addColorStop(1, '#064e3b');
+    }
+  } else {
+    // BOTÃO VERMELHO NF (STOP) — Padrão RAL 3000
+    if (isPressed) {
+      btnGrad.addColorStop(0, '#ef4444');
+      btnGrad.addColorStop(0.3, '#dc2626');
+      btnGrad.addColorStop(0.8, '#b91c1c');
+      btnGrad.addColorStop(1, '#7f1d1d');
+    } else {
+      btnGrad.addColorStop(0, '#fca5a5');
+      btnGrad.addColorStop(0.22, '#ef4444');
+      btnGrad.addColorStop(0.6, '#dc2626');
+      btnGrad.addColorStop(0.88, '#991b1b');
+      btnGrad.addColorStop(1, '#450a0a');
+    }
+  }
+
+  ctx.fillStyle = btnGrad;
+  ctx.beginPath();
+  ctx.arc(0, btnY, btnR, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = isNO ? '#064e3b' : '#450a0a';
+  ctx.lineWidth = 1.4 * zoom;
+  ctx.stroke();
+
+  // Borda de reflexão interna da luz no botão
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.lineWidth = 0.8 * zoom;
+  ctx.beginPath();
+  ctx.arc(0, btnY, btnR * 0.85, -Math.PI * 0.8, -Math.PI * 0.1);
+  ctx.stroke();
+
+  // 6. Símbolo normativo gravado em relevo (IEC 60417-5007 / 5008)
+  ctx.save();
+  ctx.translate(0, btnY);
+
+  if (isNO) {
+    // Barra vertical I (Start / Fechamento)
+    const barW = 3.6 * zoom;
+    const barH = 15 * zoom;
+
+    // Sombra do símbolo
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(-barW / 2 + 0.8 * zoom, -barH / 2 + 0.8 * zoom, barW, barH);
+
+    // Barra branca fosca
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(-barW / 2, -barH / 2, barW, barH, 1.2 * zoom);
+    ctx.fill();
+    ctx.strokeStyle = '#065f46';
+    ctx.lineWidth = 0.6 * zoom;
+    ctx.stroke();
+  } else {
+    // Círculo O (Stop / Abertura)
+    const oR = 7.5 * zoom;
+    const oLineW = 3.2 * zoom;
+
+    // Sombra do círculo
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.lineWidth = oLineW;
+    ctx.beginPath();
+    ctx.arc(0.8 * zoom, 0.8 * zoom, oR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Círculo branco fosco
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = oLineW;
+    ctx.beginPath();
+    ctx.arc(0, 0, oR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  // 7. Informações técnicas normativas e contatos no rodapé
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = `bold ${Math.max(5.5, 6.5 * zoom)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(isNO ? '13-14 (NA / NO)' : '21-22 (NF / NC)', 0, ch / 2 - 10 * zoom);
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = `bold ${Math.max(4.5, 5.5 * zoom)}px sans-serif`;
+  ctx.fillText(`${shortBrand.toUpperCase()} • IP66`, 0, ch / 2 - 4 * zoom);
+
+  ctx.restore();
 }
 
 export function renderCommercialCeilingLamp(ctx: CanvasRenderingContext2D, c: any, st: any, cw: number, ch: number, zoom: number) {

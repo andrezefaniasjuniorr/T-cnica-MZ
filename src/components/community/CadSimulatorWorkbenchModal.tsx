@@ -1246,10 +1246,33 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   );
                 } else if (c.code === 'MTS_SWITCH') {
                   const curPos = Number(params.position ?? 1);
-                  let nextPos = 1;
-                  if (curPos === 1) nextPos = 0;
-                  else if (curPos === 0) nextPos = 2;
-                  else nextPos = 1;
+                  let nextPos = 0;
+
+                  // Lógica pendular com passagem obrigatória e estrita pelo 0 (I ➔ 0 ➔ II ➔ 0 ➔ I)
+                  // Suporta também clique direcionado: clicar no lado esquerdo comuta para I, no direito para II
+                  if (clickRelX < -15) {
+                    // Clique no lado esquerdo (sentido Fonte I)
+                    if (curPos === 2) nextPos = 0;
+                    else if (curPos === 0) nextPos = 1;
+                    else nextPos = 1;
+                  } else if (clickRelX > 15) {
+                    // Clique no lado direito (sentido Fonte II)
+                    if (curPos === 1) nextPos = 0;
+                    else if (curPos === 0) nextPos = 2;
+                    else nextPos = 2;
+                  } else {
+                    // Clique central / sequencial
+                    if (curPos === 1) {
+                      nextPos = 0;
+                      params.lastMtsOrigin = 1; // Registra que veio da Fonte I
+                    } else if (curPos === 2) {
+                      nextPos = 0;
+                      params.lastMtsOrigin = 2; // Registra que veio da Fonte II
+                    } else {
+                      // Está em 0: se veio de I vai para II; se veio de II vai para I
+                      nextPos = params.lastMtsOrigin === 2 ? 1 : 2;
+                    }
+                  }
 
                   params.position = nextPos;
                   st.position = nextPos;
@@ -2324,7 +2347,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               simRef.current.wireStart = null;
             }
           } else {
-            setShowProps(false);
             setSelectedCompId(c.id);
             setSelectedWireId(null);
             setSelectedBusbarId(null);
@@ -2360,7 +2382,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       const h = (c.h || 75) + 8;
 
       if (Math.abs(rx) <= w / 2 && Math.abs(ry) <= h / 2) {
-        setShowProps(false);
         setSelectedCompId(c.id);
         setSelectedWireId(null);
         setSelectedBusbarId(null);
@@ -2575,10 +2596,6 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
     const drag = simRef.current.drag;
     const wasLongPress = simRef.current.isLongPressTriggered;
-
-    if (!wasLongPress) {
-      setShowProps(false);
-    }
 
     if (!drag) {
       simRef.current.isLongPressTriggered = false;
@@ -3531,7 +3548,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                   </div>
                 )}
 
-                {['motor3', 'motor1', 'motor3_6lead', 'pump', 'fan'].some(k => selectedComponent.code.includes('M') || selectedComponent.code === 'PUMP' || selectedComponent.code === 'FAN') && (
+                {['M3PH', 'M1PH', 'M3PH_6L', 'PUMP', 'FAN'].includes(selectedComponent.code) && (
                   <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                     <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px]">
                       <Activity className="w-3.5 h-3.5" />
