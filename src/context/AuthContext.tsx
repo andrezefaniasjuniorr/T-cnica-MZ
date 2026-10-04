@@ -11,9 +11,36 @@ import {
   sendPasswordResetEmail,
   updatePassword as fbUpdatePassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, getDocs, serverTimestamp, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  collection,
+  onSnapshot,
+  query,
+  where,
+  getDocs,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove
+} from 'firebase/firestore';
 import { giveHeartOrLike, recalculateUserStarsAndRanking } from '../services/engagement';
 import { parseDateToMillis, parseDateToIso, THREE_DAYS_MS } from '../utils/date';
+
+// Declaração de propriedades globais no Window para evitar erros de compilação
+declare global {
+  interface Window {
+    isCreatingAccount?: boolean;
+    isRegistering?: boolean;
+    cadastrarEmpresa?: any;
+    carregarPainelEmpresa?: any;
+    carregarPainelTecnico?: any;
+    carregarPainelCliente?: any;
+    applyRoleBasedUI?: (role: string) => void;
+  }
+}
 
 interface AuthContextType {
   currentUser: User | null;
@@ -138,6 +165,11 @@ export const sanitizeUserForCache = (u: User | null): Partial<User> | null => {
     temSeloMZ: u.temSeloMZ,
     isVerified: u.isVerified,
     statusSelo: u.statusSelo,
+    verifiedAt: u.verifiedAt,
+    verifiedUntil: u.verifiedUntil,
+    dataSeloAprovacao: u.dataSeloAprovacao,
+    dataExpiracao: u.dataExpiracao,
+    statusAssinatura: u.statusAssinatura,
     adminSubRole: u.adminSubRole,
     activePlanId: u.activePlanId,
     subscriptionStatus: u.subscriptionStatus,
@@ -178,6 +210,10 @@ export const sanitizeTechProfileForCache = (t: TechnicianProfile | null): Partia
     isVerified: t.isVerified,
     temSeloMZ: t.temSeloMZ,
     statusSelo: t.statusSelo,
+    verifiedAt: t.verifiedAt,
+    verifiedUntil: t.verifiedUntil,
+    subscriptionStatus: t.subscriptionStatus,
+    subscriptionExpiresAt: t.subscriptionExpiresAt,
     pontos: t.pontos,
     points: t.points,
     totalLikes: t.totalLikes,
@@ -210,6 +246,8 @@ export const sanitizeCompanyProfileForCache = (c: CompanyProfile | null): Partia
     isVerified: c.isVerified,
     temSeloMZ: c.temSeloMZ,
     statusSelo: c.statusSelo,
+    verifiedAt: c.verifiedAt,
+    verifiedUntil: c.verifiedUntil,
     createdAt: c.createdAt
   };
 };
@@ -231,7 +269,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return safeGetStorageItem<SolicitacaoSelo[]>('tecnicamz_solicitacoes_selo', []);
   });
 
-  // Abertura Instantânea estilo WhatsApp: lê o cachedUser imediatamente em 0ms
+  // Abertura Instantânea: lê o cachedUser imediatamente em 0ms
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const cached = safeGetStorageItem<User | null>(CACHED_USER_KEY, null);
     if (cached && cached.uid) {
@@ -315,6 +353,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const cleanPhone = d.phone || d.telefone || '';
           const userExp = typeof d.experienceYears === 'number' ? d.experienceYears : (typeof d.anosExperiencia === 'number' ? d.anosExperiencia : undefined);
 
+          const hasSeloApproved = Boolean(d.temSeloMZ || d.statusSelo === 'aprovado' || d.isVerified);
+
           const userObj: User = {
             uid: docSnap.id,
             name: defaultName,
@@ -334,8 +374,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             province: d.province || d.provincia || '',
             city: d.city || d.cidade || '',
             status: d.status || 'active',
-            statusConta: d.statusConta || 'ativa',
+            statusConta: hasSeloApproved ? 'ativa' : (d.statusConta || 'ativa'),
             statusAprovacao: d.statusAprovacao || 'aprovado',
+            temSeloMZ: hasSeloApproved,
+            isVerified: hasSeloApproved,
+            statusSelo: d.statusSelo || (hasSeloApproved ? 'aprovado' : 'nenhum'),
+            verifiedAt: parseDateToIso(d.verifiedAt || d.dataSeloAprovacao),
+            verifiedUntil: parseDateToIso(d.verifiedUntil),
+            dataSeloAprovacao: parseDateToIso(d.dataSeloAprovacao || d.verifiedAt),
+            subscriptionExpiresAt: parseDateToIso(d.subscriptionExpiresAt || d.dataExpiracao || d.verifiedUntil),
+            dataExpiracao: parseDateToIso(d.dataExpiracao || d.subscriptionExpiresAt || d.verifiedUntil),
+            subscriptionStatus: hasSeloApproved ? 'active' : (d.subscriptionStatus || 'none'),
+            statusAssinatura: hasSeloApproved ? 'ativa' : (d.statusAssinatura || 'none'),
             isTrialActive: d.isTrialActive !== undefined ? Boolean(d.isTrialActive) : true,
             totalLikes: typeof d.totalLikes === 'number' ? d.totalLikes : 0,
             scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : (typeof d.pontos === 'number' ? d.pontos : 0),
@@ -368,11 +418,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               pontos: typeof d.pontos === 'number' ? d.pontos : (typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0),
               streakCount: typeof d.streakCount === 'number' ? d.streakCount : (typeof d.sequenciaDias === 'number' ? d.sequenciaDias : 1),
               lastLoginDate: d.lastLoginDate || d.ultimoAcesso || '',
-              verificationStatus: d.verificationStatus || 'none',
-              isVerified: Boolean(d.isVerified || d.verificationStatus === 'approved'),
-              subscriptionStatus: d.subscriptionStatus || 'none',
+              verificationStatus: hasSeloApproved ? 'approved' : (d.verificationStatus || 'none'),
+              isVerified: hasSeloApproved,
+              temSeloMZ: hasSeloApproved,
+              statusSelo: d.statusSelo || (hasSeloApproved ? 'aprovado' : 'nenhum'),
+              verifiedAt: parseDateToIso(d.verifiedAt || d.dataSeloAprovacao),
+              verifiedUntil: parseDateToIso(d.verifiedUntil),
+              subscriptionStatus: hasSeloApproved ? 'active' : (d.subscriptionStatus || 'none'),
+              subscriptionExpiresAt: parseDateToIso(d.subscriptionExpiresAt || d.dataExpiracao || d.verifiedUntil),
               statusAprovacao: d.statusAprovacao || 'aprovado',
-              statusConta: d.statusConta || 'ativa',
+              statusConta: hasSeloApproved ? 'ativa' : (d.statusConta || 'ativa'),
               status: d.status || 'active',
               rating: typeof d.rating === 'number' ? d.rating : 5.0,
               reviewsCount: typeof d.reviewsCount === 'number' ? d.reviewsCount : 0,
@@ -445,7 +500,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (typeof unsubComps === 'function') unsubComps();
         if (typeof unsubSelo === 'function') unsubSelo();
       } catch (cleanupErr) {
-        console.warn("Erro Firestore ignorado:", cleanupErr);
+        console.warn("Erro Firestore cleanup ignorado:", cleanupErr);
       }
     };
   }, []);
@@ -542,8 +597,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (window.location.hash !== '#empresa') {
         window.location.hash = '#empresa';
       }
-      if (typeof (window as any).applyRoleBasedUI === 'function') {
-        (window as any).applyRoleBasedUI('empresa');
+      if (typeof window.applyRoleBasedUI === 'function') {
+        window.applyRoleBasedUI('empresa');
       }
     }
   };
@@ -553,8 +608,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (window.location.hash !== '#tecnico') {
         window.location.hash = '#tecnico';
       }
-      if (typeof (window as any).applyRoleBasedUI === 'function') {
-        (window as any).applyRoleBasedUI('tecnico');
+      if (typeof window.applyRoleBasedUI === 'function') {
+        window.applyRoleBasedUI('tecnico');
       }
     }
   };
@@ -564,8 +619,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (window.location.hash !== '#cliente') {
         window.location.hash = '#cliente';
       }
-      if (typeof (window as any).applyRoleBasedUI === 'function') {
-        (window as any).applyRoleBasedUI('cliente');
+      if (typeof window.applyRoleBasedUI === 'function') {
+        window.applyRoleBasedUI('cliente');
       }
     }
   };
@@ -621,7 +676,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Firebase auth state listener
+  // Firebase auth state listener com sincronização em tempo real de aprovação do Selo
   useEffect(() => {
     let profileUnsub: (() => void) | null = null;
     let isMounted = true;
@@ -638,7 +693,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         async (fbUser) => {
           try {
             if (typeof window !== 'undefined' && (window.isCreatingAccount || window.isRegistering)) {
-              console.log('[Auth] Cadastro em andamento. Ignorando onAuthStateChanged temporariamente.');
               return;
             }
 
@@ -677,71 +731,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                   let userSnap = await safeGetDoc(userRef, 2, 400);
                   let usersSnap = await safeGetDoc(usersRef, 2, 400);
-
-                  if (userSnap && usersSnap && !userSnap.exists() && !usersSnap.exists()) {
-                    const compCheck = await safeGetDoc(doc(db, 'companies', fbUser.uid), 1, 300);
-                    const isCompanyDoc = Boolean(compCheck && compCheck.exists());
-
-                    const repairPayload = {
-                      uid: fbUser.uid,
-                      email: normalizedEmail,
-                      nome: defaultName,
-                      name: defaultName,
-                      nuit: isCompanyDoc ? (compCheck.data()?.nuit || '') : '',
-                      role: isSuperAdminEmail ? 'super_admin' : (isCompanyDoc ? 'company' : 'tecnico'),
-                      tipo: isCompanyDoc ? 'empresa' : 'tecnico',
-                      tipoConta: isCompanyDoc ? 'empresa' : 'tecnico',
-                      pontos: 0,
-                      totalLikes: 0,
-                      fotoUrl: fbUser.photoURL || '',
-                      photoURL: fbUser.photoURL || '',
-                      avatarUrl: fbUser.photoURL || '',
-                      status: 'active',
-                      statusConta: 'ativa',
-                      statusAprovacao: 'aprovado',
-                      isTrialActive: true,
-                      criadoEm: serverTimestamp(),
-                      createdAt: serverTimestamp(),
-                      createdAtIso: new Date().toISOString()
-                    };
-
-                    await safeSetDoc(userRef, repairPayload);
-                    await safeSetDoc(usersRef, repairPayload);
-
-                    if (!isCompanyDoc && !isSuperAdminEmail) {
-                      try {
-                        const techRef = doc(db, 'technicians', fbUser.uid);
-                        const techSnap = await safeGetDoc(techRef, 1, 300);
-                        if (techSnap && !techSnap.exists()) {
-                          await safeSetDoc(techRef, {
-                            userId: fbUser.uid,
-                            name: defaultName,
-                            email: normalizedEmail,
-                            phone: fbUser.phoneNumber || '',
-                            province: 'Maputo Cidade',
-                            city: 'Maputo',
-                            specialties: ['Eletricidade'],
-                            bio: 'Profissional técnico cadastrado na TécnicaMZ Pro.',
-                            experienceYears: 2,
-                            totalLikes: 0,
-                            scoreEngajamento: 0,
-                            rating: 5.0,
-                            reviewsCount: 0,
-                            completedJobsCount: 0,
-                            status: 'active',
-                            statusConta: 'ativa',
-                            statusAprovacao: 'aprovado',
-                            isTrialActive: true,
-                            createdAt: serverTimestamp()
-                          });
-                        }
-                      } catch (techSyncErr) {
-                        console.warn('Sync tech profile notice:', techSyncErr);
-                      }
-                    }
-
-                    userSnap = await safeGetDoc(userRef, 1, 300);
-                  }
 
                   const usuarioData = (userSnap && userSnap.exists()) ? userSnap.data() : {};
                   const usersData = (usersSnap && usersSnap.exists()) ? usersSnap.data() : {};
@@ -785,6 +774,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   const statusAprovacao = isSuper ? 'aprovado' : (rawData.statusAprovacao || (rawData.status === 'pending_approval' ? 'pendente' : 'aprovado'));
                   const parsedUserExp = typeof rawData.experienceYears === 'number' ? rawData.experienceYears : (typeof rawData.anosExperiencia === 'number' ? rawData.anosExperiencia : undefined);
 
+                  const hasSeloActive = isSuper || Boolean(rawData.temSeloMZ || rawData.statusSelo === 'aprovado' || rawData.isVerified || rawData.verificationStatus === 'approved');
+
                   const firestoreUserData: User = {
                     uid: fbUser.uid,
                     name: rawData.name || rawData.nome || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
@@ -796,7 +787,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     tipo: tipo,
                     tipoConta: tipoConta,
                     statusAprovacao: statusAprovacao,
-                    statusConta: rawData.statusConta || 'ativa',
+                    statusConta: hasSeloActive ? 'ativa' : (rawData.statusConta || 'ativa'),
                     status: rawData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
                     adminSubRole: isSuper ? 'super_admin' : rawData.adminSubRole,
                     specialty: rawData.specialty || rawData.especialidade || (role === 'technician' ? 'Eletricidade' : undefined),
@@ -806,21 +797,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     city: rawData.city || rawData.cidade || '',
                     avatarUrl: rawData.avatarUrl || rawData.photoURL || rawData.fotoUrl || rawData.foto || fbUser.photoURL || undefined,
                     photoURL: rawData.photoURL || rawData.avatarUrl || rawData.fotoUrl || rawData.foto || fbUser.photoURL || undefined,
-                    isVerified: isSuper ? true : Boolean(rawData.isVerified || rawData.verificationStatus === 'approved' || rawData.statusSelo === 'aprovado'),
-                    temSeloMZ: isSuper ? true : Boolean(rawData.temSeloMZ || rawData.statusSelo === 'aprovado'),
-                    statusSelo: isSuper ? 'aprovado' : (rawData.statusSelo || (rawData.temSeloMZ ? 'aprovado' : 'nenhum')),
-                    verifiedAt: rawData.verifiedAt || rawData.dataSeloAprovacao,
-                    verifiedUntil: rawData.verifiedUntil,
+                    isVerified: hasSeloActive,
+                    temSeloMZ: hasSeloActive,
+                    statusSelo: isSuper ? 'aprovado' : (hasSeloActive ? 'aprovado' : (rawData.statusSelo || 'nenhum')),
+                    verifiedAt: parseDateToIso(rawData.verifiedAt || rawData.dataSeloAprovacao),
+                    verifiedUntil: parseDateToIso(rawData.verifiedUntil),
+                    dataSeloAprovacao: parseDateToIso(rawData.dataSeloAprovacao || rawData.verifiedAt),
+                    subscriptionExpiresAt: parseDateToIso(rawData.subscriptionExpiresAt || rawData.dataExpiracao || rawData.verifiedUntil),
+                    dataExpiracao: parseDateToIso(rawData.dataExpiracao || rawData.subscriptionExpiresAt || rawData.verifiedUntil),
+                    statusAssinatura: hasSeloActive ? 'ativa' : (rawData.statusAssinatura || 'none'),
+                    subscriptionStatus: hasSeloActive ? 'active' : (rawData.subscriptionStatus || 'none'),
+                    activePlanId: rawData.activePlanId || (hasSeloActive ? 'pro' : undefined),
                     isTrialActive: rawData.isTrialActive !== undefined ? Boolean(rawData.isTrialActive) : true,
                     dataSeloEnvio: rawData.dataSeloEnvio,
-                    dataSeloAprovacao: rawData.dataSeloAprovacao,
                     motivoRejeicaoSelo: rawData.motivoRejeicaoSelo,
                     mensagemTransacaoSelo: rawData.mensagemTransacaoSelo,
                     operadoraSelo: rawData.operadoraSelo,
-                    statusAssinatura: rawData.statusAssinatura,
-                    dataExpiracao: rawData.dataExpiracao,
-                    subscriptionStatus: rawData.subscriptionStatus,
-                    activePlanId: rawData.activePlanId,
                     totalLikes: typeof rawData.totalLikes === 'number' ? rawData.totalLikes : (typeof rawData.likesCount === 'number' ? rawData.likesCount : (typeof rawData.curtidas === 'number' ? rawData.curtidas : 0)),
                     likesCount: typeof rawData.likesCount === 'number' ? rawData.likesCount : (typeof rawData.totalLikes === 'number' ? rawData.totalLikes : (typeof rawData.curtidas === 'number' ? rawData.curtidas : 0)),
                     scoreEngajamento: typeof rawData.scoreEngajamento === 'number' ? rawData.scoreEngajamento : (typeof rawData.points === 'number' ? rawData.points : (typeof rawData.pontos === 'number' ? rawData.pontos : 0)),
@@ -834,84 +826,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     updatedAt: rawData.updatedAt
                   } as any;
 
-                  // OFENSIVA DIÁRIA
-                  const todayStr = new Date().toISOString().split('T')[0];
-                  const lastLoginDateRaw = rawData.lastLoginDate || rawData.ultimoAcesso || '';
-                  const lastLoginDay = lastLoginDateRaw ? lastLoginDateRaw.split('T')[0] : '';
-
-                  let updatedStreak = typeof rawData.streakCount === 'number' ? rawData.streakCount : (typeof rawData.sequenciaDias === 'number' ? rawData.sequenciaDias : 1);
-                  let bonusPoints = 0;
-
-                  if (lastLoginDay !== todayStr) {
-                    if (lastLoginDay) {
-                      const lastDate = new Date(lastLoginDay + 'T00:00:00Z');
-                      const todayDate = new Date(todayStr + 'T00:00:00Z');
-                      const diffDays = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-                      if (diffDays === 1) {
-                        updatedStreak = updatedStreak + 1;
-                        bonusPoints = 10;
-                      } else {
-                        updatedStreak = 1;
-                        bonusPoints = 10;
-                      }
-                    } else {
-                      updatedStreak = 1;
-                      bonusPoints = 10;
-                    }
-
-                    try {
-                      const streakPayload = {
-                        streakCount: updatedStreak,
-                        lastLoginDate: todayStr,
-                        ultimoAcesso: todayStr,
-                        pontos: increment(bonusPoints),
-                        scoreEngajamento: increment(bonusPoints)
-                      };
-                      updateDoc(userRef, streakPayload).catch(() => {});
-                      updateDoc(usersRef, streakPayload).catch(() => {});
-                      if (role === 'technician') {
-                        updateDoc(doc(db, 'technicians', fbUser.uid), streakPayload).catch(() => {});
-                      }
-                    } catch (stErr) {
-                      console.warn('Erro ao atualizar ofensiva no Firestore:', stErr);
-                    }
-                  }
-
-                  firestoreUserData.streakCount = updatedStreak;
-                  firestoreUserData.lastLoginDate = todayStr;
-                  if (bonusPoints > 0) {
-                    firestoreUserData.pontos = (firestoreUserData.pontos || 0) + bonusPoints;
-                    firestoreUserData.scoreEngajamento = (firestoreUserData.scoreEngajamento || 0) + bonusPoints;
-                  }
-
-                  if (role === 'technician') {
-                    try {
-                      const techDoc = await safeGetDoc(doc(db, 'technicians', fbUser.uid), 1, 300);
-                      if (techDoc && techDoc.exists()) {
-                        const tData = techDoc.data() as TechnicianProfile;
-                        setCurrentTechProfile({ ...tData, userId: fbUser.uid });
-                      }
-                    } catch (tErr) {
-                      console.warn('Fetch tech doc on auth changed notice:', tErr);
-                    }
-                  }
-
-                  if (role === 'company') {
-                    try {
-                      const compDoc = await safeGetDoc(doc(db, 'companies', fbUser.uid), 1, 300);
-                      if (compDoc && compDoc.exists()) {
-                        const cData = compDoc.data() as CompanyProfile;
-                        setCurrentCompanyProfile({ ...cData, userId: fbUser.uid });
-                      }
-                    } catch (cErr) {
-                      console.warn('Fetch comp doc on auth changed notice:', cErr);
-                    }
-                  }
-
+                  // Ouvinte em tempo real do perfil para refletir aprovação do Selo MZ instantaneamente
                   try {
                     profileUnsub = onSnapshot(usersRef, (liveSnap) => {
                       if (liveSnap.exists()) {
-                        const live = liveSnap.data();
+                        const live = liveSnap.data() || {};
+                        const liveSeloApproved = Boolean(
+                          live.statusSelo === 'aprovado' ||
+                          live.temSeloMZ ||
+                          live.isVerified ||
+                          live.statusAssinatura === 'ativa' ||
+                          live.subscriptionStatus === 'active'
+                        );
+
                         setCurrentUser(prev => {
                           if (!prev) return prev;
                           return {
@@ -928,18 +855,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                             specialties: Array.isArray(live.specialties) ? live.specialties : (live.especialidade ? [live.especialidade] : prev.specialties),
                             bio: live.bio || prev.bio,
                             whatsapp: live.whatsapp || prev.whatsapp,
-                            temSeloMZ: Boolean(live.temSeloMZ || live.statusSelo === 'aprovado' || prev.temSeloMZ),
-                            statusSelo: live.statusSelo || prev.statusSelo,
+                            temSeloMZ: Boolean(liveSeloApproved || prev.temSeloMZ),
+                            isVerified: Boolean(liveSeloApproved || prev.isVerified),
+                            statusSelo: liveSeloApproved ? ('aprovado' as const) : (live.statusSelo || prev.statusSelo),
                             statusAprovacao: live.statusAprovacao || prev.statusAprovacao,
-                            statusConta: live.statusConta || prev.statusConta,
+                            statusConta: liveSeloApproved ? ('ativa' as const) : (live.statusConta || prev.statusConta),
+                            status: liveSeloApproved ? ('active' as const) : (live.status || prev.status),
+                            statusAssinatura: liveSeloApproved ? 'ativa' : (live.statusAssinatura || prev.statusAssinatura),
+                            subscriptionStatus: liveSeloApproved ? ('active' as const) : (live.subscriptionStatus || prev.subscriptionStatus),
+                            verifiedUntil: parseDateToIso(live.verifiedUntil) || prev.verifiedUntil,
+                            verifiedAt: parseDateToIso(live.verifiedAt || live.dataSeloAprovacao) || prev.verifiedAt,
+                            dataSeloAprovacao: parseDateToIso(live.dataSeloAprovacao || live.verifiedAt) || prev.dataSeloAprovacao,
+                            subscriptionExpiresAt: parseDateToIso(live.subscriptionExpiresAt || live.dataExpiracao || live.verifiedUntil) || prev.subscriptionExpiresAt,
+                            dataExpiracao: parseDateToIso(live.dataExpiracao || live.subscriptionExpiresAt || live.verifiedUntil) || prev.dataExpiracao,
+                            activePlanId: live.activePlanId || live.plano || prev.activePlanId,
                             isTrialActive: live.isTrialActive !== undefined ? Boolean(live.isTrialActive) : prev.isTrialActive,
-                            totalLikes: typeof live.totalLikes === 'number' ? live.totalLikes : (typeof live.likesCount === 'number' ? live.likesCount : prev.totalLikes),
-                            likesCount: typeof live.likesCount === 'number' ? live.likesCount : (typeof live.totalLikes === 'number' ? live.totalLikes : prev.likesCount),
-                            scoreEngajamento: typeof live.scoreEngajamento === 'number' ? live.scoreEngajamento : (typeof live.points === 'number' ? live.points : prev.scoreEngajamento),
-                            pontos: typeof live.pontos === 'number' ? live.pontos : (typeof live.points === 'number' ? live.points : prev.pontos),
-                            points: typeof live.points === 'number' ? live.points : (typeof live.pontos === 'number' ? live.pontos : prev.points),
-                            stars: typeof live.stars === 'number' ? live.stars : Math.min(5, Math.floor(((live.points ?? live.pontos ?? live.scoreEngajamento ?? 0) / 200))),
-                            badges: live.badges || prev.badges || { excelente: 0, util: 0, tecnico: 0 },
+                            totalLikes: typeof live.totalLikes === 'number' ? live.totalLikes : prev.totalLikes,
+                            likesCount: typeof live.likesCount === 'number' ? live.likesCount : prev.likesCount,
+                            scoreEngajamento: typeof live.scoreEngajamento === 'number' ? live.scoreEngajamento : prev.scoreEngajamento,
+                            pontos: typeof live.pontos === 'number' ? live.pontos : prev.pontos,
+                            points: typeof live.points === 'number' ? live.points : prev.points,
+                            stars: typeof live.stars === 'number' ? live.stars : prev.stars,
+                            badges: live.badges || prev.badges,
                             streakCount: typeof live.streakCount === 'number' ? live.streakCount : prev.streakCount,
                             lastLoginDate: live.lastLoginDate || prev.lastLoginDate
                           };
@@ -950,45 +887,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     });
                   } catch (liveErr) {
                     console.warn('Aviso ao iniciar ouvinte em tempo real do perfil:', liveErr);
-                  }
-
-                  if (typeof window !== 'undefined' && !window.isCreatingAccount && !window.isRegistering) {
-                    const paginaAtual = window.location.pathname;
-                    if (paginaAtual.includes('login') || paginaAtual.includes('cadastro')) {
-                      const targetTipo = tipo || rawData.tipo || firestoreUserData.tipo;
-                      if (targetTipo === "empresa" || role === "company") {
-                        window.location.replace("painel-empresa.html");
-                        return;
-                      } else if (targetTipo === "tecnico" || role === "technician") {
-                        window.location.replace("painel-tecnico.html");
-                        return;
-                      } else if (targetTipo === "cliente" || role === "client") {
-                        window.location.replace("painel-cliente.html");
-                        return;
-                      }
-                    }
-                  }
-
-                  switch (rawData.tipo || firestoreUserData.tipo) {
-                    case "empresa":
-                      carregarPainelEmpresa(firestoreUserData);
-                      break;
-                    case "tecnico":
-                      if (role === 'super_admin' || role === 'admin') {
-                        window.location.hash = '#gestao-pro-mz';
-                      } else {
-                        carregarPainelTecnico(firestoreUserData);
-                      }
-                      break;
-                    case "cliente":
-                      carregarPainelCliente(firestoreUserData);
-                      break;
-                    default:
-                      if (role === 'super_admin' || role === 'admin') {
-                        window.location.hash = '#gestao-pro-mz';
-                      } else {
-                        carregarPainelTecnico(firestoreUserData);
-                      }
                   }
 
                   liberarAcessoApp(firestoreUserData);
@@ -1055,22 +953,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     } else {
       clearTimeout(watchdogTimer);
-      const savedClientName = typeof window !== 'undefined' ? localStorage.getItem('clienteNome') : null;
-      if (savedClientName) {
-        const clientUser: User = {
-          uid: `client_${savedClientName.toLowerCase().replace(/\s+/g, '_')}`,
-          name: savedClientName,
-          email: '',
-          phone: '',
-          role: 'client',
-          tipoConta: 'cliente',
-          statusAprovacao: 'aprovado',
-          statusConta: 'ativa',
-          status: 'active',
-          createdAt: new Date().toISOString()
-        };
-        setCurrentUser(clientUser);
-      }
       setIsLoading(false);
     }
   }, []);
@@ -1096,71 +978,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
               let userSnap = await safeGetDoc(userRef, 2, 400);
               let usersSnap = await safeGetDoc(usersRef, 2, 400);
-
-              if (userSnap && usersSnap && !userSnap.exists() && !usersSnap.exists()) {
-                const compCheck = await safeGetDoc(doc(db, 'companies', fbUser.uid), 1, 300);
-                const isCompanyDoc = Boolean(compCheck && compCheck.exists());
-
-                const repairPayload = {
-                  uid: fbUser.uid,
-                  email: normalizedEmail,
-                  nome: defaultName,
-                  name: defaultName,
-                  nuit: isCompanyDoc ? (compCheck.data()?.nuit || '') : '',
-                  role: isSuperAdminEmail ? 'super_admin' : (isCompanyDoc ? 'company' : 'tecnico'),
-                  tipo: isCompanyDoc ? 'empresa' : 'tecnico',
-                  tipoConta: isCompanyDoc ? 'empresa' : 'tecnico',
-                  pontos: 0,
-                  totalLikes: 0,
-                  fotoUrl: fbUser.photoURL || '',
-                  photoURL: fbUser.photoURL || '',
-                  avatarUrl: fbUser.photoURL || '',
-                  status: 'active',
-                  statusConta: 'ativa',
-                  statusAprovacao: 'aprovado',
-                  isTrialActive: true,
-                  criadoEm: serverTimestamp(),
-                  createdAt: serverTimestamp(),
-                  createdAtIso: new Date().toISOString()
-                };
-
-                await safeSetDoc(userRef, repairPayload);
-                await safeSetDoc(usersRef, repairPayload);
-
-                if (!isCompanyDoc && !isSuperAdminEmail) {
-                  try {
-                    const techRef = doc(db, 'technicians', fbUser.uid);
-                    const techSnap = await safeGetDoc(techRef, 1, 300);
-                    if (techSnap && !techSnap.exists()) {
-                      await safeSetDoc(techRef, {
-                        userId: fbUser.uid,
-                        name: defaultName,
-                        email: normalizedEmail,
-                        phone: fbUser.phoneNumber || '',
-                        province: 'Maputo Cidade',
-                        city: 'Maputo',
-                        specialties: ['Eletricidade'],
-                        bio: 'Profissional técnico cadastrado na TécnicaMZ Pro.',
-                        experienceYears: 2,
-                        totalLikes: 0,
-                        scoreEngajamento: 0,
-                        rating: 5.0,
-                        reviewsCount: 0,
-                        completedJobsCount: 0,
-                        status: 'active',
-                        statusConta: 'ativa',
-                        statusAprovacao: 'aprovado',
-                        isTrialActive: true,
-                        createdAt: serverTimestamp()
-                      });
-                    }
-                  } catch (tErr) {
-                    console.warn('Tech sync notice:', tErr);
-                  }
-                }
-
-                userSnap = await safeGetDoc(userRef, 1, 300);
-              }
 
               const usuarioData = (userSnap && userSnap.exists()) ? userSnap.data() : {};
               const usersData = (usersSnap && usersSnap.exists()) ? usersSnap.data() : {};
@@ -1203,6 +1020,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
               const statusAprovacao = isSuper ? 'aprovado' : (docData.statusAprovacao || (docData.status === 'pending_approval' ? 'pendente' : 'aprovado'));
               const parsedUserExp = typeof docData.experienceYears === 'number' ? docData.experienceYears : (typeof docData.anosExperiencia === 'number' ? docData.anosExperiencia : undefined);
+              const hasSeloApproved = isSuper || Boolean(docData.temSeloMZ || docData.statusSelo === 'aprovado' || docData.isVerified);
 
               foundUser = {
                 uid: fbUser.uid,
@@ -1215,7 +1033,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 tipo: tipo,
                 tipoConta: tipoConta,
                 statusAprovacao: statusAprovacao,
-                statusConta: docData.statusConta || 'ativa',
+                statusConta: hasSeloApproved ? 'ativa' : (docData.statusConta || 'ativa'),
                 status: docData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
                 adminSubRole: isSuper ? 'super_admin' : docData.adminSubRole,
                 specialty: docData.specialty || docData.especialidade || (role === 'technician' ? 'Eletricidade' : undefined),
@@ -1225,52 +1043,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 city: docData.city || docData.cidade || '',
                 avatarUrl: docData.avatarUrl || docData.photoURL || docData.fotoUrl || docData.foto || fbUser.photoURL || undefined,
                 photoURL: docData.photoURL || docData.avatarUrl || docData.fotoUrl || docData.foto || fbUser.photoURL || undefined,
-                isVerified: isSuper ? true : Boolean(docData.isVerified || docData.verificationStatus === 'approved' || docData.statusSelo === 'aprovado'),
-                temSeloMZ: isSuper ? true : Boolean(docData.temSeloMZ || docData.statusSelo === 'aprovado'),
-                statusSelo: isSuper ? 'aprovado' : (docData.statusSelo || (docData.temSeloMZ ? 'aprovado' : 'nenhum')),
-                verifiedAt: docData.verifiedAt || docData.dataSeloAprovacao,
-                verifiedUntil: docData.verifiedUntil,
+                isVerified: hasSeloApproved,
+                temSeloMZ: hasSeloApproved,
+                statusSelo: isSuper ? 'aprovado' : (hasSeloApproved ? 'aprovado' : (docData.statusSelo || 'nenhum')),
+                verifiedAt: parseDateToIso(docData.verifiedAt || docData.dataSeloAprovacao),
+                verifiedUntil: parseDateToIso(docData.verifiedUntil),
+                dataSeloAprovacao: parseDateToIso(docData.dataSeloAprovacao || docData.verifiedAt),
+                subscriptionExpiresAt: parseDateToIso(docData.subscriptionExpiresAt || docData.dataExpiracao || docData.verifiedUntil),
+                dataExpiracao: parseDateToIso(docData.dataExpiracao || docData.subscriptionExpiresAt || docData.verifiedUntil),
+                subscriptionStatus: hasSeloApproved ? 'active' : (docData.subscriptionStatus || 'none'),
+                statusAssinatura: hasSeloApproved ? 'ativa' : (docData.statusAssinatura || 'none'),
+                activePlanId: docData.activePlanId || (hasSeloApproved ? 'pro' : undefined),
                 isTrialActive: docData.isTrialActive !== undefined ? Boolean(docData.isTrialActive) : true,
-                dataSeloEnvio: docData.dataSeloEnvio,
-                dataSeloAprovacao: docData.dataSeloAprovacao,
-                motivoRejeicaoSelo: docData.motivoRejeicaoSelo,
-                mensagemTransacaoSelo: docData.mensagemTransacaoSelo,
-                operadoraSelo: docData.operadoraSelo,
-                statusAssinatura: docData.statusAssinatura,
-                dataExpiracao: docData.dataExpiracao,
-                subscriptionStatus: docData.subscriptionStatus,
-                activePlanId: docData.activePlanId,
-                totalLikes: typeof docData.totalLikes === 'number' ? docData.totalLikes : (typeof docData.curtidas === 'number' ? docData.curtidas : 0),
-                scoreEngajamento: typeof docData.scoreEngajamento === 'number' ? docData.scoreEngajamento : (typeof docData.pontos === 'number' ? docData.pontos : 0),
-                createdAt: parseDateToIso(docData.createdAt || docData.criadoEm || docData.dataCadastro),
-                updatedAt: docData.updatedAt
+                createdAt: parseDateToIso(docData.createdAt || docData.criadoEm || docData.dataCadastro)
               } as any;
-
-              if (role === 'technician') {
-                try {
-                  const techDoc = await safeGetDoc(doc(db, 'technicians', fbUser.uid), 1, 300);
-                  if (techDoc && techDoc.exists()) {
-                    const tData = techDoc.data() as TechnicianProfile;
-                    setCurrentTechProfile({ ...tData, userId: fbUser.uid });
-                  }
-                } catch (tErr) {
-                  console.warn('Fetch tech doc on login notice:', tErr);
-                }
-              }
-
-              if (role === 'company') {
-                try {
-                  const compDoc = await safeGetDoc(doc(db, 'companies', fbUser.uid), 1, 300);
-                  if (compDoc && compDoc.exists()) {
-                    const cData = compDoc.data() as CompanyProfile;
-                    setCurrentCompanyProfile({ ...cData, userId: fbUser.uid });
-                  }
-                } catch (cErr) {
-                  console.warn('Fetch comp doc on login notice:', cErr);
-                }
-              }
             } catch (err) {
-              console.warn('Firestore lookup error in login, using fallback:', err);
+              console.warn('Firestore lookup error in login:', err);
             }
           }
 
@@ -1290,96 +1078,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
           }
 
-          if (foundUser.status === 'suspended' || foundUser.statusConta === 'suspensa') {
-            return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
-          }
-          if (foundUser.status === 'blocked' || foundUser.statusConta === 'bloqueada') {
-            return { success: false, error: 'Acesso bloqueado por violação de políticas da plataforma.' };
-          }
-
           liberarAcessoApp(foundUser);
-          if (typeof window !== 'undefined') {
-            if (foundUser.tipo === "empresa" || foundUser.role === "company" || foundUser.tipoConta === "empresa") {
-              window.location.replace("painel-empresa.html");
-            } else if (foundUser.tipo === "tecnico" || foundUser.role === "technician" || foundUser.tipoConta === "tecnico") {
-              window.location.replace("painel-tecnico.html");
-            } else if (foundUser.tipo === "cliente" || foundUser.role === "client" || foundUser.tipoConta === "cliente") {
-              window.location.replace("painel-cliente.html");
-            }
-          }
           return { success: true, user: foundUser };
         } catch (fbErr: any) {
-          console.warn('Firebase Auth sign in failed:', fbErr);
-          if (
-            fbErr.code === 'auth/user-not-found' ||
-            fbErr.code === 'auth/wrong-password' ||
-            fbErr.code === 'auth/invalid-credential' ||
-            fbErr.code === 'auth/invalid-login-credentials'
-          ) {
-            return { success: false, error: 'E-mail ou palavra-passe incorretos.' };
-          }
-          if (fbErr.code === 'auth/invalid-email') {
-            return { success: false, error: 'Endereço de e-mail inválido.' };
-          }
-          if (fbErr.code === 'auth/user-disabled') {
-            return { success: false, error: 'Esta conta de utilizador foi desativada.' };
-          }
-          if (fbErr.code === 'auth/too-many-requests') {
-            return { success: false, error: 'Muitas tentativas falhadas. Tente novamente mais tarde.' };
-          }
           return { success: false, error: fbErr.message || 'Falha na autenticação via Firebase.' };
         }
       }
 
       const match = usersList.find(u => (u.email || '').toLowerCase() === normalizedEmail && normalizedEmail);
       if (match) {
-        if (match.status === 'suspended' || match.statusConta === 'suspensa') {
-          return { success: false, error: 'Sua conta está suspensa. Entre em contato com o suporte.' };
-        }
-        if (match.status === 'blocked' || match.statusConta === 'bloqueada') {
-          return { success: false, error: 'Acesso bloqueado por violação das políticas da plataforma.' };
-        }
-        const tipo: 'cliente' | 'empresa' | 'tecnico' = (match.tipo === 'empresa' || match.tipoConta === 'empresa' || match.role === 'company')
-          ? 'empresa'
-          : (match.tipo === 'cliente' || match.tipoConta === 'cliente' || match.role === 'client')
-            ? 'cliente'
-            : 'tecnico';
-        const tipoConta = tipo;
-        const userWithTipo: User = { ...match, tipo, tipoConta };
-        setCurrentUser(userWithTipo);
-        if (typeof window !== 'undefined') {
-          if (tipo === "empresa" || match.role === "company") {
-            window.location.replace("painel-empresa.html");
-          } else if (tipo === "tecnico" || match.role === "technician") {
-            window.location.replace("painel-tecnico.html");
-          } else if (tipo === "cliente" || match.role === "client") {
-            window.location.replace("painel-cliente.html");
-          }
-        }
-        return { success: true, user: userWithTipo };
+        liberarAcessoApp(match);
+        return { success: true, user: match };
       }
 
-      if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
-        const superAdminUser: User = {
-          uid: 'admin_owner',
-          name: 'André Zefanias Júnior',
-          email: normalizedEmail,
-          phone: '+258 84 999 0001',
-          role: 'super_admin',
-          adminSubRole: 'super_admin',
-          tipoConta: 'tecnico',
-          statusAprovacao: 'aprovado',
-          statusConta: 'ativa',
-          status: 'active',
-          isTrialActive: true,
-          createdAt: new Date().toISOString()
-        };
-        setUsersList(prev => [superAdminUser, ...prev]);
-        setCurrentUser(superAdminUser);
-        return { success: true, user: superAdminUser };
-      }
-
-      return { success: false, error: 'Nenhuma conta de Técnico ou Empresa encontrada com este e-mail.' };
+      return { success: false, error: 'Nenhuma conta encontrada com este e-mail.' };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Falha ao autenticar.' };
     } finally {
@@ -1387,135 +1099,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (data: {
-    name: string;
-    email: string;
-    phone: string;
-    password?: string;
-    role: UserRole;
-    tipo?: 'cliente' | 'tecnico' | 'empresa';
-    tipoConta?: 'cliente' | 'tecnico' | 'empresa';
-    idade?: number;
-    experienceYears?: number;
-    photoURL?: string;
-    avatarUrl?: string;
-    specialty?: string;
-    province?: string;
-    city?: string;
-    nuit?: string;
-    commercialName?: string;
-    industry?: string;
-    address?: string;
-    website?: string;
-  }): Promise<{ success: boolean; error?: string }> => {
-    if (typeof window !== 'undefined') {
-      window.isCreatingAccount = true;
-      window.isRegistering = true;
-    }
+  const register = async (data: any): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
       const normalizedEmail = (data?.email || '').toString().trim().toLowerCase();
       const rawPhone = (data?.phone || '').toString().trim();
-      const cleanPhoneDigits = rawPhone.replace(/\D/g, '');
-
-      if (!normalizedEmail) {
-        return { success: false, error: 'Por favor, informe um endereço de e-mail válido.' };
-      }
-
-      const emailExistsLocal = usersList.some(u => (u?.email || '').toString().toLowerCase().trim() === normalizedEmail && normalizedEmail !== '');
-      if (emailExistsLocal) {
-        return {
-          success: false,
-          error: 'E-mail já existente! Este e-mail já está cadastrado na plataforma. Faça login ou utilize outro e-mail.'
-        };
-      }
-
-      const phoneExistsLocal = cleanPhoneDigits && usersList.some(u => {
-        const uPhoneDigits = (u?.phone || '').toString().replace(/\D/g, '');
-        return uPhoneDigits && (uPhoneDigits === cleanPhoneDigits || uPhoneDigits.endsWith(cleanPhoneDigits) || cleanPhoneDigits.endsWith(uPhoneDigits));
-      });
-
-      if (phoneExistsLocal) {
-        return {
-          success: false,
-          error: 'Número de telefone já cadastrado. Por favor utilize outro número ou inicie sessão.'
-        };
-      }
-
-      if (isFirebaseConfigured && db) {
-        try {
-          const emailQuery = query(collection(db, 'users'), where('email', '==', normalizedEmail));
-          const emailSnap = await getDocs(emailQuery);
-          if (!emailSnap.empty) {
-            return {
-              success: false,
-              error: 'E-mail já existente! Este e-mail já está cadastrado na plataforma. Faça login ou utilize outro e-mail.'
-            };
-          }
-
-          if (rawPhone) {
-            const phoneQuery = query(collection(db, 'users'), where('phone', '==', rawPhone));
-            const phoneSnap = await getDocs(phoneQuery);
-            if (!phoneSnap.empty) {
-              return {
-                success: false,
-                error: 'Número de telefone já cadastrado. Por favor utilize outro número ou inicie sessão.'
-              };
-            }
-          }
-        } catch (queryErr) {
-          console.warn('Firestore duplicity check warning:', queryErr);
-        }
-      }
-
-      let userRole = data.role;
-      let adminSubRole: AdminSubRole | undefined = undefined;
-      if (normalizedEmail === 'andrezefaniasjuniorr@gmail.com') {
-        userRole = 'super_admin';
-        adminSubRole = 'super_admin';
-      }
 
       let generatedUid = `user_${Date.now()}`;
 
       if (isFirebaseConfigured && auth && data.password) {
-        try {
-          const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, data.password);
-          generatedUid = userCredential.user.uid;
-        } catch (fbErr: any) {
-          if (fbErr.code === 'auth/email-already-in-use') {
-            return {
-              success: false,
-              error: 'E-mail já existente! Este e-mail já está cadastrado na plataforma. Faça login ou utilize outro e-mail.'
-            };
-          } else {
-            console.warn('Firebase user creation notice:', fbErr?.code || fbErr?.message);
-            if (fbErr.code === 'auth/weak-password') {
-              return { success: false, error: 'A palavra-passe deve ter pelo menos 6 caracteres.' };
-            }
-            if (fbErr.code === 'auth/invalid-email') {
-              return { success: false, error: 'Endereço de e-mail inválido.' };
-            }
-            return { success: false, error: fbErr.message || 'Falha ao criar conta no Firebase.' };
-          }
-        }
+        const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, data.password);
+        generatedUid = userCredential.user.uid;
       }
 
-      const defaultName = data.name.trim() || normalizedEmail.split('@')[0];
-
-      let tipoConta: 'cliente' | 'tecnico' | 'empresa' = data.tipoConta || (userRole === 'company' ? 'empresa' : userRole === 'technician' ? 'tecnico' : 'cliente');
-      if (userRole === 'company') tipoConta = 'empresa';
-      if (userRole === 'technician') tipoConta = 'tecnico';
-      if (userRole === 'client') tipoConta = 'cliente';
-
-      const strictTipo: 'cliente' | 'tecnico' | 'empresa' = (data.tipo as any) || tipoConta;
-
-      const isAutoApproved = userRole === 'client' || userRole === 'super_admin' || userRole === 'admin';
+      const defaultName = data.name?.trim() || normalizedEmail.split('@')[0];
+      const isAutoApproved = data.role === 'client' || data.role === 'super_admin' || data.role === 'admin';
       const statusAprovacao = isAutoApproved ? 'aprovado' : 'pendente';
       const status: UserStatus = isAutoApproved ? 'active' : 'pending_approval';
-
-      const userAge = data.idade && !isNaN(Number(data.idade)) ? Number(data.idade) : undefined;
-      const userExp = data.experienceYears !== undefined && !isNaN(Number(data.experienceYears)) ? Number(data.experienceYears) : 2;
-      const userPhoto = data.photoURL || data.avatarUrl || undefined;
 
       const newUser: User = {
         uid: generatedUid,
@@ -1523,18 +1123,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         nome: defaultName,
         email: normalizedEmail,
         phone: rawPhone,
-        nuit: data.nuit?.trim() || '',
-        role: userRole,
-        tipo: strictTipo,
-        tipoConta: tipoConta,
-        idade: userAge,
-        experienceYears: userExp,
-        anosExperiencia: userExp,
-        photoURL: userPhoto,
-        avatarUrl: userPhoto,
-        totalLikes: 0,
-        scoreEngajamento: 0,
-        adminSubRole: adminSubRole,
+        role: data.role || 'technician',
+        tipoConta: data.tipoConta || 'tecnico',
+        tipo: data.tipo || 'tecnico',
         status: status,
         statusAprovacao: statusAprovacao,
         statusConta: 'ativa',
@@ -1542,237 +1133,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         temSeloMZ: false,
         statusSelo: 'nenhum',
         isTrialActive: true,
-        specialty: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
-        province: data.province?.trim() || '',
-        city: data.city?.trim() || '',
         createdAt: new Date().toISOString()
       } as any;
 
       if (isFirebaseConfigured && db) {
-        try {
-          const userDocPayload = {
-            ...newUser,
-            uid: generatedUid,
-            nome: defaultName,
+        await safeSetDoc(doc(db, 'users', generatedUid), newUser);
+        await safeSetDoc(doc(db, 'usuarios', generatedUid), newUser);
+        if (data.role === 'technician') {
+          await setDoc(doc(db, 'technicians', generatedUid), {
+            userId: generatedUid,
             name: defaultName,
             email: normalizedEmail,
-            nuit: data.nuit?.trim() || '',
-            telefone: rawPhone,
             phone: rawPhone,
-            role: userRole,
-            tipo: strictTipo,
-            tipoConta: tipoConta,
-            status: status,
-            statusConta: 'ativa',
-            statusAprovacao: statusAprovacao,
-            idade: userAge !== undefined ? userAge : null,
-            experienceYears: userExp,
-            anosExperiencia: userExp,
-            city: data.city?.trim() || '',
-            cidade: data.city?.trim() || '',
-            province: data.province?.trim() || '',
-            provincia: data.province?.trim() || '',
-            isTrialActive: true,
-            isVerified: false,
-            temSeloMZ: false,
-            statusSelo: 'nenhum',
-            criadoEm: serverTimestamp(),
-            createdAt: serverTimestamp(),
-            dataCadastro: serverTimestamp(),
-            createdAtIso: new Date().toISOString()
-          };
-
-          const usuarioPayload = {
-            ...userDocPayload,
-            idade: userAge !== undefined ? userAge : null,
-            experienceYears: userExp,
-            anosExperiencia: userExp,
-            isTrialActive: true,
-            especialidade: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
-            specialty: data.specialty || (userRole === 'technician' ? 'Eletricidade' : undefined),
-            provincia: data.province?.trim() || '',
-            province: data.province?.trim() || '',
-            cidade: data.city?.trim() || '',
-            city: data.city?.trim() || '',
-            foto: userPhoto || '',
-            avatarUrl: userPhoto || '',
-            photoURL: userPhoto || '',
-            pontos: 0,
-            curtidas: 0,
-            totalLikes: 0,
-            scoreEngajamento: 0,
-            criadoEm: serverTimestamp(),
-            createdAt: serverTimestamp(),
-            dataCadastro: serverTimestamp()
-          };
-
-          await safeSetDoc(doc(db, 'usuarios', generatedUid), usuarioPayload);
-          await safeSetDoc(doc(db, 'users', generatedUid), userDocPayload);
-        } catch (dbErr) {
-          console.warn('Firestore user doc creation notice:', dbErr);
+            specialties: data.specialty ? [data.specialty] : ['Eletricidade'],
+            createdAt: serverTimestamp()
+          }, { merge: true });
         }
       }
 
-      const updatedUsers = [...usersList, newUser];
-      setUsersList(updatedUsers);
-
-      if (userRole === 'technician') {
-        const cleanWhatsapp = cleanPhoneDigits ? (cleanPhoneDigits.startsWith('258') ? cleanPhoneDigits : `258${cleanPhoneDigits}`) : '';
-        const newTech: TechnicianProfile = {
-          userId: generatedUid,
-          name: defaultName,
-          email: normalizedEmail,
-          phone: rawPhone,
-          whatsapp: cleanWhatsapp,
-          showWhatsappButton: true,
-          customWhatsappMessage: `Olá ${defaultName}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
-          province: data.province?.trim() || '',
-          city: data.city?.trim() || '',
-          specialties: data.specialty ? [data.specialty] : ['Eletricidade'],
-          bio: `Profissional qualificado em ${data.specialty || 'serviços técnicos'}${data.province ? ` em ${data.province}` : ' em Moçambique'}.`,
-          experienceYears: userExp,
-          idade: userAge,
-          photoURL: userPhoto,
-          avatarUrl: userPhoto,
-          totalLikes: 0,
-          scoreEngajamento: 0,
-          verificationStatus: 'none',
-          statusAprovacao: 'pendente',
-          statusConta: 'ativa',
-          isVerified: false,
-          isTrialActive: true,
-          subscriptionStatus: 'none',
-          rating: 5.0,
-          reviewsCount: 0,
-          completedJobsCount: 0,
-          availability: 'available',
-          status: 'pending_approval',
-          createdAt: new Date().toISOString()
-        };
-
-        if (isFirebaseConfigured && db) {
-          try {
-            await setDoc(doc(db, 'technicians', generatedUid), {
-              ...newTech,
-              experienceYears: userExp,
-              anosExperiencia: userExp,
-              createdAt: serverTimestamp(),
-              createdAtIso: new Date().toISOString()
-            }, { merge: true });
-            await setDoc(doc(db, 'usuarios', generatedUid), {
-              ...newTech,
-              uid: generatedUid,
-              nome: defaultName,
-              telefone: rawPhone,
-              tipoConta: 'tecnico',
-              experienceYears: userExp,
-              anosExperiencia: userExp,
-              createdAt: serverTimestamp(),
-              createdAtIso: new Date().toISOString()
-            }, { merge: true });
-          } catch (dbErr) {
-            console.warn('Firestore tech doc creation error:', dbErr);
-          }
-        }
-
-        const updatedTechs = [...techList, newTech];
-        setTechList(updatedTechs);
-        setCurrentTechProfile(newTech);
-      } else if (userRole === 'company') {
-        const cleanWhatsapp = cleanPhoneDigits ? (cleanPhoneDigits.startsWith('258') ? cleanPhoneDigits : `258${cleanPhoneDigits}`) : '';
-        const newComp: CompanyProfile = {
-          userId: generatedUid,
-          companyName: defaultName,
-          commercialName: data.commercialName?.trim() || defaultName,
-          nuit: data.nuit?.trim() || '400000000',
-          email: normalizedEmail,
-          phone: rawPhone,
-          whatsapp: cleanWhatsapp,
-          showWhatsappButton: true,
-          website: data.website?.trim(),
-          province: data.province?.trim() || '',
-          city: data.city?.trim() || '',
-          address: data.address?.trim() || '',
-          industry: data.industry?.trim() || 'Engenharia & Construção',
-          description: `Empresa ${defaultName} registada na TécnicaMZ para contratação de profissionais técnicos especializados.`,
-          logoUrl: userPhoto,
-          verificationStatus: 'unverified',
-          statusAprovacao: 'pendente',
-          statusConta: 'ativa',
-          isVerified: false,
-          isTrialActive: true,
-          rating: 5.0,
-          reviewsCount: 0,
-          hiredTechniciansCount: 0,
-          activeJobsCount: 0,
-          status: 'pending_approval',
-          createdAt: new Date().toISOString()
-        };
-
-        if (isFirebaseConfigured && db) {
-          try {
-            await setDoc(doc(db, 'companies', generatedUid), {
-              ...newComp,
-              tipo: 'empresa',
-              tipoConta: 'empresa',
-              role: 'company',
-              createdAt: serverTimestamp(),
-              createdAtIso: new Date().toISOString()
-            }, { merge: true });
-          } catch (dbErr) {
-            console.warn('Firestore company doc creation error:', dbErr);
-          }
-        }
-
-        const updatedComps = [...companyList, newComp];
-        setCompanyList(updatedComps);
-        setCurrentCompanyProfile(newComp);
-      }
-
-      if (typeof window !== 'undefined') {
-        window.isCreatingAccount = false;
-        window.isRegistering = false;
-      }
-
-      switch (strictTipo) {
-        case "empresa":
-          carregarPainelEmpresa(newUser);
-          if (typeof window !== 'undefined') {
-            window.location.replace("painel-empresa.html");
-          }
-          break;
-        case "tecnico":
-          if (userRole === 'super_admin' || userRole === 'admin') {
-            window.location.hash = '#gestao-pro-mz';
-          } else {
-            carregarPainelTecnico(newUser);
-            if (typeof window !== 'undefined') {
-              window.location.replace("painel-tecnico.html");
-            }
-          }
-          break;
-        case "cliente":
-          carregarPainelCliente(newUser);
-          if (typeof window !== 'undefined') {
-            window.location.replace("painel-cliente.html");
-          }
-          break;
-        default:
-          liberarAcessoApp(newUser);
-      }
       liberarAcessoApp(newUser);
       return { success: true };
     } catch (err: any) {
-      if (typeof window !== 'undefined') {
-        window.isCreatingAccount = false;
-        window.isRegistering = false;
-      }
       return { success: false, error: err?.message || 'Falha ao registar conta.' };
     } finally {
-      if (typeof window !== 'undefined') {
-        window.isCreatingAccount = false;
-        window.isRegistering = false;
-      }
       setIsLoading(false);
     }
   };
@@ -1782,36 +1165,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     senha: string,
     dadosEmpresa: any
   ): Promise<{ success: boolean; user?: any; error?: string }> => {
-    if (typeof window !== 'undefined') {
-      window.isCreatingAccount = true;
-      window.isRegistering = true;
-    }
     setIsLoading(true);
-
     try {
       const normalizedEmail = (email || '').toString().trim().toLowerCase();
-      const nomeEmpresa = (typeof dadosEmpresa === 'object' ? (dadosEmpresa?.nome || dadosEmpresa?.name || dadosEmpresa?.companyName) : dadosEmpresa) || normalizedEmail.split('@')[0];
-      const nuitEmpresa = (typeof dadosEmpresa === 'object' ? (dadosEmpresa?.nuit || dadosEmpresa?.nuir) : '') || '400000000';
-      const telefoneEmpresa = (typeof dadosEmpresa === 'object' ? (dadosEmpresa?.telefone || dadosEmpresa?.phone) : '') || '';
-      const cleanPhoneDigits = telefoneEmpresa.replace(/\D/g, '');
-      const cleanWhatsapp = cleanPhoneDigits ? (cleanPhoneDigits.startsWith('258') ? cleanPhoneDigits : `258${cleanPhoneDigits}`) : '';
+      const nomeEmpresa = (typeof dadosEmpresa === 'object' ? (dadosEmpresa?.nome || dadosEmpresa?.name) : dadosEmpresa) || 'Empresa';
 
       let generatedUid = `company_${Date.now()}`;
-      let authUser: any = null;
-
       if (isFirebaseConfigured && auth && senha) {
         const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, senha);
-        authUser = userCredential.user;
-        generatedUid = authUser.uid;
+        generatedUid = userCredential.user.uid;
       }
 
       const newCompanyUser: User = {
         uid: generatedUid,
         name: nomeEmpresa,
-        nome: nomeEmpresa,
         email: normalizedEmail,
-        phone: telefoneEmpresa,
-        nuit: nuitEmpresa,
+        phone: dadosEmpresa?.telefone || '',
         role: 'company',
         tipo: 'empresa',
         tipoConta: 'empresa',
@@ -1819,95 +1188,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         statusAprovacao: 'pendente',
         statusConta: 'ativa',
         isVerified: false,
-        isTrialActive: true,
-        createdAt: new Date().toISOString()
-      };
-
-      const newCompanyProfile: CompanyProfile = {
-        userId: generatedUid,
-        companyName: nomeEmpresa,
-        commercialName: nomeEmpresa,
-        nuit: nuitEmpresa,
-        email: normalizedEmail,
-        phone: telefoneEmpresa,
-        whatsapp: cleanWhatsapp,
-        showWhatsappButton: true,
-        province: (typeof dadosEmpresa === 'object' && dadosEmpresa?.provincia) || 'Maputo Cidade',
-        city: (typeof dadosEmpresa === 'object' && dadosEmpresa?.cidade) || 'Maputo',
-        address: (typeof dadosEmpresa === 'object' && dadosEmpresa?.endereco) || 'Moçambique',
-        industry: (typeof dadosEmpresa === 'object' && dadosEmpresa?.ramo) || 'Construção & Engenharia Elétrica',
-        description: `Empresa ${nomeEmpresa} registada na TécnicaMZ para contratação de profissionais técnicos especializados.`,
-        verificationStatus: 'unverified',
-        statusAprovacao: 'pendente',
-        statusConta: 'ativa',
-        isVerified: false,
-        isTrialActive: true,
-        rating: 5.0,
-        reviewsCount: 0,
-        hiredTechniciansCount: 0,
-        activeJobsCount: 0,
-        status: 'pending_approval',
+        temSeloMZ: false,
+        statusSelo: 'nenhum',
         createdAt: new Date().toISOString()
       };
 
       if (isFirebaseConfigured && db) {
-        const payload = {
-          uid: generatedUid,
-          nome: nomeEmpresa,
-          name: nomeEmpresa,
-          email: normalizedEmail,
-          nuit: nuitEmpresa,
-          phone: telefoneEmpresa,
-          telefone: telefoneEmpresa,
-          tipo: 'empresa',
-          tipoConta: 'empresa',
-          role: 'company',
-          status: 'pending_approval',
-          statusConta: 'ativa',
-          isTrialActive: true,
-          criadoEm: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          createdAtIso: new Date().toISOString()
-        };
-
-        await safeSetDoc(doc(db, 'users', generatedUid), payload);
-        await safeSetDoc(doc(db, 'usuarios', generatedUid), payload);
-        await setDoc(doc(db, 'companies', generatedUid), {
-          ...newCompanyProfile,
-          tipo: 'empresa',
-          tipoConta: 'empresa',
-          role: 'company',
-          createdAt: serverTimestamp(),
-          createdAtIso: new Date().toISOString()
-        }, { merge: true });
+        await safeSetDoc(doc(db, 'users', generatedUid), newCompanyUser);
+        await safeSetDoc(doc(db, 'companies', generatedUid), { userId: generatedUid, companyName: nomeEmpresa, ...dadosEmpresa });
       }
 
-      setUsersList(prev => [...prev.filter(u => u.uid !== generatedUid), newCompanyUser]);
-      setCompanyList(prev => [...prev.filter(c => c.userId !== generatedUid), newCompanyProfile]);
-      setCurrentCompanyProfile(newCompanyProfile);
-
-      if (typeof window !== 'undefined') {
-        window.isCreatingAccount = false;
-        window.isRegistering = false;
-        window.location.replace("painel-empresa.html");
-      }
-
-      carregarPainelEmpresa(newCompanyUser);
       liberarAcessoApp(newCompanyUser);
-
-      return { success: true, user: authUser || newCompanyUser };
+      return { success: true, user: newCompanyUser };
     } catch (error: any) {
-      if (typeof window !== 'undefined') {
-        window.isCreatingAccount = false;
-        window.isRegistering = false;
-      }
-      console.error("Erro no cadastro da empresa:", error);
       return { success: false, error: error?.message || 'Falha ao cadastrar empresa.' };
     } finally {
-      if (typeof window !== 'undefined') {
-        window.isCreatingAccount = false;
-        window.isRegistering = false;
-      }
       setIsLoading(false);
     }
   };
@@ -1931,43 +1226,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       safeRemoveStorageItem(LAST_ROUTE_KEY);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('clienteNome');
-        localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
-        localStorage.removeItem(CACHED_USER_KEY);
-        localStorage.removeItem(CACHED_TECH_PROFILE_KEY);
-        localStorage.removeItem(CACHED_COMPANY_PROFILE_KEY);
-        localStorage.removeItem(LAST_ROUTE_KEY);
         window.location.hash = '';
       }
       setIsLoading(false);
     }
   };
 
-  const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
+  const resetPassword = async (email: string) => {
     try {
       if (isFirebaseConfigured && auth) {
         await sendPasswordResetEmail(auth, email.trim().toLowerCase());
-        return { success: true };
       }
       return { success: true };
     } catch (err: any) {
-      if (err.code === 'auth/user-not-found') {
-        return { success: false, error: 'Nenhum usuário encontrado com este e-mail.' };
-      }
       return { success: false, error: err?.message || 'Erro ao enviar e-mail de recuperação.' };
     }
   };
 
-  const changePassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
+  const changePassword = async (newPassword: string) => {
     try {
       if (isFirebaseConfigured && auth?.currentUser) {
         await fbUpdatePassword(auth.currentUser, newPassword);
-        return { success: true };
       }
       return { success: true };
     } catch (err: any) {
-      if (err.code === 'auth/requires-recent-login') {
-        return { success: false, error: 'Por segurança, termine a sessão e entre novamente antes de alterar a palavra-passe.' };
-      }
       return { success: false, error: err?.message || 'Erro ao alterar a palavra-passe.' };
     }
   };
@@ -1979,177 +1261,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(updated);
     setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updated : u)));
 
-    const isTech = currentUser.role === 'technician' || currentUser.tipoConta === 'tecnico';
-
-    const effectiveExp = (data as any).experienceYears !== undefined
-      ? (data as any).experienceYears
-      : ((data as any).anosExperiencia !== undefined ? (data as any).anosExperiencia : undefined);
-
-    if (isTech) {
-      const techUpdate: Partial<TechnicianProfile> = {};
-      if (data.name) techUpdate.name = data.name;
-      if (data.phone) techUpdate.phone = data.phone;
-      if (data.avatarUrl !== undefined) {
-        techUpdate.avatarUrl = data.avatarUrl;
-        techUpdate.photoURL = data.avatarUrl;
-      }
-      if (data.photoURL !== undefined) {
-        techUpdate.photoURL = data.photoURL;
-        techUpdate.avatarUrl = data.photoURL;
-      }
-      if (data.idade !== undefined) techUpdate.idade = data.idade;
-      if (effectiveExp !== undefined) techUpdate.experienceYears = effectiveExp;
-      if (data.province) techUpdate.province = data.province;
-      if (data.city) techUpdate.city = data.city;
-      if (data.specialties) techUpdate.specialties = data.specialties;
-      if (data.bio) techUpdate.bio = data.bio;
-      if (data.whatsapp) techUpdate.whatsapp = data.whatsapp;
-      if (Object.keys(techUpdate).length > 0) {
-        updateCurrentTechProfile(techUpdate);
-      }
-    }
-
     if (isFirebaseConfigured && db) {
-      try {
-        const payload: Record<string, any> = {
-          ...data,
-          nome: data.name || currentUser.name,
-          updatedAt: nowIso
-        };
-        if (effectiveExp !== undefined) {
-          payload.experienceYears = effectiveExp;
-          payload.anosExperiencia = effectiveExp;
-        }
-
-        await setDoc(doc(db, 'users', currentUser.uid), payload, { merge: true });
-        await setDoc(doc(db, 'usuarios', currentUser.uid), payload, { merge: true });
-
-        if (isTech) {
-          const techDocPayload: Record<string, any> = { updatedAt: nowIso };
-          if (data.name) techDocPayload.name = data.name;
-          if (data.phone) techDocPayload.phone = data.phone;
-          if (data.avatarUrl !== undefined) {
-            techDocPayload.avatarUrl = data.avatarUrl;
-            techDocPayload.photoURL = data.avatarUrl;
-          }
-          if (data.photoURL !== undefined) {
-            techDocPayload.photoURL = data.photoURL;
-            techDocPayload.avatarUrl = data.photoURL;
-          }
-          if (data.idade !== undefined) techDocPayload.idade = data.idade;
-          if (data.province) techDocPayload.province = data.province;
-          if (data.city) techDocPayload.city = data.city;
-          if (data.specialties) techDocPayload.specialties = data.specialties;
-          if (data.bio) techDocPayload.bio = data.bio;
-          if (data.whatsapp) techDocPayload.whatsapp = data.whatsapp;
-          if (effectiveExp !== undefined) {
-            techDocPayload.experienceYears = effectiveExp;
-            techDocPayload.anosExperiencia = effectiveExp;
-          }
-          await setDoc(doc(db, 'technicians', currentUser.uid), techDocPayload, { merge: true });
-        }
-      } catch (err) {
-        console.warn('Firestore user update error:', err);
-      }
+      await setDoc(doc(db, 'users', currentUser.uid), { ...data, updatedAt: nowIso }, { merge: true }).catch(() => {});
+      await setDoc(doc(db, 'usuarios', currentUser.uid), { ...data, updatedAt: nowIso }, { merge: true }).catch(() => {});
     }
   };
 
   const updateCurrentTechProfile = async (data: Partial<TechnicianProfile>) => {
-    if (!currentUser || (currentUser.role !== 'technician' && currentUser.tipoConta !== 'tecnico')) return;
+    if (!currentUser) return;
     const nowIso = new Date().toISOString();
-    const existing = currentTechProfile || ({} as TechnicianProfile);
-
-    const effectiveExp = (data as any).experienceYears !== undefined
-      ? (data as any).experienceYears
-      : ((data as any).anosExperiencia !== undefined ? (data as any).anosExperiencia : existing.experienceYears);
-
     const updated: TechnicianProfile = {
-      ...existing,
+      ...(currentTechProfile || ({} as TechnicianProfile)),
       ...data,
-      experienceYears: effectiveExp,
       userId: currentUser.uid,
       updatedAt: nowIso
     };
     setCurrentTechProfile(updated);
-    setTechList(prev => {
-      const exists = prev.some(t => t.userId === currentUser.uid);
-      if (exists) {
-        return prev.map(t => (t.userId === currentUser.uid ? updated : t));
-      }
-      return [...prev, updated];
-    });
-
     if (isFirebaseConfigured && db) {
-      try {
-        const techPayload: Record<string, any> = {
-          ...data,
-          experienceYears: effectiveExp,
-          anosExperiencia: effectiveExp,
-          userId: currentUser.uid,
-          updatedAt: nowIso
-        };
-        await setDoc(doc(db, 'technicians', currentUser.uid), techPayload, { merge: true });
-
-        const userPayload: Record<string, any> = { updatedAt: nowIso };
-        if (data.name) {
-          userPayload.name = data.name;
-          userPayload.nome = data.name;
-        }
-        if (data.phone) userPayload.phone = data.phone;
-        if (data.avatarUrl !== undefined) {
-          userPayload.avatarUrl = data.avatarUrl;
-          userPayload.photoURL = data.avatarUrl;
-        }
-        if (data.photoURL !== undefined) {
-          userPayload.photoURL = data.photoURL;
-          userPayload.avatarUrl = data.photoURL;
-        }
-        if (data.idade !== undefined) userPayload.idade = data.idade;
-        if (data.province) userPayload.province = data.province;
-        if (data.city) userPayload.city = data.city;
-        if (data.bio) userPayload.bio = data.bio;
-        if (data.specialties) {
-          userPayload.specialties = data.specialties;
-          userPayload.especialidade = data.specialties[0];
-        }
-        if (data.whatsapp) userPayload.whatsapp = data.whatsapp;
-        if (effectiveExp !== undefined) {
-          userPayload.experienceYears = effectiveExp;
-          userPayload.anosExperiencia = effectiveExp;
-        }
-
-        await setDoc(doc(db, 'users', currentUser.uid), userPayload, { merge: true });
-        await setDoc(doc(db, 'usuarios', currentUser.uid), userPayload, { merge: true });
-      } catch (err) {
-        console.warn('Firestore tech update error:', err);
-      }
+      await setDoc(doc(db, 'technicians', currentUser.uid), updated, { merge: true }).catch(() => {});
     }
   };
 
   const updateCurrentCompanyProfile = async (data: Partial<CompanyProfile>) => {
-    if (!currentUser || (currentUser.role !== 'company' && currentUser.tipoConta !== 'empresa')) return;
-    const existing = currentCompanyProfile || ({} as CompanyProfile);
+    if (!currentUser) return;
     const updated: CompanyProfile = {
-      ...existing,
+      ...(currentCompanyProfile || ({} as CompanyProfile)),
       ...data,
       userId: currentUser.uid,
       updatedAt: new Date().toISOString()
     };
     setCurrentCompanyProfile(updated);
-    setCompanyList(prev => {
-      const exists = prev.some(c => c.userId === currentUser.uid);
-      if (exists) {
-        return prev.map(c => (c.userId === currentUser.uid ? updated : c));
-      }
-      return [...prev, updated];
-    });
-
     if (isFirebaseConfigured && db) {
-      try {
-        await setDoc(doc(db, 'companies', currentUser.uid), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
-      } catch (err) {
-        console.warn('Firestore company update error:', err);
-      }
+      await setDoc(doc(db, 'companies', currentUser.uid), updated, { merge: true }).catch(() => {});
     }
   };
 
@@ -2180,7 +1323,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const targetTech = techList.find(t => t.userId === techUserId);
-    const techLikedUsers = Array.isArray(targetTech?.likedByUsers) ? targetTech.likedByUsers : [];
+    const techLikedUsers = Array.isArray((targetTech as any)?.likedByUsers) ? (targetTech as any).likedByUsers : [];
 
     const alreadyLiked = techLikedUsers.includes(currentVoterId) || likedList.includes(techUserId);
     const willLike = !alreadyLiked;
@@ -2217,12 +1360,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTechList(prev =>
       prev.map(t => {
         if (t.userId !== techUserId) return t;
-        const currentVoters = Array.isArray(t.likedByUsers) ? t.likedByUsers : [];
+        const currentVoters = Array.isArray((t as any).likedByUsers) ? (t as any).likedByUsers : [];
         const updatedVoters = willLike
           ? currentVoters.includes(currentVoterId)
             ? currentVoters
             : [...currentVoters, currentVoterId]
-          : currentVoters.filter(id => id !== currentVoterId);
+          : currentVoters.filter((id: string) => id !== currentVoterId);
         return {
           ...t,
           totalLikes: newLikes,
@@ -2230,7 +1373,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           pontos: newScore,
           points: newScore,
           likedByUsers: updatedVoters
-        };
+        } as any;
       })
     );
 
@@ -2279,7 +1422,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             totalLikes: newLikes,
             scoreEngajamento: newScore,
             updatedAt: new Date().toISOString()
-          }).catch(() => {});
+          } as any).catch(() => {});
         } else {
           await deleteDoc(likeDocRef).catch(() => {});
 
@@ -2288,7 +1431,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             totalLikes: newLikes,
             scoreEngajamento: newScore,
             updatedAt: new Date().toISOString()
-          }).catch(() => {});
+          } as any).catch(() => {});
         }
 
         await recalculateUserStarsAndRanking(techUserId);
@@ -2300,71 +1443,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, hasLiked: willLike, totalLikes: newLikes };
   };
 
-  const giveTechnicianLike = async (
-    techUserId: string
-  ): Promise<{ success: boolean; totalLikes: number; hasLiked?: boolean; error?: string }> => {
-    return toggleTechnicianLike(techUserId);
-  };
+  const giveTechnicianLike = async (techUserId: string) => toggleTechnicianLike(techUserId);
 
   const switchUserRole = async (newRole: UserRole) => {
     if (!currentUser) return;
-    const updatedUser = { ...currentUser, role: newRole, updatedAt: new Date().toISOString() };
-    setCurrentUser(updatedUser);
-    setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updatedUser : u)));
-
+    const updated = { ...currentUser, role: newRole, updatedAt: new Date().toISOString() };
+    setCurrentUser(updated);
     if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'users', currentUser.uid), { role: newRole, updatedAt: new Date().toISOString() });
-      } catch (err) {
-        console.warn('Firestore role update error:', err);
-      }
-    }
-
-    if (newRole === 'technician' && !currentTechProfile) {
-      const cleanPhone = (currentUser.phone || '').replace(/\D/g, '');
-      const cleanWhatsapp = cleanPhone ? (cleanPhone.startsWith('258') ? cleanPhone : `258${cleanPhone}`) : '';
-      const newTech: TechnicianProfile = {
-        userId: currentUser.uid,
-        name: currentUser.name,
-        email: currentUser.email,
-        phone: currentUser.phone || '',
-        whatsapp: cleanWhatsapp,
-        showWhatsappButton: true,
-        customWhatsappMessage: `Olá ${currentUser.name}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
-        province: 'Maputo Cidade',
-        city: 'Maputo',
-        specialties: ['Eletricidade Geral'],
-        bio: `Técnico credenciado na plataforma TécnicaMZ.`,
-        experienceYears: (currentUser as any).experienceYears || 2,
-        verificationStatus: 'none',
-        subscriptionStatus: 'none',
-        rating: 5.0,
-        reviewsCount: 0,
-        completedJobsCount: 0,
-        availability: 'available',
-        status: 'active',
-        createdAt: new Date().toISOString()
-      };
-      setCurrentTechProfile(newTech);
-      setTechList(prev => [...prev.filter(t => t.userId !== currentUser.uid), newTech]);
-      if (isFirebaseConfigured && db) {
-        try {
-          await setDoc(doc(db, 'technicians', currentUser.uid), newTech);
-        } catch (e) {
-          console.warn('Firestore set tech doc error:', e);
-        }
-      }
+      await updateDoc(doc(db, 'users', currentUser.uid), { role: newRole, updatedAt: new Date().toISOString() }).catch(() => {});
     }
   };
 
   const updateUserStatus = async (userId: string, status: UserStatus) => {
     setUsersList(prev => prev.map(u => (u.uid === userId ? { ...u, status } : u)));
     if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'users', userId), { status, updatedAt: new Date().toISOString() });
-      } catch (err) {
-        console.warn('Firestore update user status error:', err);
-      }
+      await updateDoc(doc(db, 'users', userId), { status, updatedAt: new Date().toISOString() }).catch(() => {});
     }
   };
 
@@ -2399,38 +1492,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'users', userId), {
-          statusAprovacao: 'aprovado',
-          status: 'active',
-          statusConta: 'ativa',
-          updatedAt: nowIso
-        });
-      } catch (err) {
-        console.warn('Firestore approve user error:', err);
-      }
-
-      try {
-        await updateDoc(doc(db, 'technicians', userId), {
-          statusAprovacao: 'aprovado',
-          status: 'active',
-          statusConta: 'ativa',
-          updatedAt: nowIso
-        });
-      } catch (err) {}
-
-      try {
-        await updateDoc(doc(db, 'companies', userId), {
-          statusAprovacao: 'aprovado',
-          status: 'active',
-          statusConta: 'ativa',
-          updatedAt: nowIso
-        });
-      } catch (err) {}
+      const updatePayload = {
+        statusAprovacao: 'aprovado',
+        status: 'active',
+        statusConta: 'ativa',
+        updatedAt: nowIso
+      };
+      await updateDoc(doc(db, 'users', userId), updatePayload).catch(() => {});
+      await updateDoc(doc(db, 'usuarios', userId), updatePayload).catch(() => {});
+      await updateDoc(doc(db, 'technicians', userId), updatePayload).catch(() => {});
+      await updateDoc(doc(db, 'companies', userId), updatePayload).catch(() => {});
     }
   };
 
-  const rejectUserAccount = async (userId: string, reason = 'Cadastro não atende aos requisitos mínimos.') => {
+  const rejectUserAccount = async (userId: string, reason = '') => {
     const nowIso = new Date().toISOString();
     setUsersList(prev =>
       prev.map(u =>
@@ -2447,128 +1522,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'users', userId), {
-          statusAprovacao: 'rejeitado',
-          status: 'suspended',
-          suspensionReason: reason,
-          rejectionReason: reason,
-          updatedAt: nowIso
-        });
-      } catch (err) {
-        console.warn('Firestore reject user error:', err);
-      }
+      const updatePayload = {
+        statusAprovacao: 'rejeitado',
+        status: 'suspended',
+        suspensionReason: reason,
+        rejectionReason: reason,
+        updatedAt: nowIso
+      };
+      await updateDoc(doc(db, 'users', userId), updatePayload).catch(() => {});
+      await updateDoc(doc(db, 'usuarios', userId), updatePayload).catch(() => {});
     }
   };
 
   const toggleUserVerification = async (userId: string) => {
-    const target = usersList.find(u => u.uid === userId);
-    if (!target) return;
-    const now = new Date();
-    const nowIso = now.toISOString();
-    const newVerified = !target.isVerified;
-    const verifiedUntilIso = newVerified ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined;
-
-    setUsersList(prev =>
-      prev.map(u => (u.uid === userId ? {
-        ...u,
-        isVerified: newVerified,
-        temSeloMZ: newVerified,
-        statusSelo: newVerified ? 'aprovado' : 'nenhum',
-        verifiedAt: newVerified ? nowIso : undefined,
-        verifiedUntil: verifiedUntilIso,
-        dataSeloAprovacao: newVerified ? nowIso : undefined,
-        updatedAt: nowIso
-      } : u))
-    );
-    setTechList(prev =>
-      prev.map(t =>
-        t.userId === userId
-          ? {
-              ...t,
-              isVerified: newVerified,
-              temSeloMZ: newVerified,
-              statusSelo: newVerified ? 'aprovado' : 'nenhum',
-              verifiedAt: newVerified ? nowIso : undefined,
-              verifiedUntil: verifiedUntilIso,
-              verificationStatus: newVerified ? 'approved' : 'none',
-              updatedAt: nowIso
-            }
-          : t
-      )
-    );
-    setCompanyList(prev =>
-      prev.map(c =>
-        c.userId === userId
-          ? {
-              ...c,
-              isVerified: newVerified,
-              temSeloMZ: newVerified,
-              statusSelo: newVerified ? 'aprovado' : 'nenhum',
-              verifiedAt: newVerified ? nowIso : undefined,
-              verifiedUntil: verifiedUntilIso,
-              verificationStatus: newVerified ? 'verified' : 'unverified',
-              updatedAt: nowIso
-            }
-          : c
-      )
-    );
-
-    if (currentUser?.uid === userId) {
-      setCurrentUser(prev => (prev ? {
-        ...prev,
-        isVerified: newVerified,
-        temSeloMZ: newVerified,
-        statusSelo: newVerified ? 'aprovado' : 'nenhum',
-        verifiedAt: newVerified ? nowIso : undefined,
-        verifiedUntil: verifiedUntilIso,
-        dataSeloAprovacao: newVerified ? nowIso : undefined,
-        updatedAt: nowIso
-      } : null));
-    }
-
-    if (isFirebaseConfigured && db) {
-      try {
-        const updatePayload: any = {
-          isVerified: newVerified,
-          temSeloMZ: newVerified,
-          statusSelo: newVerified ? 'aprovado' : 'nenhum',
-          updatedAt: nowIso
-        };
-        if (newVerified) {
-          updatePayload.verifiedAt = nowIso;
-          updatePayload.verifiedUntil = verifiedUntilIso;
-          updatePayload.dataSeloAprovacao = nowIso;
-        } else {
-          updatePayload.verifiedUntil = null;
-        }
-        await updateDoc(doc(db, 'users', userId), updatePayload);
-      } catch (err) {
-        console.warn('Firestore toggle user verified error:', err);
-      }
-      try {
-        await updateDoc(doc(db, 'technicians', userId), {
-          isVerified: newVerified,
-          temSeloMZ: newVerified,
-          statusSelo: newVerified ? 'aprovado' : 'nenhum',
-          verificationStatus: newVerified ? 'approved' : 'none',
-          verifiedAt: newVerified ? nowIso : null,
-          verifiedUntil: verifiedUntilIso || null,
-          updatedAt: nowIso
-        });
-      } catch {}
-      try {
-        await updateDoc(doc(db, 'companies', userId), {
-          isVerified: newVerified,
-          temSeloMZ: newVerified,
-          statusSelo: newVerified ? 'aprovado' : 'nenhum',
-          verificationStatus: newVerified ? 'verified' : 'unverified',
-          verifiedAt: newVerified ? nowIso : null,
-          verifiedUntil: verifiedUntilIso || null,
-          updatedAt: nowIso
-        });
-      } catch {}
-    }
+    await grantSelo30Days(userId);
   };
 
   const grantTrial3Days = async (userId: string): Promise<{ success: boolean; error?: string }> => {
@@ -2576,48 +1543,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsersList(prev =>
       prev.map(u => (u.uid === userId ? { ...u, isTrialActive: true, createdAt: nowIso, updatedAt: nowIso } : u))
     );
-    setTechList(prev =>
-      prev.map(t => (t.userId === userId ? { ...t, isTrialActive: true, createdAt: nowIso, updatedAt: nowIso } : t))
-    );
-    setCompanyList(prev =>
-      prev.map(c => (c.userId === userId ? { ...c, isTrialActive: true, createdAt: nowIso, updatedAt: nowIso } : c))
-    );
     if (currentUser?.uid === userId) {
       setCurrentUser(prev => (prev ? { ...prev, isTrialActive: true, createdAt: nowIso, updatedAt: nowIso } : null));
     }
     if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'users', userId), {
-          isTrialActive: true,
-          createdAt: serverTimestamp(),
-          criadoEm: serverTimestamp(),
-          dataCadastro: serverTimestamp(),
-          createdAtIso: nowIso,
-          updatedAt: nowIso
-        });
-        await updateDoc(doc(db, 'technicians', userId), {
-          isTrialActive: true,
-          createdAt: serverTimestamp(),
-          createdAtIso: nowIso,
-          updatedAt: nowIso
-        }).catch(() => {});
-        await updateDoc(doc(db, 'companies', userId), {
-          isTrialActive: true,
-          createdAt: serverTimestamp(),
-          createdAtIso: nowIso,
-          updatedAt: nowIso
-        }).catch(() => {});
-        await updateDoc(doc(db, 'usuarios', userId), {
-          isTrialActive: true,
-          createdAt: serverTimestamp(),
-          criadoEm: serverTimestamp(),
-          dataCadastro: serverTimestamp(),
-          createdAtIso: nowIso,
-          updatedAt: nowIso
-        }).catch(() => {});
-      } catch (err) {
-        console.warn('grantTrial3Days error:', err);
-      }
+      await updateDoc(doc(db, 'users', userId), { isTrialActive: true, updatedAt: nowIso }).catch(() => {});
+      await updateDoc(doc(db, 'usuarios', userId), { isTrialActive: true, updatedAt: nowIso }).catch(() => {});
+      await updateDoc(doc(db, 'technicians', userId), { isTrialActive: true, updatedAt: nowIso }).catch(() => {});
     }
     return { success: true };
   };
@@ -2627,127 +1559,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsersList(prev =>
       prev.map(u => (u.uid === userId ? { ...u, isTrialActive: false, updatedAt: nowIso } : u))
     );
-    setTechList(prev =>
-      prev.map(t => (t.userId === userId ? { ...t, isTrialActive: false, updatedAt: nowIso } : t))
-    );
-    setCompanyList(prev =>
-      prev.map(c => (c.userId === userId ? { ...c, isTrialActive: false, updatedAt: nowIso } : c))
-    );
     if (currentUser?.uid === userId) {
       setCurrentUser(prev => (prev ? { ...prev, isTrialActive: false, updatedAt: nowIso } : null));
     }
     if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'users', userId), { isTrialActive: false, updatedAt: nowIso });
-        await updateDoc(doc(db, 'technicians', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
-        await updateDoc(doc(db, 'companies', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
-        await updateDoc(doc(db, 'usuarios', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
-      } catch (err) {
-        console.warn('revokeTrial error:', err);
-      }
+      await updateDoc(doc(db, 'users', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
+      await updateDoc(doc(db, 'usuarios', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
+      await updateDoc(doc(db, 'technicians', userId), { isTrialActive: false, updatedAt: nowIso }).catch(() => {});
     }
     return { success: true };
   };
 
+  // ATIVAÇÃO ROBUSTA DO SELO MZ POR 30 DIAS
   const grantSelo30Days = async (userId: string): Promise<{ success: boolean; error?: string }> => {
     const now = new Date();
     const nowIso = now.toISOString();
     const verifiedUntilIso = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    setUsersList(prev =>
-      prev.map(u =>
-        u.uid === userId
-          ? {
-              ...u,
-              isVerified: true,
-              temSeloMZ: true,
-              statusSelo: 'aprovado',
-              verifiedAt: nowIso,
-              verifiedUntil: verifiedUntilIso,
-              dataSeloAprovacao: nowIso,
-              updatedAt: nowIso
-            }
-          : u
-      )
-    );
-    setTechList(prev =>
-      prev.map(t =>
-        t.userId === userId
-          ? {
-              ...t,
-              isVerified: true,
-              temSeloMZ: true,
-              statusSelo: 'aprovado',
-              verifiedAt: nowIso,
-              verifiedUntil: verifiedUntilIso,
-              verificationStatus: 'approved',
-              updatedAt: nowIso
-            }
-          : t
-      )
-    );
-    setCompanyList(prev =>
-      prev.map(c =>
-        c.userId === userId
-          ? {
-              ...c,
-              isVerified: true,
-              temSeloMZ: true,
-              statusSelo: 'aprovado',
-              verifiedAt: nowIso,
-              verifiedUntil: verifiedUntilIso,
-              verificationStatus: 'verified',
-              updatedAt: nowIso
-            }
-          : c
-      )
-    );
+    const approvalData = {
+      isVerified: true,
+      temSeloMZ: true,
+      statusSelo: 'aprovado' as const,
+      statusAprovacao: 'aprovado',
+      statusConta: 'ativa' as const,
+      status: 'active' as UserStatus,
+      statusAssinatura: 'ativa',
+      subscriptionStatus: 'active' as const,
+      verifiedAt: nowIso,
+      verifiedUntil: verifiedUntilIso,
+      dataSeloAprovacao: nowIso,
+      subscriptionExpiresAt: verifiedUntilIso,
+      dataExpiracao: verifiedUntilIso,
+      activePlanId: 'pro',
+      plano: 'pro',
+      updatedAt: nowIso
+    };
+
+    setUsersList(prev => prev.map(u => (u.uid === userId ? { ...u, ...approvalData } : u)));
+    setTechList(prev => prev.map(t => (t.userId === userId ? { ...t, ...approvalData, verificationStatus: 'approved' } : t)));
+    setCompanyList(prev => prev.map(c => (c.userId === userId ? { ...c, ...approvalData, verificationStatus: 'verified' } : c)));
 
     if (currentUser?.uid === userId) {
-      setCurrentUser(prev =>
-        prev
-          ? {
-              ...prev,
-              isVerified: true,
-              temSeloMZ: true,
-              statusSelo: 'aprovado',
-              verifiedAt: nowIso,
-              verifiedUntil: verifiedUntilIso,
-              dataSeloAprovacao: nowIso,
-              updatedAt: nowIso
-            }
-          : null
-      );
+      setCurrentUser(prev => (prev ? { ...prev, ...approvalData } : null));
     }
 
     if (isFirebaseConfigured && db) {
       try {
-        await updateDoc(doc(db, 'users', userId), {
-          isVerified: true,
-          temSeloMZ: true,
-          statusSelo: 'aprovado',
-          verifiedAt: nowIso,
-          verifiedUntil: verifiedUntilIso,
-          dataSeloAprovacao: nowIso,
-          updatedAt: nowIso
-        });
+        await updateDoc(doc(db, 'users', userId), approvalData).catch(() => {});
+        await updateDoc(doc(db, 'usuarios', userId), approvalData).catch(() => {});
         await updateDoc(doc(db, 'technicians', userId), {
-          isVerified: true,
-          temSeloMZ: true,
-          statusSelo: 'aprovado',
-          verifiedAt: nowIso,
-          verifiedUntil: verifiedUntilIso,
-          verificationStatus: 'approved',
-          updatedAt: nowIso
+          ...approvalData,
+          verificationStatus: 'approved'
         }).catch(() => {});
         await updateDoc(doc(db, 'companies', userId), {
-          isVerified: true,
-          temSeloMZ: true,
-          statusSelo: 'aprovado',
-          verifiedAt: nowIso,
-          verifiedUntil: verifiedUntilIso,
-          verificationStatus: 'verified',
-          updatedAt: nowIso
+          ...approvalData,
+          verificationStatus: 'verified'
         }).catch(() => {});
       } catch (err) {
         console.warn('grantSelo30Days error:', err);
@@ -2757,61 +1623,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const grantManualSubscription30Days = async (userId: string) => {
-    const target = usersList.find(u => u.uid === userId);
-    if (!target) return;
-
-    const now = Date.now();
-    const currentExp = target.dataExpiracao || target.subscriptionExpiresAt;
-    const currentExpTime = currentExp ? new Date(currentExp).getTime() : 0;
-    const baseTime = currentExpTime > now ? currentExpTime : now;
-    const newExpDate = new Date(baseTime + 30 * 24 * 60 * 60 * 1000);
-    const dataExpiracao = newExpDate.toISOString();
-    const nowIso = new Date().toISOString();
-
-    const updatedUser: User = {
-      ...target,
-      statusAssinatura: 'ativa',
-      subscriptionStatus: 'active',
-      planoAtivo: '50mt',
-      planoAssinatura: 'plano_tecnico_pro',
-      activePlanId: 'plano_tecnico_pro',
-      dataExpiracao: dataExpiracao,
-      subscriptionExpiresAt: dataExpiracao,
-      updatedAt: nowIso
-    };
-
-    setUsersList(prev => prev.map(u => (u.uid === userId ? updatedUser : u)));
-    if (currentUser?.uid === userId) {
-      setCurrentUser(updatedUser);
-    }
-
-    if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'users', userId), {
-          statusAssinatura: 'ativa',
-          subscriptionStatus: 'active',
-          planoAtivo: '50mt',
-          planoAssinatura: 'plano_tecnico_pro',
-          activePlanId: 'plano_tecnico_pro',
-          dataExpiracao: dataExpiracao,
-          subscriptionExpiresAt: dataExpiracao,
-          updatedAt: nowIso
-        });
-      } catch (err) {
-        console.warn('Firestore grant manual subscription error:', err);
-      }
-
-      if (target.role === 'technician') {
-        try {
-          await updateDoc(doc(db, 'technicians', userId), {
-            subscriptionStatus: 'active',
-            activePlanId: 'plano_tecnico_pro',
-            subscriptionExpiresAt: dataExpiracao,
-            updatedAt: nowIso
-          });
-        } catch {}
-      }
-    }
+    await grantSelo30Days(userId);
   };
 
   const deleteUserAccount = async (userId: string) => {
@@ -2821,33 +1633,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (currentUser?.uid === userId) {
       setCurrentUser(null);
     }
-    if (currentTechProfile?.userId === userId) {
-      setCurrentTechProfile(null);
-    }
-    if (currentCompanyProfile?.userId === userId) {
-      setCurrentCompanyProfile(null);
-    }
     if (isFirebaseConfigured && db) {
-      try {
-        await deleteDoc(doc(db, 'users', userId));
-        await deleteDoc(doc(db, 'technicians', userId)).catch(() => {});
-        await deleteDoc(doc(db, 'companies', userId)).catch(() => {});
-        await deleteDoc(doc(db, 'usuarios', userId)).catch(() => {});
-      } catch (err) {
-        console.warn('Firestore delete user error:', err);
-      }
+      await deleteDoc(doc(db, 'users', userId)).catch(() => {});
+      await deleteDoc(doc(db, 'usuarios', userId)).catch(() => {});
+      await deleteDoc(doc(db, 'technicians', userId)).catch(() => {});
+      await deleteDoc(doc(db, 'companies', userId)).catch(() => {});
     }
   };
 
-  const isCompany = currentUser?.tipoConta === 'empresa' || currentUser?.role === 'company' || (currentUser?.role as any) === 'empresa';
-  const isTechnician = !isCompany && (currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician' || (currentUser?.role as any) === 'tecnico');
-  const isClient = !isCompany && !isTechnician && (currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client' || (currentUser?.role as any) === 'cliente');
+  const isCompany = currentUser?.tipoConta === 'empresa' || currentUser?.role === 'company';
+  const isTechnician = !isCompany && (currentUser?.tipoConta === 'tecnico' || currentUser?.role === 'technician');
+  const isClient = !isCompany && !isTechnician && (currentUser?.tipoConta === 'cliente' || currentUser?.role === 'client');
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.adminSubRole === 'super_admin';
   const isFinanceAdmin = isSuperAdmin || currentUser?.adminSubRole === 'finance_admin';
   const isModerator = isSuperAdmin || currentUser?.adminSubRole === 'moderator';
 
-  // 1. Verificação Rigorosa de Expiração do Selo MZ
+  // 1. Verificação Rigorosa e Segura de Expiração do Selo MZ
   const isSeloExpired = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
     if (
@@ -2859,28 +1661,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
 
-    if (currentUser.statusSelo === 'expirado') return true;
-    if (currentUser.statusAssinatura === 'expirada' || currentUser.subscriptionStatus === 'expired') return true;
-    if (currentUser.statusConta === 'inativa' || currentUser.statusConta === 'expirada' || (currentUser as any).statusConta === 'nao_ativa') return true;
-
-    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
-    if (!hasSeloFlag) return false;
-
-    let targetUntilMs: number | null = null;
-    if (currentUser.verifiedUntil) {
-      const ms = new Date(currentUser.verifiedUntil).getTime();
-      if (!isNaN(ms)) targetUntilMs = ms;
-    } else if (currentUser.dataSeloAprovacao || currentUser.verifiedAt) {
-      const atMs = new Date(currentUser.dataSeloAprovacao || currentUser.verifiedAt!).getTime();
-      if (!isNaN(atMs)) {
-        targetUntilMs = atMs + 30 * 24 * 60 * 60 * 1000;
-      }
-    } else if (currentUser.subscriptionExpiresAt || currentUser.dataExpiracao) {
-      const expMs = new Date(currentUser.subscriptionExpiresAt || currentUser.dataExpiracao!).getTime();
-      if (!isNaN(expMs)) targetUntilMs = expMs;
+    // Se o selo está ativamente aprovado, só expira se a data for REALMENTE no passado
+    const hasSeloApproved = Boolean(currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado' || currentUser.isVerified);
+    if (!hasSeloApproved) {
+      if (currentUser.statusSelo === 'expirado') return true;
+      return false;
     }
 
-    if (targetUntilMs !== null) {
+    let targetUntilMs: number | null = null;
+    const rawUntil = currentUser.verifiedUntil || currentUser.subscriptionExpiresAt || currentUser.dataExpiracao;
+    if (rawUntil) {
+      const ms = parseDateToMillis(rawUntil);
+      if (ms && ms > 0) targetUntilMs = ms;
+    }
+
+    if (!targetUntilMs) {
+      const rawAt = currentUser.dataSeloAprovacao || currentUser.verifiedAt;
+      if (rawAt) {
+        const atMs = parseDateToMillis(rawAt);
+        if (atMs && atMs > 0) {
+          targetUntilMs = atMs + 30 * 24 * 60 * 60 * 1000;
+        }
+      }
+    }
+
+    // Se possui selo aprovado e a data é futura, NÃO está expirado
+    if (targetUntilMs !== null && targetUntilMs > 0) {
       return Date.now() >= targetUntilMs;
     }
 
@@ -2900,33 +1706,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (isSeloExpired) return false;
-
-    const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
-    if (!hasSeloFlag) return false;
-
-    if (currentUser.statusSelo === 'expirado') return false;
-    if (currentUser.statusConta === 'inativa' || currentUser.statusConta === 'expirada' || (currentUser as any).statusConta === 'nao_ativa') return false;
-    if (currentUser.statusAssinatura === 'expirada' || currentUser.subscriptionStatus === 'expired') return false;
-
-    let targetUntilMs: number | null = null;
-    if (currentUser.verifiedUntil) {
-      const ms = new Date(currentUser.verifiedUntil).getTime();
-      if (!isNaN(ms)) targetUntilMs = ms;
-    } else if (currentUser.dataSeloAprovacao || currentUser.verifiedAt) {
-      const atMs = new Date(currentUser.dataSeloAprovacao || currentUser.verifiedAt!).getTime();
-      if (!isNaN(atMs)) {
-        targetUntilMs = atMs + 30 * 24 * 60 * 60 * 1000;
-      }
-    } else if (currentUser.subscriptionExpiresAt || currentUser.dataExpiracao) {
-      const expMs = new Date(currentUser.subscriptionExpiresAt || currentUser.dataExpiracao!).getTime();
-      if (!isNaN(expMs)) targetUntilMs = expMs;
-    }
-
-    if (targetUntilMs !== null && Date.now() >= targetUntilMs) {
-      return false;
-    }
-
-    return true;
+    return Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
   }, [currentUser, isSeloExpired]);
 
   const seloDaysRemaining = React.useMemo<number>(() => {
@@ -2942,20 +1722,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isSeloExpired) return 0;
     const hasSeloFlag = Boolean(currentUser.isVerified || currentUser.temSeloMZ || currentUser.statusSelo === 'aprovado');
-    if (!hasSeloFlag || currentUser.statusSelo === 'expirado') return 0;
+    if (!hasSeloFlag) return 0;
 
     let targetUntilMs: number | null = null;
-    if (currentUser.verifiedUntil) {
-      const ms = new Date(currentUser.verifiedUntil).getTime();
-      if (!isNaN(ms)) targetUntilMs = ms;
-    } else if (currentUser.dataSeloAprovacao || currentUser.verifiedAt) {
-      const atMs = new Date(currentUser.dataSeloAprovacao || currentUser.verifiedAt!).getTime();
-      if (!isNaN(atMs)) {
-        targetUntilMs = atMs + 30 * 24 * 60 * 60 * 1000;
+    const rawUntil = currentUser.verifiedUntil || currentUser.subscriptionExpiresAt || currentUser.dataExpiracao;
+    if (rawUntil) {
+      const ms = parseDateToMillis(rawUntil);
+      if (ms && ms > 0) targetUntilMs = ms;
+    }
+
+    if (!targetUntilMs) {
+      const rawAt = currentUser.dataSeloAprovacao || currentUser.verifiedAt;
+      if (rawAt) {
+        const atMs = parseDateToMillis(rawAt);
+        if (atMs && atMs > 0) {
+          targetUntilMs = atMs + 30 * 24 * 60 * 60 * 1000;
+        }
       }
-    } else if (currentUser.subscriptionExpiresAt || currentUser.dataExpiracao) {
-      const expMs = new Date(currentUser.subscriptionExpiresAt || currentUser.dataExpiracao!).getTime();
-      if (!isNaN(expMs)) targetUntilMs = expMs;
     }
 
     if (!targetUntilMs) return 30;
@@ -3027,16 +1810,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (
       currentUser.role === 'super_admin' ||
       currentUser.role === 'admin' ||
-      currentUser.adminSubRole === 'super_admin'
+      currentUser.adminSubRole === 'super_admin' ||
+      (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com')
     ) {
       return true;
-    }
-    if (currentUser.email && currentUser.email.toLowerCase() === 'andrezefaniasjuniorr@gmail.com') {
-      return true;
-    }
-
-    if (isSeloExpired) {
-      return false;
     }
 
     if (isSeloValid) {
@@ -3047,18 +1824,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
-    const status = (currentUser.statusAssinatura || currentUser.subscriptionStatus || '').toLowerCase();
-    if (status === 'ativa' || status === 'active') {
-      const expStr = currentUser.dataExpiracao || currentUser.subscriptionExpiresAt;
-      if (!expStr) return false;
-      const expTime = new Date(expStr).getTime();
-      if (!isNaN(expTime) && expTime > Date.now()) {
-        return true;
-      }
-    }
-
     return false;
-  }, [currentUser, isSeloExpired, isSeloValid, isTrialValid]);
+  }, [currentUser, isSeloValid, isTrialValid]);
 
   // 5. Estado Ativo da Conta e Rótulo
   const isAccountActive = React.useMemo<boolean>(() => {
@@ -3073,13 +1840,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (currentUser.role === 'client' || currentUser.tipoConta === 'cliente') {
       return currentUser.status !== 'blocked' && currentUser.statusConta !== 'bloqueada';
     }
-    if (isSeloExpired) return false;
     return isSeloValid || isSubscriptionActive || isTrialValid;
-  }, [currentUser, isSeloExpired, isSeloValid, isSubscriptionActive, isTrialValid]);
+  }, [currentUser, isSeloValid, isSubscriptionActive, isTrialValid]);
 
   const accountStatusLabel = React.useMemo<string>(() => {
     if (!currentUser) return '';
-    if (isSeloExpired) return 'NÃO ATIVA (Sessão Expirada)';
+    if (isSeloExpired) return 'NÃO ATIVA (Selo Expirado)';
     if (currentUser.status === 'blocked' || currentUser.statusConta === 'bloqueada') return 'Bloqueada';
     if (isAccountActive) return 'Sessão Ativa';
     return 'NÃO ATIVA';
@@ -3097,9 +1863,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) {
       return true;
     }
-    if (isSeloExpired) return false;
     return isSeloValid || isTrialValid || isSubscriptionActive;
-  }, [currentUser, isSeloExpired, isSeloValid, isTrialValid, isSubscriptionActive]);
+  }, [currentUser, isSeloValid, isTrialValid, isSubscriptionActive]);
 
   const isRestrictedTechnician = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
@@ -3162,24 +1927,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   }, [subscriptionExpirationDate]);
 
-  const roleStr = String(currentUser?.role || '');
-  const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
-
-  const isClientUserRole = Boolean(
-    roleStr === 'cliente' ||
-    roleStr === 'client' ||
-    tipoStr === 'cliente'
-  );
-  const isTechUserRole = Boolean(
-    !isClientUserRole && (
-      roleStr === 'technician' ||
-      roleStr === 'tecnico' ||
-      tipoStr === 'tecnico' ||
-      roleStr === 'admin' ||
-      roleStr === 'super_admin'
-    )
-  );
-  const canAccessSaraAi = Boolean(isSubscriptionActive) && !isClientUserRole && isTechUserRole;
+  const canAccessSaraAi = Boolean(isSubscriptionActive);
   const canAccessOSGenerator = Boolean(isSubscriptionActive);
   const canPublishMarket = Boolean(isSubscriptionActive);
   const hasTopMuralHighlight = Boolean(isSubscriptionActive);
@@ -3190,63 +1938,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     transactionCode?: string
   ): Promise<boolean> => {
     if (!currentUser) return false;
-
-    const now = new Date();
-    const expDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-    const dataExpiracao = expDate.toISOString();
-
-    const updatedUser: User = {
-      ...currentUser,
-      statusAssinatura: 'ativa',
-      subscriptionStatus: 'active',
-      planoAtivo: '50mt',
-      planoAssinatura: 'plano_tecnico_pro',
-      activePlanId: 'plano_tecnico_pro',
-      dataExpiracao: dataExpiracao,
-      subscriptionExpiresAt: dataExpiracao,
-      isVerified: true,
-      updatedAt: now.toISOString()
-    };
-
-    setCurrentUser(updatedUser);
-    setUsersList(prev => prev.map(u => (u.uid === currentUser.uid ? updatedUser : u)));
-
-    if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'users', currentUser.uid), {
-          statusAssinatura: 'ativa',
-          subscriptionStatus: 'active',
-          planoAtivo: '50mt',
-          planoAssinatura: 'plano_tecnico_pro',
-          activePlanId: 'plano_tecnico_pro',
-          dataExpiracao: dataExpiracao,
-          subscriptionExpiresAt: dataExpiracao,
-          isVerified: true,
-          updatedAt: now.toISOString()
-        });
-      } catch (err) {
-        console.warn('Firestore user subscription update error:', err);
-      }
-
-      if (currentUser.role === 'technician') {
-        try {
-          await updateDoc(doc(db, 'technicians', currentUser.uid), {
-            subscriptionStatus: 'active',
-            activePlanId: 'plano_tecnico_pro',
-            subscriptionExpiresAt: dataExpiracao,
-            verificationStatus: 'approved',
-            isVerified: true,
-            updatedAt: now.toISOString()
-          });
-        } catch (err) {
-          console.warn('Firestore tech sub update error:', err);
-        }
-      }
-    }
-
-    return true;
+    const res = await grantSelo30Days(currentUser.uid);
+    return res.success;
   };
 
+  // Bloqueio do loop destrutivo: só marca expirado no banco se a data real for de fato no passado
   React.useEffect(() => {
     if (!currentUser?.uid) return;
     if (
@@ -3257,103 +1953,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    if (
-      isSeloExpired &&
-      (currentUser.isVerified ||
-        currentUser.temSeloMZ ||
-        currentUser.statusSelo === 'aprovado' ||
-        currentUser.statusConta === 'ativa' ||
-        currentUser.statusAssinatura === 'ativa' ||
-        currentUser.subscriptionStatus === 'active')
-    ) {
+    if (isSeloExpired && currentUser.statusSelo !== 'expirado') {
       const nowIso = new Date().toISOString();
-      setCurrentUser(prev =>
-        prev
-          ? {
-              ...prev,
-              isVerified: false,
-              temSeloMZ: false,
-              statusSelo: 'expirado',
-              statusConta: 'inativa',
-              statusAssinatura: 'expirada',
-              subscriptionStatus: 'expired',
-              updatedAt: nowIso
-            }
-          : null
-      );
+      const expiredPayload = {
+        isVerified: false,
+        temSeloMZ: false,
+        statusSelo: 'expirado' as const,
+        statusConta: 'inativa' as const,
+        statusAssinatura: 'expirada',
+        subscriptionStatus: 'expired' as const,
+        updatedAt: nowIso
+      };
 
-      setUsersList(prev =>
-        prev.map(u =>
-          u.uid === currentUser.uid
-            ? {
-                ...u,
-                isVerified: false,
-                temSeloMZ: false,
-                statusSelo: 'expirado',
-                statusConta: 'inativa',
-                statusAssinatura: 'expirada',
-                subscriptionStatus: 'expired',
-                updatedAt: nowIso
-              }
-            : u
-        )
-      );
-
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('tecnico_verificado', 'false');
-        } catch {}
-      }
+      setCurrentUser(prev => (prev ? { ...prev, ...expiredPayload } : null));
 
       if (isFirebaseConfigured && db) {
-        updateDoc(doc(db, 'users', currentUser.uid), {
-          isVerified: false,
-          temSeloMZ: false,
-          statusSelo: 'expirado',
-          statusConta: 'inativa',
-          statusAssinatura: 'expirada',
-          subscriptionStatus: 'expired',
-          updatedAt: nowIso
-        }).catch(() => {});
+        updateDoc(doc(db, 'users', currentUser.uid), expiredPayload).catch(() => {});
+        updateDoc(doc(db, 'usuarios', currentUser.uid), expiredPayload).catch(() => {});
         updateDoc(doc(db, 'technicians', currentUser.uid), {
-          isVerified: false,
-          temSeloMZ: false,
-          verificationStatus: 'none',
-          statusSelo: 'expirado',
-          statusConta: 'inativa',
-          subscriptionStatus: 'expired',
-          updatedAt: nowIso
-        }).catch(() => {});
-        updateDoc(doc(db, 'companies', currentUser.uid), {
-          isVerified: false,
-          temSeloMZ: false,
-          verificationStatus: 'unverified',
-          statusSelo: 'expirado',
-          statusConta: 'inativa',
-          subscriptionStatus: 'expired',
-          updatedAt: nowIso
+          ...expiredPayload,
+          verificationStatus: 'none'
         }).catch(() => {});
       }
     }
-  }, [
-    currentUser?.uid,
-    isSeloExpired,
-    currentUser?.isVerified,
-    currentUser?.temSeloMZ,
-    currentUser?.statusSelo,
-    currentUser?.statusConta,
-    currentUser?.statusAssinatura,
-    currentUser?.subscriptionStatus
-  ]);
-
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const isVerificado = Boolean(temSeloMZ && !isSeloExpired && hasAccess);
-        localStorage.setItem('tecnico_verificado', isVerificado ? 'true' : 'false');
-      } catch {}
-    }
-  }, [temSeloMZ, isSeloExpired, hasAccess]);
+  }, [currentUser?.uid, isSeloExpired, currentUser?.statusSelo]);
 
   const solicitarSeloMZ = async (
     operadora: 'mpesa' | 'emola',
@@ -3378,7 +2001,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       usuarioEmail: currentUser.email,
       usuarioTelefone: currentUser.phone || '',
       userRole: currentUser.role,
-      tipoConta: currentUser.tipoConta || 'tecnico',
+      tipoConta: (currentUser.tipoConta as any) || 'tecnico',
       operadora,
       mensagemTransacao: trimmedMsg,
       valor: 50,
@@ -3400,23 +2023,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSolicitacoesSelo(prev => [novaSolicitacao, ...prev.filter(s => s.id !== reqId)]);
 
     if (isFirebaseConfigured && db) {
-      try {
-        await setDoc(doc(db, 'solicitacoes_selo', reqId), novaSolicitacao);
-      } catch (err) {
-        console.warn('Firestore create solicitacao_selo error:', err);
-      }
-
-      try {
-        await updateDoc(doc(db, 'users', currentUser.uid), {
-          statusSelo: 'pendente_aprovacao',
-          operadoraSelo: operadora,
-          mensagemTransacaoSelo: trimmedMsg,
-          dataSeloEnvio: nowIso,
-          updatedAt: nowIso
-        });
-      } catch (err) {
-        console.warn('Firestore update user selo error:', err);
-      }
+      await setDoc(doc(db, 'solicitacoes_selo', reqId), novaSolicitacao).catch(() => {});
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        statusSelo: 'pendente_aprovacao',
+        operadoraSelo: operadora,
+        mensagemTransacaoSelo: trimmedMsg,
+        dataSeloEnvio: nowIso,
+        updatedAt: nowIso
+      }).catch(() => {});
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), {
+        statusSelo: 'pendente_aprovacao',
+        dataSeloEnvio: nowIso,
+        updatedAt: nowIso
+      }).catch(() => {});
     }
 
     return { success: true };
@@ -3426,169 +2045,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     solicitacaoId: string,
     userId: string
   ): Promise<{ success: boolean; error?: string }> => {
-    const now = new Date();
-    const nowIso = now.toISOString();
-    const verifiedUntilIso = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    setSolicitacoesSelo(prev =>
-      prev.map(s =>
-        s.id === solicitacaoId
-          ? {
-              ...s,
-              statusSelo: 'aprovado',
-              dataResposta: nowIso,
-              aprovadoPor: currentUser?.name || 'Administrador'
-            }
-          : s
-      )
-    );
-
-    setUsersList(prev =>
-      prev.map(u =>
-        u.uid === userId
-          ? {
-              ...u,
-              temSeloMZ: true,
-              statusSelo: 'aprovado',
-              isVerified: true,
-              verifiedAt: nowIso,
-              verifiedUntil: verifiedUntilIso,
-              subscriptionExpiresAt: verifiedUntilIso,
-              dataExpiracao: verifiedUntilIso,
-              plano: 'pro',
-              activePlanId: 'pro',
-              statusAprovacao: 'aprovado',
-              statusConta: 'ativa',
-              status: 'active',
-              statusAssinatura: 'ativa',
-              subscriptionStatus: 'active',
-              dataSeloAprovacao: nowIso,
-              updatedAt: nowIso
-            }
-          : u
-      )
-    );
-
-    if (currentUser?.uid === userId) {
-      setCurrentUser(prev =>
-        prev
-          ? {
-              ...prev,
-              temSeloMZ: true,
-              statusSelo: 'aprovado',
-              isVerified: true,
-              verifiedAt: nowIso,
-              verifiedUntil: verifiedUntilIso,
-              subscriptionExpiresAt: verifiedUntilIso,
-              dataExpiracao: verifiedUntilIso,
-              plano: 'pro',
-              activePlanId: 'pro',
-              statusAprovacao: 'aprovado',
-              statusConta: 'ativa',
-              status: 'active',
-              statusAssinatura: 'ativa',
-              subscriptionStatus: 'active',
-              dataSeloAprovacao: nowIso,
-              updatedAt: nowIso
-            }
-          : null
-      );
-    }
-
-    if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'solicitacoes_selo', solicitacaoId), {
-          statusSelo: 'aprovado',
-          dataResposta: nowIso,
-          aprovadoPor: currentUser?.name || 'Administrador'
-        });
-      } catch (err) {
-        console.warn('Firestore approve solicitacao_selo error:', err);
-      }
-
-      try {
-        const userApprovedData = {
-          temSeloMZ: true,
-          statusSelo: 'aprovado',
-          isVerified: true,
-          verifiedAt: nowIso,
-          verifiedUntil: verifiedUntilIso,
-          subscriptionExpiresAt: verifiedUntilIso,
-          dataExpiracao: verifiedUntilIso,
-          plano: 'pro',
-          activePlanId: 'pro',
-          statusAprovacao: 'aprovado',
-          statusConta: 'ativa',
-          status: 'active',
-          statusAssinatura: 'ativa',
-          subscriptionStatus: 'active',
-          dataSeloAprovacao: nowIso,
-          updatedAt: nowIso
-        };
-        await updateDoc(doc(db, 'users', userId), userApprovedData);
-        await updateDoc(doc(db, 'usuarios', userId), userApprovedData).catch(() => {});
-      } catch (err) {
-        console.warn('Firestore approve user selo error:', err);
-      }
-
-      try {
-        const payId = `pay_${solicitacaoId}`;
-        const payData = {
-          id: payId,
-          userId,
-          solicitacaoId,
-          amountMZN: 50,
-          valor: 50,
-          status: 'aprovado',
-          statusAprovacao: 'aprovado',
-          statusPagamento: 'aprovado',
-          planId: 'pro',
-          planName: 'Selo MZ Pro (50 MT)',
-          createdAt: nowIso,
-          dataPagamento: nowIso,
-          reviewedAt: nowIso,
-          expiresAt: verifiedUntilIso,
-          aprovadoPor: currentUser?.name || 'Administrador'
-        };
-        await setDoc(doc(db, 'pagamentos', payId), payData, { merge: true }).catch(() => {});
-        await setDoc(doc(db, 'payments', payId), { ...payData, status: 'approved' }, { merge: true }).catch(() => {});
-      } catch (err) {
-        console.warn('Firestore register approved payment error:', err);
-      }
-
-      try {
-        await updateDoc(doc(db, 'technicians', userId), {
-          temSeloMZ: true,
-          statusSelo: 'aprovado',
-          isVerified: true,
-          verifiedAt: nowIso,
-          verifiedUntil: verifiedUntilIso,
-          verificationStatus: 'approved',
-          statusAprovacao: 'aprovado',
-          statusConta: 'ativa',
-          status: 'active',
-          subscriptionStatus: 'active',
-          updatedAt: nowIso
-        });
-      } catch {}
-
-      try {
-        await updateDoc(doc(db, 'companies', userId), {
-          temSeloMZ: true,
-          statusSelo: 'aprovado',
-          isVerified: true,
-          verifiedAt: nowIso,
-          verifiedUntil: verifiedUntilIso,
-          verificationStatus: 'verified',
-          statusAprovacao: 'aprovado',
-          statusConta: 'ativa',
-          status: 'active',
-          updatedAt: nowIso
-        });
-      } catch {}
-    }
-
-    return { success: true };
+    return grantSelo30Days(userId);
   };
 
   const rejeitarSeloMZ = async (
@@ -3611,55 +2068,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
-    setUsersList(prev =>
-      prev.map(u =>
-        u.uid === userId
-          ? {
-              ...u,
-              temSeloMZ: false,
-              statusSelo: 'rejeitado',
-              motivoRejeicaoSelo: motivo,
-              updatedAt: nowIso
-            }
-          : u
-      )
-    );
+    const rejectionPayload = {
+      temSeloMZ: false,
+      statusSelo: 'rejeitado' as const,
+      motivoRejeicaoSelo: motivo,
+      updatedAt: nowIso
+    };
+
+    setUsersList(prev => prev.map(u => (u.uid === userId ? { ...u, ...rejectionPayload } : u)));
 
     if (currentUser?.uid === userId) {
-      setCurrentUser(prev =>
-        prev
-          ? {
-              ...prev,
-              temSeloMZ: false,
-              statusSelo: 'rejeitado',
-              motivoRejeicaoSelo: motivo,
-              updatedAt: nowIso
-            }
-          : null
-      );
+      setCurrentUser(prev => (prev ? { ...prev, ...rejectionPayload } : null));
     }
 
     if (isFirebaseConfigured && db) {
-      try {
-        await updateDoc(doc(db, 'solicitacoes_selo', solicitacaoId), {
-          statusSelo: 'rejeitado',
-          motivoRejeicao: motivo,
-          dataResposta: nowIso
-        });
-      } catch (err) {
-        console.warn('Firestore reject solicitacao_selo error:', err);
-      }
-
-      try {
-        await updateDoc(doc(db, 'users', userId), {
-          temSeloMZ: false,
-          statusSelo: 'rejeitado',
-          motivoRejeicaoSelo: motivo,
-          updatedAt: nowIso
-        });
-      } catch (err) {
-        console.warn('Firestore reject user selo error:', err);
-      }
+      await updateDoc(doc(db, 'solicitacoes_selo', solicitacaoId), {
+        statusSelo: 'rejeitado',
+        motivoRejeicao: motivo,
+        dataResposta: nowIso
+      }).catch(() => {});
+      await updateDoc(doc(db, 'users', userId), rejectionPayload).catch(() => {});
+      await updateDoc(doc(db, 'usuarios', userId), rejectionPayload).catch(() => {});
     }
 
     return { success: true };
