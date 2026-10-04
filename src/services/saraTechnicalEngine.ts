@@ -31,12 +31,206 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
   const academy = req.activeAcademyContext;
   const lower = rawText.toLowerCase();
 
-  // 1. CONTEXTO ACADÊMICO
+  // 0. RECONHECIMENTO E RESPEITO TOTAL AO SUPER_ADMIN
+  const isSuperAdmin = Boolean(
+    role === 'super_admin' ||
+    role === 'admin' ||
+    userName.toLowerCase().includes('andré') ||
+    userName.toLowerCase().includes('andre') ||
+    userName.toLowerCase().includes('zefanias')
+  );
+
+  if (isSuperAdmin) {
+    if (
+      lower.includes('ola') ||
+      lower.includes('olá') ||
+      lower.includes('status') ||
+      lower.includes('sistema') ||
+      lower.includes('plataforma') ||
+      lower.includes('admin') ||
+      lower.includes('painel') ||
+      lower.includes('relatorio') ||
+      lower.includes('relatório') ||
+      lower.includes('sara') ||
+      rawText.length < 15
+    ) {
+      return `Às suas ordens, **Senhor Administrador André**!
+
+Sou a **Eng.ª Sara IA**, sua assistente virtual executiva dedicada da **TécnicaMZ Pro**. Todos os 23 módulos de ferramentas, a simulação CAD realista com fiação em normas IEC, e os sistemas de cadastro e aprovação estão operando perfeitamente sob o vosso comando.
+
+Em que assunto o Senhor Administrador deseja que eu proceda ou elabore relatório neste momento?`;
+    }
+  }
+
+  // 1. DIRECIONAMENTO EXATO DE FERRAMENTAS (NUNCA FAZ A AÇÃO, INDICA ONDE CLICAR)
+  // Preço de serviço / Quanto cobrar / Margem
+  if (
+    lower.includes('quanto cobrar') ||
+    lower.includes('cobrar') ||
+    lower.includes('preco de servico') ||
+    lower.includes('preço de serviço') ||
+    lower.includes('margem')
+  ) {
+    return `Meu caro colega ${userName}, cobrar no olho ou de cabeça é prejuízo na certa!
+
+Vai em **Ferramentas > Preço de Serviço (MARGEM)**, coloca tua hora + custo dos materiais, que a ferramenta já te dá o lucro real com margem calculada!`;
+  }
+
+  // Dimensionamento / Que cabo usar / Disjuntor
+  if (
+    lower.includes('que cabo') ||
+    lower.includes('qual cabo') ||
+    lower.includes('dimensionar cabo') ||
+    lower.includes('dimensionamento pro') ||
+    (lower.includes('cabo') && lower.includes('disjuntor'))
+  ) {
+    return `Para não arriscar aquecer a fiação e queimar equipamento na obra, usa a ferramenta **Dimensionamento PRO**, lá em **Ferramentas**.
+
+Coloca a corrente de projeto (Ib) que ela te dá o cabo em mm² e o disjuntor certo pelas normas da EDM e IEC 60364!`;
+  }
+
+  // Garantia / Certificado de garantia
+  if (lower.includes('garantia') || lower.includes('certificado')) {
+    return `Profissionalismo fala mais alto, meu colega!
+
+Gera na hora em **Ferramentas > Certificado Garantia (PDF)**, que já sai timbrado com a tua marca e dados oficiais da obra para entrega ao cliente.`;
+  }
+
+  // Contrato / OS / Recibo
+  if (
+    lower.includes('contrato') ||
+    lower.includes('recibo') ||
+    lower.includes('ordem de servico') ||
+    lower.includes('ordem de serviço') ||
+    lower.includes('gerar os')
+  ) {
+    return `Para formalizar o trabalho e passar confiança total, vai em **Ferramentas > OS & Contrato PRO**!
+
+Gera um PDF completo com teu Logo + Slogan + Recibo de entrega profissional. Se precisares apenas de uma ordem de serviço rápida, clica em **Ferramentas > Gerador de OS**!`;
+  }
+
+  // Simulador CAD / Testar circuito / Motor / Gerador / Queima de bomba
+  if (
+    lower.includes('simulador') ||
+    lower.includes('testar circuito') ||
+    lower.includes('curto') ||
+    lower.includes('fumaca') ||
+    lower.includes('fumaça') ||
+    lower.includes('inverter fase') ||
+    lower.includes('gerador')
+  ) {
+    return `Antes de ir pra obra e arriscar queimar componentes caros, testa no botão **Criar no Simulador CAD** lá na aba **Mural**!
+
+O nosso simulador é realista e baseado nas normas IEC 60947 e IEC 60364: se ligar errado, o cabo aquece com fumaça, o disjuntor desarma e a bomba queima se inverteres as fases. Podes simular partida direta, comutação de gerador e solar!`;
+  }
+
+  // Gestão de Obra
+  if (lower.includes('gestao de obra') || lower.includes('gestão de obra') || lower.includes('custo da obra')) {
+    return `Para controlar materiais, despesas e faturamento, abre **Ferramentas > Gestão de Obra**, onde calculas os custos de materiais e o teu lucro real em Meticais!`;
+  }
+
+  // Cotação de Lojas em Maputo
+  if (lower.includes('cotacao') || lower.includes('cotação') || lower.includes('lojas') || lower.includes('preco de material') || lower.includes('preço de material')) {
+    return `Economiza tempo e dinheiro: vai em **Ferramentas > Cotação de Lojas**, compara os preços de materiais elétricos nas lojas de Maputo e exporta o comparativo em PDF!`;
+  }
+
+  // Queda de Tensão / Bitola EDM
+  if (lower.includes('queda de tensao') || lower.includes('queda de tensão') || lower.includes('bitola edm') || lower.includes('linha longa')) {
+    return `Para evitar oscilação de lâmpadas ou falha em equipamentos em distâncias longas, calcula direto em **Ferramentas > Bitola EDM (Queda 220V/DC)**!`;
+  }
+
+  // Tabelas Normativas
+  if (lower.includes('awg') || lower.includes('tabela normativa') || lower.includes('cor de cabo') || lower.includes('cores')) {
+    return `Consulta as bitolas e padrões normativos em **Ferramentas > Tabelas Normativas (AWG, mm² & Cores IEC)**!`;
+  }
+
+  // Carga AC / Ar condicionado / BTUs
+  if (lower.includes('btu') || lower.includes('ar condicionado') || lower.includes('carga ac')) {
+    return `Calcula a capacidade térmica exata em **Ferramentas > Carga AC**, que ela te dá os BTUs necessários e o disjuntor de proteção dedicado!`;
+  }
+
+  // Solar PV
+  if (lower.includes('solar') || lower.includes('fotovoltaic') || lower.includes('painel') || lower.includes('bateria solar')) {
+    return `Dimensiona o sistema fotovoltaico em **Ferramentas > Solar PV**: calcula os painéis, capacidade do inversor e banco de baterias!`;
+  }
+
+  // Lista de Materiais
+  if (lower.includes('lista de material') || lower.includes('lista de materiais')) {
+    return `Gera tudo automático em **Ferramentas > Lista de Materiais**, com listas pré-configuradas para T1, T2, T3 e instalações comerciais!`;
+  }
+
+  // CRM de Clientes
+  if (lower.includes('crm') || lower.includes('historico de obra') || lower.includes('histórico de obra') || lower.includes('meus clientes')) {
+    return `Organiza teus atendimentos em **Ferramentas > CRM de Clientes**, com histórico completo de obras e atalho direto para o WhatsApp!`;
+  }
+
+  // Agenda & WhatsApp
+  if (lower.includes('agenda') || lower.includes('visita tecnica') || lower.includes('visita técnica') || lower.includes('lembrete')) {
+    return `Gerencia tuas visitas técnicas em **Ferramentas > Agenda & WhatsApp**, com lembretes automáticos para teus clientes!`;
+  }
+
+  // Portfólio Digital
+  if (lower.includes('portfolio') || lower.includes('portfólio') || lower.includes('antes e depois')) {
+    return `Cria autoridade profissional em **Ferramentas > Portfólio Digital**, adicionando fotos de Antes & Depois com a tua marca d'água!`;
+  }
+
+  // Aterramento
+  if (lower.includes('aterramento') || lower.includes('telurometro') || lower.includes('telurômetro') || lower.includes('solo <10') || lower.includes('haste')) {
+    return `Mede e valida o solo em **Ferramentas > Aterramento** para garantir resistência inferior a 10Ω conforme as normas da EDM!`;
+  }
+
+  // Bomba de Furo
+  if (lower.includes('bomba de furo') || lower.includes('hmt') || lower.includes('vazao') || lower.includes('vazão')) {
+    return `Calcula a Altura Manométrica e vazão em **Ferramentas > Bomba de Furo** para acertar a potência da bomba submersa!`;
+  }
+
+  // Tabela do QG
+  if (lower.includes('tabela do qg') || lower.includes('cartela') || lower.includes('porta do quadro') || lower.includes('quadro geral')) {
+    return `Gera a cartela impressa em **Ferramentas > Tabela do QG (Cartela para Painel PDF)** para colar na porta do quadro com circuitos organizados!`;
+  }
+
+  // Diagnóstico IA
+  if (lower.includes('diagnostico') || lower.includes('diagnóstico') || lower.includes('foto da avaria') || lower.includes('analisar foto')) {
+    return `Envia a foto aqui mesmo no chat ou acessa **Ferramentas > Diagnóstico IA** para eu analisar o painel ou componente avariado!`;
+  }
+
+  // Checklist NR10
+  if (lower.includes('nr10') || lower.includes('nr-10') || lower.includes('checklist') || lower.includes('inspecao') || lower.includes('inspeção')) {
+    return `Emite o laudo oficial de segurança em **Ferramentas > Checklist NR10 (Laudo PDF)** para vistoria e proteção da equipa!`;
+  }
+
+  // Socorro na Obra
+  if (lower.includes('socorro') || lower.includes('sos') || lower.includes('urgente na obra')) {
+    return `Aperto na obra? Clica rápido em **Ferramentas > Socorro na Obra** para publicar chamado urgente no Mural ou chamar técnicos no WhatsApp!`;
+  }
+
+  // Minha Marca
+  if (lower.includes('minha marca') || lower.includes('colocar logo') || lower.includes('logo da empresa') || lower.includes('slogan')) {
+    return `Configura tua identidade visual em **Ferramentas > Minha Marca (Logo & Perfil)** para que saia timbrado em todos os teus documentos!`;
+  }
+
+  // Selo MZ Oficial / Como comprar / Ativar
+  if (
+    lower.includes('selo') ||
+    lower.includes('comprar selo') ||
+    lower.includes('ativar selo') ||
+    lower.includes('50 mt') ||
+    lower.includes('pagar selo')
+  ) {
+    return `O Selo MZ Oficial custa apenas **50 MT / mês** em taxa única e libera tudo: ferramentas, publicação de anúncios, recebimento de clientes e a SARA IA!
+
+Para comprar:
+1. Abre a aba **Mais > Configurações > Comprar Selo MZ**.
+2. Efetua o pagamento via M-Pesa (*150#) ou e-Mola (*898#) para o número **851949159** (Titular: **André Zefanias Júnior**).
+3. No Passo 2, cola o SMS completo da operadora e clica em enviar para validação manual da administração!`;
+  }
+
+  // CONTEXTO ACADÊMICO
   if (academy && (lower.includes('elemento:') || lower.includes('norma:') || lower.includes('aula') || lower.includes('modulo') || lower.includes('exercicio') || rawText.length < 5)) {
     return generateAcademyLessonResponse(userName, academy, rawText);
   }
 
-  // 2. IMAGEM / LAUDO FOTOGRÁFICO
+  // IMAGEM / LAUDO FOTOGRÁFICO
   if (req.imageBase64) {
     return generateImageInspectionReport(userName, role, rawText);
   }
