@@ -403,7 +403,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
     }
   })();
 
-  // SE NÃO FOR VERIFICADO: Mantém o card de fundo estático, SEM renderizar a segunda janela <SeloMZModal isOpen={true} /> duplicada
+  // SE NÃO FOR VERIFICADO: Mantém o card estático explicativo no fundo SEM renderizar o <SeloMZModal> duplicado
   if (!isTecnicoVerificado) {
     return (
       <div id="screen-ferramentas" className="screen-ferramentas active min-h-screen bg-slate-900/5 py-12 px-3 sm:px-6 flex flex-col items-center justify-center">
@@ -2372,6 +2372,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
         </div>
       </div>
 
+      {/* Selo MZ Restriction Modal (Apenas para a ferramenta OS quando chamada explicitamente) */}
       {showUpgradeModal && (
         <SeloMZModal
           isOpen={showUpgradeModal}
