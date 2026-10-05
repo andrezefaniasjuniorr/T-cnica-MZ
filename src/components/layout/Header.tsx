@@ -9,6 +9,7 @@ import { NetworkStatusIndicator } from '../common/NetworkStatusIndicator';
 import {
   Wrench,
   Search,
+  Download,
   Bell,
   MessageSquare,
   User,
@@ -165,6 +166,16 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </button>
 
+            {/* NOVO BOTÃO DOWNLOAD - LADO ESQUERDO */}
+            <a
+              href="https://drive.google.com/uc?export=download&id=1tzeat0iK5wPsIAqUmkTgJfOTIhMMqEdr"
+              className="w-9 h-9 bg-green-600 hover:bg-green-700 rounded-full flex items-center justify-center text-white shadow-lg transition shrink-0 cursor-pointer"
+              title="Baixar Aplicativo Android (APK)"
+              download
+            >
+              <Download size={18} />
+            </a>
+
             {/* Quick Search Bar */}
             <div className="relative shrink-0">
               <button
@@ -172,12 +183,10 @@ export const Header: React.FC<HeaderProps> = ({
                   soundFX.playModalOpen();
                   onOpenSearch();
                 }}
-                className="flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1 bg-slate-100 hover:bg-slate-200/70 rounded-full text-slate-500 text-xs font-medium transition cursor-pointer shrink-0"
+                className="w-9 h-9 bg-slate-100 hover:bg-slate-200/80 rounded-full flex items-center justify-center text-slate-700 transition cursor-pointer shrink-0"
                 title="Pesquisa Geral"
               >
-                <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="hidden 2xl:inline text-[11px] pr-1">Pesquisar...</span>
-                <span className="hidden md:inline 2xl:hidden text-[11px]">Pesquisar</span>
+                <Search size={18} />
               </button>
             </div>
           </div>

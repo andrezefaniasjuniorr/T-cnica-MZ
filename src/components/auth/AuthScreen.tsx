@@ -22,7 +22,9 @@ import {
   Briefcase,
   MapPin,
   Globe,
-  Award
+  Award,
+  Download,
+  Search
 } from 'lucide-react';
 
 interface AuthScreenProps {
@@ -300,6 +302,38 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-blue-50/50 flex flex-col justify-center py-8 sm:py-14 px-4 sm:px-6 lg:px-8 relative">
+      {/* Botões do Topo Esquerdo */}
+      <div className="flex items-center gap-2 absolute top-3 left-3 z-50">
+        {/* Botão Menu existente - azul */}
+        <button
+          type="button"
+          onClick={() => { setActiveTab('pro'); setProMode('login'); }}
+          className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-blue-700 transition shadow-sm"
+          title="Início"
+        >
+          <Wrench size={18} />
+        </button>
+
+        {/* NOVO BOTÃO DOWNLOAD - LADO ESQUERDO */}
+        <a
+          href="https://drive.google.com/uc?export=download&id=1tzeat0iK5wPsIAqUmkTgJfOTIhMMqEdr"
+          className="w-9 h-9 bg-green-600 hover:bg-green-700 rounded-full flex items-center justify-center text-white shadow-lg transition cursor-pointer"
+          title="Baixar Aplicativo"
+          download
+        >
+          <Download size={18} />
+        </a>
+
+        <button
+          type="button"
+          onClick={() => {}}
+          className="w-9 h-9 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-50 shadow-sm transition cursor-pointer"
+          title="Pesquisa"
+        >
+          <Search size={18} />
+        </button>
+      </div>
+
       {/* Decorative ambient background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-40">
         <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-r from-sky-200/60 via-blue-200/50 to-indigo-200/40 rounded-full blur-[100px]" />

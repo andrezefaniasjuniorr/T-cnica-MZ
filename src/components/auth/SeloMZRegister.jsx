@@ -5,6 +5,9 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import {
+  Download,
+  Search,
+  Wrench,
   ShieldCheck,
   Check,
   Eye,
@@ -324,7 +327,39 @@ export const SeloMZRegister = ({ onSwitchToLogin = () => {}, onSuccess = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FF] flex flex-col justify-center items-center py-8 px-4 font-sans antialiased select-none">
+    <div className="min-h-screen bg-[#F8F9FF] flex flex-col justify-center items-center py-8 px-4 font-sans antialiased select-none relative">
+      {/* Top Left Actions Bar */}
+      <div className="flex items-center gap-2 absolute top-3 left-3 z-50">
+        {/* Botão Menu existente - azul */}
+        <button
+          type="button"
+          onClick={onSwitchToLogin}
+          className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-blue-700 transition shadow-sm"
+          title="Início"
+        >
+          <Wrench size={18} />
+        </button>
+
+        {/* NOVO BOTÃO DOWNLOAD - LADO ESQUERDO */}
+        <a
+          href="https://drive.google.com/uc?export=download&id=1tzeat0iK5wPsIAqUmkTgJfOTIhMMqEdr"
+          className="w-9 h-9 bg-green-600 hover:bg-green-700 rounded-full flex items-center justify-center text-white shadow-lg transition cursor-pointer"
+          title="Baixar Aplicativo"
+          download
+        >
+          <Download size={18} />
+        </a>
+
+        <button
+          type="button"
+          onClick={onSwitchToLogin}
+          className="w-9 h-9 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-50 shadow-sm transition cursor-pointer"
+          title="Pesquisa"
+        >
+          <Search size={18} />
+        </button>
+      </div>
+
       {/* Container: Max-width 420px centered, mobile first */}
       <div className="w-full max-w-[420px] mx-auto bg-white rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.08)] border border-slate-100 p-6 sm:p-7">
         
