@@ -174,7 +174,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       alert('Faça login para publicar no mural técnico.');
       return;
     }
-    if ((isTechnician || isCompany) && !temSeloMZ && !isAdmin) {
+    const hasPostAccess = Boolean(
+      isAdmin ||
+      (temSeloMZ && !isSeloExpired) ||
+      isTrialValid
+    );
+    if ((isTechnician || isCompany) && !hasPostAccess) {
       setSeloFeatureName('Publicações no Mural Técnico');
       setIsSeloModalOpen(true);
       return;
@@ -191,7 +196,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       alert('Faça login para publicar no mural técnico.');
       return;
     }
-    if ((isTechnician || isCompany) && !temSeloMZ && !isAdmin) {
+    const hasPostAccess = Boolean(
+      isAdmin ||
+      (temSeloMZ && !isSeloExpired) ||
+      isTrialValid
+    );
+    if ((isTechnician || isCompany) && !hasPostAccess) {
       setIsCreateModalOpen(false);
       setSeloFeatureName('Publicações no Mural Técnico');
       setIsSeloModalOpen(true);
@@ -230,7 +240,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       alert('Faça login para comentar.');
       return;
     }
-    if ((isTechnician || isCompany) && !temSeloMZ && !isAdmin) {
+    const hasCommentAccess = Boolean(
+      isAdmin ||
+      (temSeloMZ && !isSeloExpired) ||
+      isTrialValid
+    );
+    if ((isTechnician || isCompany) && !hasCommentAccess) {
       setSeloFeatureName('Respostas e Comentários no Mural');
       setIsSeloModalOpen(true);
       return;

@@ -744,19 +744,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const mapTechDoc = (docSnap: any): TechnicianProfile | null => {
       const data = docSnap.data() || {};
-      const role = String(data.role || data.tipoConta || '').toLowerCase().trim();
-      const isTech = role === 'technician' || role === 'tecnico' || data.tipoConta === 'tecnico' || data.role === 'technician' || !role;
+      const role = String(data.role || data.tipoConta || data.tipo || data.tipo_cadastro || '').toLowerCase().trim();
+      const isTech = role === 'technician' || role === 'tecnico' || data.tipoConta === 'tecnico' || data.role === 'technician' || data.tipo_cadastro === 'tecnico' || !role;
 
       if (!isTech && role && role !== 'admin' && role !== 'super_admin') {
         return null;
       }
 
-      const defaultName = data.name || data.nome || 'Técnico Especialista';
-      const cleanPhone = data.phone || data.telefone || '';
-      const cleanWhatsapp = data.whatsapp || cleanPhone || '';
-      const specialties = Array.isArray(data.specialties) && data.specialties.length > 0
-        ? data.specialties
-        : (data.specialty ? [data.specialty] : (data.especialidade ? [data.especialidade] : ['Eletricidade']));
+      const defaultName = data.nome_completo || data.name || data.nome || data.displayName || 'Técnico Especialista';
+      const cleanPhone = data.telefone_whatsapp || data.phone || data.telefone || '';
+      const cleanWhatsapp = data.whatsapp || data.telefone_whatsapp || cleanPhone || '';
+      const rawSpecialties = data.specialties || data.especialidades;
+      const rawSpecialty = data.especialidade_principal || data.specialty || data.especialidade;
+      const specialties = Array.isArray(rawSpecialties) && rawSpecialties.length > 0
+        ? rawSpecialties
+        : (rawSpecialty ? [rawSpecialty] : ['Eletricidade']);
 
       const totalLikes = typeof data.totalLikes === 'number'
         ? data.totalLikes
@@ -779,17 +781,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? data.experienceYears
         : (typeof data.anosExperiencia === 'number' ? data.anosExperiencia : 2);
 
+      const hasSeloApproved = Boolean(data.temSeloMZ || data.statusSelo === 'aprovado' || data.isVerified || data.verificationStatus === 'approved');
+
       return {
         userId: docSnap.id,
         name: defaultName,
-        email: data.email || '',
+        email: data.email || data.email_acesso || '',
         phone: cleanPhone,
         whatsapp: cleanWhatsapp,
         showWhatsappButton: data.showWhatsappButton ?? true,
         customWhatsappMessage: data.customWhatsappMessage || `Olá ${defaultName}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
-        province: data.province || data.provincia || 'Maputo Cidade',
-        city: data.city || data.cidade || 'Maputo',
-        district: data.district || data.distrito,
+        province: data.provincia || data.province || 'Maputo Cidade',
+        city: data.cidade_distrito || data.cidade || data.city || 'Maputo',
+        district: data.district || data.distrito || data.cidade_distrito,
         specialties: specialties,
         bio: data.bio || `Profissional qualificado em ${specialties.join(', ')} em Moçambique.`,
         experienceYears,
@@ -801,12 +805,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         points: effectivePoints,
         streakCount: typeof data.streakCount === 'number' ? data.streakCount : 1,
         lastLoginDate: data.lastLoginDate || data.ultimoAcesso || '',
-        verificationStatus: data.verificationStatus || (data.isVerified ? 'approved' : 'none'),
+        verificationStatus: hasSeloApproved ? 'approved' : (data.verificationStatus || 'none'),
         statusAprovacao: data.statusAprovacao || 'aprovado',
-        statusConta: data.statusConta || 'ativa',
-        status: data.status || 'active',
-        isVerified: Boolean(data.isVerified || data.verificationStatus === 'approved'),
-        subscriptionStatus: data.subscriptionStatus || 'none',
+        statusConta: hasSeloApproved ? 'ativa' : (data.statusConta || 'ativa'),
+        status: (data.status === 'blocked' || data.statusConta === 'bloqueada') ? 'blocked' : 'active',
+        isVerified: hasSeloApproved,
+        temSeloMZ: hasSeloApproved,
+        statusSelo: data.statusSelo || (hasSeloApproved ? 'aprovado' : 'nenhum'),
+        subscriptionStatus: hasSeloApproved ? 'active' : (data.subscriptionStatus || 'none'),
         activePlanId: data.activePlanId,
         subscriptionExpiresAt: data.subscriptionExpiresAt || data.dataExpiracao,
         rating: typeof data.rating === 'number' ? data.rating : 5.0,
@@ -815,16 +821,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         availability: data.availability || 'available',
         featured: Boolean(data.featured),
         idade: data.idade ? Number(data.idade) : undefined,
-        createdAt: formatTimestampToIso(data.createdAt || data.dataCadastro || data.dataCriacao)
+        createdAt: formatTimestampToIso(data.createdAt || data.criado_em || data.criadoEm || data.dataCadastro || data.dataCriacao)
       };
     };
+
+    const unsubTecnicos = onSnapshot(
+      collection(db, 'tecnicos'),
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          const tech = mapTechDoc(docSnap);
+          if (tech) {
+            const existing = techsMap.get(docSnap.id);
+            techsMap.set(docSnap.id, existing ? { ...existing, ...tech } : tech);
+          }
+        });
+        updateMergedTechs();
+      },
+      (err) => console.warn("Erro Firestore tecnicos ignorado:", err)
+    );
 
     const unsubTechs = onSnapshot(
       collection(db, 'technicians'),
       (snapshot) => {
         snapshot.forEach((docSnap) => {
           const tech = mapTechDoc(docSnap);
-          if (tech) techsMap.set(docSnap.id, tech);
+          if (tech) {
+            const existing = techsMap.get(docSnap.id);
+            techsMap.set(docSnap.id, existing ? { ...existing, ...tech } : tech);
+          }
         });
         updateMergedTechs();
       },
@@ -1019,6 +1043,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (typeof unsubChats === 'function') unsubChats();
         if (typeof unsubMessages === 'function') unsubMessages();
         if (typeof unsubMensagensDiretas === 'function') unsubMensagensDiretas();
+        if (typeof unsubTecnicos === 'function') unsubTecnicos();
         if (typeof unsubTechs === 'function') unsubTechs();
         if (typeof unsubUsuarios === 'function') unsubUsuarios();
         if (typeof unsubUsers === 'function') unsubUsers();

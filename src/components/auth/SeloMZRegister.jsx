@@ -127,6 +127,12 @@ export const SeloMZRegister = ({ onSwitchToLogin = () => {}, onSuccess = () => {
         // Salva na coleção "clientes" SEM createUserWithEmailAndPassword
         await setDoc(doc(db, "clientes", clientId), clientDocData);
 
+        // Sincroniza espelho com users e usuarios
+        await Promise.allSettled([
+          setDoc(doc(db, "users", clientId), clientDocData, { merge: true }),
+          setDoc(doc(db, "usuarios", clientId), clientDocData, { merge: true })
+        ]);
+
         // Login direto de cliente via sessão/phone
         if (loginAsClient) {
           loginAsClient(nome);
@@ -192,24 +198,66 @@ export const SeloMZRegister = ({ onSwitchToLogin = () => {}, onSuccess = () => {
 
         const uid = userCredential.user.uid;
 
-        await setDoc(doc(db, "tecnicos", uid), {
+        const createdAtIso = new Date().toISOString();
+        const techDocData = {
           uid: uid,
+          userId: uid,
+          id: uid,
           tipo_cadastro: 'tecnico',
+          name: nome,
+          nome: nome,
           nome_completo: nome,
           telefone_whatsapp: telefone,
-          especialidade_principal: formData.especialidade_principal,
+          phone: telefone,
+          telefone: telefone,
+          whatsapp: telefone,
+          especialidade_principal: formData.especialidade_principal || 'Eletricista Residencial',
+          specialty: formData.especialidade_principal || 'Eletricidade',
+          especialidade: formData.especialidade_principal || 'Eletricidade',
+          specialties: [formData.especialidade_principal || 'Eletricidade'],
           idade: formData.idade ? Number(formData.idade) : null,
           provincia: formData.provincia,
+          province: formData.provincia,
           cidade_distrito: formData.cidade_distrito.trim(),
+          cidade: formData.cidade_distrito.trim(),
+          city: formData.cidade_distrito.trim(),
           email_acesso: emailTrimmed,
+          email: emailTrimmed,
           role: 'technician',
           tipo: 'tecnico',
           tipoConta: 'tecnico',
+          status: 'active',
+          statusConta: 'ativa',
+          statusAprovacao: 'aprovado',
+          verificationStatus: 'none',
+          isVerified: false,
           temSeloMZ: false,
           statusSelo: 'nenhum',
-          statusConta: 'ativa',
-          criado_em: serverTimestamp ? serverTimestamp() : new Date().toISOString()
-        });
+          isTrialActive: true,
+          totalLikes: 0,
+          curtidas: 0,
+          likesCount: 0,
+          scoreEngajamento: 0,
+          pontos: 0,
+          points: 0,
+          rating: 5.0,
+          reviewsCount: 0,
+          completedJobsCount: 0,
+          availability: 'available',
+          showWhatsappButton: true,
+          createdAt: createdAtIso,
+          criado_em: serverTimestamp ? serverTimestamp() : createdAtIso
+        };
+
+        // Salva na coleção solicitada "tecnicos"
+        await setDoc(doc(db, "tecnicos", uid), techDocData);
+
+        // Sincroniza em paralelo com technicians, users e usuarios para refletir imediatamente no ranking e diretório
+        await Promise.allSettled([
+          setDoc(doc(db, "technicians", uid), techDocData, { merge: true }),
+          setDoc(doc(db, "users", uid), techDocData, { merge: true }),
+          setDoc(doc(db, "usuarios", uid), techDocData, { merge: true })
+        ]);
 
         setSuccess('Cadastro concluído com sucesso no SeloMZ! Bem-vindo.');
 
@@ -283,25 +331,50 @@ export const SeloMZRegister = ({ onSwitchToLogin = () => {}, onSuccess = () => {
 
         const uid = userCredential.user.uid;
 
-        // Salva na coleção "empresas"
-        await setDoc(doc(db, "empresas", uid), {
+        const createdAtIso = new Date().toISOString();
+        const companyDocData = {
           uid: uid,
+          userId: uid,
+          id: uid,
           tipo_cadastro: 'empresa',
           nome_empresa: nomeEmpresa,
+          companyName: nomeEmpresa,
+          name: nomeEmpresa,
+          nome: nomeEmpresa,
           nuit_empresa: nuit,
+          nuit: nuit,
           nome_responsavel: responsavel,
           telefone_empresa: telefoneEmpresa,
+          phone: telefoneEmpresa,
+          telefone: telefoneEmpresa,
           provincia: formData.provincia,
+          province: formData.provincia,
           cidade_distrito: formData.cidade_distrito.trim(),
+          cidade: formData.cidade_distrito.trim(),
+          city: formData.cidade_distrito.trim(),
           email_empresa: emailEmpresa,
+          email: emailEmpresa,
           role: 'company',
           tipo: 'empresa',
           tipoConta: 'empresa',
           temSeloMZ: false,
           statusSelo: 'nenhum',
           statusConta: 'ativa',
-          criado_em: serverTimestamp ? serverTimestamp() : new Date().toISOString()
-        });
+          statusAprovacao: 'aprovado',
+          status: 'active',
+          createdAt: createdAtIso,
+          criado_em: serverTimestamp ? serverTimestamp() : createdAtIso
+        };
+
+        // Salva na coleção "empresas"
+        await setDoc(doc(db, "empresas", uid), companyDocData);
+
+        // Sincroniza espelho com companies, users e usuarios
+        await Promise.allSettled([
+          setDoc(doc(db, "companies", uid), companyDocData, { merge: true }),
+          setDoc(doc(db, "users", uid), companyDocData, { merge: true }),
+          setDoc(doc(db, "usuarios", uid), companyDocData, { merge: true })
+        ]);
 
         setSuccess('Cadastro de Empresa concluído com sucesso no SeloMZ!');
 

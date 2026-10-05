@@ -449,6 +449,107 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.warn("Erro Firestore ignorado:", err)
     );
 
+    const unsubTecnicos = onSnapshot(
+      collection(db, 'tecnicos'),
+      (snapshot) => {
+        const usersFromTecnicos: User[] = [];
+        const techsFromTecnicos: TechnicianProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          const d = docSnap.data() || {};
+          const defaultName = d.nome_completo || d.nome || d.name || 'Técnico Especialista';
+          const cleanPhone = d.telefone_whatsapp || d.telefone || d.phone || '';
+          const cleanEmail = d.email_acesso || d.email || '';
+          const rawSpecialty = d.especialidade_principal || d.specialty || d.especialidade || 'Eletricidade';
+          const specialties = Array.isArray(d.specialties) ? d.specialties : [rawSpecialty];
+          const userExp = typeof d.experienceYears === 'number' ? d.experienceYears : (typeof d.anosExperiencia === 'number' ? d.anosExperiencia : undefined);
+          const hasSeloApproved = Boolean(d.temSeloMZ || d.statusSelo === 'aprovado' || d.isVerified);
+
+          const userObj: User = {
+            uid: docSnap.id,
+            name: defaultName,
+            nome: defaultName,
+            email: cleanEmail,
+            phone: cleanPhone,
+            role: 'technician',
+            tipo: 'tecnico',
+            tipoConta: 'tecnico',
+            idade: d.idade ? Number(d.idade) : undefined,
+            experienceYears: userExp,
+            anosExperiencia: userExp,
+            photoURL: d.photoURL || d.avatarUrl || d.foto || '',
+            avatarUrl: d.avatarUrl || d.photoURL || d.foto || '',
+            specialty: rawSpecialty,
+            province: d.provincia || d.province || '',
+            city: d.cidade_distrito || d.cidade || d.city || '',
+            status: d.status || 'active',
+            statusConta: hasSeloApproved ? 'ativa' : (d.statusConta || 'ativa'),
+            statusAprovacao: d.statusAprovacao || 'aprovado',
+            temSeloMZ: hasSeloApproved,
+            isVerified: hasSeloApproved,
+            statusSelo: d.statusSelo || (hasSeloApproved ? 'aprovado' : 'nenhum'),
+            isTrialActive: d.isTrialActive !== undefined ? Boolean(d.isTrialActive) : true,
+            totalLikes: typeof d.totalLikes === 'number' ? d.totalLikes : 0,
+            scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : (typeof d.pontos === 'number' ? d.pontos : 0),
+            pontos: typeof d.pontos === 'number' ? d.pontos : (typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0),
+            streakCount: typeof d.streakCount === 'number' ? d.streakCount : 1,
+            lastLoginDate: d.lastLoginDate || d.ultimoAcesso || '',
+            createdAt: parseDateToIso(d.createdAt || d.criado_em || d.criadoEm || d.dataCadastro)
+          } as any;
+          usersFromTecnicos.push(userObj);
+
+          techsFromTecnicos.push({
+            userId: docSnap.id,
+            name: defaultName,
+            email: cleanEmail,
+            phone: cleanPhone,
+            whatsapp: d.whatsapp || cleanPhone,
+            showWhatsappButton: d.showWhatsappButton ?? true,
+            customWhatsappMessage: d.customWhatsappMessage || `Olá ${defaultName}, vi seu perfil na TécnicaMZ e gostaria de solicitar um orçamento.`,
+            province: d.provincia || d.province || '',
+            city: d.cidade_distrito || d.cidade || d.city || '',
+            specialties: specialties,
+            bio: d.bio || `Profissional qualificado em ${rawSpecialty} em Moçambique.`,
+            experienceYears: userExp !== undefined ? userExp : 2,
+            idade: d.idade ? Number(d.idade) : undefined,
+            avatarUrl: d.avatarUrl || d.photoURL || d.foto || '',
+            photoURL: d.photoURL || d.avatarUrl || d.foto || '',
+            totalLikes: typeof d.totalLikes === 'number' ? d.totalLikes : 0,
+            scoreEngajamento: typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : (typeof d.pontos === 'number' ? d.pontos : 0),
+            pontos: typeof d.pontos === 'number' ? d.pontos : (typeof d.scoreEngajamento === 'number' ? d.scoreEngajamento : 0),
+            streakCount: typeof d.streakCount === 'number' ? d.streakCount : 1,
+            verificationStatus: hasSeloApproved ? 'approved' : (d.verificationStatus || 'none'),
+            isVerified: hasSeloApproved,
+            temSeloMZ: hasSeloApproved,
+            statusSelo: d.statusSelo || (hasSeloApproved ? 'aprovado' : 'nenhum'),
+            statusAprovacao: d.statusAprovacao || 'aprovado',
+            statusConta: hasSeloApproved ? 'ativa' : (d.statusConta || 'ativa'),
+            status: (d.status === 'blocked' || d.statusConta === 'bloqueada') ? 'blocked' : 'active',
+            subscriptionStatus: hasSeloApproved ? 'active' : (d.subscriptionStatus || 'none'),
+            rating: typeof d.rating === 'number' ? d.rating : 5.0,
+            reviewsCount: typeof d.reviewsCount === 'number' ? d.reviewsCount : 0,
+            completedJobsCount: typeof d.completedJobsCount === 'number' ? d.completedJobsCount : 0,
+            availability: d.availability || 'available',
+            createdAt: d.createdAt || d.criado_em || d.dataCadastro || new Date().toISOString()
+          });
+        });
+
+        setUsersList(prev => {
+          const map = new Map(prev.map(u => [u.uid, u]));
+          usersFromTecnicos.forEach(u => map.set(u.uid, { ...map.get(u.uid), ...u }));
+          return Array.from(map.values());
+        });
+
+        if (techsFromTecnicos.length > 0) {
+          setTechList(prev => {
+            const map = new Map(prev.map(t => [t.userId, t]));
+            techsFromTecnicos.forEach(t => map.set(t.userId, { ...map.get(t.userId), ...t }));
+            return Array.from(map.values());
+          });
+        }
+      },
+      (err) => console.warn("Erro Firestore tecnicos ignorado:", err)
+    );
+
     const unsubTechs = onSnapshot(
       collection(db, 'technicians'),
       (snapshot) => {
@@ -490,6 +591,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         if (typeof unsubUsers === 'function') unsubUsers();
         if (typeof unsubUsuarios === 'function') unsubUsuarios();
+        if (typeof unsubTecnicos === 'function') unsubTecnicos();
         if (typeof unsubTechs === 'function') unsubTechs();
         if (typeof unsubComps === 'function') unsubComps();
         if (typeof unsubSelo === 'function') unsubSelo();
@@ -722,22 +824,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (db) {
                   const userRef = doc(db, 'usuarios', fbUser.uid);
                   const usersRef = doc(db, 'users', fbUser.uid);
+                  const tecnicosRef = doc(db, 'tecnicos', fbUser.uid);
+                  const techniciansRef = doc(db, 'technicians', fbUser.uid);
 
                   let userSnap = await safeGetDoc(userRef, 2, 400);
                   let usersSnap = await safeGetDoc(usersRef, 2, 400);
+                  let tecnicosSnap = await safeGetDoc(tecnicosRef, 2, 400);
+                  let techniciansSnap = await safeGetDoc(techniciansRef, 2, 400);
 
                   const usuarioData = (userSnap && userSnap.exists()) ? userSnap.data() : {};
                   const usersData = (usersSnap && usersSnap.exists()) ? usersSnap.data() : {};
-                  const rawData = { ...usuarioData, ...usersData };
+                  const tecnicosData = (tecnicosSnap && tecnicosSnap.exists()) ? tecnicosSnap.data() : {};
+                  const techniciansData = (techniciansSnap && techniciansSnap.exists()) ? techniciansSnap.data() : {};
+                  const rawData = { ...usuarioData, ...usersData, ...techniciansData, ...tecnicosData };
 
                   let hasCompanyDoc = false;
                   if (rawData.tipo !== 'empresa' && rawData.tipoConta !== 'empresa' && rawData.role !== 'company') {
                     const compCheck = await safeGetDoc(doc(db, 'companies', fbUser.uid), 1, 300);
-                    hasCompanyDoc = Boolean(compCheck && compCheck.exists());
+                    const empCheck = await safeGetDoc(doc(db, 'empresas', fbUser.uid), 1, 300);
+                    hasCompanyDoc = Boolean((compCheck && compCheck.exists()) || (empCheck && empCheck.exists()));
                   }
 
                   const isSuper = isSuperAdminEmail || rawData.role === 'super_admin' || rawData.tipoConta === 'super_admin';
-                  const rawTipo = String(rawData.tipo || rawData.tipoConta || rawData.role || (hasCompanyDoc ? 'empresa' : '')).toLowerCase().trim();
+                  const rawTipo = String(rawData.tipo || rawData.tipoConta || rawData.tipo_cadastro || rawData.role || (hasCompanyDoc ? 'empresa' : '')).toLowerCase().trim();
 
                   let tipo: 'empresa' | 'tecnico' | 'cliente';
                   let tipoConta: 'empresa' | 'tecnico' | 'cliente';
@@ -772,11 +881,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                   const firestoreUserData: User = {
                     uid: fbUser.uid,
-                    name: rawData.name || rawData.nome || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
-                    nome: rawData.nome || rawData.name || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
+                    name: rawData.nome_completo || rawData.nome_empresa || rawData.name || rawData.nome || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
+                    nome: rawData.nome_completo || rawData.nome_empresa || rawData.nome || rawData.name || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
                     email: normalizedEmail,
-                    phone: rawData.phone || rawData.telefone || fbUser.phoneNumber || '',
-                    nuit: rawData.nuit || '',
+                    phone: rawData.telefone_whatsapp || rawData.telefone_empresa || rawData.phone || rawData.telefone || fbUser.phoneNumber || '',
+                    nuit: rawData.nuit || rawData.nuit_empresa || '',
                     role: role,
                     tipo: tipo,
                     tipoConta: tipoConta,
@@ -784,11 +893,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     statusConta: hasSeloActive ? 'ativa' : (rawData.statusConta || 'ativa'),
                     status: rawData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
                     adminSubRole: isSuper ? 'super_admin' : rawData.adminSubRole,
-                    specialty: rawData.specialty || rawData.especialidade || (role === 'technician' ? 'Eletricidade' : undefined),
+                    specialty: rawData.especialidade_principal || rawData.specialty || rawData.especialidade || (role === 'technician' ? 'Eletricidade' : undefined),
                     experienceYears: parsedUserExp,
                     anosExperiencia: parsedUserExp,
-                    province: rawData.province || rawData.provincia || '',
-                    city: rawData.city || rawData.cidade || '',
+                    province: rawData.provincia || rawData.province || '',
+                    city: rawData.cidade_distrito || rawData.city || rawData.cidade || '',
                     avatarUrl: rawData.avatarUrl || rawData.photoURL || rawData.fotoUrl || rawData.foto || fbUser.photoURL || undefined,
                     photoURL: rawData.photoURL || rawData.avatarUrl || rawData.fotoUrl || rawData.foto || fbUser.photoURL || undefined,
                     isVerified: hasSeloActive,

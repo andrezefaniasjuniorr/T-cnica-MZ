@@ -53,7 +53,7 @@ export const TechniciansDirectory: React.FC<TechniciansDirectoryProps> = ({
   // Active technicians sorted descending by engagement score / points / totalLikes
   const activeTechsSorted = useMemo(() => {
     return technicians
-      .filter(t => t.status === 'active')
+      .filter(t => t.status !== 'blocked' && t.status !== 'suspended' && (t as any).statusConta !== 'bloqueada')
       .sort((a, b) => {
         const scoreA = (a.points ?? a.pontos ?? a.scoreEngajamento ?? a.totalLikes ?? 0);
         const scoreB = (b.points ?? b.pontos ?? b.scoreEngajamento ?? b.totalLikes ?? 0);

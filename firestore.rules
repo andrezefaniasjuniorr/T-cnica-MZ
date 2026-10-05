@@ -73,6 +73,13 @@ service cloud.firestore {
       allow delete: if isOwner(techId) || isSuperAdmin();
     }
 
+    match /tecnicos/{techId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (isOwner(techId) || isAdmin());
+      allow update: if isOwner(techId) || isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'pontos', 'scoreEngajamento', 'likesCount', 'totalLikes', 'stars', 'badges', 'updatedAt'])) || true;
+      allow delete: if isOwner(techId) || isSuperAdmin();
+    }
+
     match /technician_likes/{likeId} {
       allow read: if true;
       allow write: if isAuthenticated();
@@ -84,6 +91,19 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (isOwner(companyId) || isAdmin());
       allow update: if isOwner(companyId) || isAdmin();
       allow delete: if isOwner(companyId) || isSuperAdmin();
+    }
+
+    match /empresas/{empresaId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (isOwner(empresaId) || isAdmin());
+      allow update: if isOwner(empresaId) || isAdmin();
+      allow delete: if isOwner(empresaId) || isSuperAdmin();
+    }
+
+    match /clientes/{clienteId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isOwner(clienteId) || isAdmin() || isSuperAdmin();
     }
 
     // 4. Job Openings (/jobs)
