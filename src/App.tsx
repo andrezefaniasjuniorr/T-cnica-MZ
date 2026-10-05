@@ -8,6 +8,7 @@ import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
 import { MobileExtraMenuDrawer } from './components/layout/MobileExtraMenuDrawer';
 import { AuthScreen } from './components/auth/AuthScreen';
+import { SeloMZRegister } from './components/auth/SeloMZRegister';
 
 // Main Functional Tabs
 import { CommunityFeed } from './components/community/CommunityFeed';
@@ -65,13 +66,19 @@ const VALID_TABS = [
   'academy',
   'sara',
   'gestao-pro-mz',
-  'admin'
+  'admin',
+  'cadastro'
 ];
 
 const resolveTabFromLocation = (): string | null => {
   if (typeof window === 'undefined') return null;
   const rawPath = window.location.pathname.replace(/^\//, '').trim().toLowerCase();
   const rawHash = window.location.hash.replace(/^#/, '').trim().toLowerCase();
+
+  // Cadastro route
+  if (rawPath === 'cadastro' || rawPath === 'registro' || rawHash === 'cadastro' || rawHash === 'registro' || rawHash === 'register') {
+    return 'cadastro';
+  }
 
   // Sara IA route
   if (rawPath === 'sara' || rawPath === 'sara-ia' || rawHash === 'sara' || rawHash === 'sara-ia') {
@@ -149,6 +156,14 @@ const resolveTabFromLocation = (): string | null => {
 
 const AppContent: React.FC = () => {
   const { currentUser, isLoading, isClient, isTechnician, isCompany, isAdmin, temSeloMZ, isSeloExpired } = useAuth();
+
+  const [isLoginMode, setIsLoginMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      return hash === '#login' || hash === '#entrar' || hash === '#auth' || hash === '#cliente';
+    }
+    return false;
+  });
 
   const roleStr = String(currentUser?.role || '');
   const tipoStr = String(currentUser?.tipoConta || (currentUser as any)?.tipo || (currentUser as any)?.userType || '');
@@ -827,8 +842,15 @@ const AppContent: React.FC = () => {
     return <SplashScreen />;
   }
 
+  if (activeTab === 'cadastro' || activeTab === 'registro') {
+    return <SeloMZRegister onSwitchToLogin={() => handleNavigate('settings')} />;
+  }
+
   if (!currentUser) {
-    return <AuthScreen initialMode="login" initialRole="client" />;
+    if (isLoginMode) {
+      return <AuthScreen initialMode="login" initialRole="client" onSwitchToRegister={() => setIsLoginMode(false)} />;
+    }
+    return <SeloMZRegister onSwitchToLogin={() => setIsLoginMode(true)} />;
   }
 
   if (activeTab === 'gestao-pro-mz' || activeTab === 'admin') {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { MOZAMBIQUE_PROVINCES, TECHNICAL_CATEGORIES } from '../../types';
+import { SeloMZRegister } from './SeloMZRegister';
 import {
   Wrench,
   Building2,
@@ -27,11 +28,13 @@ import {
 interface AuthScreenProps {
   initialMode?: 'login' | 'register';
   initialRole?: 'client' | 'technician' | 'company';
+  onSwitchToRegister?: () => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   initialMode = 'login',
-  initialRole = 'client'
+  initialRole = 'client',
+  onSwitchToRegister
 }) => {
   const { login, register, loginAsClient, resetPassword, isLoading } = useAuth();
 
@@ -499,9 +502,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         id="btn-mode-register"
                         type="button"
                         onClick={() => {
-                          setProMode('register');
-                          setError(null);
-                          setSuccess(null);
+                          if (onSwitchToRegister) {
+                            onSwitchToRegister();
+                          } else {
+                            setProMode('register');
+                            setError(null);
+                            setSuccess(null);
+                          }
                         }}
                         className={`px-4 py-2 rounded-xl text-sm font-bold transition ${
                           proMode === 'register'

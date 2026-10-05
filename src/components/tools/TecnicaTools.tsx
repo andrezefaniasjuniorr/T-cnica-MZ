@@ -66,7 +66,7 @@ export const TecnicaTools: React.FC<TecnicaToolsProps> = ({ onNavigateTab }) => 
 
   // Localiza o perfil técnico do usuário logado
   const currentTech = techniciansList.find((t: any) => {
-    const userId = currentUser?.id || (currentUser as any)?.uid;
+    const userId = (currentUser as any)?.id || currentUser?.uid;
     const userEmail = currentUser?.email?.toLowerCase();
     return (
       (userId && (t.id === userId || t.userId === userId || t.uid === userId)) ||

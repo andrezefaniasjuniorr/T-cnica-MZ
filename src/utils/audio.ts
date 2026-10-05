@@ -338,6 +338,10 @@ class SoundFXManager {
     } catch {}
   }
 
+  public playWarning() {
+    this.playAlert();
+  }
+
   /**
    * Som de acerto em avaliação/quiz acadêmico
    */

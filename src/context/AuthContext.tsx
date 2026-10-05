@@ -32,12 +32,6 @@ import { parseDateToMillis, parseDateToIso, THREE_DAYS_MS } from '../utils/date'
 // Declaração de propriedades globais no Window para evitar erros de compilação
 declare global {
   interface Window {
-    isCreatingAccount?: boolean;
-    isRegistering?: boolean;
-    cadastrarEmpresa?: any;
-    carregarPainelEmpresa?: any;
-    carregarPainelTecnico?: any;
-    carregarPainelCliente?: any;
     applyRoleBasedUI?: (role: string) => void;
   }
 }
@@ -1580,7 +1574,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isVerified: true,
       temSeloMZ: true,
       statusSelo: 'aprovado' as const,
-      statusAprovacao: 'aprovado',
+      statusAprovacao: 'aprovado' as const,
       statusConta: 'ativa' as const,
       status: 'active' as UserStatus,
       statusAssinatura: 'ativa',

@@ -112,6 +112,8 @@ export interface User {
   avatarUrl?: string;
   photoURL?: string;
   idade?: number;
+  experienceYears?: number | string;
+  anosExperiencia?: number | string;
   totalLikes?: number;
   scoreEngajamento?: number;
   pontos?: number;
