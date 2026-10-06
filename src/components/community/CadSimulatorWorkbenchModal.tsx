@@ -2778,31 +2778,29 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   return (
     <div className="fixed inset-0 z-[99999] bg-[#050A14] flex flex-col justify-between overflow-hidden select-none text-slate-200 font-sans" style={{ touchAction: 'none' }}>
       {/* 1. BARRA SUPERIOR */}
-      <header className="h-14 landscape:h-10 px-3 sm:px-4 bg-[#0B132B] border-b border-blue-900/50 flex items-center justify-between gap-2 shrink-0 z-30 shadow-xl">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-blue-900/40">
+      <header className="h-12 landscape:h-10 px-2 sm:px-4 bg-[#0B132B] border-b border-blue-900/50 flex items-center justify-between gap-1.5 sm:gap-2 shrink-0 z-30 shadow-xl">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-md text-xs sm:text-sm shrink-0">
             ⚡
           </div>
-          <div>
-            <h1 className="text-xs sm:text-sm font-black text-white tracking-wide flex items-center gap-1.5">
-              <span>TécnicaMZ Pro</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 font-mono border border-blue-800">
-                CAD V25
-              </span>
+          <div className="hidden sm:block">
+            <h1 className="text-xs font-black text-white tracking-wide">
+              TécnicaMZ
             </h1>
-            <p className="text-[10px] text-slate-400 hidden md:block">
-              {project.name} • Simulação Nodal MNA Real & IEC 60947
+            <p className="text-[10px] text-slate-400 hidden lg:block truncate max-w-[130px]">
+              {project.name}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-1 shrink min-w-0">
+          {/* 1. SIMULAR / PARAR */}
           <button
             type="button"
             onClick={() => {
               if (!hasSimulatorAccess) {
                 soundFX.playWarning();
-                showToast('Acesso bloqueado: Período de 3 dias expirou. Ative o Selo MZ.');
+                showToast('Período de 3 dias expirou. Ative o Selo MZ.');
                 setIsSeloModalOpen(true);
                 return;
               }
@@ -2810,15 +2808,15 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               setIsRunning(next);
               if (next) {
                 soundFX.playSuccess();
-                addEvent('Simulação física iniciada (RUN).', 'info');
-                showToast('Simulador energizado');
+                addEvent('Simulador ligado.', 'info');
+                showToast('Simulador ligado');
               } else {
                 soundFX.playClick();
-                addEvent('Simulação parada (STOP). Cargas desenergizadas.', 'warn');
+                addEvent('Simulador parado.', 'warn');
                 showToast('Simulador parado');
               }
             }}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-md ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 cursor-pointer shrink-0 shadow-md ${
               isRunning ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-600 text-white'
             }`}
           >
@@ -2826,52 +2824,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             <span>{isRunning ? 'Parar' : 'Simular'}</span>
           </button>
 
-          <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />
-
-          <button
-            type="button"
-            onClick={() => setActiveTool('select')}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-              activeTool === 'select' ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-300'
-            }`}
-          >
-            <span>↖</span>
-            <span className="hidden sm:inline">Mover</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTool('wire');
-              showToast('Modo Condutor: selecione os bornes de conexão');
-            }}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-              activeTool === 'wire' ? 'bg-amber-600 text-white' : 'bg-slate-900 text-slate-300'
-            }`}
-          >
-            <span>⌁</span>
-            <span className="hidden sm:inline">Condutor</span>
-          </button>
-
-          <select
-            value={selectedWireType}
-            onChange={e => setSelectedWireType(e.target.value)}
-            className="px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-[11px] font-bold text-slate-200 outline-none cursor-pointer"
-          >
-            <option value="L1">L1 (Castanho)</option>
-            <option value="L2">L2 (Preto)</option>
-            <option value="L3">L3 (Cinza)</option>
-            <option value="N">N (Neutro)</option>
-            <option value="PE">PE (Terra Isolado)</option>
-            <option value="NU">NU (Cobre Nu / Aterramento)</option>
-            <option value="24+">+24V DC / +PV</option>
-            <option value="24-">0V DC / -PV</option>
-            <option value="CTRL">Comando (Amarelo)</option>
-          </select>
-
-          <div className="h-6 w-px bg-slate-800 mx-1 shrink-0" />
-
-          {/* BOTÃO LIMPAR TUDO / NOVO PROJETO */}
+          {/* 2. LIMPAR - VISÍVEL DIRETO NO CELULAR AO LADO DE SIMULAR */}
           <button
             type="button"
             onClick={() => {
@@ -2880,32 +2833,81 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               const busbarCount = (project.busbars || []).length;
               if (compCount === 0 && wireCount === 0 && busbarCount === 0) {
                 soundFX.playClick();
-                showToast('A bancada já está limpa para um novo projeto!');
+                showToast('A bancada já está limpa!');
                 return;
               }
               setIsClearModalOpen(true);
             }}
-            className="px-2.5 py-1.5 rounded-lg bg-rose-950/70 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800/80 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-sm active:scale-95"
-            title="Limpar bancada: apagar disjuntores, fios e conexões para iniciar novo projeto"
+            className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-700/80 text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 shadow-sm active:scale-95"
+            title="Limpar tudo no simulador"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-            <span className="whitespace-nowrap">Limpar Tudo</span>
+            <span>Limpar</span>
           </button>
 
-          <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block shrink-0" />
+          <div className="h-5 w-px bg-slate-800 mx-0.5 shrink-0" />
 
+          {/* 3. MOVER */}
+          <button
+            type="button"
+            onClick={() => setActiveTool('select')}
+            className={`px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+              activeTool === 'select' ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-300'
+            }`}
+            title="Mover"
+          >
+            <span>↖</span>
+            <span className="hidden sm:inline">Mover</span>
+          </button>
+
+          {/* 4. CONDUTOR / FIO */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTool('wire');
+              showToast('Modo Fio ativo');
+            }}
+            className={`px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+              activeTool === 'wire' ? 'bg-amber-600 text-white' : 'bg-slate-900 text-slate-300'
+            }`}
+            title="Fio"
+          >
+            <span>⌁</span>
+            <span className="hidden sm:inline">Fio</span>
+          </button>
+
+          {/* 5. TIPO DE CONDUTOR (PALAVRAS CURTAS) */}
+          <select
+            value={selectedWireType}
+            onChange={e => setSelectedWireType(e.target.value)}
+            className="px-1.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-[11px] font-bold text-slate-200 outline-none cursor-pointer shrink-0"
+          >
+            <option value="L1">L1</option>
+            <option value="L2">L2</option>
+            <option value="L3">L3</option>
+            <option value="N">N</option>
+            <option value="PE">PE</option>
+            <option value="NU">Nu</option>
+            <option value="24+">+24V</option>
+            <option value="24-">0V</option>
+            <option value="CTRL">Ctrl</option>
+          </select>
+
+          <div className="h-5 w-px bg-slate-800 mx-0.5 shrink-0 hidden md:block" />
+
+          {/* 6. MODELOS PRESET (DESKTOP) */}
           <button
             type="button"
             onClick={() => loadPreset('motor')}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-800 transition cursor-pointer hidden md:flex items-center gap-1"
+            className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-800 transition cursor-pointer hidden md:flex items-center gap-1 shrink-0"
           >
-            <span>⚡ Partida 3F</span>
+            <span>⚡ Motor 3F</span>
           </button>
 
           <button
             type="button"
             onClick={() => loadPreset('four_way')}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-800 transition cursor-pointer hidden md:flex items-center gap-1"
+            className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-800 transition cursor-pointer hidden md:flex items-center gap-1 shrink-0"
           >
             <span>💡 Four-Way</span>
           </button>
@@ -2913,73 +2915,76 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           <button
             type="button"
             onClick={() => loadPreset('qgd')}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-800 transition cursor-pointer hidden md:flex items-center gap-1"
+            className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-800 transition cursor-pointer hidden md:flex items-center gap-1 shrink-0"
           >
-            <span>🛡️ QGD DR</span>
+            <span>🛡️ QGD</span>
           </button>
 
           <button
             type="button"
             onClick={() => loadPreset('solar')}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 text-xs font-bold border border-slate-800 transition cursor-pointer hidden md:flex items-center gap-1"
+            className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 text-xs font-bold border border-slate-800 transition cursor-pointer hidden md:flex items-center gap-1 shrink-0"
           >
-            <span>☀️ Solar FV</span>
+            <span>☀️ Solar</span>
           </button>
 
-          <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />
+          <div className="h-5 w-px bg-slate-800 mx-0.5 shrink-0 hidden sm:block" />
 
+          {/* 7. TERMOGRAFIA */}
           <button
             type="button"
             onClick={() => {
               const next = !isThermalMode;
               setIsThermalMode(next);
               isThermalModeRef.current = next;
-              showToast(next ? '📷 Modo Termografia FLIR ativado' : 'Termografia desativada');
+              showToast(next ? 'Térmica ligada' : 'Térmica desligada');
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+            className={`px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer border shrink-0 ${
               isThermalMode
-                ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white border-amber-400 shadow-md shadow-amber-900/50 animate-pulse'
+                ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white border-amber-400 shadow-md animate-pulse'
                 : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/30'
             }`}
-            title="Alternar Câmera Térmica FLIR"
+            title="Câmera Térmica"
           >
             <Thermometer className="w-3.5 h-3.5 text-amber-300" />
-            <span>📷 Termografia</span>
+            <span className="hidden sm:inline">Térmica</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={handleToggleOrientation}
-            className={`px-2.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+            className={`p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 border cursor-pointer ${
               isLandscape
-                ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-900/40'
+                ? 'bg-blue-600 text-white border-blue-400'
                 : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/30'
             }`}
-            title="Alternar Modo Horizontal / Vertical (Girar Tela)"
+            title="Girar Tela"
           >
             <RotateCw className={`w-3.5 h-3.5 transition-transform duration-300 ${isLandscape ? 'rotate-90 text-white' : 'text-amber-300'}`} />
-            <span className="text-[11px] font-bold">{isLandscape ? 'Vertical' : 'Girar'}</span>
+            <span className="text-[11px] font-bold hidden md:inline">{isLandscape ? 'Vertical' : 'Girar'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsDiagnosticPanelOpen(true)}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+            className={`p-1.5 sm:px-2 sm:py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 border cursor-pointer ${
               diagnosticState.isSpeaking ? 'bg-purple-600/30 text-purple-300 animate-pulse' : 'bg-slate-900 text-indigo-400 border-indigo-500/30'
             }`}
+            title="Voz"
           >
             {diagnosticState.isSpeaking ? <Radio className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{diagnosticState.isSpeaking ? 'Voz Ativa...' : 'Diagnósticos'}</span>
+            <span className="hidden lg:inline">{diagnosticState.isSpeaking ? 'Falando' : 'Voz'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => simulatorDiagnostics.toggleMute()}
-            className={`p-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
+            className={`p-1.5 rounded-lg text-xs font-bold transition border cursor-pointer hidden sm:flex ${
               diagnosticState.isMuted ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' : 'bg-slate-900 text-slate-400 border-slate-800'
             }`}
+            title="Mudo"
           >
             {diagnosticState.isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
@@ -2987,29 +2992,30 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
           <button
             type="button"
             onClick={() => {
-              generateCadProjectPDF(projectRef.current, { authorName: 'Eletro-Jr • Técnico Responsável' });
-              showToast('PDF Técnico gerado');
+              generateCadProjectPDF(projectRef.current, { authorName: 'Técnico Responsável' });
+              showToast('PDF gerado');
             }}
-            className="px-2.5 py-2 rounded-xl bg-slate-900 text-sky-400 border border-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
+            className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg bg-slate-900 text-sky-400 border border-slate-800 text-xs font-bold hidden sm:flex items-center gap-1 cursor-pointer"
+            title="Gerar PDF"
           >
             <FileText className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">PDF</span>
+            <span className="hidden xl:inline">PDF</span>
           </button>
 
-          <button type="button" onClick={handleExportImage} className="p-2 rounded-xl bg-slate-900 text-slate-300 border border-slate-800 cursor-pointer">
-            <ImageIcon className="w-4 h-4" />
+          <button type="button" onClick={handleExportImage} className="p-1.5 rounded-lg bg-slate-900 text-slate-300 border border-slate-800 hidden md:flex cursor-pointer" title="Salvar Imagem">
+            <ImageIcon className="w-3.5 h-3.5" />
           </button>
 
-          <button type="button" onClick={handleExportJSON} className="p-2 rounded-xl bg-slate-900 text-slate-300 border border-slate-800 hidden sm:flex cursor-pointer">
-            <Download className="w-4 h-4" />
+          <button type="button" onClick={handleExportJSON} className="p-1.5 rounded-lg bg-slate-900 text-slate-300 border border-slate-800 hidden lg:flex cursor-pointer" title="Exportar">
+            <Download className="w-3.5 h-3.5" />
           </button>
 
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 rounded-xl bg-slate-900 text-slate-300 border border-slate-800 hidden sm:flex cursor-pointer">
-            <Upload className="w-4 h-4" />
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded-lg bg-slate-900 text-slate-300 border border-slate-800 hidden lg:flex cursor-pointer" title="Importar">
+            <Upload className="w-3.5 h-3.5" />
           </button>
           <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImportJSON} className="hidden" />
 
-          <button type="button" onClick={onClose} className="p-2 rounded-xl bg-slate-900 hover:bg-rose-900 text-slate-400 hover:text-white border border-slate-800 ml-1 cursor-pointer">
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-900 text-slate-400 hover:text-white border border-slate-800 ml-0.5 cursor-pointer" title="Fechar">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -3898,54 +3904,58 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
       </div>
 
       {/* 3. DOCK INFERIOR */}
-      <footer className="h-12 bg-[#0B132B] border-t border-blue-900/50 flex items-center justify-between px-3 sm:px-5 z-40 shrink-0 shadow-2xl select-none">
-        <div className="flex items-center gap-1.5 sm:gap-2">
+      <footer className="h-12 bg-[#0B132B] border-t border-blue-900/50 flex items-center justify-between px-2 sm:px-5 z-40 shrink-0 shadow-2xl select-none">
+        <div className="flex items-center gap-1 sm:gap-2">
           <button
             type="button"
             onClick={() => setShowLibrary(!showLibrary)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer border ${
               showLibrary ? 'bg-blue-600 text-white border-blue-400' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
             }`}
+            title="Biblioteca de Componentes"
           >
             <Layers className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Biblioteca</span>
+            <span className="hidden sm:inline">Itens</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowProps(!showProps)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer border ${
               showProps ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
             }`}
+            title="Ajustes de Parâmetros"
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Propriedades</span>
+            <span className="hidden sm:inline">Ajustes</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowScope(!showScope)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer border ${
               showScope ? 'bg-sky-600 text-white border-sky-400' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
             }`}
+            title="Osciloscópio"
           >
             <Activity className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Osciloscópio</span>
+            <span className="hidden sm:inline">Scope</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowMeters(!showMeters)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer border ${
               showMeters ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
             }`}
+            title="Medições"
           >
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Medições</span>
+            <span className="hidden sm:inline">Medir</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <button
             type="button"
             onClick={() => {
@@ -3954,27 +3964,29 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               projectRef.current = organized;
               setProject(organized);
               soundFX.playSuccess();
-              showToast('Canaletas e condutores alinhados');
+              showToast('Fios alinhados');
             }}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 text-amber-300 border border-slate-700 hover:bg-slate-800 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900 text-amber-300 border border-slate-700 hover:bg-slate-800 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+            title="Alinhar fios"
           >
             <span>📐</span>
-            <span className="hidden md:inline">Auto-Organizar</span>
+            <span className="hidden md:inline">Alinhar</span>
           </button>
 
           <button
             type="button"
             onClick={handleFit}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-700 hover:bg-slate-800 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-700 hover:bg-slate-800 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+            title="Ajustar visualização"
           >
             <Maximize2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Enquadrar</span>
+            <span className="hidden sm:inline">Fit</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsPublishDialogOpen(true)}
-            className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-blue-900/40 cursor-pointer border border-blue-400/40"
+            className="px-3 sm:px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-1 shadow-md shadow-blue-900/40 cursor-pointer border border-blue-400/40"
           >
             <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
             <span>Publicar</span>
@@ -3987,14 +3999,14 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         <div className="fixed inset-0 z-[100000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#0D152A] rounded-3xl border border-blue-900/60 p-6 max-w-lg w-full space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-black text-white">Publicar Circuito no Mural</h3>
+              <h3 className="text-base font-black text-white">Publicar Circuito</h3>
               <button type="button" onClick={() => setIsPublishDialogOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-slate-200 mb-1">Título do Circuito</label>
+                <label className="block font-bold text-slate-200 mb-1">Título</label>
                 <input
                   type="text"
                   value={publishTitle}
@@ -4003,15 +4015,15 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 />
               </div>
               <div>
-                <label className="block font-bold text-slate-200 mb-1">Área Técnica</label>
+                <label className="block font-bold text-slate-200 mb-1">Área</label>
                 <select
                   value={publishCategory}
                   onChange={e => setPublishCategory(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white cursor-pointer"
                 >
-                  <option value="Comandos Elétricos">Comandos Elétricos</option>
-                  <option value="Instalações Elétricas">Instalações Elétricas</option>
-                  <option value="Energia Solar">Energia Solar</option>
+                  <option value="Comandos Elétricos">Comandos</option>
+                  <option value="Instalações Elétricas">Instalações</option>
+                  <option value="Energia Solar">Solar</option>
                 </select>
               </div>
               <div>
@@ -4034,25 +4046,25 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 onClick={handleConfirmPublish}
                 className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs cursor-pointer"
               >
-                {isPublishing ? 'Publicando...' : 'Confirmar e Publicar'}
+                {isPublishing ? 'Publicando...' : 'Publicar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 5. MODAL DE CONFIRMAÇÃO: LIMPAR TUDO / NOVO PROJETO */}
+      {/* 5. MODAL DE CONFIRMAÇÃO: LIMPAR SIMULADOR */}
       {isClearModalOpen && (
         <div className="fixed inset-0 z-[100002] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-[#0D152A] rounded-2xl border border-rose-900/70 p-5 sm:p-6 max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+          <div className="bg-[#0D152A] rounded-2xl border border-rose-900/70 p-5 sm:p-6 max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
             <div className="flex items-start justify-between border-b border-slate-800/80 pb-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-700/60 text-rose-400 flex items-center justify-center shrink-0">
                   <Trash2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-black text-white">Limpar Bancada do Simulador?</h3>
-                  <p className="text-[11px] text-slate-400">Iniciar um novo projeto do zero</p>
+                  <h3 className="text-sm sm:text-base font-black text-white">Limpar Simulador?</h3>
+                  <p className="text-[11px] text-slate-400">Novo projeto</p>
                 </div>
               </div>
               <button
@@ -4066,19 +4078,14 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
 
             <div className="space-y-3 text-xs text-slate-300">
               <p>
-                Tem certeza de que deseja apagar tudo o que foi feito no simulador? Esta ação vai remover todos os <strong>disjuntores</strong>, <strong>contatores</strong>, <strong>fios (condutores)</strong>, <strong>barramentos</strong> e medições.
+                Apagar todos os disjuntores, fios e barramentos da bancada para iniciar um novo projeto?
               </p>
 
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                <span>Elementos no projeto atual:</span>
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span>No projeto:</span>
                 <span className="font-mono font-bold text-amber-300">
-                  {project.components?.length || 0} componente(s) • {project.wires?.length || 0} condutor(es)
+                  {project.components?.length || 0} itens • {project.wires?.length || 0} fios
                 </span>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-blue-950/30 border border-blue-900/40 text-[11px] text-blue-300 flex items-center gap-2">
-                <span>💡</span>
-                <span>A bancada ficará 100% limpa e pronta para começar o seu novo projeto.</span>
               </div>
             </div>
 
@@ -4086,17 +4093,17 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
               <button
                 type="button"
                 onClick={() => setIsClearModalOpen(false)}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition cursor-pointer border border-slate-800"
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition cursor-pointer border border-slate-800"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleClearWorkbench}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-black flex items-center gap-1.5 shadow-lg shadow-rose-900/40 transition cursor-pointer active:scale-95"
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-black flex items-center gap-1.5 shadow-lg shadow-rose-900/40 transition cursor-pointer active:scale-95"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Sim, Limpar Tudo</span>
+                <span>Limpar Tudo</span>
               </button>
             </div>
           </div>
