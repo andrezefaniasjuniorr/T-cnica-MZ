@@ -205,6 +205,7 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
   const [scopeVoltsDiv, setScopeVoltsDiv] = useState<number>(100);
 
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState<boolean>(false);
+  const [isClearModalOpen, setIsClearModalOpen] = useState<boolean>(false);
   const [publishTitle, setPublishTitle] = useState<string>('');
   const [publishCategory, setPublishCategory] = useState<string>('Comandos Elétricos');
   const [publishDescription, setPublishDescription] = useState<string>('');
@@ -624,6 +625,88 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
     setShowProps(false);
     setTimeout(handleFit, 60);
   }, [pushHistory, handleFit, showToast]);
+
+  const handleClearWorkbench = useCallback(() => {
+    // 1. Salva histórico para possibilitar Desfazer (Ctrl+Z) se necessário
+    pushHistory();
+
+    // 2. Interrompe a simulação se estiver rodando
+    if (isRunning) {
+      setIsRunning(false);
+    }
+
+    // 3. Reseta o projeto para estado completamente vazio (sem componentes, fios ou barramentos)
+    const emptyProj = {
+      version: 14,
+      name: 'Novo Projeto Técnico MZ',
+      components: [],
+      wires: [],
+      busbars: [],
+      panelConfig: PANEL_PRESETS.medium,
+      updated: Date.now()
+    };
+
+    projectRef.current = emptyProj;
+    setProject(emptyProj);
+
+    // 4. Limpa seleções ativas e painéis contextuais
+    setSelectedCompId(null);
+    setSelectedWireId(null);
+    setSelectedBusbarId(null);
+    setHoveredTerminalId(null);
+    setShowProps(false);
+
+    // 5. Limpa motores, alertas, disparos, histórico de osciloscópio e variáveis de estado interno
+    simRef.current.trippedSet.clear();
+    simRef.current.events = [];
+    simRef.current.scopeHistory = [];
+    simRef.current.wireStart = null;
+    simRef.current.drag = null;
+    simRef.current.motorRpm = 0;
+    simRef.current.firedAlertsSet.clear();
+    simRef.current.energizedBusbars.clear();
+    simRef.current.lastPhysResult = null;
+    simRef.current.lastContactorState = false;
+
+    setMeterV(0);
+    setMeterA(0);
+    setMeterW(0);
+    setMeterPF(1.0);
+    setFaultAlert(null);
+
+    // 6. Reseta a câmera/zoom para o centro da bancada
+    if (canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      cameraRef.current = {
+        zoom: 1,
+        pan: { x: (rect.width || 800) / 4, y: (rect.height || 600) / 4 },
+        grid: 20
+      };
+      if (svgGroupRef.current) {
+        svgGroupRef.current.setAttribute(
+          'transform',
+          `translate(${cameraRef.current.pan.x}, ${cameraRef.current.pan.y}) scale(${cameraRef.current.zoom})`
+        );
+      }
+    }
+
+    // 7. Persiste o estado limpo no localStorage para não recarregar projeto anterior
+    try {
+      localStorage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(emptyProj));
+    } catch (err) {
+      console.warn('Erro ao atualizar localStorage após limpeza:', err);
+    }
+
+    // 8. Reseta metadados de publicação e fornece feedback sonoro e visual
+    setPublishTitle('Novo Projeto Técnico MZ');
+    setPublishDescription('');
+    setPublishCategory('Comandos Elétricos');
+
+    soundFX.playClick();
+    showToast('Bancada 100% limpa. Pronto para novo projeto!');
+    addEvent('Bancada resetada. Todos os disjuntores e fios foram apagados.', 'info');
+    setIsClearModalOpen(false);
+  }, [isRunning, pushHistory, showToast, addEvent]);
 
   const addBusbar = useCallback(
     (
@@ -2786,7 +2869,30 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
             <option value="CTRL">Comando (Amarelo)</option>
           </select>
 
-          <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />
+          <div className="h-6 w-px bg-slate-800 mx-1 shrink-0" />
+
+          {/* BOTÃO LIMPAR TUDO / NOVO PROJETO */}
+          <button
+            type="button"
+            onClick={() => {
+              const compCount = project.components?.length || 0;
+              const wireCount = project.wires?.length || 0;
+              const busbarCount = (project.busbars || []).length;
+              if (compCount === 0 && wireCount === 0 && busbarCount === 0) {
+                soundFX.playClick();
+                showToast('A bancada já está limpa para um novo projeto!');
+                return;
+              }
+              setIsClearModalOpen(true);
+            }}
+            className="px-2.5 py-1.5 rounded-lg bg-rose-950/70 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800/80 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-sm active:scale-95"
+            title="Limpar bancada: apagar disjuntores, fios e conexões para iniciar novo projeto"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            <span className="whitespace-nowrap">Limpar Tudo</span>
+          </button>
+
+          <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block shrink-0" />
 
           <button
             type="button"
@@ -3929,6 +4035,68 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
                 className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs cursor-pointer"
               >
                 {isPublishing ? 'Publicando...' : 'Confirmar e Publicar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. MODAL DE CONFIRMAÇÃO: LIMPAR TUDO / NOVO PROJETO */}
+      {isClearModalOpen && (
+        <div className="fixed inset-0 z-[100002] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-[#0D152A] rounded-2xl border border-rose-900/70 p-5 sm:p-6 max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-700/60 text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white">Limpar Bancada do Simulador?</h3>
+                  <p className="text-[11px] text-slate-400">Iniciar um novo projeto do zero</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsClearModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300">
+              <p>
+                Tem certeza de que deseja apagar tudo o que foi feito no simulador? Esta ação vai remover todos os <strong>disjuntores</strong>, <strong>contatores</strong>, <strong>fios (condutores)</strong>, <strong>barramentos</strong> e medições.
+              </p>
+
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Elementos no projeto atual:</span>
+                <span className="font-mono font-bold text-amber-300">
+                  {project.components?.length || 0} componente(s) • {project.wires?.length || 0} condutor(es)
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-blue-950/30 border border-blue-900/40 text-[11px] text-blue-300 flex items-center gap-2">
+                <span>💡</span>
+                <span>A bancada ficará 100% limpa e pronta para começar o seu novo projeto.</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => setIsClearModalOpen(false)}
+                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition cursor-pointer border border-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleClearWorkbench}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-black flex items-center gap-1.5 shadow-lg shadow-rose-900/40 transition cursor-pointer active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Sim, Limpar Tudo</span>
               </button>
             </div>
           </div>
