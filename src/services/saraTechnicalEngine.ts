@@ -81,7 +81,7 @@ O que o Chefe manda a gente resolver ou atualizar agora?`;
 O sol hoje está a apertar na cabeça ou os disjuntores estão a cooperar? Conta para a tua Engenheira o que está a acontecer no terreno que a gente desenrola e resolve já!`;
   }
 
-  // 2. QUADRO A DISPARAR / DISJUNTOR DISPARANDO (MODO ENGENHEIRA DOMINADORA E ENGRAÇADA)
+  // 2. QUADRO A DISPARAR / DISJUNTOR DISPARANDO (MODO ESPONTÂNEO, HUMANO E TÉCNICO)
   if (
     lower.includes('quadro está a disparar') ||
     lower.includes('quadro esta a disparar') ||
@@ -92,18 +92,16 @@ O sol hoje está a apertar na cabeça ou os disjuntores estão a cooperar? Conta
     lower.includes('disjuntor desarma') ||
     lower.includes('disjuntor cai')
   ) {
-    return `Esse quadro está a disparar mais que alarme de loja na Baixa com dia de trovoada, parceiro! Mas respira fundo que a Eng. Sara está aqui e vamos pôr ordem nessa instalação já.
+    return `Esse quadro está a disparar mais que alarme de loja na Baixa em dia de trovoada, meu parceiro! Mas calma, respira fundo que a gente vai pôr ordem nessa instalação juntos.
 
-**Diagnóstico:** Disparo do disjuntor geral ou diferencial provocado por sobrecarga acumulada de carga, fuga de corrente para a terra ou curto-circuito franco em um dos circuitos parciais.
+Olha, disjuntor não desarma à toa: ou tens sobrecarga porque meteram carga pesada num circuito subdimensionado, ou é fuga de corrente para a terra (se for diferencial), ou um curto direto. Na nossa realidade aqui em Moçambique, o clássico é neutro frouxo a fritar no barramento, humidade acumulada na caixa de passagem ou aquela puxada com cabo fino suportando geleira e congelador ao mesmo tempo.
 
-**Causa no nosso solo:** Aqui em Moçambique, a oscilação severa de tensão da EDM, puxadas com cabos 1.5mm² suportando geleira e fogão, neutro frouxo a aquecer no barramento ou humidade nas caixas de passagem fazem o disjuntor não aguentar e desarmar na hora do pico.
+Vamos testar isso no terreno sem adivinhação:
+Primeiro, desliga todos os disjuntores parciais e rearma só o geral. Se o geral segurar firme, o problema não é a entrada, é lá dentro nos ramais.
+Depois, sobe um disjuntor de cada vez com calma, dando uns 5 segundos de intervalo. Naquele que fizer o geral ou diferencial cair na hora, achaste o culpado.
+Aí vais direto nessa linha: desliga tudo das tomadas desse setor, confere o aperto de cada borne com chave estrela calibrada e mede com o multímetro se há continuidade indesejada entre fase e terra ou neutro.
 
-**Solução na obra (passo-a-passo):**
-1. **Desliga todos os disjuntores parciais** do quadro e rearma apenas o disjuntor geral. Se o geral aguentar armado, o problema está nos circuitos de distribuição.
-2. **Liga um circuito por vez**, esperando 5 segundos entre cada um. No momento exato em que o disjuntor geral ou diferencial disparar, você isolou qual setor da casa tem o defeito.
-3. **No circuito identificado com defeito**, retira as cargas das tomadas, mede a continuidade e isolamento entre fase, neutro e terra, e verifica o aperto de todos os bornes com a chave de fenda.
-
-Já te dei a solução, agora se quiseres confirmar ou fazer mais rápido, atualiza aqui mesmo na app na ferramenta de **Escolha de Disjuntor** ou no **Simulador de Quadro Elétrico**!`;
+Se depois quiseres simular o equilíbrio das fases ou conferir a curva desse disjuntor, podes abrir o **Simulador de Quadro Elétrico** aqui na app para ver a distribuição certinha.`;
   }
 
   // 1. DIRECIONAMENTO EXATO DE FERRAMENTAS (NUNCA FAZ A AÇÃO, INDICA ONDE CLICAR)
