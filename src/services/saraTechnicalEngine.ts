@@ -101,7 +101,7 @@ Primeiro, desliga todos os disjuntores parciais e rearma só o geral. Se o geral
 Depois, sobe um disjuntor de cada vez com calma, dando uns 5 segundos de intervalo. Naquele que fizer o geral ou diferencial cair na hora, achaste o culpado.
 Aí vais direto nessa linha: desliga tudo das tomadas desse setor, confere o aperto de cada borne com chave estrela calibrada e mede com o multímetro se há continuidade indesejada entre fase e terra ou neutro.
 
-Se depois quiseres simular o equilíbrio das fases ou conferir a curva desse disjuntor, podes abrir o **Simulador de Quadro Elétrico** aqui na app para ver a distribuição certinha.`;
+Se depois quiseres organizar os circuitos desse painel de forma profissional, podes conferir a ferramenta **Tabela do QG** ou dimensionar as proteções em **Dimensionamento PRO** aqui na app para deixar tudo nos trinques.`;
   }
 
   // 1. DIRECIONAMENTO EXATO DE FERRAMENTAS (NUNCA FAZ A AÇÃO, INDICA ONDE CLICAR)
@@ -115,7 +115,7 @@ Se depois quiseres simular o equilíbrio das fases ou conferir a curva desse dis
   ) {
     return `Meu caro colega ${userName}, cobrar no olho ou de cabeça é prejuízo na certa!
 
-Vai em **Ferramentas > Preço de Serviço (MARGEM)**, coloca tua hora + custo dos materiais, que a ferramenta já te dá o lucro real com margem calculada!`;
+Vai em **Ferramentas > Preço de Serviço**, coloca tua hora + custo dos materiais, que a ferramenta já te dá o lucro real com margem calculada!`;
   }
 
   // Dimensionamento / Que cabo usar / Disjuntor
@@ -135,7 +135,7 @@ Coloca a corrente de projeto (Ib) que ela te dá o cabo em mm² e o disjuntor ce
   if (lower.includes('garantia') || lower.includes('certificado')) {
     return `Profissionalismo fala mais alto, meu colega!
 
-Gera na hora em **Ferramentas > Certificado Garantia (PDF)**, que já sai timbrado com a tua marca e dados oficiais da obra para entrega ao cliente.`;
+Gera na hora em **Ferramentas > Certificado Garantia**, que já sai timbrado com a tua marca e dados oficiais da obra para entrega ao cliente.`;
   }
 
   // Contrato / OS / Recibo
@@ -151,7 +151,7 @@ Gera na hora em **Ferramentas > Certificado Garantia (PDF)**, que já sai timbra
 Gera um PDF completo com teu Logo + Slogan + Recibo de entrega profissional. Se precisares apenas de uma ordem de serviço rápida, clica em **Ferramentas > Gerador de OS**!`;
   }
 
-  // Simulador CAD / Testar circuito / Motor / Gerador / Queima de bomba
+  // Simulador / Testar circuito / Motor / Gerador / Queima de bomba
   if (
     lower.includes('simulador') ||
     lower.includes('testar circuito') ||
@@ -161,9 +161,7 @@ Gera um PDF completo com teu Logo + Slogan + Recibo de entrega profissional. Se 
     lower.includes('inverter fase') ||
     lower.includes('gerador')
   ) {
-    return `Antes de ir pra obra e arriscar queimar componentes caros, testa no botão **Criar no Simulador CAD** lá na aba **Mural**!
-
-O nosso simulador é realista e baseado nas normas IEC 60947 e IEC 60364: se ligar errado, o cabo aquece com fumaça, o disjuntor desarma e a bomba queima se inverteres as fases. Podes simular partida direta, comutação de gerador e solar!`;
+    return `Antes de ir pra obra e arriscar queimar componentes caros, podes validar o circuito com as ferramentas **Dimensionamento PRO** e **Tabela do QG** aqui na app! Se houver alguma falha visível num painel ou componente, usa **Diagnóstico IA** para analisarmos a avaria.`;
   }
 
   // Gestão de Obra
@@ -178,12 +176,12 @@ O nosso simulador é realista e baseado nas normas IEC 60947 e IEC 60364: se lig
 
   // Queda de Tensão / Bitola EDM
   if (lower.includes('queda de tensao') || lower.includes('queda de tensão') || lower.includes('bitola edm') || lower.includes('linha longa')) {
-    return `Para evitar oscilação de lâmpadas ou falha em equipamentos em distâncias longas, calcula direto em **Ferramentas > Bitola EDM (Queda 220V/DC)**!`;
+    return `Para evitar oscilação de lâmpadas ou falha em equipamentos em distâncias longas, calcula direto em **Ferramentas > Bitola EDM**!`;
   }
 
   // Tabelas Normativas
   if (lower.includes('awg') || lower.includes('tabela normativa') || lower.includes('cor de cabo') || lower.includes('cores')) {
-    return `Consulta as bitolas e padrões normativos em **Ferramentas > Tabelas Normativas (AWG, mm² & Cores IEC)**!`;
+    return `Consulta as bitolas e padrões normativos em **Ferramentas > Tabelas Normativas**!`;
   }
 
   // Carga AC / Ar condicionado / BTUs
@@ -228,7 +226,7 @@ O nosso simulador é realista e baseado nas normas IEC 60947 e IEC 60364: se lig
 
   // Tabela do QG
   if (lower.includes('tabela do qg') || lower.includes('cartela') || lower.includes('porta do quadro') || lower.includes('quadro geral')) {
-    return `Gera a cartela impressa em **Ferramentas > Tabela do QG (Cartela para Painel PDF)** para colar na porta do quadro com circuitos organizados!`;
+    return `Gera a cartela impressa em **Ferramentas > Tabela do QG** para colar na porta do quadro com circuitos organizados!`;
   }
 
   // Diagnóstico IA
@@ -238,7 +236,7 @@ O nosso simulador é realista e baseado nas normas IEC 60947 e IEC 60364: se lig
 
   // Checklist NR10
   if (lower.includes('nr10') || lower.includes('nr-10') || lower.includes('checklist') || lower.includes('inspecao') || lower.includes('inspeção')) {
-    return `Emite o laudo oficial de segurança em **Ferramentas > Checklist NR10 (Laudo PDF)** para vistoria e proteção da equipa!`;
+    return `Emite o laudo oficial de segurança em **Ferramentas > Checklist NR10** para vistoria e proteção da equipa!`;
   }
 
   // Socorro na Obra
