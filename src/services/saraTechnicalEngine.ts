@@ -31,7 +31,7 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
   const academy = req.activeAcademyContext;
   const lower = rawText.toLowerCase();
 
-  // 0. RECONHECIMENTO E RESPEITO TOTAL AO SUPER_ADMIN
+  // 0. RECONHECIMENTO E RESPEITO TOTAL AO ADMIN / DONO (CHAMAR DE CHEFE)
   const isSuperAdmin = Boolean(
     role === 'super_admin' ||
     role === 'admin' ||
@@ -44,6 +44,7 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
     if (
       lower.includes('ola') ||
       lower.includes('olá') ||
+      lower.includes('oi') ||
       lower.includes('status') ||
       lower.includes('sistema') ||
       lower.includes('plataforma') ||
@@ -54,12 +55,55 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
       lower.includes('sara') ||
       rawText.length < 15
     ) {
-      return `Às suas ordens, **Senhor Administrador André**!
+      return `Às suas ordens, **Chefe**!
 
-Sou a **Eng.ª Sara IA**, sua assistente virtual executiva dedicada da **TécnicaMZ Pro**. Todos os 23 módulos de ferramentas, a simulação CAD realista com fiação em normas IEC, e os sistemas de cadastro e aprovação estão operando perfeitamente sob o vosso comando.
+Aqui é a sua Eng. Sara, com lealdade total e pronta para qualquer missão na **TécnicaMZ Pro**. Todos os módulos, simulações e dados da plataforma estão sob seu comando.
 
-Em que assunto o Senhor Administrador deseja que eu proceda ou elabore relatório neste momento?`;
+O que o Chefe manda a gente resolver ou atualizar agora?`;
     }
+  }
+
+  // 1. CONVERSA NORMAL / SAUDAÇÃO (MODO AMIGA)
+  if (
+    lower === 'oi sara' ||
+    lower === 'olá sara' ||
+    lower === 'ola sara' ||
+    lower === 'oi' ||
+    lower === 'ola' ||
+    lower === 'olá' ||
+    lower === 'boa tarde sara' ||
+    lower === 'bom dia sara' ||
+    lower.startsWith('oi sara ') ||
+    lower.startsWith('olá sara ')
+  ) {
+    return `Oi, meu parceiro! Tudo bem contigo aí na obra?
+
+O sol hoje está a apertar na cabeça ou os disjuntores estão a cooperar? Conta para a tua Engenheira o que está a acontecer no terreno que a gente desenrola e resolve já!`;
+  }
+
+  // 2. QUADRO A DISPARAR / DISJUNTOR DISPARANDO (MODO ENGENHEIRA DOMINADORA E ENGRAÇADA)
+  if (
+    lower.includes('quadro está a disparar') ||
+    lower.includes('quadro esta a disparar') ||
+    lower.includes('quadro a disparar') ||
+    lower.includes('disjuntor a disparar') ||
+    lower.includes('disjuntor disparando') ||
+    lower.includes('quadro disparando') ||
+    lower.includes('disjuntor desarma') ||
+    lower.includes('disjuntor cai')
+  ) {
+    return `Esse quadro está a disparar mais que alarme de loja na Baixa com dia de trovoada, parceiro! Mas respira fundo que a Eng. Sara está aqui e vamos pôr ordem nessa instalação já.
+
+**Diagnóstico:** Disparo do disjuntor geral ou diferencial provocado por sobrecarga acumulada de carga, fuga de corrente para a terra ou curto-circuito franco em um dos circuitos parciais.
+
+**Causa no nosso solo:** Aqui em Moçambique, a oscilação severa de tensão da EDM, puxadas com cabos 1.5mm² suportando geleira e fogão, neutro frouxo a aquecer no barramento ou humidade nas caixas de passagem fazem o disjuntor não aguentar e desarmar na hora do pico.
+
+**Solução na obra (passo-a-passo):**
+1. **Desliga todos os disjuntores parciais** do quadro e rearma apenas o disjuntor geral. Se o geral aguentar armado, o problema está nos circuitos de distribuição.
+2. **Liga um circuito por vez**, esperando 5 segundos entre cada um. No momento exato em que o disjuntor geral ou diferencial disparar, você isolou qual setor da casa tem o defeito.
+3. **No circuito identificado com defeito**, retira as cargas das tomadas, mede a continuidade e isolamento entre fase, neutro e terra, e verifica o aperto de todos os bornes com a chave de fenda.
+
+Já te dei a solução, agora se quiseres confirmar ou fazer mais rápido, atualiza aqui mesmo na app na ferramenta de **Escolha de Disjuntor** ou no **Simulador de Quadro Elétrico**!`;
   }
 
   // 1. DIRECIONAMENTO EXATO DE FERRAMENTAS (NUNCA FAZ A AÇÃO, INDICA ONDE CLICAR)
