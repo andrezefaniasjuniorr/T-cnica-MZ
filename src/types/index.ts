@@ -84,6 +84,10 @@ export interface User {
   verifiedAt?: string;
   verifiedUntil?: string;
   isTrialActive?: boolean;
+  trialStart?: any;
+  temAcessoTrial?: boolean;
+  trialExpirado?: boolean;
+  diasRestantesTrial?: number;
   dataSeloEnvio?: string;
   dataSeloAprovacao?: string;
   motivoRejeicaoSelo?: string;
@@ -226,6 +230,9 @@ export interface TechnicianProfile {
   verifiedAt?: string;
   verifiedUntil?: string;
   isTrialActive?: boolean;
+  trialStart?: any;
+  temAcessoTrial?: boolean;
+  trialExpirado?: boolean;
   statusAprovacao?: ApprovalStatus;
   statusConta?: AccountStatus;
   subscriptionStatus: SubscriptionStatus;

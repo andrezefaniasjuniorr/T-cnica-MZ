@@ -82,6 +82,7 @@ export async function recalculateUserStarsAndRanking(userId: string): Promise<{ 
     await updateDoc(userRef, updatePayload).catch(() => {});
     await updateDoc(doc(db, 'usuarios', userId), updatePayload).catch(() => {});
     await updateDoc(doc(db, 'technicians', userId), updatePayload).catch(() => {});
+    await updateDoc(doc(db, 'tecnicos', userId), updatePayload).catch(() => {});
 
     return { stars: calculatedStars, points };
   } catch (err) {

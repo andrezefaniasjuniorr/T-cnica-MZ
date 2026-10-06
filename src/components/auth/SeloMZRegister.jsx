@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 // LOGIC KEPT: Firebase Auth and Firestore imports preserved
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
+import {
+  checkDeviceTrialUsedAsync,
+  markDeviceTrialUsed,
+  calcularDiasRestantesTrial
+} from '../../utils/trial';
 import {
   Download,
   Search,
@@ -198,6 +203,46 @@ export const SeloMZRegister = ({ onSwitchToLogin = () => {}, onSuccess = () => {
 
         const uid = userCredential.user.uid;
 
+        // 1. Verifica se este celular já teve trial de 3 dias no dispositivo
+        const hasLocalFlag = typeof window !== 'undefined' && localStorage.getItem('tecnicaMZ_trial_usado') === 'true';
+        const deviceJaTeveTrial = hasLocalFlag || (await checkDeviceTrialUsedAsync());
+
+        // 2. Se o documento já existe, NUNCA regrave o trialStart
+        const existingTecnicoSnap = await getDoc(doc(db, "tecnicos", uid)).catch(() => null);
+        const existingData = (existingTecnicoSnap && existingTecnicoSnap.exists()) ? existingTecnicoSnap.data() : null;
+
+        let finalTrialStart = null;
+        let finalDiasRestantes = 0;
+        let finalTemAcessoTrial = false;
+        let finalTrialExpirado = true;
+
+        if (existingData && existingData.trialStart) {
+          // Documento já existe: preserva rigorosamente o trialStart original e NUNCA regrava
+          finalTrialStart = existingData.trialStart;
+          const calc = calcularDiasRestantesTrial(existingData.trialStart);
+          finalDiasRestantes = calc.diasRestantes;
+          finalTemAcessoTrial = calc.temAcessoTrial;
+          finalTrialExpirado = calc.trialExpirado;
+        } else if (deviceJaTeveTrial) {
+          // SE JÁ TEVE TRIAL NESTE CELULAR: Crie a conta com trialStart = null, diasRestantes = 0, temAcessoTrial = false, trialExpirado = true. NÃO dê 3 dias.
+          finalTrialStart = null;
+          finalDiasRestantes = 0;
+          finalTemAcessoTrial = false;
+          finalTrialExpirado = true;
+        } else {
+          // SE NUNCA TEVE: Dê os 3 dias normalmente e grave a flag
+          finalTrialStart = serverTimestamp ? serverTimestamp() : new Date().toISOString();
+          finalDiasRestantes = 3;
+          finalTemAcessoTrial = true;
+          finalTrialExpirado = false;
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('tecnicaMZ_trial_usado', 'true');
+            } catch {}
+          }
+          await markDeviceTrialUsed();
+        }
+
         const createdAtIso = new Date().toISOString();
         const techDocData = {
           uid: uid,
@@ -233,7 +278,16 @@ export const SeloMZRegister = ({ onSwitchToLogin = () => {}, onSuccess = () => {
           isVerified: false,
           temSeloMZ: false,
           statusSelo: 'nenhum',
-          isTrialActive: true,
+
+          // Controle Estrito dos 3 Dias Grátis
+          trialStart: finalTrialStart,
+          diasRestantes: finalDiasRestantes,
+          diasRestantesTrial: finalDiasRestantes,
+          temAcessoTrial: finalTemAcessoTrial,
+          trialExpirado: finalTrialExpirado,
+          isTrialActive: finalTemAcessoTrial,
+          isTrialValid: finalTemAcessoTrial,
+
           totalLikes: 0,
           curtidas: 0,
           likesCount: 0,
@@ -245,8 +299,8 @@ export const SeloMZRegister = ({ onSwitchToLogin = () => {}, onSuccess = () => {
           completedJobsCount: 0,
           availability: 'available',
           showWhatsappButton: true,
-          createdAt: createdAtIso,
-          criado_em: serverTimestamp ? serverTimestamp() : createdAtIso
+          createdAt: existingData?.createdAt || createdAtIso,
+          criado_em: existingData?.criado_em || (serverTimestamp ? serverTimestamp() : createdAtIso)
         };
 
         // Salva na coleção solicitada "tecnicos"

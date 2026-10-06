@@ -28,6 +28,12 @@ import {
 } from 'firebase/firestore';
 import { giveHeartOrLike, recalculateUserStarsAndRanking } from '../services/engagement';
 import { parseDateToMillis, parseDateToIso, THREE_DAYS_MS } from '../utils/date';
+import {
+  calcularDiasRestantesTrial,
+  checkDeviceTrialUsedAsync,
+  markDeviceTrialUsed,
+  checkDeviceTrialUsed
+} from '../utils/trial';
 
 // Declaração de propriedades globais no Window para evitar erros de compilação
 declare global {
@@ -64,6 +70,8 @@ interface AuthContextType {
   trialDaysRemaining: number;
   isTrialValid: boolean;
   isTrialExpired: boolean;
+  temAcessoTrial?: boolean;
+  trialExpirado?: boolean;
   hasAccess: boolean;
   isRestrictedTechnician: boolean;
   solicitacoesSelo: SolicitacaoSelo[];
@@ -816,8 +824,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 statusAprovacao: 'aprovado',
                 statusConta: 'ativa',
                 status: 'active',
-                isTrialActive: true,
-                createdAt: new Date().toISOString()
+                isTrialActive: cachedMatch?.isTrialActive !== undefined ? cachedMatch.isTrialActive : false,
+                trialStart: cachedMatch?.trialStart || null,
+                temAcessoTrial: cachedMatch?.temAcessoTrial,
+                trialExpirado: cachedMatch?.trialExpirado,
+                diasRestantesTrial: cachedMatch?.diasRestantesTrial,
+                createdAt: cachedMatch?.createdAt || new Date().toISOString()
               };
 
               try {
@@ -879,6 +891,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                   const hasSeloActive = isSuper || Boolean(rawData.temSeloMZ || rawData.statusSelo === 'aprovado' || rawData.isVerified || rawData.verificationStatus === 'approved');
 
+                  // Cálculo preciso dos 3 dias grátis a partir do trialStart
+                  const userTrialStart = rawData.trialStart || tecnicosData.trialStart || usersData.trialStart || null;
+                  let calculatedTrial = userTrialStart ? calcularDiasRestantesTrial(userTrialStart) : null;
+                  if (!calculatedTrial && (rawData.createdAt || rawData.criado_em)) {
+                    calculatedTrial = calcularDiasRestantesTrial(rawData.createdAt || rawData.criado_em);
+                  }
+
+                  const finalTemAcessoTrial = isSuper ? true : (
+                    calculatedTrial ? calculatedTrial.temAcessoTrial : Boolean(rawData.temAcessoTrial ?? (rawData.isTrialActive !== false))
+                  );
+                  const finalTrialExpirado = isSuper ? false : (
+                    calculatedTrial ? calculatedTrial.trialExpirado : Boolean(rawData.trialExpirado ?? !finalTemAcessoTrial)
+                  );
+                  const finalDiasRestantes = isSuper ? 3 : (
+                    calculatedTrial ? calculatedTrial.diasRestantes : (typeof rawData.diasRestantes === 'number' ? rawData.diasRestantes : (typeof rawData.diasRestantesTrial === 'number' ? rawData.diasRestantesTrial : 0))
+                  );
+
                   const firestoreUserData: User = {
                     uid: fbUser.uid,
                     name: rawData.nome_completo || rawData.nome_empresa || rawData.name || rawData.nome || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
@@ -911,7 +940,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     statusAssinatura: hasSeloActive ? 'ativa' : (rawData.statusAssinatura || 'none'),
                     subscriptionStatus: hasSeloActive ? 'active' : (rawData.subscriptionStatus || 'none'),
                     activePlanId: rawData.activePlanId || (hasSeloActive ? 'pro' : undefined),
-                    isTrialActive: rawData.isTrialActive !== undefined ? Boolean(rawData.isTrialActive) : true,
+
+                    // Controle Estrito dos 3 Dias Grátis
+                    trialStart: userTrialStart || rawData.trialStart || null,
+                    temAcessoTrial: finalTemAcessoTrial,
+                    trialExpirado: finalTrialExpirado,
+                    diasRestantes: finalDiasRestantes,
+                    diasRestantesTrial: finalDiasRestantes,
+                    isTrialActive: finalTemAcessoTrial,
+
                     dataSeloEnvio: rawData.dataSeloEnvio,
                     motivoRejeicaoSelo: rawData.motivoRejeicaoSelo,
                     mensagemTransacaoSelo: rawData.mensagemTransacaoSelo,
@@ -1078,18 +1115,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             try {
               const userRef = doc(db, 'usuarios', fbUser.uid);
               const usersRef = doc(db, 'users', fbUser.uid);
+              const tecnicosRef = doc(db, 'tecnicos', fbUser.uid);
+              const techniciansRef = doc(db, 'technicians', fbUser.uid);
 
               let userSnap = await safeGetDoc(userRef, 2, 400);
               let usersSnap = await safeGetDoc(usersRef, 2, 400);
+              let tecnicosSnap = await safeGetDoc(tecnicosRef, 2, 400);
+              let techniciansSnap = await safeGetDoc(techniciansRef, 2, 400);
 
               const usuarioData = (userSnap && userSnap.exists()) ? userSnap.data() : {};
               const usersData = (usersSnap && usersSnap.exists()) ? usersSnap.data() : {};
-              const docData = { ...usuarioData, ...usersData };
+              const tecnicosData = (tecnicosSnap && tecnicosSnap.exists()) ? tecnicosSnap.data() : {};
+              const techniciansData = (techniciansSnap && techniciansSnap.exists()) ? techniciansSnap.data() : {};
+              const docData = { ...usuarioData, ...usersData, ...techniciansData, ...tecnicosData };
 
               let hasCompanyDoc = false;
               if (docData.tipo !== 'empresa' && docData.tipoConta !== 'empresa' && docData.role !== 'company') {
                 const compCheck = await safeGetDoc(doc(db, 'companies', fbUser.uid), 1, 300);
-                hasCompanyDoc = Boolean(compCheck && compCheck.exists());
+                const empCheck = await safeGetDoc(doc(db, 'empresas', fbUser.uid), 1, 300);
+                hasCompanyDoc = Boolean((compCheck && compCheck.exists()) || (empCheck && empCheck.exists()));
               }
 
               const rawTipo = String(docData.tipo || docData.tipoConta || docData.role || (hasCompanyDoc ? 'empresa' : '')).toLowerCase().trim();
@@ -1125,13 +1169,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const parsedUserExp = typeof docData.experienceYears === 'number' ? docData.experienceYears : (typeof docData.anosExperiencia === 'number' ? docData.anosExperiencia : undefined);
               const hasSeloApproved = isSuper || Boolean(docData.temSeloMZ || docData.statusSelo === 'aprovado' || docData.isVerified);
 
+              const docTrialStart = docData.trialStart || tecnicosData.trialStart || null;
+              let calculatedTrial = docTrialStart ? calcularDiasRestantesTrial(docTrialStart) : null;
+              if (!calculatedTrial && (docData.createdAt || docData.criado_em)) {
+                calculatedTrial = calcularDiasRestantesTrial(docData.createdAt || docData.criado_em);
+              }
+              const finalTemAcessoTrial = isSuper ? true : (
+                calculatedTrial ? calculatedTrial.temAcessoTrial : Boolean(docData.temAcessoTrial ?? (docData.isTrialActive !== false))
+              );
+              const finalTrialExpirado = isSuper ? false : (
+                calculatedTrial ? calculatedTrial.trialExpirado : Boolean(docData.trialExpirado ?? !finalTemAcessoTrial)
+              );
+              const finalDiasRestantes = isSuper ? 3 : (
+                calculatedTrial ? calculatedTrial.diasRestantes : (typeof docData.diasRestantes === 'number' ? docData.diasRestantes : (typeof docData.diasRestantesTrial === 'number' ? docData.diasRestantesTrial : 0))
+              );
+
               foundUser = {
                 uid: fbUser.uid,
-                name: docData.name || docData.nome || fbUser.displayName || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
-                nome: docData.nome || docData.name || fbUser.displayName || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
+                name: docData.name || docData.nome || docData.nome_completo || fbUser.displayName || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
+                nome: docData.nome || docData.name || docData.nome_completo || fbUser.displayName || (tipo === 'empresa' ? 'Empresa Registada' : defaultName),
                 email: normalizedEmail,
-                phone: docData.phone || docData.telefone || fbUser.phoneNumber || '',
-                nuit: docData.nuit || '',
+                phone: docData.phone || docData.telefone || docData.telefone_whatsapp || fbUser.phoneNumber || '',
+                nuit: docData.nuit || docData.nuit_empresa || '',
                 role: role,
                 tipo: tipo,
                 tipoConta: tipoConta,
@@ -1139,11 +1198,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 statusConta: hasSeloApproved ? 'ativa' : (docData.statusConta || 'ativa'),
                 status: docData.status || (statusAprovacao === 'pendente' ? 'pending_approval' : 'active'),
                 adminSubRole: isSuper ? 'super_admin' : docData.adminSubRole,
-                specialty: docData.specialty || docData.especialidade || (role === 'technician' ? 'Eletricidade' : undefined),
+                specialty: docData.specialty || docData.especialidade || docData.especialidade_principal || (role === 'technician' ? 'Eletricidade' : undefined),
                 experienceYears: parsedUserExp,
                 anosExperiencia: parsedUserExp,
                 province: docData.province || docData.provincia || '',
-                city: docData.city || docData.cidade || '',
+                city: docData.city || docData.cidade || docData.cidade_distrito || '',
                 avatarUrl: docData.avatarUrl || docData.photoURL || docData.fotoUrl || docData.foto || fbUser.photoURL || undefined,
                 photoURL: docData.photoURL || docData.avatarUrl || docData.fotoUrl || docData.foto || fbUser.photoURL || undefined,
                 isVerified: hasSeloApproved,
@@ -1157,7 +1216,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 subscriptionStatus: hasSeloApproved ? 'active' : (docData.subscriptionStatus || 'none'),
                 statusAssinatura: hasSeloApproved ? 'ativa' : (docData.statusAssinatura || 'none'),
                 activePlanId: docData.activePlanId || (hasSeloApproved ? 'pro' : undefined),
-                isTrialActive: docData.isTrialActive !== undefined ? Boolean(docData.isTrialActive) : true,
+
+                // Controle Estrito dos 3 Dias Grátis
+                trialStart: docTrialStart || null,
+                temAcessoTrial: finalTemAcessoTrial,
+                trialExpirado: finalTrialExpirado,
+                diasRestantes: finalDiasRestantes,
+                diasRestantesTrial: finalDiasRestantes,
+                isTrialActive: finalTemAcessoTrial,
+
                 createdAt: parseDateToIso(docData.createdAt || docData.criadoEm || docData.dataCadastro)
               } as any;
             } catch (err) {
@@ -1176,7 +1243,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               statusAprovacao: 'aprovado',
               statusConta: 'ativa',
               status: 'active',
-              isTrialActive: true,
+              isTrialActive: false,
+              temAcessoTrial: false,
+              trialExpirado: true,
+              diasRestantesTrial: 0,
               createdAt: new Date().toISOString()
             };
           }
@@ -1208,11 +1278,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const normalizedEmail = (data?.email || '').toString().trim().toLowerCase();
       const rawPhone = (data?.phone || '').toString().trim();
 
+      // Bloqueio de novo teste grátis no mesmo celular
+      const hasLocalFlag = typeof window !== 'undefined' && localStorage.getItem('tecnicaMZ_trial_usado') === 'true';
+      const deviceJaTeveTrial = hasLocalFlag || (await checkDeviceTrialUsedAsync());
+
       let generatedUid = `user_${Date.now()}`;
 
       if (isFirebaseConfigured && auth && data.password) {
         const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, data.password);
         generatedUid = userCredential.user.uid;
+      }
+
+      // Se o documento já existe, NUNCA regrave o trialStart
+      let existingTecnicoSnap = null;
+      if (isFirebaseConfigured && db) {
+        existingTecnicoSnap = await safeGetDoc(doc(db, 'tecnicos', generatedUid), 1, 300).catch(() => null);
+      }
+      const existingData = (existingTecnicoSnap && existingTecnicoSnap.exists()) ? existingTecnicoSnap.data() : null;
+
+      let finalTrialStart: any = null;
+      let finalDiasRestantes = 0;
+      let finalTemAcessoTrial = false;
+      let finalTrialExpirado = true;
+
+      if (existingData && existingData.trialStart) {
+        // Documento já existe: preserva rigorosamente o trialStart original e NUNCA regrava
+        finalTrialStart = existingData.trialStart;
+        const calc = calcularDiasRestantesTrial(existingData.trialStart);
+        finalDiasRestantes = calc.diasRestantes;
+        finalTemAcessoTrial = calc.temAcessoTrial;
+        finalTrialExpirado = calc.trialExpirado;
+      } else if (deviceJaTeveTrial) {
+        // SE JÁ TEVE TRIAL NESTE CELULAR: Crie a conta com trialStart = null, diasRestantes = 0, temAcessoTrial = false, trialExpirado = true. NÃO dê 3 dias.
+        finalTrialStart = null;
+        finalDiasRestantes = 0;
+        finalTemAcessoTrial = false;
+        finalTrialExpirado = true;
+      } else {
+        // SE NUNCA TEVE: Dê os 3 dias normalmente e grave a flag
+        finalTrialStart = serverTimestamp ? serverTimestamp() : new Date().toISOString();
+        finalDiasRestantes = 3;
+        finalTemAcessoTrial = true;
+        finalTrialExpirado = false;
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('tecnicaMZ_trial_usado', 'true');
+          } catch {}
+        }
+        await markDeviceTrialUsed();
       }
 
       const defaultName = data.name?.trim() || normalizedEmail.split('@')[0];
@@ -1235,22 +1348,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isVerified: false,
         temSeloMZ: false,
         statusSelo: 'nenhum',
-        isTrialActive: true,
+        trialStart: finalTrialStart,
+        diasRestantesTrial: finalDiasRestantes,
+        temAcessoTrial: finalTemAcessoTrial,
+        trialExpirado: finalTrialExpirado,
+        isTrialActive: finalTemAcessoTrial,
         createdAt: new Date().toISOString()
       } as any;
 
       if (isFirebaseConfigured && db) {
+        const extraPayload = {
+          ...newUser,
+          specialty: data.specialty || 'Eletricidade',
+          specialties: data.specialty ? [data.specialty] : ['Eletricidade'],
+          diasRestantes: finalDiasRestantes
+        };
+        await safeSetDoc(doc(db, 'tecnicos', generatedUid), extraPayload);
         await safeSetDoc(doc(db, 'users', generatedUid), newUser);
         await safeSetDoc(doc(db, 'usuarios', generatedUid), newUser);
         if (data.role === 'technician') {
-          await setDoc(doc(db, 'technicians', generatedUid), {
-            userId: generatedUid,
-            name: defaultName,
-            email: normalizedEmail,
-            phone: rawPhone,
-            specialties: data.specialty ? [data.specialty] : ['Eletricidade'],
-            createdAt: serverTimestamp()
-          }, { merge: true });
+          await setDoc(doc(db, 'technicians', generatedUid), extraPayload, { merge: true });
         }
       }
 
@@ -1863,19 +1980,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser, isSeloValid, isSeloExpired]);
 
   // 3. Teste Grátis (3 Dias)
+  const trialCalc = React.useMemo(() => {
+    if (!currentUser) {
+      return { diasRestantes: 0, temAcessoTrial: false, trialExpirado: true };
+    }
+    // Admins bypass
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return { diasRestantes: 3, temAcessoTrial: true, trialExpirado: false };
+    }
+
+    // Se o usuário explicitamente já teve trial marcado como inativo/expirado
+    if (currentUser.temAcessoTrial === false || currentUser.trialExpirado === true || currentUser.isTrialActive === false) {
+      return { diasRestantes: 0, temAcessoTrial: false, trialExpirado: true };
+    }
+
+    // Calcula dinamicamente com base no trialStart (ou data de criação de fallback)
+    const startVal = currentUser.trialStart || currentUser.createdAt || (currentUser as any).criado_em || (currentUser as any).criadoEm;
+    if (!startVal) {
+      return { diasRestantes: 0, temAcessoTrial: false, trialExpirado: true };
+    }
+
+    return calcularDiasRestantesTrial(startVal);
+  }, [currentUser]);
+
   const isTrialActive = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
-    return currentUser.isTrialActive !== false;
-  }, [currentUser]);
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return true;
+    }
+    return trialCalc.temAcessoTrial;
+  }, [currentUser, trialCalc]);
 
   const trialDaysRemaining = React.useMemo<number>(() => {
     if (!currentUser) return 0;
-    if (currentUser.isTrialActive === false) return 0;
-    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
-    const diffMs = (createdMs + THREE_DAYS_MS) - Date.now();
-    if (diffMs <= 0) return 0;
-    return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
-  }, [currentUser]);
+    if (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin' ||
+      currentUser.adminSubRole === 'super_admin'
+    ) {
+      return 3;
+    }
+    return trialCalc.diasRestantes;
+  }, [currentUser, trialCalc]);
 
   const isTrialValid = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
@@ -1886,11 +2040,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) {
       return true;
     }
-    if (currentUser.isTrialActive === false) return false;
-    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
-    const elapsedMs = Math.max(0, Date.now() - createdMs);
-    return elapsedMs <= THREE_DAYS_MS;
-  }, [currentUser]);
+    return trialCalc.temAcessoTrial;
+  }, [currentUser, trialCalc]);
 
   const isTrialExpired = React.useMemo<boolean>(() => {
     if (!currentUser) return false;
@@ -1901,11 +2052,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) {
       return false;
     }
-    if (currentUser.isTrialActive === false) return true;
-    const createdMs = parseDateToMillis(currentUser.createdAt || (currentUser as any).criadoEm || (currentUser as any).dataCadastro) || Date.now();
-    const elapsedMs = Math.max(0, Date.now() - createdMs);
-    return elapsedMs > THREE_DAYS_MS;
-  }, [currentUser]);
+    return trialCalc.trialExpirado;
+  }, [currentUser, trialCalc]);
 
   // 4. Assinatura Ativa
   const isSubscriptionActive = React.useMemo(() => {
@@ -2235,6 +2383,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         trialDaysRemaining,
         isTrialValid,
         isTrialExpired,
+        temAcessoTrial: trialCalc.temAcessoTrial,
+        trialExpirado: trialCalc.trialExpirado,
         hasAccess,
         isRestrictedTechnician,
         solicitacoesSelo,

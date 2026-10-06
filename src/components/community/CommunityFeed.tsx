@@ -240,10 +240,18 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ onNavigateTab }) =
       alert('Faça login para comentar.');
       return;
     }
+    const hasTrialAccess = Boolean(
+      isTrialValid ||
+      (currentUser.isTrialActive !== false && !currentUser.trialExpirado) ||
+      currentUser.temAcessoTrial === true ||
+      ((currentUser as any)?.diasRestantes && Number((currentUser as any).diasRestantes) > 0) ||
+      ((currentUser as any)?.diasRestantesTrial && Number((currentUser as any).diasRestantesTrial) > 0)
+    );
+    const hasSeloAccess = Boolean(temSeloMZ && !isSeloExpired);
     const hasCommentAccess = Boolean(
       isAdmin ||
-      (temSeloMZ && !isSeloExpired) ||
-      isTrialValid
+      hasSeloAccess ||
+      hasTrialAccess
     );
     if ((isTechnician || isCompany) && !hasCommentAccess) {
       setSeloFeatureName('Respostas e Comentários no Mural');
