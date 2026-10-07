@@ -1,5 +1,5 @@
 // ============================================================================
-// TÉCNICAMZ PRO — MOTOR WORKBENCH CAD SIMULATOR (V25)
+// TÉCNICAMZ PRO — MOTOR WORKBENCH CAD SIMULATOR
 // Simulação Física MNA, Telemetria True-RMS, Animação Contínua & Fiação IEC/DIN
 // Suporte a Rotação de Tela Mobile (Horizontal/Landscape) e Telemetria em Tempo Real
 // ============================================================================
@@ -3064,9 +3064,9 @@ export const CadSimulatorWorkbenchModal: React.FC<CadSimulatorWorkbenchModalProp
         <div
           ref={ghostRef}
           className="fixed top-0 left-0 pointer-events-none z-50 hidden opacity-60 rounded-lg border border-blue-400 bg-blue-900/90 items-center justify-center text-white"
-          style={{ width: 32, height: 32 }}
+          style={{ width: 32, height: 32, display: 'none' }}
         >
-          <span ref={ghostTextRef} className="text-[9px] font-black font-mono text-blue-200">CAD</span>
+          <span ref={ghostTextRef} className="text-[9px] font-black font-mono text-blue-200" />
         </div>
 
         {isThermalMode && (

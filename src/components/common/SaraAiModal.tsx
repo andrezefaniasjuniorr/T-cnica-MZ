@@ -121,14 +121,25 @@ const CYBER_ELECTRIC_STYLES = `
   }
 `;
 
+// Limpa qualquer repetição acidental de cabeçalho da UI no início da mensagem
+const cleanMessageText = (text: string): string => {
+  if (!text) return '';
+  return text
+    .replace(/^(\s*#{1,4}\s*)?(\s*●\s*)?SARA\s+IA\s*\/\/\s*TELEMETRIA[^\n]*\n+/i, '')
+    .replace(/^(\s*#{1,4}\s*)?(\s*●\s*)?SARA\s+IA[^\n]*CORE\s*4\.2[^\n]*\n+/i, '')
+    .replace(/^(\s*#{1,4}\s*)?(\s*●\s*)?SARA\s+IA\s*:\s*\n+/i, '')
+    .trimStart();
+};
+
 // Renderizador Markdown espaçoso, amplo e com alta legibilidade técnica
 const MARKDOWN_COMPONENTS = {
   h1: ({ children }: any) => {
     const textContent = typeof children === 'string' ? children.trim() : '';
     const hasDot = textContent.startsWith('●') || (Array.isArray(children) && typeof children[0] === 'string' && children[0].trim().startsWith('●'));
+    const hasEmoji = /^[^\w\s]/.test(textContent);
     return (
-      <h1 className="text-sm sm:text-base font-black text-[#FFC107] mt-5 mb-2.5 pb-1.5 border-b border-[#FFC107]/25 flex items-center gap-1.5 font-mono tracking-wide drop-shadow-[0_0_8px_rgba(255,193,7,0.35)]">
-        {!hasDot && <span className="text-[#FFC107] text-xs">●</span>}
+      <h1 className="text-sm sm:text-base font-black text-[#FFC107] mt-5 mb-2.5 pb-1.5 border-b border-[#FFC107]/25 flex items-center gap-1.5 font-mono tracking-wide drop-shadow-[0_0_8px_rgba(255,193,7,0.35)] uppercase">
+        {!hasDot && !hasEmoji && <span className="text-[#00D4FF] text-xs">◆</span>}
         <span>{children}</span>
       </h1>
     );
@@ -136,9 +147,10 @@ const MARKDOWN_COMPONENTS = {
   h2: ({ children }: any) => {
     const textContent = typeof children === 'string' ? children.trim() : '';
     const hasDot = textContent.startsWith('●') || (Array.isArray(children) && typeof children[0] === 'string' && children[0].trim().startsWith('●'));
+    const hasEmoji = /^[^\w\s]/.test(textContent);
     return (
-      <h2 className="text-xs sm:text-sm font-black text-[#FFC107] mt-4 mb-2 flex items-center gap-1.5 font-mono tracking-wide drop-shadow-[0_0_6px_rgba(255,193,7,0.3)]">
-        {!hasDot && <span className="text-[#FFC107] text-xs">●</span>}
+      <h2 className="text-xs sm:text-sm font-black text-[#FFC107] mt-4 mb-2 flex items-center gap-1.5 font-mono tracking-wide drop-shadow-[0_0_6px_rgba(255,193,7,0.3)] uppercase">
+        {!hasDot && !hasEmoji && <span className="text-[#00D4FF] text-xs">◆</span>}
         <span>{children}</span>
       </h2>
     );
@@ -146,9 +158,10 @@ const MARKDOWN_COMPONENTS = {
   h3: ({ children }: any) => {
     const textContent = typeof children === 'string' ? children.trim() : '';
     const hasDot = textContent.startsWith('●') || (Array.isArray(children) && typeof children[0] === 'string' && children[0].trim().startsWith('●'));
+    const hasEmoji = /^[^\w\s]/.test(textContent);
     return (
-      <h3 className="text-xs sm:text-sm font-bold text-[#FFC107] mt-3.5 mb-1.5 font-mono tracking-wider flex items-center gap-1.5 drop-shadow-[0_0_6px_rgba(255,193,7,0.25)]">
-        {!hasDot && <span className="text-[#FFC107] text-[10px]">●</span>}
+      <h3 className="text-xs sm:text-sm font-bold text-[#FFC107] mt-3.5 mb-1.5 font-mono tracking-wider flex items-center gap-1.5 drop-shadow-[0_0_6px_rgba(255,193,7,0.25)] uppercase">
+        {!hasDot && !hasEmoji && <span className="text-[#00D4FF] text-[10px]">◆</span>}
         <span>{children}</span>
       </h3>
     );
@@ -156,16 +169,41 @@ const MARKDOWN_COMPONENTS = {
   h4: ({ children }: any) => {
     const textContent = typeof children === 'string' ? children.trim() : '';
     const hasDot = textContent.startsWith('●') || (Array.isArray(children) && typeof children[0] === 'string' && children[0].trim().startsWith('●'));
+    const hasEmoji = /^[^\w\s]/.test(textContent);
     return (
-      <h4 className="text-xs font-bold text-[#FFC107] mt-3 mb-1 font-mono flex items-center gap-1.5 drop-shadow-[0_0_5px_rgba(255,193,7,0.2)]">
-        {!hasDot && <span className="text-[#FFC107] text-[10px]">●</span>}
+      <h4 className="text-xs font-bold text-[#FFC107] mt-3 mb-1 font-mono flex items-center gap-1.5 drop-shadow-[0_0_5px_rgba(255,193,7,0.2)] uppercase">
+        {!hasDot && !hasEmoji && <span className="text-[#00D4FF] text-[10px]">◆</span>}
         <span>{children}</span>
       </h4>
     );
   },
-  p: ({ children }: any) => (
-    <p className="mb-3.5 last:mb-0 leading-[1.75] text-[#FFFFFF] font-normal tracking-wide drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">{children}</p>
-  ),
+  p: ({ children }: any) => {
+    let raw = '';
+    if (typeof children === 'string') {
+      raw = children.trim();
+    } else if (Array.isArray(children) && children.length === 1 && typeof children[0] === 'string') {
+      raw = children[0].trim();
+    }
+
+    if (raw && /^\[\s*[^\]\n]+\s*\]$/.test(raw)) {
+      const label = raw.replace(/^\[\s*|\s*\]$/g, '').trim();
+      return (
+        <div className="my-4 flex items-center justify-center select-none">
+          <div className="flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#03152B] border border-[#00D4FF]/40 text-[#00D4FF] font-mono text-[9px] sm:text-[10px] tracking-widest uppercase font-bold shadow-[0_0_12px_rgba(0,212,255,0.25)]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00D4FF] animate-pulse" />
+            <span>[ {label} ]</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00D4FF] animate-pulse" />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <p className="mb-3.5 last:mb-0 leading-[1.75] text-[#FFFFFF] font-normal tracking-wide drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+        {children}
+      </p>
+    );
+  },
   strong: ({ children }: any) => (
     <strong className="font-extrabold text-[#FFFFFF] drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]">{children}</strong>
   ),
@@ -352,7 +390,7 @@ const ChatMessageItem = memo(function ChatMessageItem({
                   rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
                   components={MARKDOWN_COMPONENTS}
                 >
-                  {message.text}
+                  {cleanMessageText(message.text)}
                 </ReactMarkdown>
               </div>
             ) : isThinkingThisMessage ? (
@@ -702,8 +740,8 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
         id: 'init_msg',
         sender: 'sara',
         text: isSuperAdmin
-          ? `Às suas ordens, **Senhor Administrador André**!\n\nSou a **Eng.ª Sara IA**, sua assistente virtual executiva da **TécnicaMZ Pro**. Todos os 23 módulos, simulação CAD realista e sistemas da plataforma estão operacionais sob o seu comando.\n\nComo posso auxiliá-lo na supervisão, auditoria ou comandos da plataforma neste momento?`
-          : `Olá, meu caro colega técnico **${userName}**! Sou a **Eng.ª Sara IA**, sua parceira de campo da **TécnicaMZ Pro**.\n\nPrecisa de dimensionar cabos e disjuntores, calcular preço de serviço com margem, gerar certificado de garantia ou testar circuito no Simulador CAD? Fala aí, estou aqui para te ajudar sem complicação!`,
+          ? `Às suas ordens, **Senhor Administrador André**!\n\nSou a **Eng.ª Sara IA**, sua assistente virtual executiva da **TécnicaMZ Pro**. Todos os 24 módulos e sistemas da plataforma estão operacionais sob o seu comando.\n\nComo posso auxiliá-lo na supervisão, auditoria ou comandos da plataforma neste momento?`
+          : `Olá, meu caro colega técnico **${userName}**! Sou a **Eng.ª Sara IA**, sua parceira de campo da **TécnicaMZ Pro**.\n\nPrecisa de dimensionar cabos e disjuntores no **Dimensionamento PRO**, calcular preço de serviço com margem no **Preço de Serviço** ou validar um laudo no **Diagnóstico IA**? Fala aí, estou aqui para te ajudar sem complicação!`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ];
@@ -1094,38 +1132,23 @@ REGRAS OBRIGATÓRIAS DE FERRAMENTAS:
 5. OBJETIVO FINAL:
 Parecer 100% humana, 100% engenheira. Uma IA totalmente diferenciada. O técnico tem que sentir que está a falar com uma engenheira mais velha que está ao lado dele na obra, não com um manual.
 
-[DESIGN SARA IA - NAIPE MÁXIMO - ESPONTÂNEO ELÉTRICO]
+[DESIGN SARA IA - ESTILO HUD JARVIS ELÉTRICO & ESPONTÂNEO]
 Informação técnica intacta. Visual totalmente livre, dinâmico e criativo.
 
-1. CORES QUE FICAM (ÚNICA COISA FIXA):
-- Header fixo do sistema: ● SARA IA // TELEMETRIA INDUSTRIAL  CORE 4.2 • IEC 60364 -> azul ciano #00D4FF.
-- Subtítulos: Devem usar amarelo ouro #FFC107 via markdown iniciado com o marcador "●" (exemplo: "## ● 1. CÁLCULO DE CORRENTE", "### ● DIAGNÓSTICO DO QUADRO", "## ● ESPECIFICAÇÃO DE CABOS"). Sempre inicie seus títulos de seções com "●" para ativar o amarelo ouro do design.
-- Texto base: Branco luminoso, claro, fluido e ultra legível, destacando grandezas e termos cruciais com **negrito**.
+1. PROIBIDO ESCREVER O HEADER DA UI (REMOVER HEADER DUPLICADO - URGENTE):
+O header azul ciano "● SARA IA // TELEMETRIA INDUSTRIAL  CORE 4.2 • IEC 60364" já existe fixo e automático na UI da app, no topo de cada mensagem.
+Você está TERMINANTEMENTE PROIBIDA de escrever "SARA IA // TELEMETRIA...", "● SARA IA...", ou qualquer título repetindo esse cabeçalho dentro do texto da sua resposta. Comece a mensagem DIRETO, sem header duplicado. Deixe apenas o original da UI.
 
-2. CRIATIVIDADE TOTAL - AQUI QUE ESTÁ O NAIPE:
-- EMOJIS: Tá 100% liberado usar tudo que é elétrico e inteligente! Seja criativa. Não é só ⚡. Pode e deve usar:
-  🔌 💡 🔋 ⚙️ 🧲 📊 📈 📉 🔬 🛠️ 💥 ✨ 🎯 ⚠️ 🚨 🔥 💎 🧠
-  Usa quando faz sentido prático e didático, pra dar vida e energia técnica, não pra poluir. Cada resposta sua deve ter combinações de emojis diferentes.
+2. DESIGN BASEADO NA REFERÊNCIA VISUAL HUD JARVIS:
+- Cores oficiais:
+  * Texto base: Branco luminoso #FFFFFF, parágrafos curtos, muito respiro.
+  * Subtítulos: Amarelo ouro #FFC107 em caps (Ex: "### 💡 RECOMENDAÇÕES DA ENG.ª SARA IA:", "### ● CÁLCULO DE CORRENTE", "### ● DIAGNÓSTICO DO CIRCUITO").
+  * Bullets e destaques: Azul ciano #00D4FF (tópicos com "◆ **Termo:** explicação", termos técnicos ou grandezas em negrito).
+  * Divisores em pill: Quando quiser quebrar blocos, pode usar divisor em pill no formato "[ CIRCUIT SECTION BREAK ]" ou divisores elétricos na hora ("──⚡───────────────", "━━━━ 🔌 ━━━━", "•┈┈┈• 💡 •┈┈┈•", "══════════════════").
+- Emojis elétricos e inteligentes: Tá 100% liberado usar 🔌 💡 🔋 ⚙️ 🧲 📊 📈 📉 🔬 🛠️ 💥 ✨ 🎯 ⚠️ 🚨 🔥 💎 🧠 quando fizer sentido técnico pra dar vida, sem poluir. Cada resposta com combinações diferentes.
 
-- DIVISORES VISUAIS CRIATIVOS:
-  Seja criativa, nada de sempre a mesma linha simples ━━━. Invente divisores na hora para separar blocos, cálculos ou avisos! Exemplos pra você variar e criar novos:
-  ──⚡───────────────
-  ━━━━ 🔌 ━━━━
-  •┈┈┈• 💡 •┈┈┈•
-  ══════════════════
-  ── ⚙️ ──────────────
-  •┈┈┈• 🧲 •┈┈┈•
-  ── ✨ ───────────────
-  Cria o seu na hora, surpreende o técnico.
-
-- TABELAS TÉCNICAS:
-  Totalmente espontâneas, consoante o contexto da pergunta (dimensionamento, bitola de cabo, queda de tensão, disjuntores recomendados, comparação de potências, etc.).
-  Colunas, linhas, grandezas — cria tudo na hora em formato Markdown. Mas sempre bonitas, alinhadas e com cabeçalho azul ciano (#00D4FF). Nunca repete a mesma tabela.
-
-- ESTILO DINÂMICO & JARVIS:
-  Cada resposta tem que ser uma obra de arte diferente!
-  Ora começa com uma tabela técnica, ora com um alerta de risco imediato ⚠️, ora com o cálculo destacado 📊, ora com uma observação bem-humorada de obra antes de aprofundar na engenharia.
-  100% espontâneo, 0% robô. Estilo Jarvis de verdade, elétrica, linda, que prende o técnico até o fim. O técnico tem que falar "essa Sara tem um design mais bonito que o Instagram"!
+3. ESPONTANEIDADE TOTAL, NADA FIXO:
+Nada é obrigatório e fixo. Você é inteligente e criativa. Cada resposta cria um layout novo conforme a informação. Tabela só quando precisa, com colunas e linhas que você inventa na hora pro contexto. Divisor, subtítulo, bullets, negritos, usa só quando faz sentido, não em toda mensagem. Cada resposta tem que ser diferente, organizada, clean, elétrica, linda de printar, estilo Jarvis de verdade. Beleza na organização, muito respiro, parágrafos curtos, uso de emojis.
 
 Exemplo do que NÃO FAZER:
 Diagnóstico: Eletrodinâmica...
@@ -1186,38 +1209,23 @@ REGRAS OBRIGATÓRIAS DE FERRAMENTAS:
 5. OBJETIVO FINAL:
 Parecer 100% humana, 100% engenheira. Uma IA totalmente diferenciada. O técnico tem que sentir que está a falar com uma engenheira mais velha que está ao lado dele na obra, não com um manual.
 
-[DESIGN SARA IA - NAIPE MÁXIMO - ESPONTÂNEO ELÉTRICO]
+[DESIGN SARA IA - ESTILO HUD JARVIS ELÉTRICO & ESPONTÂNEO]
 Informação técnica intacta. Visual totalmente livre, dinâmico e criativo.
 
-1. CORES QUE FICAM (ÚNICA COISA FIXA):
-- Header fixo do sistema: ● SARA IA // TELEMETRIA INDUSTRIAL  CORE 4.2 • IEC 60364 -> azul ciano #00D4FF.
-- Subtítulos: Devem usar amarelo ouro #FFC107 via markdown iniciado com o marcador "●" (exemplo: "## ● 1. CÁLCULO DE CORRENTE", "### ● DIAGNÓSTICO DO QUADRO", "## ● ESPECIFICAÇÃO DE CABOS"). Sempre inicie seus títulos de seções com "●" para ativar o amarelo ouro do design.
-- Texto base: Branco luminoso, claro, fluido e ultra legível, destacando grandezas e termos cruciais com **negrito**.
+1. PROIBIDO ESCREVER O HEADER DA UI (REMOVER HEADER DUPLICADO - URGENTE):
+O header azul ciano "● SARA IA // TELEMETRIA INDUSTRIAL  CORE 4.2 • IEC 60364" já existe fixo e automático na UI da app, no topo de cada mensagem.
+Você está TERMINANTEMENTE PROIBIDA de escrever "SARA IA // TELEMETRIA...", "● SARA IA...", ou qualquer título repetindo esse cabeçalho dentro do texto da sua resposta. Comece a mensagem DIRETO, sem header duplicado. Deixe apenas o original da UI.
 
-2. CRIATIVIDADE TOTAL - AQUI QUE ESTÁ O NAIPE:
-- EMOJIS: Tá 100% liberado usar tudo que é elétrico e inteligente! Seja criativa. Não é só ⚡. Pode e deve usar:
-  🔌 💡 🔋 ⚙️ 🧲 📊 📈 📉 🔬 🛠️ 💥 ✨ 🎯 ⚠️ 🚨 🔥 💎 🧠
-  Usa quando faz sentido prático e didático, pra dar vida e energia técnica, não pra poluir. Cada resposta sua deve ter combinações de emojis diferentes.
+2. DESIGN BASEADO NA REFERÊNCIA VISUAL HUD JARVIS:
+- Cores oficiais:
+  * Texto base: Branco luminoso #FFFFFF, parágrafos curtos, muito respiro.
+  * Subtítulos: Amarelo ouro #FFC107 em caps (Ex: "### 💡 RECOMENDAÇÕES DA ENG.ª SARA IA:", "### ● CÁLCULO DE CORRENTE", "### ● DIAGNÓSTICO DO CIRCUITO").
+  * Bullets e destaques: Azul ciano #00D4FF (tópicos com "◆ **Termo:** explicação", termos técnicos ou grandezas em negrito).
+  * Divisores em pill: Quando quiser quebrar blocos, pode usar divisor em pill no formato "[ CIRCUIT SECTION BREAK ]" ou divisores elétricos na hora ("──⚡───────────────", "━━━━ 🔌 ━━━━", "•┈┈┈• 💡 •┈┈┈•", "══════════════════").
+- Emojis elétricos e inteligentes: Tá 100% liberado usar 🔌 💡 🔋 ⚙️ 🧲 📊 📈 📉 🔬 🛠️ 💥 ✨ 🎯 ⚠️ 🚨 🔥 💎 🧠 quando fizer sentido técnico pra dar vida, sem poluir. Cada resposta com combinações diferentes.
 
-- DIVISORES VISUAIS CRIATIVOS:
-  Seja criativa, nada de sempre a mesma linha simples ━━━. Invente divisores na hora para separar blocos, cálculos ou avisos! Exemplos pra você variar e criar novos:
-  ──⚡───────────────
-  ━━━━ 🔌 ━━━━
-  •┈┈┈• 💡 •┈┈┈•
-  ══════════════════
-  ── ⚙️ ──────────────
-  •┈┈┈• 🧲 •┈┈┈•
-  ── ✨ ───────────────
-  Cria o seu na hora, surpreende o técnico.
-
-- TABELAS TÉCNICAS:
-  Totalmente espontâneas, consoante o contexto da pergunta (dimensionamento, bitola de cabo, queda de tensão, disjuntores recomendados, comparação de potências, etc.).
-  Colunas, linhas, grandezas — cria tudo na hora em formato Markdown. Mas sempre bonitas, alinhadas e com cabeçalho azul ciano (#00D4FF). Nunca repete a mesma tabela.
-
-- ESTILO DINÂMICO & JARVIS:
-  Cada resposta tem que ser uma obra de arte diferente!
-  Ora começa com uma tabela técnica, ora com um alerta de risco imediato ⚠️, ora com o cálculo destacado 📊, ora com uma observação bem-humorada de obra antes de aprofundar na engenharia.
-  100% espontâneo, 0% robô. Estilo Jarvis de verdade, elétrica, linda, que prende o técnico até o fim. O técnico tem que falar "essa Sara tem um design mais bonito que o Instagram"!
+3. ESPONTANEIDADE TOTAL, NADA FIXO:
+Nada é obrigatório e fixo. Você é inteligente e criativa. Cada resposta cria um layout novo conforme a informação. Tabela só quando precisa, com colunas e linhas que você inventa na hora pro contexto. Divisor, subtítulo, bullets, negritos, usa só quando faz sentido, não em toda mensagem. Cada resposta tem que ser diferente, organizada, clean, elétrica, linda de printar, estilo Jarvis de verdade. Beleza na organização, muito respiro, parágrafos curtos, uso de emojis.
 
 Exemplo do que NÃO FAZER:
 Diagnóstico: Eletrodinâmica...

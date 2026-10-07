@@ -792,7 +792,7 @@ function generateFaultDiagnosticResponse(userName: string, query: string): strin
 function generateAcademyLessonResponse(userName: string, ctx: any, query: string): string {
   return `Olá, **${userName}**! Identifiquei a sua dúvida sincronizada com a **${ctx.courseTitle || 'Minha Academia Técnica'}**.
 
-### ⚡ SARA IA | ANÁLISE NORMATIVA APROFUNDADA
+### 💡 ANÁLISE NORMATIVA APROFUNDADA:
 * **Tópico / Lição:** \`${ctx.lessonTitle || 'Tópico de Estudo'}\` (${ctx.lessonCode || 'AULA-PRO'})
 * **Norma Técnica de Referência:** **${ctx.norma || 'IEC 60364 / EDM'}**
 * **Módulo:** ${ctx.moduleTitle || 'Módulo Especializado'}
