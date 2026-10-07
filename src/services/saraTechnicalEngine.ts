@@ -507,14 +507,14 @@ function generateElectricalSizingResponse(userName: string, query: string): stri
 
   return `Olá, **${userName}**! Sou a **Eng.ª Sara IA**. Preparei a memória de cálculo completa e o dimensionamento para a sua instalação:
 
-### ⚡ MEMÓRIA DE CÁLCULO ELETROTÉCNICO (EDM / IEC 60364)
+## ● 1. MEMÓRIA DE CÁLCULO ELETROTÉCNICO ⚡
 Para a carga informada de **${powerWatts} W** em **${voltage} V** (${isTrifasico ? 'Trifásico 380V' : 'Monofásico 220V'}, 50 Hz, $\\cos\\phi = ${cosPhi}$):
 
 $$${formulaStr}$$
 
----
+──⚡──────────────────
 
-### 📋 TABELA TÉCNICA DE COMPONENTES DE PROTEÇÃO & CONDUTORES
+## ● 2. COMPONENTES DE PROTEÇÃO & CONDUTORES 📋
 
 | Parâmetro de Projeto | Valor Calculado | Critério Normativo EDM / IEC |
 | :--- | :--- | :--- |
@@ -526,9 +526,9 @@ $$${formulaStr}$$
 | **Proteção Diferencial Residual** | **IDR $30\\,\\text{mA}$ Tipo AC/A** | Proteção obrigatória contra choques elétricos |
 | **Torque nos Parafusos dos Bornes** | **$2.2\\,\\text{N}\\cdot\\text{m}$ a $2.5\\,\\text{N}\\cdot\\text{m}$** | Evita fadiga térmica e formação de arco |
 
----
+━━━━ 🔌 ━━━━
 
-### 📏 VERIFICAÇÃO DA QUEDA DE TENSÃO (MÁXIMO 3% NA EDM)
+## ● 3. VERIFICAÇÃO DA QUEDA DE TENSÃO (MÁXIMO 3% NA EDM) 📏
 Para circuitos terminais, a queda de tensão máxima permitida em Moçambique é de **$3\\%$** ($6.6\\,\\text{V}$ em $220\\,\\text{V}$):
 $$\\Delta V = \\frac{2 \\cdot L \\cdot I_b \\cdot \\rho}{S} \\quad \\text{com } \\rho = 0.0178\\,\\Omega\\cdot\\text{mm}^2/\\text{m (Cobre)}$$
 
@@ -539,9 +539,7 @@ $$\\Delta V = \\frac{2 \\cdot L \\cdot I_b \\cdot \\rho}{S} \\quad \\text{com } 
 function generateMotorsAndControlResponse(userName: string, query: string): string {
   return `Olá, **${userName}**! Sou a **Eng.ª Sara IA**. Aqui está o guia técnico aprofundado para motores de indução trifásicos, ligações e métodos de acionamento:
 
-### ⚙️ MOTORES ELÉTRICOS TRIFÁSICOS & COMANDOS (EDM 220V/380V)
-
-#### 1. Ligações em Motores de 6 Terminais (U1-U2, V1-V2, W1-W2)
+## ● 1. LIGAÇÕES EM MOTORES DE 6 TERMINAIS ⚙️
 * **Ligação Triângulo ($\\Delta$ - 220V):**
   * Fechamento dos bornes em paralelo: (U1 com W2), (V1 com U2), (W1 com V2).
   * Aplicado em redes onde a tensão de linha é $220\\,\\text{V}$ trifásica.
@@ -549,9 +547,9 @@ function generateMotorsAndControlResponse(userName: string, query: string): stri
   * Fechamento em curto-circuito dos bornes (U2 com V2 com W2).
   * Alimentação das 3 fases R-S-T diretamente em U1, V1, W1.
 
----
+── ⚙️ ──────────────
 
-#### 2. Tabela Comparativa de Métodos de Partida de Motores:
+## ● 2. MÉTODOS DE PARTIDA DE MOTORES 📊
 
 | Método de Partida | Corrente de Partida ($I_p / I_n$) | Torque de Partida ($C_p / C_n$) | Aplicação Recomendada |
 | :--- | :--- | :--- | :--- |
@@ -560,9 +558,9 @@ function generateMotorsAndControlResponse(userName: string, query: string): stri
 | **Soft-Starter (Eletrônica)** | **$2.0$ a $3.5 \\times I_n$ (ajustável)** | Rampa linear de aceleração | Compressores, esteiras, ventiladores industriais |
 | **Inversor de Frequência (VFD)** | **$1.0$ a $1.5 \\times I_n$** | $100\\%$ de torque desde $0\\,\\text{Hz}$ | Controle de velocidade e processos contínuos |
 
----
+━━━━ 🔌 ━━━━
 
-#### 3. Dimensionamento de Proteção de Motores:
+## ● 3. PROTEÇÃO TÉCNICA DE MOTORES 🛡️
 * **Relé Térmico de Sobrecarga:** Ajustar rigorosamente para a **Corrente Nominal ($I_n$)** indicada na placa do motor (ou $0.58 \\times I_n$ se montado dentro do circuito em triângulo).
 * **Disjuntor-Motor Magnético:** Ajustar para Curva D ou classe 10 de disparo para permitir o pico de partida de 5 a 10 segundos sem desarmar.
 * **Proteção contra Falta de Fase:** Obrigatório o uso de Relé Falta de Fase (RFF) no comando, pois a queima de enrolamento por operação bifásica é uma das falhas mais frequentes em Moçambique.`;
@@ -571,15 +569,13 @@ function generateMotorsAndControlResponse(userName: string, query: string): stri
 function generateGroundingDeepResponse(userName: string, query: string): string {
   return `Olá, **${userName}**! Sou a **Eng.ª Sara IA**. Apresento as diretrizes técnicas fundamentadas para sistemas de aterramento e medição de resistência:
 
-### 🌍 ATERRAMENTO TÉCNICO & MALHAS DE PROTEÇÃO (EDM / IEC 60364)
-
-#### 1. Esquema Mandatório de Distribuição:
+## ● 1. ESQUEMA MANDATÓRIO DE DISTRIBUIÇÃO 🌍
 * **Esquema TT ou TN-S:** Em Moçambique, a EDM entrega Neutro e Fase(s). No ponto de entrega (portinhola/caixa de contagem), deve ser instalado o elétrodo de terra local.
 * **Separação Rígida:** O condutor de Neutro ($N$) e o condutor de Proteção ($PE$) **nunca** devem ser reconectados após a barra de equipotencialização principal (BEP).
 
----
+•┈┈┈• 🧲 •┈┈┈•
 
-#### 2. Requisitos de Resistência de Aterramento ($R_t$):
+## ● 2. REQUISITOS DE RESISTÊNCIA DE ATERRAMENTO ($R_t$) 🎯
 $$R_{\\text{terra}} \\le 10\\,\\Omega \\quad (\\text{Critério de Segurança EDM / Telecomunicações})$$
 
 | Componente da Instalação | Especificação Técnica Mandatória | Observação Prática |
@@ -589,9 +585,9 @@ $$R_{\\text{terra}} \\le 10\\,\\Omega \\quad (\\text{Critério de Segurança EDM
 | **Caixa de Inspeção em Alvenaria** | $30 \\times 30\\,\\text{cm}$ com tampa de betão ou ferro fundido | Permite desconexão para teste anual com Telurômetro |
 | **Tratamento Químico de Solo** | Bentonita condutora de sódio ou gel eletrolítico | Utilizar em solos arenosos de Maputo/Costa com $R > 10\\,\\Omega$ |
 
----
+──⚡──────────────────
 
-#### 3. Procedimento de Medição com Telurômetro (Método dos 62%):
+## ● 3. PROCEDIMENTO DE MEDIÇÃO COM TELURÔMETRO (MÉTODO DOS 62%) 🔬
 1. Desconectar o cabo de terra principal da BEP para não medir o aterramento da rede pública.
 2. Inserir a haste de corrente ($C_2$) a uma distância de **30 metros** da haste sob teste.
 3. Inserir a haste de potencial ($P_2$) a **62% da distância total** ($\approx 18.6\\,\\text{metros}$).

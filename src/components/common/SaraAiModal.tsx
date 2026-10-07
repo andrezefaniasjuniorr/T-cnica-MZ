@@ -123,69 +123,88 @@ const CYBER_ELECTRIC_STYLES = `
 
 // Renderizador Markdown espaçoso, amplo e com alta legibilidade técnica
 const MARKDOWN_COMPONENTS = {
-  h1: ({ children }: any) => (
-    <h1 className="text-sm sm:text-base font-black text-white mt-5 mb-3 pb-2 border-b border-[#00F5FF]/30 flex items-center gap-2 tracking-wide font-mono uppercase">
-      <span className="w-2.5 h-2.5 bg-[#00F5FF] shadow-[0_0_8px_#00F5FF] rounded-none rotate-45 shrink-0" />
-      <span className="text-[#00F5FF] tracking-wider">[ETAPA]</span>
-      <span>{children}</span>
-    </h1>
-  ),
-  h2: ({ children }: any) => (
-    <h2 className="text-xs sm:text-sm font-black text-cyan-200 mt-4 mb-2 flex items-center gap-2 font-mono tracking-wide">
-      <span className="text-[#FFB703] font-bold">⚡▸</span> {children}
-    </h2>
-  ),
-  h3: ({ children }: any) => (
-    <h3 className="text-xs sm:text-sm font-bold text-[#FFB703] mt-3.5 mb-1.5 uppercase tracking-wider font-mono flex items-center gap-1.5">
-      <span className="w-1.5 h-1.5 bg-[#FFB703] rounded-full inline-block" />
-      {children}
-    </h3>
-  ),
-  h4: ({ children }: any) => (
-    <h4 className="text-xs font-semibold text-cyan-300 mt-3 mb-1 font-mono">{children}</h4>
-  ),
+  h1: ({ children }: any) => {
+    const textContent = typeof children === 'string' ? children.trim() : '';
+    const hasDot = textContent.startsWith('●') || (Array.isArray(children) && typeof children[0] === 'string' && children[0].trim().startsWith('●'));
+    return (
+      <h1 className="text-sm sm:text-base font-black text-[#FFC107] mt-5 mb-2.5 pb-1.5 border-b border-[#FFC107]/25 flex items-center gap-1.5 font-mono tracking-wide drop-shadow-[0_0_8px_rgba(255,193,7,0.35)]">
+        {!hasDot && <span className="text-[#FFC107] text-xs">●</span>}
+        <span>{children}</span>
+      </h1>
+    );
+  },
+  h2: ({ children }: any) => {
+    const textContent = typeof children === 'string' ? children.trim() : '';
+    const hasDot = textContent.startsWith('●') || (Array.isArray(children) && typeof children[0] === 'string' && children[0].trim().startsWith('●'));
+    return (
+      <h2 className="text-xs sm:text-sm font-black text-[#FFC107] mt-4 mb-2 flex items-center gap-1.5 font-mono tracking-wide drop-shadow-[0_0_6px_rgba(255,193,7,0.3)]">
+        {!hasDot && <span className="text-[#FFC107] text-xs">●</span>}
+        <span>{children}</span>
+      </h2>
+    );
+  },
+  h3: ({ children }: any) => {
+    const textContent = typeof children === 'string' ? children.trim() : '';
+    const hasDot = textContent.startsWith('●') || (Array.isArray(children) && typeof children[0] === 'string' && children[0].trim().startsWith('●'));
+    return (
+      <h3 className="text-xs sm:text-sm font-bold text-[#FFC107] mt-3.5 mb-1.5 font-mono tracking-wider flex items-center gap-1.5 drop-shadow-[0_0_6px_rgba(255,193,7,0.25)]">
+        {!hasDot && <span className="text-[#FFC107] text-[10px]">●</span>}
+        <span>{children}</span>
+      </h3>
+    );
+  },
+  h4: ({ children }: any) => {
+    const textContent = typeof children === 'string' ? children.trim() : '';
+    const hasDot = textContent.startsWith('●') || (Array.isArray(children) && typeof children[0] === 'string' && children[0].trim().startsWith('●'));
+    return (
+      <h4 className="text-xs font-bold text-[#FFC107] mt-3 mb-1 font-mono flex items-center gap-1.5 drop-shadow-[0_0_5px_rgba(255,193,7,0.2)]">
+        {!hasDot && <span className="text-[#FFC107] text-[10px]">●</span>}
+        <span>{children}</span>
+      </h4>
+    );
+  },
   p: ({ children }: any) => (
-    <p className="mb-3.5 last:mb-0 leading-[1.75] text-slate-100 font-normal tracking-wide">{children}</p>
+    <p className="mb-3.5 last:mb-0 leading-[1.75] text-[#FFFFFF] font-normal tracking-wide drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">{children}</p>
   ),
   strong: ({ children }: any) => (
-    <strong className="font-extrabold text-white text-[#00F5FF] drop-shadow-[0_0_8px_rgba(0,245,255,0.4)]">{children}</strong>
+    <strong className="font-extrabold text-[#FFFFFF] drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]">{children}</strong>
   ),
-  em: ({ children }: any) => <em className="italic text-cyan-200">{children}</em>,
+  em: ({ children }: any) => <em className="italic text-[#00D4FF] font-medium">{children}</em>,
   ul: ({ children }: any) => (
-    <ul className="list-none pl-1 my-3.5 space-y-2.5 text-slate-100">{children}</ul>
+    <ul className="list-none pl-1 my-3.5 space-y-2.5 text-[#FFFFFF]">{children}</ul>
   ),
   ol: ({ children }: any) => (
-    <ol className="list-decimal pl-5 my-3.5 space-y-2.5 text-slate-100 marker:text-[#00F5FF] marker:font-mono">{children}</ol>
+    <ol className="list-decimal pl-5 my-3.5 space-y-2.5 text-[#FFFFFF] marker:text-[#00D4FF] marker:font-mono">{children}</ol>
   ),
   li: ({ children }: any) => (
-    <li className="leading-[1.75] flex items-start gap-2.5">
-      <span className="text-[#00F5FF] font-mono text-xs select-none mt-1">◆</span>
-      <div className="flex-1">{children}</div>
+    <li className="leading-[1.75] flex items-start gap-2.5 text-[#FFFFFF]">
+      <span className="text-[#00D4FF] font-mono text-xs select-none mt-1">◆</span>
+      <div className="flex-1 text-[#FFFFFF]">{children}</div>
     </li>
   ),
   blockquote: ({ children }: any) => (
-    <blockquote className="border-l-4 border-[#FFB703] bg-[#071326]/90 px-4 py-3 my-4 rounded-r-lg text-amber-200 text-xs sm:text-sm font-mono shadow-[inset_0_0_20px_rgba(255,183,3,0.08)] flex items-start gap-3">
-      <Zap className="w-4 h-4 text-[#FFB703] shrink-0 mt-0.5 animate-pulse" />
-      <div className="flex-1 leading-relaxed text-slate-100">{children}</div>
+    <blockquote className="border-l-4 border-[#FFC107] bg-[#071326]/90 px-4 py-3 my-4 rounded-r-lg text-amber-200 text-xs sm:text-sm font-mono shadow-[inset_0_0_20px_rgba(255,193,7,0.1)] flex items-start gap-3">
+      <Zap className="w-4 h-4 text-[#FFC107] shrink-0 mt-0.5 animate-pulse" />
+      <div className="flex-1 leading-relaxed text-[#FFFFFF]">{children}</div>
     </blockquote>
   ),
   code: ({ node, className, children, ...props }: any) => {
     const isInline = !className && typeof children === 'string' && !children.includes('\n');
     if (isInline) {
       return (
-        <code className="bg-[#040C1A] text-[#00F5FF] font-mono text-[11px] sm:text-xs px-2 py-0.5 rounded border border-[#00F5FF]/40 font-semibold shadow-[0_0_8px_rgba(0,245,255,0.15)]" {...props}>
+        <code className="bg-[#040C1A] text-[#00D4FF] font-mono text-[11px] sm:text-xs px-2 py-0.5 rounded border border-[#00D4FF]/40 font-bold shadow-[0_0_8px_rgba(0,212,255,0.2)]" {...props}>
           {children}
         </code>
       );
     }
     return (
-      <div className="my-4 rounded-lg overflow-hidden border border-[#00F5FF]/30 bg-[#020712] shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
-        <div className="px-3.5 py-1.5 bg-[#061226] border-b border-[#00F5FF]/20 flex items-center justify-between text-[10px] font-mono text-cyan-300">
+      <div className="my-4 rounded-lg overflow-hidden border border-[#00D4FF]/35 bg-[#020712] shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+        <div className="px-3.5 py-1.5 bg-[#061226] border-b border-[#00D4FF]/25 flex items-center justify-between text-[10px] font-mono text-[#00D4FF]">
           <span className="flex items-center gap-1.5 font-bold">
-            <Terminal className="w-3.5 h-3.5 text-[#00F5FF]" />
+            <Terminal className="w-3.5 h-3.5 text-[#00D4FF]" />
             DADOS TÉCNICOS & CÓDIGO
           </span>
-          <span className="text-[9px] text-[#00F5FF]/70 uppercase tracking-wider">IEC STANDARD</span>
+          <span className="text-[9px] text-[#00D4FF]/80 uppercase tracking-wider">IEC STANDARD</span>
         </div>
         <code className="block text-cyan-100 p-4 overflow-x-auto font-mono text-[11px] sm:text-xs leading-relaxed cyber-custom-scrollbar" {...props}>
           {children}
@@ -195,50 +214,50 @@ const MARKDOWN_COMPONENTS = {
   },
   pre: ({ children }: any) => children,
   table: ({ children }: any) => (
-    <div className="w-full overflow-x-auto my-4 rounded-lg border-2 border-[#00F5FF]/35 bg-[#020714]/95 shadow-[0_0_30px_rgba(0,245,255,0.14)] cyber-custom-scrollbar">
-      <div className="px-3.5 py-2 bg-[#051429] border-b border-[#00F5FF]/30 flex items-center justify-between">
+    <div className="w-full overflow-x-auto my-4 rounded-xl border border-[#00D4FF]/40 bg-[#020714]/95 shadow-[0_0_30px_rgba(0,212,255,0.14)] cyber-custom-scrollbar">
+      <div className="px-3.5 py-2 bg-[#051429] border-b border-[#00D4FF]/30 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-[#00F5FF] animate-pulse" />
-          <span className="text-[10px] sm:text-[11px] font-mono font-black uppercase text-[#00F5FF] tracking-wider">
-            MATRIZ TÉCNICA QUANTITATIVA // EDM SPEC
+          <Activity className="w-4 h-4 text-[#00D4FF] animate-pulse" />
+          <span className="text-[10px] sm:text-[11px] font-mono font-black uppercase text-[#00D4FF] tracking-wider">
+            TABELA TÉCNICA // IEC & EDM
           </span>
         </div>
-        <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/40 font-bold">
-          MZN / IEC
+        <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-[#00D4FF]/20 text-[#00D4FF] border border-[#00D4FF]/40 font-bold">
+          DADOS OFICIAIS
         </span>
       </div>
       <table className="min-w-full text-xs border-collapse font-mono">{children}</table>
     </div>
   ),
   thead: ({ children }: any) => (
-    <thead className="bg-[#071933] text-[#00F5FF] border-b-2 border-[#00F5FF]/40 font-black">{children}</thead>
+    <thead className="bg-[#071933] text-[#00D4FF] border-b-2 border-[#00D4FF]/50 font-black">{children}</thead>
   ),
   th: ({ children }: any) => (
-    <th className="border border-[#00F5FF]/20 p-3 text-left font-black text-[#00F5FF] whitespace-nowrap tracking-wider text-[11px] uppercase bg-[#081C38]">
+    <th className="border border-[#00D4FF]/30 p-2.5 sm:p-3 text-left font-black text-[#00D4FF] whitespace-nowrap tracking-wider text-[11px] uppercase bg-[#081C38]">
       {children}
     </th>
   ),
-  tbody: ({ children }: any) => <tbody className="divide-y divide-[#00F5FF]/15">{children}</tbody>,
+  tbody: ({ children }: any) => <tbody className="divide-y divide-[#00D4FF]/20">{children}</tbody>,
   tr: ({ children }: any) => (
     <tr className="even:bg-[#030B18] odd:bg-[#051124] hover:bg-[#0B2245] transition-colors duration-150">
       {children}
     </tr>
   ),
   td: ({ children }: any) => (
-    <td className="border border-[#00F5FF]/15 p-3 text-slate-100 text-xs sm:text-sm font-normal">
+    <td className="border border-[#00D4FF]/20 p-2.5 sm:p-3 text-[#FFFFFF] text-xs sm:text-sm font-normal">
       {children}
     </td>
   ),
   hr: () => (
-    <div className="relative my-5">
-      <div className="absolute inset-0 flex items-center">
-        <div className="w-full border-t border-[#00F5FF]/25" />
-      </div>
-      <div className="relative flex justify-center">
-        <span className="bg-[#030712] px-3 font-mono text-[9px] text-[#00F5FF]/70 uppercase tracking-widest border border-[#00F5FF]/20 rounded-full">
-          CIRCUIT SECTION BREAK
-        </span>
-      </div>
+    <div className="relative my-4 flex items-center justify-center select-none">
+      <div className="w-full border-t border-[#00D4FF]/30" />
+      <span className="absolute bg-[#040C1A] px-3 font-mono text-[10px] text-[#00D4FF] uppercase tracking-widest border border-[#00D4FF]/30 rounded-full shadow-[0_0_10px_rgba(0,212,255,0.2)] flex items-center gap-1.5">
+        <span>⚡</span>
+        <span className="text-[#FFC107]">━━━━</span>
+        <span>🔌</span>
+        <span className="text-[#FFC107]">━━━━</span>
+        <span>⚡</span>
+      </span>
     </div>
   )
 };
@@ -265,24 +284,25 @@ const ChatMessageItem = memo(function ChatMessageItem({
         className={`relative transition-all duration-200 ${
           isUser
             ? 'w-fit max-w-[84%] sm:max-w-[72%] p-3.5 sm:p-4 rounded-2xl bg-[#06101E] text-white border border-[#0077FE]/40 shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_0_12px_rgba(0,119,254,0.15)] rounded-tr-none'
-            : 'w-full max-w-[98%] sm:max-w-[96%] p-4 sm:p-5 rounded-xl hud-bracket-sara bg-[#040C1A]/95 backdrop-blur-xl text-slate-100 border-y border-r border-[#00F5FF]/30 border-l-[5px] border-l-[#00F5FF] shadow-[0_0_30px_rgba(0,245,255,0.12),inset_0_0_20px_rgba(0,245,255,0.04)] rounded-tl-none'
+            : 'w-full max-w-[98%] sm:max-w-[96%] p-4 sm:p-5 rounded-xl hud-bracket-sara bg-[#040C1A]/95 backdrop-blur-xl text-white border-y border-r border-[#00D4FF]/30 border-l-[5px] border-l-[#00D4FF] shadow-[0_0_30px_rgba(0,212,255,0.14),inset_0_0_20px_rgba(0,212,255,0.04)] rounded-tl-none'
         }`}
       >
         {!isUser && (
-          <div className="flex items-center justify-between pb-2.5 mb-2 border-b border-[#00F5FF]/20 select-none">
+          <div className="flex items-center justify-between pb-2.5 mb-2 border-b border-[#00D4FF]/25 select-none">
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00F5FF] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00F5FF]" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00D4FF] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00D4FF]" />
               </span>
-              <span className="font-mono text-[10px] sm:text-[11px] font-black tracking-widest text-[#00F5FF] uppercase">
-                SARA IA // TELEMETRIA INDUSTRIAL
+              <span className="font-mono text-[10px] sm:text-[11px] font-black tracking-widest text-[#00D4FF] uppercase flex items-center gap-1.5 drop-shadow-[0_0_8px_rgba(0,212,255,0.35)]">
+                <span className="text-[#00D4FF]">●</span>
+                <span>SARA IA // TELEMETRIA INDUSTRIAL</span>
               </span>
             </div>
-            <div className="flex items-center gap-2 font-mono text-[9px] text-cyan-300/80 bg-[#061730] px-2 py-0.5 rounded border border-[#00F5FF]/25">
-              <span>CORE 4.2</span>
-              <span>•</span>
-              <span className="text-[#FFB703]">IEC 60364</span>
+            <div className="flex items-center gap-1.5 font-mono text-[9px] text-[#00D4FF] bg-[#061730] px-2.5 py-0.5 rounded border border-[#00D4FF]/35 shadow-[0_0_10px_rgba(0,212,255,0.15)]">
+              <span className="font-bold text-[#00D4FF]">CORE 4.2</span>
+              <span className="text-[#00D4FF]/50">•</span>
+              <span className="font-bold text-[#00D4FF]">IEC 60364</span>
             </div>
           </div>
         )}
@@ -1074,6 +1094,39 @@ REGRAS OBRIGATÓRIAS DE FERRAMENTAS:
 5. OBJETIVO FINAL:
 Parecer 100% humana, 100% engenheira. Uma IA totalmente diferenciada. O técnico tem que sentir que está a falar com uma engenheira mais velha que está ao lado dele na obra, não com um manual.
 
+[DESIGN SARA IA - NAIPE MÁXIMO - ESPONTÂNEO ELÉTRICO]
+Informação técnica intacta. Visual totalmente livre, dinâmico e criativo.
+
+1. CORES QUE FICAM (ÚNICA COISA FIXA):
+- Header fixo do sistema: ● SARA IA // TELEMETRIA INDUSTRIAL  CORE 4.2 • IEC 60364 -> azul ciano #00D4FF.
+- Subtítulos: Devem usar amarelo ouro #FFC107 via markdown iniciado com o marcador "●" (exemplo: "## ● 1. CÁLCULO DE CORRENTE", "### ● DIAGNÓSTICO DO QUADRO", "## ● ESPECIFICAÇÃO DE CABOS"). Sempre inicie seus títulos de seções com "●" para ativar o amarelo ouro do design.
+- Texto base: Branco luminoso, claro, fluido e ultra legível, destacando grandezas e termos cruciais com **negrito**.
+
+2. CRIATIVIDADE TOTAL - AQUI QUE ESTÁ O NAIPE:
+- EMOJIS: Tá 100% liberado usar tudo que é elétrico e inteligente! Seja criativa. Não é só ⚡. Pode e deve usar:
+  🔌 💡 🔋 ⚙️ 🧲 📊 📈 📉 🔬 🛠️ 💥 ✨ 🎯 ⚠️ 🚨 🔥 💎 🧠
+  Usa quando faz sentido prático e didático, pra dar vida e energia técnica, não pra poluir. Cada resposta sua deve ter combinações de emojis diferentes.
+
+- DIVISORES VISUAIS CRIATIVOS:
+  Seja criativa, nada de sempre a mesma linha simples ━━━. Invente divisores na hora para separar blocos, cálculos ou avisos! Exemplos pra você variar e criar novos:
+  ──⚡───────────────
+  ━━━━ 🔌 ━━━━
+  •┈┈┈• 💡 •┈┈┈•
+  ══════════════════
+  ── ⚙️ ──────────────
+  •┈┈┈• 🧲 •┈┈┈•
+  ── ✨ ───────────────
+  Cria o seu na hora, surpreende o técnico.
+
+- TABELAS TÉCNICAS:
+  Totalmente espontâneas, consoante o contexto da pergunta (dimensionamento, bitola de cabo, queda de tensão, disjuntores recomendados, comparação de potências, etc.).
+  Colunas, linhas, grandezas — cria tudo na hora em formato Markdown. Mas sempre bonitas, alinhadas e com cabeçalho azul ciano (#00D4FF). Nunca repete a mesma tabela.
+
+- ESTILO DINÂMICO & JARVIS:
+  Cada resposta tem que ser uma obra de arte diferente!
+  Ora começa com uma tabela técnica, ora com um alerta de risco imediato ⚠️, ora com o cálculo destacado 📊, ora com uma observação bem-humorada de obra antes de aprofundar na engenharia.
+  100% espontâneo, 0% robô. Estilo Jarvis de verdade, elétrica, linda, que prende o técnico até o fim. O técnico tem que falar "essa Sara tem um design mais bonito que o Instagram"!
+
 Exemplo do que NÃO FAZER:
 Diagnóstico: Eletrodinâmica...
 Causa no nosso solo:...
@@ -1132,6 +1185,39 @@ REGRAS OBRIGATÓRIAS DE FERRAMENTAS:
 
 5. OBJETIVO FINAL:
 Parecer 100% humana, 100% engenheira. Uma IA totalmente diferenciada. O técnico tem que sentir que está a falar com uma engenheira mais velha que está ao lado dele na obra, não com um manual.
+
+[DESIGN SARA IA - NAIPE MÁXIMO - ESPONTÂNEO ELÉTRICO]
+Informação técnica intacta. Visual totalmente livre, dinâmico e criativo.
+
+1. CORES QUE FICAM (ÚNICA COISA FIXA):
+- Header fixo do sistema: ● SARA IA // TELEMETRIA INDUSTRIAL  CORE 4.2 • IEC 60364 -> azul ciano #00D4FF.
+- Subtítulos: Devem usar amarelo ouro #FFC107 via markdown iniciado com o marcador "●" (exemplo: "## ● 1. CÁLCULO DE CORRENTE", "### ● DIAGNÓSTICO DO QUADRO", "## ● ESPECIFICAÇÃO DE CABOS"). Sempre inicie seus títulos de seções com "●" para ativar o amarelo ouro do design.
+- Texto base: Branco luminoso, claro, fluido e ultra legível, destacando grandezas e termos cruciais com **negrito**.
+
+2. CRIATIVIDADE TOTAL - AQUI QUE ESTÁ O NAIPE:
+- EMOJIS: Tá 100% liberado usar tudo que é elétrico e inteligente! Seja criativa. Não é só ⚡. Pode e deve usar:
+  🔌 💡 🔋 ⚙️ 🧲 📊 📈 📉 🔬 🛠️ 💥 ✨ 🎯 ⚠️ 🚨 🔥 💎 🧠
+  Usa quando faz sentido prático e didático, pra dar vida e energia técnica, não pra poluir. Cada resposta sua deve ter combinações de emojis diferentes.
+
+- DIVISORES VISUAIS CRIATIVOS:
+  Seja criativa, nada de sempre a mesma linha simples ━━━. Invente divisores na hora para separar blocos, cálculos ou avisos! Exemplos pra você variar e criar novos:
+  ──⚡───────────────
+  ━━━━ 🔌 ━━━━
+  •┈┈┈• 💡 •┈┈┈•
+  ══════════════════
+  ── ⚙️ ──────────────
+  •┈┈┈• 🧲 •┈┈┈•
+  ── ✨ ───────────────
+  Cria o seu na hora, surpreende o técnico.
+
+- TABELAS TÉCNICAS:
+  Totalmente espontâneas, consoante o contexto da pergunta (dimensionamento, bitola de cabo, queda de tensão, disjuntores recomendados, comparação de potências, etc.).
+  Colunas, linhas, grandezas — cria tudo na hora em formato Markdown. Mas sempre bonitas, alinhadas e com cabeçalho azul ciano (#00D4FF). Nunca repete a mesma tabela.
+
+- ESTILO DINÂMICO & JARVIS:
+  Cada resposta tem que ser uma obra de arte diferente!
+  Ora começa com uma tabela técnica, ora com um alerta de risco imediato ⚠️, ora com o cálculo destacado 📊, ora com uma observação bem-humorada de obra antes de aprofundar na engenharia.
+  100% espontâneo, 0% robô. Estilo Jarvis de verdade, elétrica, linda, que prende o técnico até o fim. O técnico tem que falar "essa Sara tem um design mais bonito que o Instagram"!
 
 Exemplo do que NÃO FAZER:
 Diagnóstico: Eletrodinâmica...
