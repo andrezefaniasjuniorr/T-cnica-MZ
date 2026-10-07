@@ -75,6 +75,20 @@ app.get('/sw.js', (req: Request, res: Response) => {
   return res.status(404).send('// Service worker not found');
 });
 
+// Digital Asset Links (TWA) endpoint
+app.get('/.well-known/assetlinks.json', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  const assetlinksPath = path.join(process.cwd(), 'public', '.well-known', 'assetlinks.json');
+  res.sendFile(assetlinksPath);
+});
+
+// Health check endpoint
+app.get('/api/health', (req: Request, res: Response) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
 // Lazy initialization of Gemini client
 let genAIClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
@@ -109,63 +123,56 @@ function toPlainText(text: string): string {
     .trim();
 }
 
-// Helper para chamadas ao Gemini com rotação ágil e sem latência entre modelos candidatos
-async function executeWithBackoffRetry<T>(
+// Lista de modelos suportados e velozes: Primária obrigatória + múltiplas secundárias de failover rápido
+const PRIMARY_GEMINI_MODEL = 'gemini-3.1-flash-lite';
+const SECONDARY_GEMINI_MODELS = [
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash',
+  'gemini-3.6-flash',
+  'gemini-flash-latest'
+];
+
+// Executor resiliente: prioriza a primária com transição rápida e corrida paralela de secundárias
+async function executeFastGemini<T>(
   action: (modelName: string) => Promise<T>,
-  candidateModels: string[] = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'],
-  maxRetries: number = 1
+  primaryTimeoutMs: number = 4000
 ): Promise<T> {
-  let lastError: any = null;
+  // 1. Tenta a versão primária primeiro
+  try {
+    const primaryPromise = action(PRIMARY_GEMINI_MODEL);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('PRIMARY_MODEL_TIMEOUT')), primaryTimeoutMs)
+    );
+    return await Promise.race([primaryPromise, timeoutPromise]);
+  } catch (primaryErr: any) {
+    console.warn(`[Sara Engine] Versão primária (${PRIMARY_GEMINI_MODEL}) falhou ou demorou. Ativando transição rápida para secundárias:`, primaryErr?.message || primaryErr);
+  }
 
-  for (const modelName of candidateModels) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await action(modelName);
-      } catch (err: any) {
-        lastError = err;
-        const msg = String(err?.message || err).toLowerCase();
-        const status = err?.status || err?.statusCode || (err?.response && err.response.status);
-        const isHighDemand =
-          status === 503 ||
-          status === 429 ||
-          status === 500 ||
-          msg.includes('503') ||
-          msg.includes('429') ||
-          msg.includes('overloaded') ||
-          msg.includes('high demand') ||
-          msg.includes('resource exhausted') ||
-          msg.includes('quota') ||
-          msg.includes('rate limit');
+  // 2. Transição rápida com múltiplas opções secundárias disparadas em corrida simultânea
+  try {
+    const secondaryRace = SECONDARY_GEMINI_MODELS.map(model =>
+      action(model).then(res => {
+        return res;
+      })
+    );
+    return await Promise.any(secondaryRace);
+  } catch (secAggregateErr: any) {
+    console.warn('[Sara Engine] Todas as secundárias falharam em paralelo. Tentando varredura sequencial final...');
+  }
 
-        // Se falhou e há mais modelos disponíveis, avança imediatamente para o próximo modelo para resposta ultrarrápida
-        if (isHighDemand && attempt < maxRetries) {
-          continue;
-        }
-
-        if (!isHighDemand) {
-          console.warn(`[Sara IA] Erro ao executar ${modelName}:`, err?.message || err);
-          break;
-        }
-      }
+  // 3. Fallback sequencial de segurança entre secundárias restantes
+  for (const model of SECONDARY_GEMINI_MODELS) {
+    try {
+      return await action(model);
+    } catch {
+      continue;
     }
   }
 
-  throw lastError || new Error('Não foi possível obter resposta da Sara IA após tentativas.');
+  throw new Error('Todas as versões Gemini esgotaram ou estão temporariamente indisponíveis.');
 }
-
-// Health check endpoint
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
-});
-
-// Digital Asset Links (TWA) endpoint
-app.get('/.well-known/assetlinks.json', (req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  const assetlinksPath = path.join(process.cwd(), 'public', '.well-known', 'assetlinks.json');
-  res.sendFile(assetlinksPath);
-});
 
 // Endpoint Proxy Oficial Sara IA (/api/sara)
 // Compatível com o formato Gemini REST API ({ contents, system_instruction }) e clientBody ({ message, history })
@@ -350,10 +357,10 @@ NUNCA mencione Google, Gemini, API ou LLM.`;
       return res.status(400).json({ error: 'Nenhum conteúdo ou mensagem fornecida.' });
     }
 
-    // Execução resiliente com Retry e Exponential Backoff contra 503 / 429
+    // Execução com versão primária + múltiplas versões secundárias em corrida rápida paralela
     let replyText = '';
     try {
-      const response: any = await executeWithBackoffRetry(
+      const response: any = await executeFastGemini(
         async (modelName) => {
           return await ai.models.generateContent({
             model: modelName,
@@ -364,17 +371,17 @@ NUNCA mencione Google, Gemini, API ou LLM.`;
             }
           });
         },
-        ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'],
-        2
+        3500
       );
 
       if (response && response.text) {
         replyText = toPlainText(response.text);
       }
     } catch (apiErr: any) {
-      console.warn('[Sara Server] Gemini indisponível ou quota excedida, ativando motor de engenharia técnica local:', apiErr?.message || apiErr);
+      console.warn('[Sara Server] Gemini indisponível ou quota excedida em todas as versões:', apiErr?.message || apiErr);
     }
 
+    // O motor de engenharia elétrica é rigorosamente a ÚLTIMA das últimas opções
     if (!replyText || replyText.includes('instabilidade temporária')) {
       const latestMsg = message || (Array.isArray(contents) && contents.length > 0 ? (contents[contents.length - 1]?.parts?.[0]?.text || '') : '');
       replyText = generateSaraTechnicalReply({
@@ -467,7 +474,7 @@ DIRETRIZ DE IDENTIDADE: NUNCA mencione Google, Gemini, API ou LLM. Apresente-se 
         parts: [{ text: message }]
       });
 
-      const response: any = await executeWithBackoffRetry(
+      const response: any = await executeFastGemini(
         async (modelName) => {
           return await ai.models.generateContent({
             model: modelName,
@@ -478,8 +485,7 @@ DIRETRIZ DE IDENTIDADE: NUNCA mencione Google, Gemini, API ou LLM. Apresente-se 
             }
           });
         },
-        ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'],
-        2
+        3500
       );
 
       const rawReply = response?.text || '';
@@ -536,7 +542,7 @@ Estruture em tópicos numerados:
 5. Cuidados de segurança: desligamento da rede e equipamentos de proteção.
 6. Solução e próximos passos: materiais necessários e estimativa em Meticais.`;
 
-      const response: any = await executeWithBackoffRetry(
+      const response: any = await executeFastGemini(
         async (modelName) => {
           return await ai.models.generateContent({
             model: modelName,
@@ -557,8 +563,7 @@ Estruture em tópicos numerados:
             }
           });
         },
-        ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'],
-        2
+        4000
       );
 
       if (response && response.text) {
@@ -652,7 +657,7 @@ RESPONDA OBRIGATORIAMENTE EM FORMATO JSON VÁLIDO (sem markdown ou texto extra f
     let response: any = null;
 
     try {
-      response = await executeWithBackoffRetry(
+      response = await executeFastGemini(
         async (modelName) => {
           return await ai.models.generateContent({
             model: modelName,
@@ -663,8 +668,7 @@ RESPONDA OBRIGATORIAMENTE EM FORMATO JSON VÁLIDO (sem markdown ou texto extra f
             }
           });
         },
-        ['gemini-2.5-flash', 'gemini-flash-latest'],
-        3
+        3500
       );
     } catch (evalErr: any) {
       console.warn('[Sara Avaliação] Gemini sob alta demanda após retries. Utilizando avaliação de contingência normativa local...');
