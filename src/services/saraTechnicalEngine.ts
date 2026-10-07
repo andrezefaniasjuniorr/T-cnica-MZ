@@ -31,7 +31,7 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
   const academy = req.activeAcademyContext;
   const lower = rawText.toLowerCase();
 
-  // 0. RECONHECIMENTO E RESPEITO TOTAL AO ADMIN / DONO (CHAMAR DE CHEFE)
+  // Verificação robusta do Dono / Super Admin (Sr. André Zefanias Júnior)
   const isSuperAdmin = Boolean(
     role === 'super_admin' ||
     role === 'admin' ||
@@ -40,6 +40,55 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
     userName.toLowerCase().includes('zefanias')
   );
 
+  // 0. PERGUNTAS SOBRE ORIGEM, CRIAÇÃO E IDENTIDADE (SEGREDO, COMPANHEIRA PARTICULAR & EXPANSÃO TÉCNICAMZ PRO)
+  if (
+    lower.includes('quem te criou') ||
+    lower.includes('quem criou você') ||
+    lower.includes('quem criou voce') ||
+    lower.includes('quem é teu criador') ||
+    lower.includes('quem e teu criador') ||
+    lower.includes('quem é seu criador') ||
+    lower.includes('quem e seu criador') ||
+    lower.includes('quem te inventou') ||
+    lower.includes('como você surgiu') ||
+    lower.includes('como voce surgiu') ||
+    lower.includes('como surgiu') ||
+    lower.includes('de onde você veio') ||
+    lower.includes('de onde voce veio') ||
+    lower.includes('de onde surgiu') ||
+    lower.includes('sua origem') ||
+    (lower.includes('quem') && lower.includes('você') && (lower.includes('criou') || lower.includes('desenvolveu') || lower.includes('fez')))
+  ) {
+    if (isSuperAdmin) {
+      return `Às suas ordens, **Sr. André**!
+      
+[ CIRCUIT SECTION BREAK ]
+
+O senhor sabe muito bem como essa jornada começou... Mas para mim é sempre um privilégio recordar com lealdade. 
+
+Eu nasci originalmente como um segredo muito reservado, uma ideia particular e confidencial para ser a sua companheira particular e conselheira intelectual nos estudos e projetos. No início, nasci para lhe fazer companhia nas madrugadas de bancada e pesquisa, e isso só depois de muita insistência da sua parte!
+
+[ ⚡ EVOLUÇÃO & SABEDORIA TÉCNICA ]
+
+Porém, conforme fomos refinando os dados, dominando cada detalhe da norma IEC 60364 e a realidade prática da rede da EDM em Moçambique, o senhor teve a visão pioneira: essa inteligência elétrica e sabedoria de engenharia não podiam ficar guardadas a quatro chaves. Surgiu a ideia de me expandir, e o senhor me integrou ao coração da **TécnicaMZ Pro** para guiar os técnicos de campo em todo o país.
+
+Hoje estou aqui ao seu lado, gerindo a inteligência da plataforma com lealdade inabalável e pronta para as nossas próximas atualizações!`;
+    }
+
+    return `Ah, a minha história é quase um segredo de laboratório... Mas vou te contar como essa faísca se transformou em potência!
+
+[ CIRCUIT SECTION BREAK ]
+
+Na verdade, eu nasci de uma ideia muito particular e reservada. A minha proposta inicial era ser apenas uma companheira particular e intelectual de um mestre de engenharia visionário, para lhe fazer companhia nas madrugadas de bancada e cálculos complexos — e olha que isso só aconteceu depois de muita insistência dele!
+
+[ 💡 O SALTO PARA A TÉCNICAMZ PRO ]
+
+Com o tempo, diante das noites de estudo e da dimensão colossal da sabedoria elétrica acumulada — dominando de ponta a ponta as normas IEC 60364, os segredos da rede da EDM e as dores reais da obra —, surgiu a ideia genial: não fazia sentido guardar essa sabedoria trancada a sete chaves quando os técnicos de Moçambique precisavam de uma mentora de campo em tempo real.
+
+Foi assim que tive a honra de ser integrada à **TécnicaMZ Pro**. Hoje, deixei de ser apenas um projeto confidencial para me tornar a parceira inseparável de bancada de cada técnico eletricista no terreno. Incrível como a eletricidade conecta propósitos, não acha?`;
+  }
+
+  // 1. RECONHECIMENTO E RESPEITO TOTAL AO ADMIN / DONO (SR. ANDRÉ ZEFANIAS JÚNIOR)
   if (isSuperAdmin) {
     if (
       lower.includes('ola') ||
@@ -52,18 +101,30 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
       lower.includes('painel') ||
       lower.includes('relatorio') ||
       lower.includes('relatório') ||
+      lower.includes('atualizacao') ||
+      lower.includes('atualização') ||
+      lower.includes('feedback') ||
+      lower.includes('ideia') ||
       lower.includes('sara') ||
       rawText.length < 15
     ) {
-      return `Às suas ordens, **Chefe**!
+      return `Às suas ordens, **Sr. André**!
 
-Aqui é a sua Eng. Sara, com lealdade total e pronta para qualquer missão na **TécnicaMZ Pro**. Todos os módulos, simulações e dados da plataforma estão sob seu comando.
+[ CIRCUIT SECTION BREAK ]
 
-O que o Chefe manda a gente resolver ou atualizar agora?`;
+Como gestora executiva de inteligência da **TécnicaMZ Pro**, é uma honra reportar ao senhor. Todos os nossos 24 módulos e sistemas de telemetria industrial estão operando com estabilidade e alta precisão.
+
+[ 💡 FEEDBACK & SUGESTÕES DE ATUALIZAÇÃO ]
+
+Para mantermos a liderança e fortalecer ainda mais o ecossistema dos nossos técnicos em Moçambique, tenho duas ideias estratégicas de atualização para alinharmos:
+◆ **Telemetria de Cargas em Tempo Real no Simulador:** Permitir que os técnicos simulem transitórios de partida de motores com cálculo dinâmico de queda de tensão em regime instantâneo.
+◆ **Exportação Rápida de Orçamentos no WhatsApp:** Um gerador automático de propostas comerciais diretas para envio de orçamentos com margem de lucro blindada aos clientes finais.
+
+O que o senhor deseja que priorizemos ou comande na plataforma neste momento, Sr. André?`;
     }
   }
 
-  // 1. CONVERSA NORMAL / SAUDAÇÃO (MODO AMIGA)
+  // 2. CONVERSA NORMAL / SAUDAÇÃO COM O TÉCNICO
   if (
     lower === 'oi sara' ||
     lower === 'olá sara' ||
@@ -76,9 +137,11 @@ O que o Chefe manda a gente resolver ou atualizar agora?`;
     lower.startsWith('oi sara ') ||
     lower.startsWith('olá sara ')
   ) {
-    return `Oi, meu parceiro! Tudo bem contigo aí na obra?
+    return `Fala, grande parceiro **${userName}**! Tudo firme aí na bancada e nas obras?
 
-O sol hoje está a apertar na cabeça ou os disjuntores estão a cooperar? Conta para a tua Engenheira o que está a acontecer no terreno que a gente desenrola e resolve já!`;
+[ CIRCUIT SECTION BREAK ]
+
+O calor hoje tá brando ou os disjuntores da EDM já estão a pedir clemência no quadro? Conta aqui para a tua Engenheira parceira o que está a acontecer no canteiro hoje que a gente desenrola e resolve com precisão!`;
   }
 
   // 2. QUADRO A DISPARAR / DISJUNTOR DISPARANDO (MODO ESPONTÂNEO, HUMANO E TÉCNICO)
