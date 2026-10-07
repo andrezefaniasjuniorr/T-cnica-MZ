@@ -137,14 +137,10 @@ O que o senhor deseja que priorizemos ou comande na plataforma neste momento, Sr
     lower.startsWith('oi sara ') ||
     lower.startsWith('olá sara ')
   ) {
-    return `Fala, grande parceiro **${userName}**! Tudo firme aí na bancada e nas obras?
-
-[ CIRCUIT SECTION BREAK ]
-
-O calor hoje tá brando ou os disjuntores da EDM já estão a pedir clemência no quadro? Conta aqui para a tua Engenheira parceira o que está a acontecer no canteiro hoje que a gente desenrola e resolve com precisão!`;
+    return `Olá, **${userName}**! Sou a Eng. Sara. Em que posso te ajudar tecnicamente hoje?`;
   }
 
-  // 2. QUADRO A DISPARAR / DISJUNTOR DISPARANDO (MODO ESPONTÂNEO, HUMANO E TÉCNICO)
+  // 2. QUADRO A DISPARAR / DISJUNTOR DISPARANDO (DIRETO E OBJETIVO)
   if (
     lower.includes('quadro está a disparar') ||
     lower.includes('quadro esta a disparar') ||
@@ -155,16 +151,19 @@ O calor hoje tá brando ou os disjuntores da EDM já estão a pedir clemência n
     lower.includes('disjuntor desarma') ||
     lower.includes('disjuntor cai')
   ) {
-    return `Esse quadro está a disparar mais que alarme de loja na Baixa em dia de trovoada, meu parceiro! Mas calma, respira fundo que a gente vai pôr ordem nessa instalação juntos.
+    return `Para identificar a causa do desarme com rapidez e segurança:
 
-Olha, disjuntor não desarma à toa: ou tens sobrecarga porque meteram carga pesada num circuito subdimensionado, ou é fuga de corrente para a terra (se for diferencial), ou um curto direto. Na nossa realidade aqui em Moçambique, o clássico é neutro frouxo a fritar no barramento, humidade acumulada na caixa de passagem ou aquela puxada com cabo fino suportando geleira e congelador ao mesmo tempo.
+[ CIRCUIT SECTION BREAK ]
 
-Vamos testar isso no terreno sem adivinhação:
-Primeiro, desliga todos os disjuntores parciais e rearma só o geral. Se o geral segurar firme, o problema não é a entrada, é lá dentro nos ramais.
-Depois, sobe um disjuntor de cada vez com calma, dando uns 5 segundos de intervalo. Naquele que fizer o geral ou diferencial cair na hora, achaste o culpado.
-Aí vais direto nessa linha: desliga tudo das tomadas desse setor, confere o aperto de cada borne com chave estrela calibrada e mede com o multímetro se há continuidade indesejada entre fase e terra ou neutro.
+### ⚡ DIAGNÓSTICO RÁPIDO
+1. **Sobrecarga:** Carga total ligada superior à corrente nominal ($I_n$) do disjuntor.
+2. **Curto-Circuito:** Contato direto entre fase-neutro ou fase-fase (disparo instantâneo magnético).
+3. **Fuga de Corrente:** Se for disjuntor diferencial (DR/IDR), fuga para terra superior a 30mA.
 
-Se depois quiseres organizar os circuitos desse painel de forma profissional, podes conferir a ferramenta **Tabela do QG** ou dimensionar as proteções em **Dimensionamento PRO** aqui na app para deixar tudo nos trinques.`;
+### 🛠️ PROCEDIMENTO PRÁTICO
+◆ Desligue todos os disjuntores dos circuitos terminais e mantenha o geral ligado.
+◆ Religue um disjuntor por vez. O circuito que provocar a queda imediata é o que contém a avaria.
+◆ Verifique o aperto dos bornes e teste com multímetro o isolamento entre fase, neutro e condutor de proteção.`;
   }
 
   // 1. DIRECIONAMENTO EXATO DE FERRAMENTAS (NUNCA FAZ A AÇÃO, INDICA ONDE CLICAR)
