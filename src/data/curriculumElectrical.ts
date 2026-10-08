@@ -22,13 +22,13 @@ export const ELECTRICAL_MODULES: AcademyModule[] = [
   MODULE_4_APARELHAGEM_PROTECAO,
 
   // ==========================================================================
-  // MÓDULO PRESERVADO: INSTALAÇÕES ELÉTRICAS PREDIAIS & PRÁTICAS BÁSICAS
+  // MÓDULO 5: INSTALAÇÕES ELÉTRICAS PREDIAIS & COMANDOS
   // ==========================================================================
   {
     id: 'elec_mod_2_predial',
     area: 'eletrotecnica',
-    order: 3,
-    title: 'Módulo de Instalações Elétricas Prediais & Práticas Básicas',
+    order: 5,
+    title: 'Módulo 5: Instalações Elétricas Prediais & Comandos',
     description: 'Comandos de iluminação (Simples, Diverter/Three-Way, Intermediate/Four-Way), tomadas TUG/TUE, quadros parciais e normas IEC 60364-5-52.',
     icon: 'Layers',
     normasReferencia: ['IEC 60364-5-52', 'IEC 60364-4-41', 'IEC 60898-1'],
@@ -272,13 +272,13 @@ export const ELECTRICAL_MODULES: AcademyModule[] = [
   },
 
   // ==========================================================================
-  // MÓDULO PRESERVADO: PROTEÇÕES ELÉTRICAS & NORMAS IEC (IEC 60364)
+  // MÓDULO 6: PROTEÇÕES ELÉTRICAS & NORMAS IEC (IEC 60364)
   // ==========================================================================
   {
     id: 'elec_mod_3_protecoes_iec',
     area: 'eletrotecnica',
-    order: 4,
-    title: 'Módulo de Proteções Elétricas & Normas IEC (IEC 60364)',
+    order: 6,
+    title: 'Módulo 6: Proteções Elétricas & Normas IEC (IEC 60364)',
     description: 'Dimensionamento de MCB (Curvas B, C, D), capacidade de corte Icn, dispositivos diferenciais RCD/RCBO (Tipos AC, A, B), esquemas de aterramento TT/TN/IT e SPDs.',
     icon: 'ShieldCheck',
     normasReferencia: ['IEC 60364-4-41', 'IEC 60898-1', 'IEC 61008-1', 'IEC 61643-11'],

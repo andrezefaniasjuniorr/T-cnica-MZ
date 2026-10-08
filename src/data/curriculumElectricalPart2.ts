@@ -2,13 +2,13 @@ import { AcademyModule } from '../types/academy';
 
 export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
   // ==========================================================================
-  // MÓDULO 4: ELETRÔNICA ANALÓGICA & DIGITAL E FONTES DE ALIMENTAÇÃO
+  // MÓDULO 7: ELETRÔNICA ANALÓGICA & DIGITAL E FONTES DE ALIMENTAÇÃO (SMPS)
   // ==========================================================================
   {
     id: 'elec_mod_4_eletronica',
     area: 'eletrotecnica',
-    order: 4,
-    title: 'Módulo 4: Eletrônica Analógica & Digital e Fontes de Alimentação',
+    order: 7,
+    title: 'Módulo 7: Eletrônica Analógica, Digital & Fontes de Alimentação (SMPS)',
     description: 'Eletrônica de potência (diodos, MOSFETs, IGBTs, SCR/Triac), lógica digital booleana e fontes chaveadas SMPS (Buck, Boost, PWM).',
     icon: 'Cpu',
     normasReferencia: ['IEC 60747', 'IEC 61204', 'IEC 60617'],
@@ -254,13 +254,13 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
   },
 
   // ==========================================================================
-  // MÓDULO 5: MOTORES ELÉTRICOS, AUTOMAÇÃO & PLCS (IEC 61131-3)
+  // MÓDULO 8: MOTORES ELÉTRICOS, AUTOMAÇÃO & PLCS (IEC 61131-3)
   // ==========================================================================
   {
     id: 'elec_mod_5_motores_automacao',
     area: 'eletrotecnica',
-    order: 5,
-    title: 'Módulo 5: Motores Elétricos, Automação & Controladores Lógicos (PLCs)',
+    order: 8,
+    title: 'Módulo 8: Motores Elétricos, Automação & Controladores Lógicos (PLCs)',
     description: 'Motores de indução trifásicos, partidas (Direta, Estrela-Triângulo), inversores de frequência (VFDs), soft-starters e programação de PLCs (IEC 61131-3).',
     icon: 'Cpu',
     normasReferencia: ['IEC 60034-1', 'IEC 60947-4-1', 'IEC 61131-3', 'IEC 61800-3'],

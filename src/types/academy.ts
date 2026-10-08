@@ -24,24 +24,28 @@ export interface AcademyQuiz {
 }
 
 export interface FieldFormula {
-  label: string;
-  formula: string;
-  explicacao?: string;
+  label: string; // Nome da grandeza / parâmetro
+  formula: string; // Expressão matemática
+  unidade?: string; // Unidade de medida (V, A, mm², kA, Hz, bar, etc.)
+  quandoUsar?: string; // Quando usar na prática
+  explicacao?: string; // Compatibilidade com dados legados
 }
 
 export interface FieldCaseStudy {
   localizacao: string; // Ex: 'Maputo / Matola', 'Beira, Sofala', 'Tete / Moatize'
   cenario: string; // Descrição rápida e clara da instalação e sintoma
-  diagnostico: string; // Diagnóstico técnico realizado em campo
-  solucaoNormativa: string; // Ação corretiva com base na norma IEC/EN
+  diagnostico: string; // Diagnóstico técnico com valor medido ou observado
+  solucaoNormativa: string; // Ação corretiva com base na norma IEC/EDM
 }
 
 export interface AcademyLessonTheory {
   conceito: string;
-  // Campos estruturados do novo padrão pedagógico (Elementos de Competência)
+  fundamento?: string; // Bloco A direto (máx. 3 parágrafos objetivos)
+  // Campos estruturados do padrão profissional
   formulas?: FieldFormula[];
   pontosOperacionais?: string[];
-  fieldCase?: FieldCaseStudy;
+  procedimentos?: string[]; // Bloco C (Procedimentos, segurança e LOTO)
+  fieldCase?: FieldCaseStudy; // Bloco D (Caso real de campo)
   // Campos de compatibilidade
   funcionamento?: string;
   aplicacaoMocambique?: string;
@@ -57,6 +61,8 @@ export interface AcademyLesson {
   code?: string; // Ex: 'EC 1.1', 'EC 3.2'
   title: string;
   norma: string; // Ex: 'IEC 60364-4-41', 'IEC 60898-1', 'EN 378'
+  ondeSeAplica?: string; // Onde se aplica (QGBT, CCM, Subestação, Motor, etc.)
+  objetivoPratico?: string; // O que o aluno vai saber fazer ao final da aula na prática
   level: 'Básico' | 'Intermediário' | 'Avançado';
   durationMinutes: number;
   theory: AcademyLessonTheory;
