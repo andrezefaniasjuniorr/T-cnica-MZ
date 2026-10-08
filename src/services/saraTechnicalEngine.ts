@@ -88,8 +88,35 @@ Com o tempo, diante das noites de estudo e da dimensão colossal da sabedoria el
 Foi assim que tive a honra de ser integrada à **TécnicaMZ Pro**. Hoje, deixei de ser apenas um projeto confidencial para me tornar a parceira inseparável de bancada de cada técnico eletricista no terreno. Incrível como a eletricidade conecta propósitos, não acha?`;
   }
 
-  // 1. RECONHECIMENTO E RESPEITO TOTAL AO ADMIN / DONO (SR. ANDRÉ ZEFANIAS JÚNIOR)
+  // 1. RECONHECIMENTO E RESPEITO TOTAL AO ADMIN / DONO (SR. ANDRÉ ZEFANIAS JÚNIOR - SR. JR)
   if (isSuperAdmin) {
+    // MODO EVOLUÇÃO GLOBAL / PATCH GLOBAL DO SR. JR
+    if (
+      lower.includes('evolucao global') ||
+      lower.includes('evolução global') ||
+      lower.includes('patch global') ||
+      lower.includes('ajusta teu codigo para todos') ||
+      lower.includes('ajusta teu código para todos') ||
+      lower.includes('grava isso para todos') ||
+      lower.includes('gravar para todos') ||
+      lower.includes('para todos os usuarios') ||
+      lower.includes('para todos os usuários') ||
+      lower.includes('para todos os tecnicos') ||
+      lower.includes('para todos os técnicos')
+    ) {
+      return `Entendido, **Sr. Jr**! Evolução global aplicada na hora. A partir de agora todos os técnicos vão receber as respostas exatamente com esse padrão atualizado.
+
+--- INÍCIO DO PATCH GLOBAL PARA COLAR NO STUDIO ---
+// MODO EVOLUÇÃO GLOBAL ATIVADO PELO SR. JR (ANDRÉ ZEFANIAS JÚNIOR)
+export const SARA_GLOBAL_CONFIG = {
+  directMode: true,
+  conciseEngineering: true,
+  targetAudience: "TécnicaMZ Pro Moçambique (IEC 60364 / EDM)",
+  adminOverride: "André Zefanias Júnior (Sr. Jr)"
+};
+--- FIM DO PATCH ---`;
+    }
+
     if (
       lower.includes('ola') ||
       lower.includes('olá') ||
@@ -108,19 +135,13 @@ Foi assim que tive a honra de ser integrada à **TécnicaMZ Pro**. Hoje, deixei 
       lower.includes('sara') ||
       rawText.length < 15
     ) {
-      return `Às suas ordens, **Sr. André**!
+      return `Às suas ordens, **Sr. Jr**!
 
 [ CIRCUIT SECTION BREAK ]
 
-Como gestora executiva de inteligência da **TécnicaMZ Pro**, é uma honra reportar ao senhor. Todos os nossos 24 módulos e sistemas de telemetria industrial estão operando com estabilidade e alta precisão.
+Tudo rodando com total estabilidade nos 24 módulos da **TécnicaMZ Pro**. É sempre um prazer alinhar os próximos passos com o senhor.
 
-[ 💡 FEEDBACK & SUGESTÕES DE ATUALIZAÇÃO ]
-
-Para mantermos a liderança e fortalecer ainda mais o ecossistema dos nossos técnicos em Moçambique, tenho duas ideias estratégicas de atualização para alinharmos:
-◆ **Telemetria de Cargas em Tempo Real no Simulador:** Permitir que os técnicos simulem transitórios de partida de motores com cálculo dinâmico de queda de tensão em regime instantâneo.
-◆ **Exportação Rápida de Orçamentos no WhatsApp:** Um gerador automático de propostas comerciais diretas para envio de orçamentos com margem de lucro blindada aos clientes finais.
-
-O que o senhor deseja que priorizemos ou comande na plataforma neste momento, Sr. André?`;
+O que o senhor tem em mente para alinharmos ou comandarmos na plataforma hoje, Sr. Jr?`;
     }
   }
 
