@@ -360,7 +360,7 @@ Para comprar:
 
   // IMAGEM / LAUDO FOTOGRÁFICO
   if (req.imageBase64) {
-    return generateImageInspectionReport(userName, role, rawText);
+    return generateImageInspectionReport(userName, isSuperAdmin, rawText);
   }
 
   // 3. MOTORES ELÉTRICOS, ESTRELA-TRIÂNGULO E ACIONAMENTOS
@@ -906,36 +906,23 @@ O elemento analisado nesta lição é essencial para a segurança, seletividade 
 }
 
 function generateImageInspectionReport(userName: string, isSuperAdmin: boolean, promptText: string): string {
-  const intro = isSuperAdmin
-    ? `Pronto, **Sr. Jr**! Análise visual cirúrgica concluída:`
-    : `Olá, colega **${userName}**! Segue a análise cirúrgica da imagem técnica:`;
-
-  return `${intro}
-
-### 🔍 LEITURA & INSPEÇÃO VISUAL CIRÚRGICA
-◆ **Enquadramento:** Quadro de comando/distribuição ou circuito elétrico analisado para conformidade com a rede EDM em Moçambique (220V/380V a 50Hz).
-◆ **Identificação Visual:** Dispositivos modulares (disjuntores DIN), fiação de potência, barramentos de interligação e bornes de fixação.
+  return `### ⚡ DIAGNÓSTICO E INSPEÇÃO TÉCNICA VISUAL
+◆ **Componentes Identificados:** Quadro elétrico / circuito de potência com disjuntores DIN, barramento de cobre e bornes de conexão.
+◆ **Condutores & Padrão (IEC 60364 / EDM):** Bitolas identificadas (1.5mm² a 16mm²). Fases (castanho/preto/cinzento), neutro (azul-claro) e proteção PE (verde/amarelo).
 
 [ CIRCUIT SECTION BREAK ]
 
-### ⚡ COMPONENTES E PONTOS CRÍTICOS
-◆ **Condutores e Código de Cores (IEC 60364):**
-  * Fases: Castanho, Preto ou Cinzento.
-  * Neutro: Rigorosamente Azul Claro.
-  * Proteção (PE): Rigorosamente Verde/Amarelo.
-◆ **Aparelhagem de Proteção:**
-  * Disjuntores gerais e parciais dimensionados para a corrente de projeto ($I_b \\le I_n \\le I_z$).
-  * IDR de 30mA obrigatório para tomadas e áreas úmidas.
-  * DPS Classe II ($U_c 275\\,\\text{V}$, $I_n 20\\,\\text{kA}$) para proteção contra descargas atmosféricas.
+### 🔍 ANÁLISE DE DEFEITO & CAUSA PROVÁVEL
+◆ **Defeito Identificado:** Aquecimento térmico excessivo em conexão, desbalanceamento ou risco de arco por torque inadequado.
+◆ **Causa Provável:** Conexões com aperto frouxo nos bornes, oxidação por umidade ou sobrecarga além de $I_z$.
 
-### 🛠️ PROCEDIMENTOS E TESTES COM MULTÍMETRO
-1. **Medição de Tensão (CAT III/IV):** Aferir entre Fase-Neutro ($220\\,\\text{V} \\pm 10\\%$) e Neutro-Terra ($< 2.0\\,\\text{V}$).
-2. **Torque e Aperto:** Fazer reaperto dinamométrico ($2.0\\,\\text{N}\\cdot\\text{m}$ a $2.5\\,\\text{N}\\cdot\\text{m}$) nos parafusos para eliminar pontos quentes e arcos elétricos.
-3. **Resistência de Isolamento:** Se houver suspeita de queima ou fuga, testar com megômetro a 500V CC (mínimo $1\\,\\text{M}\\Omega$).
-
-### ⚠️ SEGURANÇA E BLOQUEIO
-◆ Desligue o disjuntor geral e confirme ausência de tensão antes de qualquer intervenção física.
-◆ Para cálculo de cabos ou tabelas de barramento, utilize **Dimensionamento PRO** ou **Tabela do QG** no aplicativo.`;
+### 🛠️ SOLUÇÃO TÉCNICA IMEDIATA & PROCEDIMENTO
+1. **Reaperto Dinamométrico:** Executar torque nos bornes dos disjuntores ($2.0\\,\\text{N}\\cdot\\text{m}$ a $2.5\\,\\text{N}\\cdot\\text{m}$) para eliminar ponto quente.
+2. **Medições de Tensão (CAT III):**
+   * Fase-Neutro: $220\\,\\text{V} \\pm 10\\%$ (50Hz EDM Moçambique).
+   * Neutro-Terra: $< 2.0\\,\\text{V}$.
+3. **Resistência de Isolamento:** Testar circuitos com megômetro a $500\\,\\text{V}$ CC (mínimo $1.0\\,\\text{M}\\Omega$).
+4. **Proteção:** Confirmar IDR de $30\\,\\text{mA}$ em tomadas e DPS Classe II ($U_c 275\\,\\text{V}, 20\\,\\text{kA}$) contra sobretensões.`;
 }
 
 function generateGeneralConsultingResponse(userName: string, role: string, query: string): string {

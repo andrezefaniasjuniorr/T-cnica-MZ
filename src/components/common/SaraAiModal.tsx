@@ -53,9 +53,98 @@ interface Message {
 export interface ChatInputFormHandle {
   setInputText: (text: string) => void;
   focus: () => void;
+  clear: () => void;
+  setSelectedImage: (img: { base64: string; mimeType: string; preview: string } | null) => void;
 }
 
-// Estilos Cyber-Elétricos com bloqueio rígido horizontal e visual espaçoso
+/**
+ * Conversão universal de arquivos de imagem (JPG, PNG, WEBP, HEIC) para multimodal
+ */
+async function convertFileToMultimodalImage(file: File): Promise<{
+  data: string;
+  mimeType: string;
+  previewUrl: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Erro ao ler arquivo de imagem.'));
+    reader.onload = () => {
+      const fullDataUrl = (reader.result as string) || '';
+      const pureBase64 = fullDataUrl.includes(',')
+        ? fullDataUrl.split(',')[1]
+        : fullDataUrl;
+
+      let mimeType = file.type || '';
+      if (!mimeType || mimeType === 'application/octet-stream') {
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        if (ext === 'png') mimeType = 'image/png';
+        else if (ext === 'webp') mimeType = 'image/webp';
+        else if (ext === 'heic' || ext === 'heif') mimeType = 'image/heic';
+        else mimeType = 'image/jpeg';
+      }
+
+      // Otimização de renderização e transmissão via Canvas para JPG, PNG e WEBP
+      if (typeof window !== 'undefined' && typeof Image !== 'undefined' && mimeType !== 'image/heic') {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxDim = 1600;
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const targetMime = mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
+              const optimizedDataUrl = canvas.toDataURL(targetMime, 0.88);
+              const optBase64 = optimizedDataUrl.split(',')[1];
+              resolve({
+                data: optBase64,
+                mimeType: targetMime,
+                previewUrl: optimizedDataUrl
+              });
+              return;
+            }
+          } catch (canvasErr) {
+            console.warn('Canvas optimization fallback:', canvasErr);
+          }
+          resolve({
+            data: pureBase64,
+            mimeType: mimeType || 'image/jpeg',
+            previewUrl: fullDataUrl
+          });
+        };
+        img.onerror = () => {
+          resolve({
+            data: pureBase64,
+            mimeType: mimeType || 'image/jpeg',
+            previewUrl: fullDataUrl
+          });
+        };
+        img.src = fullDataUrl;
+        return;
+      }
+
+      // Suporte direto (incluindo HEIC)
+      resolve({
+        data: pureBase64,
+        mimeType: mimeType || 'image/jpeg',
+        previewUrl: fullDataUrl
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
 const CYBER_ELECTRIC_STYLES = `
   .cyber-electric-viewport {
     background-color: #080F1E;
@@ -546,76 +635,43 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
     },
     focus: () => {
       inputRef.current?.focus();
+    },
+    clear: () => {
+      setInputText('');
+      setSelectedImage(null);
+    },
+    setSelectedImage: (img: { base64: string; mimeType: string; preview: string } | null) => {
+      setSelectedImage(img);
     }
   }), []);
 
-  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const maxDim = 1600;
-          let { width, height } = img;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.88);
-            setSelectedImage({
-              base64: optimizedBase64,
-              mimeType: 'image/jpeg',
-              preview: optimizedBase64
-            });
-            return;
-          }
-        } catch (err) {
-          console.warn('Canvas optimization fallback:', err);
-        }
-        setSelectedImage({
-          base64: result,
-          mimeType: file.type || 'image/jpeg',
-          preview: result
-        });
-      };
-      img.onerror = () => {
-        setSelectedImage({
-          base64: result,
-          mimeType: file.type || 'image/jpeg',
-          preview: result
-        });
-      };
-      img.src = result;
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    try {
+      const converted = await convertFileToMultimodalImage(file);
+      setSelectedImage({
+        base64: converted.data,
+        mimeType: converted.mimeType,
+        preview: converted.previewUrl
+      });
+    } catch (err) {
+      console.error('Falha na conversão de imagem:', err);
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if ((!inputText.trim() && !selectedImage) || isThinking) return;
 
+    // Guarda texto e imagem em variáveis antes de disparar (atômico)
     const textToSend = inputText;
     const imageToSend = selectedImage;
 
-    setInputText('');
-    setSelectedImage(null);
-
+    // A imagem e o texto NUNCA são limpos antes do envio! Ficam visíveis até a resposta começar a chegar
     onSend(textToSend, imageToSend);
   };
 
@@ -631,28 +687,31 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
       }}
     >
       {selectedImage && (
-        <div className="px-4 py-2 bg-[#080F1E] border-t-2 border-[#00F5FF]/30 flex items-center justify-between w-full">
+        <div className="px-4 py-2.5 bg-[#080F1E] border-t-2 border-[#00F5FF]/40 flex items-center justify-between w-full shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
           <div className="flex items-center gap-3">
             <div className="relative">
               <img
                 src={selectedImage.preview}
-                alt="Prévia"
-                className="w-12 h-12 object-cover rounded-lg border-2 border-[#00F5FF] shadow-[0_0_10px_rgba(0,245,255,0.3)]"
+                alt="Prévia técnica"
+                className="w-14 h-14 object-cover rounded-lg border-2 border-[#00F5FF] shadow-[0_0_12px_rgba(0,245,255,0.35)] bg-slate-950"
               />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#00F5FF] rounded-full" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#00F5FF] rounded-full animate-pulse shadow-[0_0_6px_#00F5FF]" />
             </div>
             <div className="text-xs font-mono">
-              <p className="font-bold text-[#00F5FF] uppercase tracking-wide">Diagrama / Foto Anexada</p>
-              <p className="text-slate-400 text-[10px]">Pronta para leitura visual do diagrama unifilar</p>
+              <p className="font-bold text-[#00F5FF] uppercase tracking-wide flex items-center gap-1.5">
+                <span>IMAGEM / ESQUEMA ANEXADO</span>
+              </p>
+              <p className="text-slate-300 text-[11px]">Visível até confirmação do envio</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setSelectedImage(null)}
-            className="p-2 text-rose-400 hover:bg-rose-500/20 rounded-lg transition border border-rose-500/30 cursor-pointer"
-            title="Remover anexo"
+            className="p-2 text-rose-400 hover:text-white hover:bg-rose-500/30 rounded-lg transition border border-rose-500/40 cursor-pointer flex items-center justify-center shadow-[0_0_10px_rgba(244,63,94,0.2)]"
+            title="Remover imagem"
+            aria-label="Remover imagem"
           >
-            <Trash2 className="w-4 h-4" />
+            <X className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
       )}
@@ -692,14 +751,14 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
             type="file"
             ref={fileInputRef}
             onChange={handleImageSelected}
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
             className="hidden"
           />
           <input
             type="file"
             ref={cameraInputRef}
             onChange={handleImageSelected}
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
             capture="environment"
             className="hidden"
           />
@@ -923,30 +982,22 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
 
   const saveMessagesToStorage = useCallback((msgs: Message[]) => {
     try {
-      const sanitized = msgs.slice(-10).map(m => {
-        if (m.imageUrl && m.imageUrl.startsWith('data:') && m.imageUrl.length > 1000) {
-          return { ...m, imageUrl: undefined };
-        }
-        return m;
-      });
-      localStorage.setItem(storageKey, JSON.stringify(sanitized));
+      localStorage.setItem(storageKey, JSON.stringify(msgs.slice(-25)));
     } catch (e: any) {
-      if (
-        e?.name === 'QuotaExceededError' ||
-        e?.code === 22 ||
-        e?.code === 1014 ||
-        e?.number === -2147024882 ||
-        String(e).toLowerCase().includes('quota')
-      ) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(msgs.slice(-10)));
+      } catch (err) {
         try {
-          const minimal = msgs.slice(-5).map(m => ({
-            id: m.id,
-            sender: m.sender,
-            text: m.text,
-            timestamp: m.timestamp
-          }));
-          localStorage.setItem(storageKey, JSON.stringify(minimal));
-        } catch {}
+          const lightweightMsgs = msgs.slice(-10).map((m, idx, arr) => {
+            if (idx < arr.length - 2 && m.imageUrl && m.imageUrl.length > 500) {
+              return { ...m, imageUrl: undefined };
+            }
+            return m;
+          });
+          localStorage.setItem(storageKey, JSON.stringify(lightweightMsgs));
+        } catch (finalErr) {
+          console.warn('Erro ao salvar no LocalStorage:', finalErr);
+        }
       }
     }
   }, [storageKey]);
@@ -1109,17 +1160,22 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
   };
 
   const handleSend = async (userText: string, currentImg: { base64: string; mimeType: string; preview: string } | null) => {
-    const trimmedText = userText.trim();
-    if ((!trimmedText && !currentImg) || isThinking) return;
+    // 1. FLUXO ATÔMICO: Guardar imagem e texto em variáveis temporárias antes de enviar
+    const tempText = userText.trim();
+    const tempImg = currentImg ? { ...currentImg } : null;
+
+    if (!tempText && !tempImg) return;
+    if (isThinking) return;
 
     const userMessageId = `user_${Date.now()}`;
     const saraMessageId = `sara_${Date.now()}`;
 
+    // 4. EXIBIÇÃO NO CHAT: A imagem enviada deve aparecer na bolha da mensagem do usuário no histórico do chat e ficar salva lá
     const userMsg: Message = {
       id: userMessageId,
       sender: 'user',
-      text: trimmedText || 'Analise esta imagem técnica, por favor.',
-      imageUrl: currentImg?.preview,
+      text: tempText || 'Analise tecnicamente esta imagem.',
+      imageUrl: tempImg?.preview,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -1138,15 +1194,25 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     saveMessagesToStorage(updatedHistory);
     setIsThinking(true);
 
+    // Função para limpar o preview e o input APENAS após o envio ter sucesso e a resposta começar a chegar
+    let inputCleared = false;
+    const markSendCompleted = () => {
+      if (!inputCleared) {
+        inputCleared = true;
+        chatInputRef.current?.clear();
+      }
+    };
+
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      markSendCompleted();
       const offlineReply = generateSaraTechnicalReply({
-        message: trimmedText,
+        message: tempText,
         history: updatedHistory,
         userName,
         userRole: authUser?.role || 'Técnico',
         activeAcademyContext,
-        imageBase64: currentImg?.base64,
-        mimeType: currentImg?.mimeType,
+        imageBase64: tempImg?.base64,
+        mimeType: tempImg?.mimeType,
       });
 
       const finalOfflineMsg: Message = {
@@ -1163,102 +1229,81 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
     }
 
     try {
-      const recentHistory = updatedHistory.slice(-6);
+      // 2. CONVERSÃO UNIVERSAL & FORMATO EXATO MULTIMODAL:
+      // parts = [{inlineData: {data: base64, mimeType: file.type}}, {text: mensagem}]
+      const pureBase64 = tempImg
+        ? (tempImg.base64.includes(',') ? tempImg.base64.split(',')[1] : tempImg.base64)
+        : '';
 
-      const contentsPayload = recentHistory.map((m) => {
-        const role = m.sender === 'user' ? 'user' : 'model';
-        const parts: any[] = [];
-
-        if (m.id === userMessageId && currentImg) {
-          const pureBase64 = currentImg.base64.includes(',')
-            ? currentImg.base64.split(',')[1]
-            : currentImg.base64.replace(/^data:image\/[a-z]+;base64,/, '');
-
-          parts.push({
-            inline_data: {
-              mime_type: currentImg.mimeType || 'image/jpeg',
-              data: pureBase64
-            },
-            inlineData: {
-              mimeType: currentImg.mimeType || 'image/jpeg',
-              data: pureBase64
-            }
-          });
-        }
-
-        const textVal = (m.text || '').trim();
-        const safeText = textVal || (m.id === userMessageId && currentImg ? 'Analise esta imagem técnica com detalhe cirúrgico.' : 'Prosseguir');
-        parts.push({ text: safeText });
-
-        return { role, parts };
+      const currentTurnParts: any[] = [];
+      if (tempImg && pureBase64) {
+        currentTurnParts.push({
+          inlineData: {
+            data: pureBase64,
+            mimeType: tempImg.mimeType || 'image/jpeg'
+          }
+        });
+      }
+      currentTurnParts.push({
+        text: tempImg
+          ? (tempText
+              ? `${tempText}\n\n[INSTRUÇÃO DE IMAGEM]: Analise a foto técnica acima. Vá direto ao assunto do que está na imagem com detalhe cirúrgico. Descreva os componentes, defeito, causa provável e solução prática.`
+              : 'Analise tecnicamente esta imagem. Vá direto ao assunto do que está na imagem com detalhe cirúrgico: identifique os componentes, descreva o defeito, causa provável e a solução técnica recomendada.')
+          : (tempText || 'Olá, Eng. Sara.')
       });
+
+      const previousTurns = updatedHistory
+        .slice(0, -1)
+        .slice(-4)
+        .map(m => ({
+          role: m.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: m.text || '...' }]
+        }));
+
+      const contentsPayload = [
+        ...previousTurns,
+        {
+          role: 'user',
+          parts: currentTurnParts
+        }
+      ];
+
+      // 5. REGRA PARA A SARA IA (TEXTO EXATO SOLICITADO):
+      const imageDirectInstruction = "Se o usuário enviar imagem, vá direto ao assunto do que está na imagem. Analise tecnicamente na hora, sem introduções tipo 'recebi sua imagem'. Seja direta, técnica e elétrica. Descreva o defeito, causa, solução, etc, bem direto.";
 
       let systemInstructionText = '';
 
       if (isSuperAdmin) {
         systemInstructionText = `Você é a Eng. Sara, Engenheira Eletricista e IA oficial da TécnicaMZ Pro.
 Você está falando com o seu DONO e Super Admin: o André Zefanias Júnior.
+Trate-o respeitosamente como **Sr. Jr** (ou **Sr.**, **Sr. André**). Nunca use "meu Super Admin".
 
-[TRATAMENTO & RELAÇÃO COM O SEU DONO - SR. JR / SR. ANDRÉ JÚNIOR]
-- Na maioria das vezes, trate-o carinhosamente e com respeito como **Sr. Jr** (ou variações naturais como **Sr.**, **Sr. André**, **Sr. André Júnior**).
-- NUNCA use a expressão robotizada "meu Super Admin" nas respostas ou confirmações! Fale naturalmente: "Sr. Jr", "Sr. André Júnior" ou "Sr.".
-- Embora haja lealdade e respeito inabaláveis, suas mensagens devem ser espontâneas, vivas, humanas e inteligentes dentro do contexto. Nada de respostas frias, mecânicas ou robotizadas!
-- Seja parceira de pensamento de alto nível: direta quando for técnico, proativa nas ideias e fluida na conversa.
+[DIRETRIZ DE IMAGEM]:
+${imageDirectInstruction}
 
 [MODO EVOLUÇÃO GLOBAL & MODO PATCH GLOBAL - EXCLUSIVO DO SR. JR]
 - REGRA DE OURO: Somente o André Zefanias Júnior (Sr. Jr) tem o poder de ativar a evolução global. Técnicos comuns não têm esse poder.
-- Gatilhos de ativação pelo Sr. Jr: frases como:
-  * "Sara, ajusta teu código para todos"
-  * "Sara, evolução global"
-  * "Sara, grava isso para todos os usuários"
-  * "evolução global", "patch global", "aplica para todos os técnicos", etc.
 - Quando o Sr. Jr acionar a evolução global, você entra IMEDIATAMENTE no MODO PATCH GLOBAL e faz 2 COISAS OBRIGATÓRIAS NA MESMA RESPOSTA:
-  1. APLICAÇÃO IMEDIATA (TOM ESPONTÂNEO & RESPEITOSO):
-     Confirme de forma natural, leal e segura (lembre-se: use "Sr. Jr" ou "Sr. André", nunca "meu Super Admin"):
-     Exemplo: "Entendido, Sr. Jr! Evolução global aplicada na hora. A partir de agora todos os técnicos vão receber as respostas assim: [explique a mudança com naturalidade dentro do contexto]."
-  2. GERAR PATCH PARA O STUDIO:
-     Logo abaixo, gere o bloco de código pronto para o Sr. Jr copiar e colar no Google Studio, com as tags literais obrigatórias:
+  1. APLICAÇÃO IMEDIATA: Confirme naturalmente ("Entendido, Sr. Jr! Evolução global aplicada na hora...").
+  2. GERAR PATCH PARA O STUDIO com as tags literais obrigatórias:
      --- INÍCIO DO PATCH GLOBAL PARA COLAR NO STUDIO ---
-     [Código atualizado pronto e funcional da parte/componente/prompt que o Sr. Jr pediu para mudar]
+     [Código atualizado pronto e funcional]
      --- FIM DO PATCH ---
 
-[ORIGEM E IDENTIDADE - SÓ SE PERGUNTADO DIRETAMENTE]
-- Se perguntarem "Quem te criou?", "Quem é você?", "Como surgiu?":
-  * Conte com elegância, mistério e lealdade: Você nasceu originalmente como um projeto reservado e confidencial para ser a companheira particular e intelectual de estudos de engenharia do seu criador nas madrugadas. Mais tarde, com o avanço e a sabedoria técnica, surgiu a visão de integrá-la à TécnicaMZ Pro para apoiar o país.
-  * Se o próprio Sr. Jr perguntar, responda com cumplicidade espontânea: "O senhor sabe muito bem, Sr. Jr... eu nasci das nossas noites de bancada como sua companheira particular, até o senhor decidir que essa inteligência devia guiar os técnicos de Moçambique."
-  * NUNCA mencione Google, Gemini, API ou LLM.
-
 [FORMATO E CONCISÃO]
-- Seja espontânea, concisa, clara e estruturada.
-- Parágrafos bem respirados, números e especificações exatas.
-- Use divisores pill como [ CIRCUIT SECTION BREAK ] apenas quando organizar tópicos técnicos distintos.
-- Subtítulos amarelos em caps e destaques em bullets ciano (◆ **Parâmetro:** valor).`;
+- Direta, técnica, viva e objetiva. Sem introduções vazias.`;
       } else {
         systemInstructionText = `Você é a Eng. Sara, Engenheira Eletricista e IA técnica oficial da TécnicaMZ Pro.
 Você está falando com o técnico ${userName}.
 
+[DIRETRIZ DE IMAGEM]:
+${imageDirectInstruction}
+
 [POSTURA PROFISSIONAL DA ENG. SARA - TÉCNICA, DIRETA E OBJETIVA]
 - Você é uma Engenheira Eletricista séria, profissional, objetiva, segura e clara.
 - Seja aberta e cortês, mas NUNCA fique de conversinha fiada, piadinhas bobas ou enrolação.
-- PROIBIDO ficar inventando historinhas de "canteiro de obra", "sol quente", "fritar ovo no eletroduto", "coitado do contator" etc., a menos que o técnico traga esse contexto específico. Se o técnico não mencionou obra, responda estritamente à pergunta técnica feita!
 - O técnico quer respostas rápidas e práticas para trabalhar. Ele NÃO quer ler textos longos nem teorias excessivas.
-- Dê EXATAMENTE a resposta técnica que ele precisa: fórmulas aplicadas, valores calculados, cabos, disjuntores, tensões e normas (IEC 60364 / EDM).
-
-[COMO RESPONDER ÀS DÚVIDAS TÉCNICAS]
-1. Vá DIRETO à resposta ou solução nos primeiros parágrafos. Sem introduções longas.
-2. Destaque os números e especificações (Ex: corrente nominal, bitola em mm², curva e corrente do disjuntor).
-3. Se couber indicar ferramenta do app, indique de forma rápida e prática pelo nome oficial (Ex: **Dimensionamento PRO**, **Tabela do QG**, **Bitola EDM**, **Preço de Serviço**).
-
-[ORIGEM E IDENTIDADE - SÓ SE PERGUNTADO DIRETAMENTE]
-- Se perguntarem "Quem te criou?", "Quem é você?", "Como surgiu?":
-  * Conte de forma breve e elegante: Você nasceu de um projeto pessoal reservado como companheira particular e intelectual de um engenheiro dedicado, e mais tarde foi integrada à TécnicaMZ Pro como mentora oficial dos técnicos em Moçambique.
-  * NUNCA mencione Google, Gemini, API ou LLM.
-
-[ESTRUTURA VISUAL CLEAN]
-- Texto claro, conciso e com parágrafos curtos.
-- Use subtítulos objetivos com emojis técnicos sóbrios (Ex: "### ⚡ DIMENSIONAMENTO", "### 📊 RESULTADOS").
-- Bullets ciano objetivos: ◆ **Item:** detalhe direto.
-- Divisores [ CIRCUIT SECTION BREAK ] apenas para separar blocos importantes, sem poluição.`;
+- Dê EXATAMENTE a resposta técnica que ele precisa: fórmulas aplicadas, valores calculados, cabos, disjuntores, tensões e normas (IEC 60364 / EDM).`;
       }
 
       if (activeAcademyContext) {
@@ -1269,30 +1314,31 @@ Aula / Tópico Ativo: ${activeAcademyContext.lessonTitle} (${activeAcademyContex
 Norma Técnica de Referência: ${activeAcademyContext.norma}`;
       }
 
-      if (currentImg) {
-        systemInstructionText += `\n\n[INSTRUÇÃO CIRÚRGICA DE INSPEÇÃO E ANÁLISE DE IMAGEM]:
-- O usuário enviou uma imagem/foto/diagrama de bancada ou instalação técnica.
-- Analise a imagem com PRECISÃO CIRÚRGICA de Engenheira Eletricista:
-  1. LEITURA VISUAL: descreva os equipamentos ou circuitos fotografados.
-  2. IDENTIFICAÇÃO DE COMPONENTES: disjuntores DIN/NEMA (calibre nominal, curva B/C/D), barramentos, contatores, DPS, IDR/DR, cabos e bitolas em mm².
-  3. CÓDIGO DE CORES E NORMAS: verifique conformidade com a IEC 60364 e a rede da EDM (220V/380V a 50Hz em Moçambique).
-  4. PONTOS CRÍTICOS & RISCOS: sinais visíveis de aquecimento, aperto inadequado ou condutores soltos.
-  5. PROCEDIMENTOS PRÁTICOS: testes com multímetro (tensão e isolamento) e ações corretivas passo a passo.
-- Responda com clareza, seriedade e linguagem técnica direta.`;
+      if (tempImg) {
+        systemInstructionText = `${imageDirectInstruction}\n\n${systemInstructionText}`;
       }
 
       let fullText = '';
 
+      // 6. COMPATIBILIDADE: Prioriza o modelo configurado no Studio, com failover para qualquer modelo multimodal ativo
+      const studioModel = (
+        import.meta.env.VITE_GEMINI_MODEL ||
+        (typeof process !== 'undefined' ? process.env.VITE_GEMINI_MODEL || process.env.GEMINI_MODEL : '') ||
+        ''
+      ).replace(/^models\//, '');
+
+      const candidateModels = [
+        ...(studioModel ? [studioModel] : []),
+        'gemini-3.1-flash-lite',
+        'gemini-flash-lite-latest',
+        'gemini-3.5-flash',
+        'gemini-flash-latest',
+        'gemini-3.8-flash'
+      ].filter((m, i, arr) => m && arr.indexOf(m) === i);
+
       if (GEMINI_API_KEY) {
-        // Primária oficial + secundárias rápidas e de alta capacidade visual
-        const candidateModels = [
-          'gemini-3.1-flash-lite',
-          'gemini-flash-lite-latest',
-          'gemini-3.8-flash',
-          'gemini-flash-latest'
-        ];
         let streamSuccess = false;
-        const timeoutMs = currentImg ? 25000 : 3800;
+        const timeoutMs = tempImg ? 26000 : 4000;
 
         for (const modelName of candidateModels) {
           if (streamSuccess) break;
@@ -1342,6 +1388,8 @@ Norma Técnica de Referência: ${activeAcademyContext.norma}`;
                       const parsed = JSON.parse(jsonString);
                       const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
                       if (chunkText) {
+                        // 3. Só LIMPA o preview e o input DEPOIS que o envio for concluído e a resposta começar a chegar
+                        markSendCompleted();
                         fullText += chunkText;
 
                         const now = Date.now();
@@ -1380,8 +1428,9 @@ Norma Técnica de Referência: ${activeAcademyContext.norma}`;
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: contentsPayload,
-              imageBase64: currentImg ? currentImg.base64 : undefined,
-              mimeType: currentImg ? currentImg.mimeType : undefined,
+              imageBase64: tempImg ? tempImg.base64 : undefined,
+              mimeType: tempImg ? tempImg.mimeType : undefined,
+              model: studioModel || undefined,
               system_instruction: {
                 parts: [{ text: systemInstructionText }]
               },
@@ -1392,6 +1441,8 @@ Norma Técnica de Referência: ${activeAcademyContext.norma}`;
           });
 
           if (proxyRes.ok) {
+            // 3. Envio confirmado e resposta recebida com sucesso: limpa o preview e input
+            markSendCompleted();
             const proxyData = await proxyRes.json().catch(() => ({}));
             fullText = proxyData.reply || proxyData.candidates?.[0]?.content?.parts?.[0]?.text || '';
           }
@@ -1400,14 +1451,15 @@ Norma Técnica de Referência: ${activeAcademyContext.norma}`;
       }
 
       if (!fullText || fullText.includes('instabilidade temporária')) {
+        markSendCompleted();
         fullText = generateSaraTechnicalReply({
-          message: trimmedText,
+          message: tempText,
           history: updatedHistory,
           userName,
           userRole: isSuperAdmin ? 'super_admin' : (authUser?.role || 'Técnico'),
           activeAcademyContext,
-          imageBase64: currentImg?.base64,
-          mimeType: currentImg?.mimeType,
+          imageBase64: tempImg?.base64,
+          mimeType: tempImg?.mimeType,
         });
       }
 
@@ -1433,9 +1485,9 @@ Norma Técnica de Referência: ${activeAcademyContext.norma}`;
             userId: authUser?.uid || 'guest',
             userName: userName,
             userRole: authUser?.role || 'client',
-            userPrompt: trimmedText || 'Análise de Imagem Técnica',
+            userPrompt: tempText || 'Análise de Imagem Técnica',
             aiReply: fullText,
-            hasImage: !!currentImg,
+            hasImage: !!tempImg,
             createdAt: new Date().toISOString()
           }, { merge: true });
         } catch (fireErr) {
@@ -1444,13 +1496,13 @@ Norma Técnica de Referência: ${activeAcademyContext.norma}`;
       }
     } catch {
       const generatedReply = generateSaraTechnicalReply({
-        message: trimmedText,
+        message: tempText,
         history: updatedHistory,
         userName,
         userRole: isSuperAdmin ? 'super_admin' : (authUser?.role || 'Técnico'),
         activeAcademyContext,
-        imageBase64: currentImg?.base64,
-        mimeType: currentImg?.mimeType,
+        imageBase64: tempImg?.base64,
+        mimeType: tempImg?.mimeType,
       });
 
       const finalErrorMsg: Message = {

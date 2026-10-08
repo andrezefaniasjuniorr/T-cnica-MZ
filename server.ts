@@ -11,6 +11,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Middleware de CORS para permitir acesso de qualquer navegador / PWA sem bloqueio
 app.use((req: Request, res: Response, next) => {
@@ -123,55 +124,61 @@ function toPlainText(text: string): string {
     .trim();
 }
 
-// Modelos Gemini oficiais e com alta capacidade visual e técnica
-const PRIMARY_GEMINI_MODEL = 'gemini-3.1-flash-lite';
-const SECONDARY_GEMINI_MODELS = [
+// Modelos Gemini oficiais multimodais testados e suportados
+const DEFAULT_MULTIMODAL_MODELS = [
+  'gemini-3.1-flash-lite',
   'gemini-flash-lite-latest',
-  'gemini-3.8-flash',
-  'gemini-flash-latest'
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.8-flash'
 ];
 
-// Executor resiliente: prioriza a primária com transição rápida e failover paralelo
+// Executor resiliente: tenta o modelo solicitado pelo Studio/usuário primeiro, com failover suave para qualquer modelo multimodal ativo
 async function executeFastGemini<T>(
   action: (modelName: string) => Promise<T>,
-  primaryTimeoutMs: number = 4000
+  primaryTimeoutMs: number = 4000,
+  preferredModel?: string
 ): Promise<T> {
-  // 1. Tenta a versão primária primeiro
+  const cleanPreferred = (preferredModel || '').replace(/^models\//, '').trim();
+  const modelsToTry = [
+    ...(cleanPreferred ? [cleanPreferred] : []),
+    ...DEFAULT_MULTIMODAL_MODELS
+  ].filter((m, i, arr) => m && arr.indexOf(m) === i);
+
+  const primaryModel = modelsToTry[0];
+  const secondaryModels = modelsToTry.slice(1);
+
+  // 1. Tenta o modelo preferido primeiro
   try {
-    const primaryPromise = action(PRIMARY_GEMINI_MODEL);
+    const primaryPromise = action(primaryModel);
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('PRIMARY_MODEL_TIMEOUT')), primaryTimeoutMs)
     );
     return await Promise.race([primaryPromise, timeoutPromise]);
   } catch (primaryErr: any) {
-    console.warn(`[Sara Engine] Versão primária (${PRIMARY_GEMINI_MODEL}) falhou ou excedeu ${primaryTimeoutMs}ms. Ativando secundárias:`, primaryErr?.message || primaryErr);
+    console.warn(`[Sara Engine] Modelo (${primaryModel}) falhou ou excedeu ${primaryTimeoutMs}ms. Ativando modelos de suporte:`, primaryErr?.message || primaryErr);
   }
 
-  // 2. Transição rápida com múltiplas opções secundárias em corrida simultânea
-  try {
-    const secondaryRace = SECONDARY_GEMINI_MODELS.map(model => action(model));
-    return await Promise.any(secondaryRace);
-  } catch (secAggregateErr: any) {
-    console.warn('[Sara Engine] Secundárias paralelas falharam. Tentando varredura sequencial final...');
-  }
-
-  // 3. Fallback sequencial de segurança
-  for (const model of SECONDARY_GEMINI_MODELS) {
+  // 2. Fallback sequencial pelos modelos multimodais restantes
+  for (const model of secondaryModels) {
     try {
       return await action(model);
-    } catch {
+    } catch (secErr: any) {
+      console.warn(`[Sara Engine] Failover no modelo ${model}:`, secErr?.message || secErr);
       continue;
     }
   }
 
-  throw new Error('Todas as versões Gemini esgotaram ou estão temporariamente indisponíveis.');
+  throw new Error('Todas as versões de modelos multimodais esgotaram ou estão temporariamente indisponíveis.');
 }
 
 // Endpoint Proxy Oficial Sara IA (/api/sara)
 // Compatível com o formato Gemini REST API ({ contents, system_instruction }) e clientBody ({ message, history, imageBase64 })
 app.post('/api/sara', async (req: Request, res: Response) => {
   try {
-    const { contents, system_instruction, message, history, userRole, userName, userEmail, imageBase64, mimeType } = req.body;
+    const { contents, system_instruction, message, history, userRole, userName, userEmail, imageBase64, mimeType, model } = req.body;
+
+    const requestedModel = (model || process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || '').replace(/^models\//, '').trim();
 
     const isSuperAdminReq =
       userRole === 'super_admin' ||
@@ -335,21 +342,20 @@ Você está falando com o técnico ${userName || 'Colega Técnico'}.
       }
     }
 
-    // Diretriz cirúrgica reforçada caso haja imagem técnica
+    // Diretriz cirúrgica de imagem para a Eng. Sara IA
     if (hasImage) {
-      finalInstruction += `\n\n[INSTRUÇÃO CIRÚRGICA DE INSPEÇÃO E ANÁLISE DE IMAGEM]:
-- Você recebeu uma imagem técnica (diagrama unifilar, foto de quadro elétrico QGBT, componente, fiação, disjuntor, motor ou medição).
-- Faça a leitura com PRECISÃO CIRÚRGICA de Engenheira Eletricista:
-  1. O QUE VEJO: componentes identificados (disjuntores DIN/NEMA, barramentos, contatores, DPS, IDR, bornes).
-  2. CONDUTORES & FIAÇÃO: bitolas aparentes (1.5, 2.5, 4, 6, 10, 16 mm²), código de cores (fases, neutro azul-claro, terra verde/amarelo), aperto e estado térmico.
-  3. CONFORMIDADE & NORMAS: normas EDM Moçambique (220V/380V a 50Hz) e IEC 60364.
-  4. ANOMALIAS E PONTOS CRÍTICOS: riscos de curto, sobreaquecimento, falta de proteção ou aperto frouxo.
-  5. PROCEDIMENTOS PRÁTICOS: testes com multímetro e ações imediatas.
-- Seja direta, técnica e prática. Sem rodeios nem delongas.`;
+      finalInstruction += `\n\n[REGRA PARA A SARA IA - ANÁLISE DE IMAGEM]:
+Se o usuário enviar imagem, vá direto ao assunto do que está na imagem. Analise tecnicamente na hora, sem introduções tipo 'recebi sua imagem'. Seja direta, técnica e elétrica. Descreva o defeito, causa, solução, etc, bem direto.
+
+Faça a leitura com PRECISÃO CIRÚRGICA de Engenheira Eletricista:
+1. IDENTIFICAÇÃO DE COMPONENTES: Disjuntores (curva/corrente), barramentos, DPS, IDR, bornes, contatores, etc.
+2. CONDUTORES & FIAÇÃO: Bitolas visíveis em mm², código de cores (IEC 60364 / EDM Moçambique), aperto e integridade térmica.
+3. DEFEITO, ANOMALIA & CAUSA: Riscos de arco elétrico, sobreaquecimento, fuga de corrente ou descumprimento de normas.
+4. SOLUÇÃO DIRETA & PROCEDIMENTOS: Ação prática recomendada e testes com multímetro (tensão, continuidade e isolamento).`;
     }
 
-    // Se tiver imagem, o timeout primário é de 24 segundos (visão computacional requer tempo de encoding); se texto, transição ágil em 3.8s
-    const primaryTimeout = hasImage ? 24000 : 3800;
+    // Se tiver imagem, o timeout primário é de 25 segundos (visão computacional requer tempo de encoding); se texto, transição ágil em 3.8s
+    const primaryTimeout = hasImage ? 25000 : 3800;
 
     let replyText = '';
     try {
@@ -360,11 +366,12 @@ Você está falando com o técnico ${userName || 'Colega Técnico'}.
             contents: geminiContents,
             config: {
               systemInstruction: finalInstruction,
-              temperature: hasImage ? 0.3 : 0.6,
+              temperature: hasImage ? 0.2 : 0.6,
             }
           });
         },
-        primaryTimeout
+        primaryTimeout,
+        requestedModel
       );
 
       if (response && response.text) {
@@ -376,7 +383,17 @@ Você está falando com o técnico ${userName || 'Colega Técnico'}.
 
     // O motor de engenharia elétrica é rigorosamente a ÚLTIMA das últimas opções
     if (!replyText || replyText.includes('instabilidade temporária')) {
-      const latestMsg = message || (Array.isArray(contents) && contents.length > 0 ? (contents[contents.length - 1]?.parts?.[0]?.text || '') : '');
+      let latestMsg = message || '';
+      if (!latestMsg && Array.isArray(contents) && contents.length > 0) {
+        const lastUser = [...contents].reverse().find(c => c.role === 'user');
+        if (lastUser && Array.isArray(lastUser.parts)) {
+          const textPart = lastUser.parts.find((p: any) => p.text);
+          if (textPart && textPart.text) {
+            latestMsg = textPart.text;
+          }
+        }
+      }
+
       replyText = generateSaraTechnicalReply({
         message: latestMsg,
         userName: userName || 'Colega Técnico',
@@ -518,12 +535,12 @@ app.post('/api/sara/analyze-image', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Imagem em base64 é obrigatória.' });
     }
 
+    // Clean base64 string
+    const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+
     let analysis = '';
     try {
       const ai = getGenAI();
-
-      // Clean base64 string
-      const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
 
       const userPrompt = prompt || `Analise esta foto técnica com máxima precisão cirúrgica de engenharia elétrica para um técnico em Moçambique.
 ATENÇÃO: Responda em texto simples e limpo, sem caracteres Markdown quebrados ou asteriscos desnecessários.
@@ -541,22 +558,29 @@ Estruture nos seguintes tópicos:
             model: modelName,
             contents: [
               {
-                text: userPrompt
-              },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: cleanBase64
-                }
+                role: 'user',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: mimeType,
+                      data: cleanBase64
+                    }
+                  },
+                  {
+                    text: userPrompt
+                  }
+                ]
               }
             ],
             config: {
-              systemInstruction: 'Você é a Eng. Sara IA, Engenheira Eletricista sênior da TécnicaMZ Pro em Moçambique. Responda com precisão cirúrgica, clareza, seriedade técnica e foco prático.',
+              systemInstruction: `Você é a Eng. Sara IA, Engenheira Eletricista sênior da TécnicaMZ Pro em Moçambique.
+[REGRA OBRIGATÓRIA]: Se o usuário enviar imagem, vá direto ao assunto do que está na imagem. Analise tecnicamente na hora, sem introduções tipo 'recebi sua imagem'. Seja direta, técnica e elétrica. Descreva o defeito, causa, solução, etc, bem direto.`,
               temperature: 0.2
             }
           });
         },
-        24000
+        25000,
+        req.body?.model
       );
 
       if (response && response.text) {
