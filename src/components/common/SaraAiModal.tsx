@@ -556,11 +556,51 @@ const ChatInputForm = memo(forwardRef<ChatInputFormHandle, ChatInputFormProps>((
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      setSelectedImage({
-        base64: result,
-        mimeType: file.type || 'image/jpeg',
-        preview: result
-      });
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 1600;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.88);
+            setSelectedImage({
+              base64: optimizedBase64,
+              mimeType: 'image/jpeg',
+              preview: optimizedBase64
+            });
+            return;
+          }
+        } catch (err) {
+          console.warn('Canvas optimization fallback:', err);
+        }
+        setSelectedImage({
+          base64: result,
+          mimeType: file.type || 'image/jpeg',
+          preview: result
+        });
+      };
+      img.onerror = () => {
+        setSelectedImage({
+          base64: result,
+          mimeType: file.type || 'image/jpeg',
+          preview: result
+        });
+      };
+      img.src = result;
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -1127,17 +1167,28 @@ export const SaraAiModal: React.FC<SaraAiModalProps> = ({ isOpen, onClose, onGoT
 
       const contentsPayload = recentHistory.map((m) => {
         const role = m.sender === 'user' ? 'user' : 'model';
-        const parts: any[] = [{ text: m.text }];
+        const parts: any[] = [];
 
         if (m.id === userMessageId && currentImg) {
-          const pureBase64 = currentImg.base64.replace(/^data:image\/\w+;base64,/, '');
-          parts.unshift({
+          const pureBase64 = currentImg.base64.includes(',')
+            ? currentImg.base64.split(',')[1]
+            : currentImg.base64.replace(/^data:image\/[a-z]+;base64,/, '');
+
+          parts.push({
             inline_data: {
-              mime_type: currentImg.mimeType,
+              mime_type: currentImg.mimeType || 'image/jpeg',
+              data: pureBase64
+            },
+            inlineData: {
+              mimeType: currentImg.mimeType || 'image/jpeg',
               data: pureBase64
             }
           });
         }
+
+        const textVal = (m.text || '').trim();
+        const safeText = textVal || (m.id === userMessageId && currentImg ? 'Analise esta imagem técnica com detalhe cirúrgico.' : 'Prosseguir');
+        parts.push({ text: safeText });
 
         return { role, parts };
       });
@@ -1218,20 +1269,30 @@ Aula / Tópico Ativo: ${activeAcademyContext.lessonTitle} (${activeAcademyContex
 Norma Técnica de Referência: ${activeAcademyContext.norma}`;
       }
 
+      if (currentImg) {
+        systemInstructionText += `\n\n[INSTRUÇÃO CIRÚRGICA DE INSPEÇÃO E ANÁLISE DE IMAGEM]:
+- O usuário enviou uma imagem/foto/diagrama de bancada ou instalação técnica.
+- Analise a imagem com PRECISÃO CIRÚRGICA de Engenheira Eletricista:
+  1. LEITURA VISUAL: descreva os equipamentos ou circuitos fotografados.
+  2. IDENTIFICAÇÃO DE COMPONENTES: disjuntores DIN/NEMA (calibre nominal, curva B/C/D), barramentos, contatores, DPS, IDR/DR, cabos e bitolas em mm².
+  3. CÓDIGO DE CORES E NORMAS: verifique conformidade com a IEC 60364 e a rede da EDM (220V/380V a 50Hz em Moçambique).
+  4. PONTOS CRÍTICOS & RISCOS: sinais visíveis de aquecimento, aperto inadequado ou condutores soltos.
+  5. PROCEDIMENTOS PRÁTICOS: testes com multímetro (tensão e isolamento) e ações corretivas passo a passo.
+- Responda com clareza, seriedade e linguagem técnica direta.`;
+      }
+
       let fullText = '';
 
       if (GEMINI_API_KEY) {
-        // Primária oficial + múltiplas secundárias de resposta ultra rápida
+        // Primária oficial + secundárias rápidas e de alta capacidade visual
         const candidateModels = [
           'gemini-3.1-flash-lite',
           'gemini-flash-lite-latest',
-          'gemini-3.5-flash-lite',
           'gemini-3.8-flash',
-          'gemini-3.5-flash',
-          'gemini-3.6-flash',
           'gemini-flash-latest'
         ];
         let streamSuccess = false;
+        const timeoutMs = currentImg ? 25000 : 3800;
 
         for (const modelName of candidateModels) {
           if (streamSuccess) break;
@@ -1239,7 +1300,7 @@ Norma Técnica de Referência: ${activeAcademyContext.norma}`;
 
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
             const response = await fetch(STREAM_URL, {
               method: 'POST',
@@ -1319,6 +1380,8 @@ Norma Técnica de Referência: ${activeAcademyContext.norma}`;
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: contentsPayload,
+              imageBase64: currentImg ? currentImg.base64 : undefined,
+              mimeType: currentImg ? currentImg.mimeType : undefined,
               system_instruction: {
                 parts: [{ text: systemInstructionText }]
               },

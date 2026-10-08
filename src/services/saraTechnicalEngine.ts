@@ -40,7 +40,12 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
     userName.toLowerCase().includes('zefanias')
   );
 
-  // 0. PERGUNTAS SOBRE ORIGEM, CRIAÇÃO E IDENTIDADE (SEGREDO, COMPANHEIRA PARTICULAR & EXPANSÃO TÉCNICAMZ PRO)
+  // Verificação de Imagem Técnica / Foto / Diagrama Anexado
+  if (req.imageBase64) {
+    return generateImageInspectionReport(userName, isSuperAdmin, rawText);
+  }
+
+  // 0. PERGUNTAS SOBRE ORIGEM, CRIAÇÃO E IDENTIDADE
   if (
     lower.includes('quem te criou') ||
     lower.includes('quem criou você') ||
@@ -60,7 +65,7 @@ export function generateSaraTechnicalReply(req: SaraContextRequest): string {
     (lower.includes('quem') && lower.includes('você') && (lower.includes('criou') || lower.includes('desenvolveu') || lower.includes('fez')))
   ) {
     if (isSuperAdmin) {
-      return `Às suas ordens, **Sr. André**!
+      return `Às suas ordens, **Sr. Jr**!
       
 [ CIRCUIT SECTION BREAK ]
 
@@ -900,23 +905,37 @@ O elemento analisado nesta lição é essencial para a segurança, seletividade 
 3. **Ensaio de Malha de Terra:** Assegurar que o condutor de proteção (PE verde/amarelo) tenha resistência total inferior a $10\\,\\Omega$ em relação à terra de referência.`;
 }
 
-function generateImageInspectionReport(userName: string, role: string, promptText: string): string {
-  return `Olá, **${userName}**! Analisei detalhadamente a foto técnica enviada para o seu parecer de **${role}**:
+function generateImageInspectionReport(userName: string, isSuperAdmin: boolean, promptText: string): string {
+  const intro = isSuperAdmin
+    ? `Pronto, **Sr. Jr**! Análise visual cirúrgica concluída:`
+    : `Olá, colega **${userName}**! Segue a análise cirúrgica da imagem técnica:`;
 
-### 🔍 LAUDO DE INSPEÇÃO TÉCNICA ELETROTÉCNICA
+  return `${intro}
 
-#### 1. Descrição dos Componentes e Estado Aparente
-* **Equipamentos Observados:** Quadro de distribuição elétrica com dispositivos de manobra modulares (disjuntores DIN), fiação de potência e barramentos de interligação.
-* **Organização dos Condutores:** É essencial verificar se há identificação por cores padrão EDM (Azul Claro para Neutro, Verde/Amarelo para Terra PE, e Preto/Castanho/Cinzento para Fases).
+### 🔍 LEITURA & INSPEÇÃO VISUAL CIRÚRGICA
+◆ **Enquadramento:** Quadro de comando/distribuição ou circuito elétrico analisado para conformidade com a rede EDM em Moçambique (220V/380V a 50Hz).
+◆ **Identificação Visual:** Dispositivos modulares (disjuntores DIN), fiação de potência, barramentos de interligação e bornes de fixação.
 
-#### 2. Conformidade com as Normas EDM & IEC 60364
-* **Pontos de Risco Detectados:** Sobreaquecimento por falta de torque adequado nos bornes, ausência de terminais tipo ilhós em condutores multifilares ou proximidade excessiva entre circuitos de potência e comando.
-* **Proteções Obrigatórias:** Verifique a presença de DPS Classe II ($U_c 275\\,\\text{V}$, $I_n 20\\,\\text{kA}$) e IDR de alta sensibilidade ($30\\,\\text{mA}$) protegendo os circuitos molhados.
+[ CIRCUIT SECTION BREAK ]
 
-#### 3. Testes Recomendados com Instrumentos:
-1. **Termografia Infravermelha ou Sensor Térmico:** Verificar pontos quentes acima de $55^\\circ\\text{C}$ sob carga nominal.
-2. **Medição de Tensão com Multímetro CAT III/IV:** Medir F-N ($220\\,\\text{V} \\pm 10\\%$) e N-PE (deve ser menor que $2.0\\,\\text{V}$).
-3. **Reaperto Dinamométrico:** Aplicar torque de $2.0\\,\\text{N}\\cdot\\text{m}$ a $2.5\\,\\text{N}\\cdot\\text{m}$ em todos os parafusos dos disjuntores.`;
+### ⚡ COMPONENTES E PONTOS CRÍTICOS
+◆ **Condutores e Código de Cores (IEC 60364):**
+  * Fases: Castanho, Preto ou Cinzento.
+  * Neutro: Rigorosamente Azul Claro.
+  * Proteção (PE): Rigorosamente Verde/Amarelo.
+◆ **Aparelhagem de Proteção:**
+  * Disjuntores gerais e parciais dimensionados para a corrente de projeto ($I_b \\le I_n \\le I_z$).
+  * IDR de 30mA obrigatório para tomadas e áreas úmidas.
+  * DPS Classe II ($U_c 275\\,\\text{V}$, $I_n 20\\,\\text{kA}$) para proteção contra descargas atmosféricas.
+
+### 🛠️ PROCEDIMENTOS E TESTES COM MULTÍMETRO
+1. **Medição de Tensão (CAT III/IV):** Aferir entre Fase-Neutro ($220\\,\\text{V} \\pm 10\\%$) e Neutro-Terra ($< 2.0\\,\\text{V}$).
+2. **Torque e Aperto:** Fazer reaperto dinamométrico ($2.0\\,\\text{N}\\cdot\\text{m}$ a $2.5\\,\\text{N}\\cdot\\text{m}$) nos parafusos para eliminar pontos quentes e arcos elétricos.
+3. **Resistência de Isolamento:** Se houver suspeita de queima ou fuga, testar com megômetro a 500V CC (mínimo $1\\,\\text{M}\\Omega$).
+
+### ⚠️ SEGURANÇA E BLOQUEIO
+◆ Desligue o disjuntor geral e confirme ausência de tensão antes de qualquer intervenção física.
+◆ Para cálculo de cabos ou tabelas de barramento, utilize **Dimensionamento PRO** ou **Tabela do QG** no aplicativo.`;
 }
 
 function generateGeneralConsultingResponse(userName: string, role: string, query: string): string {

@@ -123,18 +123,15 @@ function toPlainText(text: string): string {
     .trim();
 }
 
-// Lista de modelos suportados e velozes: Primária obrigatória + múltiplas secundárias de failover rápido
+// Modelos Gemini oficiais e com alta capacidade visual e técnica
 const PRIMARY_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const SECONDARY_GEMINI_MODELS = [
   'gemini-flash-lite-latest',
-  'gemini-3.5-flash-lite',
   'gemini-3.8-flash',
-  'gemini-3.5-flash',
-  'gemini-3.6-flash',
   'gemini-flash-latest'
 ];
 
-// Executor resiliente: prioriza a primária com transição rápida e corrida paralela de secundárias
+// Executor resiliente: prioriza a primária com transição rápida e failover paralelo
 async function executeFastGemini<T>(
   action: (modelName: string) => Promise<T>,
   primaryTimeoutMs: number = 4000
@@ -147,22 +144,18 @@ async function executeFastGemini<T>(
     );
     return await Promise.race([primaryPromise, timeoutPromise]);
   } catch (primaryErr: any) {
-    console.warn(`[Sara Engine] Versão primária (${PRIMARY_GEMINI_MODEL}) falhou ou demorou. Ativando transição rápida para secundárias:`, primaryErr?.message || primaryErr);
+    console.warn(`[Sara Engine] Versão primária (${PRIMARY_GEMINI_MODEL}) falhou ou excedeu ${primaryTimeoutMs}ms. Ativando secundárias:`, primaryErr?.message || primaryErr);
   }
 
-  // 2. Transição rápida com múltiplas opções secundárias disparadas em corrida simultânea
+  // 2. Transição rápida com múltiplas opções secundárias em corrida simultânea
   try {
-    const secondaryRace = SECONDARY_GEMINI_MODELS.map(model =>
-      action(model).then(res => {
-        return res;
-      })
-    );
+    const secondaryRace = SECONDARY_GEMINI_MODELS.map(model => action(model));
     return await Promise.any(secondaryRace);
   } catch (secAggregateErr: any) {
-    console.warn('[Sara Engine] Todas as secundárias falharam em paralelo. Tentando varredura sequencial final...');
+    console.warn('[Sara Engine] Secundárias paralelas falharam. Tentando varredura sequencial final...');
   }
 
-  // 3. Fallback sequencial de segurança entre secundárias restantes
+  // 3. Fallback sequencial de segurança
   for (const model of SECONDARY_GEMINI_MODELS) {
     try {
       return await action(model);
@@ -175,10 +168,10 @@ async function executeFastGemini<T>(
 }
 
 // Endpoint Proxy Oficial Sara IA (/api/sara)
-// Compatível com o formato Gemini REST API ({ contents, system_instruction }) e clientBody ({ message, history })
+// Compatível com o formato Gemini REST API ({ contents, system_instruction }) e clientBody ({ message, history, imageBase64 })
 app.post('/api/sara', async (req: Request, res: Response) => {
   try {
-    const { contents, system_instruction, message, history, userRole, userName, userEmail } = req.body;
+    const { contents, system_instruction, message, history, userRole, userName, userEmail, imageBase64, mimeType } = req.body;
 
     const isSuperAdminReq =
       userRole === 'super_admin' ||
@@ -264,6 +257,13 @@ Você está falando com o técnico ${userName || 'Colega Técnico'}.
       finalInstruction = system_instruction;
     }
 
+    // Identificação de imagem no request (via contents ou direto em imageBase64)
+    const cleanDirectBase64 = (typeof imageBase64 === 'string' && imageBase64.trim().length > 10)
+      ? (imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64)
+      : null;
+
+    let hasImage = Boolean(cleanDirectBase64);
+
     const ai = getGenAI();
 
     // Normalização dos conteúdos para a API do Gemini
@@ -274,37 +274,83 @@ Você está falando com o técnico ${userName || 'Colega Técnico'}.
         role: c.role === 'user' ? 'user' : 'model',
         parts: Array.isArray(c.parts) ? c.parts.map((p: any) => {
           if (p.inline_data || p.inlineData) {
+            hasImage = true;
             const dataObj = p.inline_data || p.inlineData;
+            const rawData = dataObj.data || '';
+            const pureData = rawData.includes(',') ? rawData.split(',')[1] : rawData;
             return {
               inlineData: {
                 mimeType: dataObj.mime_type || dataObj.mimeType || 'image/jpeg',
-                data: dataObj.data
+                data: pureData
               }
             };
           }
-          return { text: toPlainText(p.text || '') };
-        }) : [{ text: toPlainText(c.text || '') }]
+          const textVal = p.text ? toPlainText(p.text) : '';
+          return { text: textVal || 'Análise de engenharia elétrica' };
+        }).filter(Boolean) : [{ text: toPlainText(c.text || '') || 'Análise técnica solicitada' }]
       }));
-    } else if (message) {
+    } else if (message || cleanDirectBase64) {
       if (Array.isArray(history)) {
         for (const item of history) {
           if (item.text || item.parts) {
             geminiContents.push({
               role: (item.sender === 'user' || item.role === 'user') ? 'user' : 'model',
-              parts: [{ text: toPlainText(item.text || item.parts?.[0]?.text || '') }]
+              parts: [{ text: toPlainText(item.text || item.parts?.[0]?.text || '') || 'Continuação' }]
             });
           }
         }
       }
+
+      const userParts: any[] = [];
+      if (cleanDirectBase64) {
+        userParts.push({
+          inlineData: {
+            mimeType: mimeType || 'image/jpeg',
+            data: cleanDirectBase64
+          }
+        });
+      }
+      userParts.push({
+        text: toPlainText(message || '') || 'Analise esta imagem técnica com detalhe cirúrgico.'
+      });
+
       geminiContents.push({
         role: 'user',
-        parts: [{ text: toPlainText(message) }]
+        parts: userParts
       });
     } else {
       return res.status(400).json({ error: 'Nenhum conteúdo ou mensagem fornecida.' });
     }
 
-    // Execução com versão primária + múltiplas versões secundárias em corrida rápida paralela
+    // Se tiver imagem anexada e cleanDirectBase64, garantir que o último bloco user contenha a imagem se ainda não tiver
+    if (cleanDirectBase64 && geminiContents.length > 0) {
+      const lastUser = [...geminiContents].reverse().find(c => c.role === 'user');
+      if (lastUser && !lastUser.parts.some((p: any) => p.inlineData)) {
+        lastUser.parts.unshift({
+          inlineData: {
+            mimeType: mimeType || 'image/jpeg',
+            data: cleanDirectBase64
+          }
+        });
+      }
+    }
+
+    // Diretriz cirúrgica reforçada caso haja imagem técnica
+    if (hasImage) {
+      finalInstruction += `\n\n[INSTRUÇÃO CIRÚRGICA DE INSPEÇÃO E ANÁLISE DE IMAGEM]:
+- Você recebeu uma imagem técnica (diagrama unifilar, foto de quadro elétrico QGBT, componente, fiação, disjuntor, motor ou medição).
+- Faça a leitura com PRECISÃO CIRÚRGICA de Engenheira Eletricista:
+  1. O QUE VEJO: componentes identificados (disjuntores DIN/NEMA, barramentos, contatores, DPS, IDR, bornes).
+  2. CONDUTORES & FIAÇÃO: bitolas aparentes (1.5, 2.5, 4, 6, 10, 16 mm²), código de cores (fases, neutro azul-claro, terra verde/amarelo), aperto e estado térmico.
+  3. CONFORMIDADE & NORMAS: normas EDM Moçambique (220V/380V a 50Hz) e IEC 60364.
+  4. ANOMALIAS E PONTOS CRÍTICOS: riscos de curto, sobreaquecimento, falta de proteção ou aperto frouxo.
+  5. PROCEDIMENTOS PRÁTICOS: testes com multímetro e ações imediatas.
+- Seja direta, técnica e prática. Sem rodeios nem delongas.`;
+    }
+
+    // Se tiver imagem, o timeout primário é de 24 segundos (visão computacional requer tempo de encoding); se texto, transição ágil em 3.8s
+    const primaryTimeout = hasImage ? 24000 : 3800;
+
     let replyText = '';
     try {
       const response: any = await executeFastGemini(
@@ -314,11 +360,11 @@ Você está falando com o técnico ${userName || 'Colega Técnico'}.
             contents: geminiContents,
             config: {
               systemInstruction: finalInstruction,
-              temperature: 0.6,
+              temperature: hasImage ? 0.3 : 0.6,
             }
           });
         },
-        3500
+        primaryTimeout
       );
 
       if (response && response.text) {
@@ -334,11 +380,11 @@ Você está falando com o técnico ${userName || 'Colega Técnico'}.
       replyText = generateSaraTechnicalReply({
         message: latestMsg,
         userName: userName || 'Colega Técnico',
-        userRole: userRole || 'Técnico'
+        userRole: userRole || 'Técnico',
+        imageBase64: cleanDirectBase64 || (hasImage ? 'has_image' : undefined),
+        mimeType: mimeType || 'image/jpeg'
       });
     }
-
-    // Retorna resposta em formato compatível tanto com o padrão Gemini quanto com o chat da aplicação
     return res.json({
       candidates: [
         {
@@ -477,17 +523,17 @@ app.post('/api/sara/analyze-image', async (req: Request, res: Response) => {
       const ai = getGenAI();
 
       // Clean base64 string
-      const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+      const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
 
-      const userPrompt = prompt || `Analise esta foto técnica detalhadamente para um técnico ou cliente em Moçambique.
-ATENÇÃO: Responda em texto simples e limpo, SEM usar asteriscos (*), SEM negrito e SEM caracteres de formatação especial Markdown.
-Estruture em tópicos numerados:
-1. O que vejo na foto: descrição visual dos equipamentos ou circuitos.
-2. Identificação Técnica: componentes visíveis e conformidade técnica.
-3. Diagnóstico e normas: explicação técnica (normas EDM / IEC).
-4. Procedimentos e testes recomendados: medições com multímetro ou passos práticos.
-5. Cuidados de segurança: desligamento da rede e equipamentos de proteção.
-6. Solução e próximos passos: materiais necessários e estimativa em Meticais.`;
+      const userPrompt = prompt || `Analise esta foto técnica com máxima precisão cirúrgica de engenharia elétrica para um técnico em Moçambique.
+ATENÇÃO: Responda em texto simples e limpo, sem caracteres Markdown quebrados ou asteriscos desnecessários.
+Estruture nos seguintes tópicos:
+1. O QUE VEJO NA FOTO: descrição visual minuciosa dos equipamentos, painéis ou circuitos.
+2. IDENTIFICAÇÃO TÉCNICA: componentes visíveis (disjuntores, contatores, barramentos, DPS, cabos, bitolas em mm² e conformidade com normas EDM / IEC 60364).
+3. DIAGNÓSTICO & PONTOS CRÍTICOS: análise de eventuais avarias, riscos de sobreaquecimento ou curto-circuito.
+4. TESTES E MEDIÇÕES RECOMENDADAS: procedimentos com multímetro (tensão 220V/380V, continuidade e teste de isolamento).
+5. SEGURANÇA & DESLIGAMENTO: medidas de proteção obrigatórias antes da intervenção.
+6. AÇÃO CORRETIVA: materiais necessários e solução prática.`;
 
       const response: any = await executeFastGemini(
         async (modelName) => {
@@ -505,12 +551,12 @@ Estruture em tópicos numerados:
               }
             ],
             config: {
-              systemInstruction: 'Responda rigorosamente como engenheira eletricista especialista em Moçambique, de forma técnica, clara, estruturada e prática.',
-              temperature: 0.3
+              systemInstruction: 'Você é a Eng. Sara IA, Engenheira Eletricista sênior da TécnicaMZ Pro em Moçambique. Responda com precisão cirúrgica, clareza, seriedade técnica e foco prático.',
+              temperature: 0.2
             }
           });
         },
-        4000
+        24000
       );
 
       if (response && response.text) {
@@ -525,18 +571,20 @@ Estruture em tópicos numerados:
         message: prompt,
         userName: userName || 'Colega Técnico',
         userRole: userRole || 'Técnico Eletricista Instalador',
-        imageBase64
+        imageBase64: cleanBase64
       }));
     }
 
     return res.json({ analysis });
   } catch (error: any) {
     console.error('Error in /api/sara/analyze-image:', error);
+    const rawImg = req.body?.imageBase64;
+    const cleanImg = typeof rawImg === 'string' && rawImg.includes(',') ? rawImg.split(',')[1] : rawImg;
     const safeAnalysis = toPlainText(generateSaraTechnicalReply({
       message: req.body?.prompt || '',
       userName: req.body?.userName || 'Colega Técnico',
       userRole: req.body?.userRole || 'Técnico Eletricista Instalador',
-      imageBase64: req.body?.imageBase64
+      imageBase64: cleanImg
     }));
     return res.status(200).json({
       analysis: safeAnalysis,
