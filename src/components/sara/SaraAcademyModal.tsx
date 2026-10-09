@@ -52,6 +52,7 @@ import { InteractiveVisualLab } from '../academy/InteractiveVisualLab';
 import { CircuitBlockFlowViewer } from '../academy/CircuitBlockFlowViewer';
 import { SaraDailyHacksFeed } from '../academy/SaraDailyHacksFeed';
 import { AssessmentExamView } from '../academy/AssessmentExamView';
+import { ProfessionalLessonViewer } from '../academy/ProfessionalLessonViewer';
 
 interface SaraAcademyModalProps {
   isOpen: boolean;
@@ -150,6 +151,19 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
     }
   }, [isOpen, selectedModule, selectedLesson, userArea]);
 
+  // Módulo e navegação sequencial da aula ativa
+  const currentModule = useMemo(() => {
+    return courseProgress.modulesWithProgress.find(m => m.module.id === selectedLesson.moduleId)?.module;
+  }, [courseProgress, selectedLesson.moduleId]);
+
+  const allFlatLessons = useMemo(() => {
+    return courseProgress.modulesWithProgress.flatMap(m => m.module.lessons);
+  }, [courseProgress]);
+
+  const currentLessonIndex = useMemo(() => {
+    return allFlatLessons.findIndex(l => l.id === selectedLesson.id);
+  }, [allFlatLessons, selectedLesson.id]);
+
   // Gerenciamento com History API (botão voltar fecha a academia e retorna à Sara IA)
   // DEVE ser chamado antes de qualquer early return para respeitar as Regras dos Hooks
   useModalHistory(isOpen, 'sara_academy', onClose);
@@ -232,14 +246,27 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
     onAskSara(doubtPayload, `Elemento: ${elementName} (${norm})`);
   };
 
+  const hasPrevLesson = currentLessonIndex > 0;
+  const hasNextLesson = currentLessonIndex >= 0 && currentLessonIndex < allFlatLessons.length - 1;
+
+  const handlePrevLesson = () => {
+    if (hasPrevLesson) {
+      setSelectedLesson(allFlatLessons[currentLessonIndex - 1]);
+      setActiveTab('lesson');
+    }
+  };
+
+  const handleNextLesson = () => {
+    if (hasNextLesson) {
+      setSelectedLesson(allFlatLessons[currentLessonIndex + 1]);
+      setActiveTab('lesson');
+    }
+  };
+
   // Avançar para a próxima aula não concluída
   const handleAdvanceNextLesson = () => {
-    const allLessons = courseProgress.modulesWithProgress.flatMap(m => m.module.lessons);
-    const currentIndex = allLessons.findIndex(l => l.id === selectedLesson.id);
-    if (currentIndex >= 0 && currentIndex < allLessons.length - 1) {
-      const nextLesson = allLessons[currentIndex + 1];
-      setSelectedLesson(nextLesson);
-      setActiveTab('lesson');
+    if (hasNextLesson) {
+      handleNextLesson();
     } else {
       setActiveTab('curriculum');
     }
@@ -700,286 +727,26 @@ export const SaraAcademyModal: React.FC<SaraAcademyModalProps> = ({
           )}
 
           {/* =============================================================== */}
-          {/* ABA 2: AULA DO DIA (CONTEÚDO TEÓRICO & PRÁTICO DE CAMPO)         */}
+          {/* ABA 2: AULA DO DIA (PADRÃO PROFISSIONAL DE FABRICANTE)          */}
           {/* =============================================================== */}
           {activeTab === 'lesson' && (
-            <div className="space-y-4 animate-in fade-in duration-150">
-              {/* Título da Aula e Norma Europeia */}
-              <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-lg bg-blue-500/20 text-[#3B82F6] text-xs font-black border border-blue-500/30 uppercase tracking-wider">
-                      {selectedLesson.norma}
-                    </span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                      Nível {selectedLesson.level}
-                    </span>
-                    <span className="text-xs text-[#94A3B8] flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {selectedLesson.durationMinutes} min
-                    </span>
-                  </div>
-
-                  {isLessonCompleted ? (
-                    <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-[#10B981] text-xs font-bold border border-emerald-500/30 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Aula Concluída
-                    </span>
-                  ) : (
-                    <span className="text-xs font-bold text-[#F59E0B] flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      +{selectedLesson.quiz.xpReward} XP Disponíveis
-                    </span>
-                  )}
-                </div>
-
-                <h3 className="font-black text-white leading-snug" style={{ fontSize: `${fontSize * 1.25}px` }}>
-                  {selectedLesson.title}
-                </h3>
-                <p className="font-semibold text-[#3B82F6]" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                  {selectedLesson.moduleTitle}
-                </p>
-              </div>
-
-              {/* SISTEMA VISUAL INTERATIVO & ESQUEMAS IEC DUAIS */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-slate-900 border border-[#1E293B]">
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundFX.playClick();
-                        setLessonVisualTab('simulation');
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                        lessonVisualTab === 'simulation'
-                          ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Simulador Interativo (Animações & Física)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundFX.playClick();
-                        setLessonVisualTab('schematic');
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                        lessonVisualTab === 'schematic'
-                          ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Diagrama Esquemático IEC / Normativo</span>
-                    </button>
-                  </div>
-
-                  <span className="text-[11px] font-mono text-slate-500 hidden sm:inline pr-2">
-                    {lessonVisualTab === 'simulation' ? 'Canvas 60 FPS • Físico' : 'Vetorizado SVG • IEC'}
-                  </span>
-                </div>
-
-                {lessonVisualTab === 'simulation' ? (
-                  <div className="rounded-2xl border border-[#1E293B] overflow-hidden">
-                    <InteractiveVisualLab
-                      lessonCode={selectedLesson.code}
-                      lessonTitle={selectedLesson.title}
-                      norma={selectedLesson.norma}
-                      baseFontSize={fontSize}
-                    />
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-[#1E293B] overflow-hidden">
-                    <CircuitDiagramViewer
-                      lessonCode={selectedLesson.code}
-                      lessonTitle={selectedLesson.title}
-                      norma={selectedLesson.norma}
-                      baseFontSize={fontSize}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 1. CONCEITO TÉCNICO OBJETIVO */}
-              <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2">
-                <div className="flex items-center gap-2 font-black text-[#3B82F6] uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                  <Zap className="w-4 h-4 text-[#3B82F6]" />
-                  <span>1. Conceito Técnico & Fundamentação Normativa</span>
-                </div>
-                <p className="leading-relaxed text-slate-200" style={{ fontSize: `${fontSize}px` }}>
-                  {selectedLesson.theory.conceito}
-                </p>
-              </div>
-
-              {/* FÓRMULAS MATEMÁTICAS & CRITÉRIOS DE PROJETO (SE DISPONÍVEIS) */}
-              {selectedLesson.theory.formulas && selectedLesson.theory.formulas.length > 0 && (
-                <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-3">
-                  <div className="flex items-center gap-2 font-black text-cyan-400 uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                    <Cpu className="w-4 h-4 text-cyan-400" />
-                    <span>Fórmulas Matemáticas, Variáveis & Critérios de Dimensionamento</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {selectedLesson.theory.formulas.map((f, fIdx) => (
-                      <div key={fIdx} className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
-                        <span className="font-bold text-slate-400 mb-1" style={{ fontSize: `${fontSize * 0.8}px` }}>
-                          {f.label}
-                        </span>
-                        <div
-                          className="my-1 p-2 rounded-lg bg-blue-950/40 border border-blue-900/40 font-mono font-black text-cyan-300 tracking-wide break-words"
-                          style={{ fontSize: `${fontSize * 0.95}px` }}
-                        >
-                          {f.formula}
-                        </div>
-                        <span className="text-slate-300 leading-snug mt-1" style={{ fontSize: `${fontSize * 0.8}px` }}>
-                          {f.explicacao}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 2. FUNCIONAMENTO DOS COMPONENTES */}
-              <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2">
-                <div className="flex items-center gap-2 font-black text-amber-400 uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                  <Settings className="w-4 h-4 text-amber-400" />
-                  <span>2. Funcionamento Operacional dos Componentes</span>
-                </div>
-                <p className="leading-relaxed text-slate-200 whitespace-pre-line" style={{ fontSize: `${fontSize}px` }}>
-                  {selectedLesson.theory.funcionamento}
-                </p>
-                {selectedLesson.theory.calculationSnippet && (
-                  <div className="mt-3 p-3 rounded-xl bg-slate-950 font-mono text-blue-300 border border-blue-900/40" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                    💡 <span className="font-bold">Fórmula & Cálculo Normativo:</span> {selectedLesson.theory.calculationSnippet}
-                  </div>
-                )}
-              </div>
-
-              {/* DIAGRAMA INTERATIVO / SIMULAÇÃO DE FLUXO & COMUTADORES (SE APLICÁVEL) */}
-              {((selectedLesson.title + ' ' + selectedLesson.theory.conceito + ' ' + selectedLesson.theory.funcionamento).toLowerCase().includes('comutad') ||
-                (selectedLesson.title + ' ' + selectedLesson.theory.conceito + ' ' + selectedLesson.theory.funcionamento).toLowerCase().includes('four-way') ||
-                (selectedLesson.title + ' ' + selectedLesson.theory.conceito + ' ' + selectedLesson.theory.funcionamento).toLowerCase().includes('three-way') ||
-                (selectedLesson.title + ' ' + selectedLesson.theory.conceito + ' ' + selectedLesson.theory.funcionamento).toLowerCase().includes('escada') ||
-                (selectedLesson.theory.funcionamento.includes('->'))) && (
-                <div className="pt-1">
-                  <CircuitBlockFlowViewer
-                    rawText={selectedLesson.theory.funcionamento}
-                    topic={selectedLesson.title}
-                    norma={selectedLesson.norma}
-                    baseFontSize={fontSize}
-                  />
-                </div>
-              )}
-
-              {/* PONTOS OPERACIONAIS DE CAMPO (SE DISPONÍVEIS) */}
-              {selectedLesson.theory.pontosOperacionais && selectedLesson.theory.pontosOperacionais.length > 0 && (
-                <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2.5">
-                  <div className="flex items-center gap-2 font-black text-amber-400 uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                    <ShieldCheck className="w-4 h-4 text-amber-400" />
-                    <span>Procedimentos Operacionais e Requisitos de Segurança Críticos</span>
-                  </div>
-                  <ul className="space-y-2">
-                    {selectedLesson.theory.pontosOperacionais.map((pt, ptIdx) => (
-                      <li key={ptIdx} className="leading-relaxed text-slate-200 flex items-start gap-2.5" style={{ fontSize: `${fontSize}px` }}>
-                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-2" />
-                        <span>{pt}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* 3. APLICAÇÃO PRÁTICA EM MOÇAMBIQUE */}
-              <div className="p-4 rounded-2xl bg-[#111827] border border-[#1E293B] space-y-2">
-                <div className="flex items-center gap-2 font-black text-[#10B981] uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                  <AlertTriangle className="w-4 h-4 text-[#10B981]" />
-                  <span>3. Aplicação Prática e Desafios Reais em Moçambique</span>
-                </div>
-                <p className="leading-relaxed text-slate-200" style={{ fontSize: `${fontSize}px` }}>
-                  {selectedLesson.theory.aplicacaoMocambique}
-                </p>
-              </div>
-
-              {/* 4. EXEMPLO REAL DE CAMPO / DIAGNÓSTICO */}
-              <div className="p-4 rounded-2xl bg-slate-950 border border-[#1E293B] space-y-2">
-                <div className="flex items-center gap-2 font-black text-white uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                  <Wrench className="w-4 h-4 text-[#F59E0B]" />
-                  <span>4. Caso Real de Instalação e Diagnóstico de Campo</span>
-                </div>
-                <p className="leading-relaxed text-slate-300" style={{ fontSize: `${fontSize}px` }}>
-                  {selectedLesson.theory.exemploPratico}
-                </p>
-              </div>
-
-              {/* ESTUDO DE CASO COMPLETO (FIELD CASE COM DIAGNÓSTICO E SOLUÇÃO) */}
-              {selectedLesson.theory.fieldCase && (
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 to-slate-900 border border-amber-900/40 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 font-black text-amber-400 uppercase tracking-wider" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                      <AlertTriangle className="w-4 h-4 text-amber-400" />
-                      <span>Ocorrência Real de Campo ({selectedLesson.theory.fieldCase.localizacao})</span>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      Diagnóstico de Engenharia
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-                      <span className="text-amber-300 font-bold block mb-0.5" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                        ⚠️ Cenário Encontrado:
-                      </span>
-                      <p className="text-slate-300" style={{ fontSize: `${fontSize * 0.9}px` }}>
-                        {selectedLesson.theory.fieldCase.cenario}
-                      </p>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-                      <span className="text-rose-400 font-bold block mb-0.5" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                        🔍 Diagnóstico Técnico:
-                      </span>
-                      <p className="text-slate-300" style={{ fontSize: `${fontSize * 0.9}px` }}>
-                        {selectedLesson.theory.fieldCase.diagnostico}
-                      </p>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/50">
-                      <span className="text-emerald-400 font-bold block mb-0.5" style={{ fontSize: `${fontSize * 0.85}px` }}>
-                        ✅ Solução Normativa Aplicada:
-                      </span>
-                      <p className="text-emerald-200" style={{ fontSize: `${fontSize * 0.9}px` }}>
-                        {selectedLesson.theory.fieldCase.solucaoNormativa}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* BARRA DE AÇÃO INFERIOR DA AULA */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[#1E293B]">
-                <button
-                  type="button"
-                  onClick={handleAskSara}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border border-[#1E293B]"
-                  title="Envia as referências desta aula para a Sara IA no chat"
-                >
-                  <MessageSquare className="w-4 h-4 text-[#3B82F6]" />
-                  <span>Tirar Dúvida na Aula com a Sara</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('quiz')}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
-                >
-                  <span>Avançar para Avaliação Prática (IA)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
+            <div className="animate-in fade-in duration-150">
+              <ProfessionalLessonViewer
+                lesson={selectedLesson}
+                module={currentModule}
+                moduleIndex={currentModule?.order}
+                totalModules={courseProgress.totalModules}
+                isCompleted={isLessonCompleted}
+                baseFontSize={fontSize}
+                onAdvanceToQuiz={() => setActiveTab('quiz')}
+                onAskSara={handleAskSara}
+                onNextLesson={handleNextLesson}
+                onPrevLesson={handlePrevLesson}
+                hasNextLesson={hasNextLesson}
+                hasPrevLesson={hasPrevLesson}
+              />
             </div>
           )}
-
           {/* =============================================================== */}
           {/* ABA 3: AVALIAÇÃO INTEGRADA (MÚLTIPLA ESCOLHA + DESCRITIVA IA)    */}
           {/* =============================================================== */}

@@ -552,13 +552,13 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
   },
 
   // ==========================================================================
-  // MÓDULO 6: INSTALAÇÕES INDUSTRIAIS & REDES DE POTÊNCIA
+  // MÓDULO 9: INSTALAÇÕES INDUSTRIAIS & REDES DE POTÊNCIA
   // ==========================================================================
   {
     id: 'elec_mod_6_industriais',
     area: 'eletrotecnica',
-    order: 6,
-    title: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+    order: 9,
+    title: 'Módulo 9: Instalações Elétricas Industriais & Redes de Potência',
     description: 'Barramentos blindados (Busways), dimensionamento de eletrocalhas e leitos, e compensação de reativos com Bancos de Capacitores Automáticos.',
     icon: 'Layers',
     normasReferencia: ['IEC 60364-5-52', 'IEC 61439-6', 'IEC 60831-1'],
@@ -566,7 +566,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m6_ec1_busways_leitos',
         moduleId: 'elec_mod_6_industriais',
-        moduleTitle: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+        moduleTitle: 'Módulo 9: Instalações Elétricas Industriais & Redes de Potência',
         order: 1,
         code: 'EC 6.1',
         title: 'Barramentos Blindados (Busways), Eletrocalhas e Fator de Agrupamento',
@@ -613,7 +613,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m6_ec2_banco_capacitores_potencia',
         moduleId: 'elec_mod_6_industriais',
-        moduleTitle: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+        moduleTitle: 'Módulo 9: Instalações Elétricas Industriais & Redes de Potência',
         order: 2,
         code: 'EC 6.2',
         title: 'Bancos de Capacitores Automáticos e Cálculo de Reativos (Qc)',
@@ -660,7 +660,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m6_ec3_barramentos_cobre_esforcos',
         moduleId: 'elec_mod_6_industriais',
-        moduleTitle: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+        moduleTitle: 'Módulo 9: Instalações Elétricas Industriais & Redes de Potência',
         order: 3,
         code: 'EC 6.3',
         title: 'Barramentos de Cobre: Densidade de Corrente e Esforços de Curto-Circuito',
@@ -707,7 +707,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m6_ec4_diagramas_trifilares_bornes',
         moduleId: 'elec_mod_6_industriais',
-        moduleTitle: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+        moduleTitle: 'Módulo 9: Instalações Elétricas Industriais & Redes de Potência',
         order: 4,
         code: 'EC 6.4',
         title: 'Diagramas Trifilares, Bornes de Passagem Sak e Anilhas IEC 61082',
@@ -754,7 +754,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m6_ec5_grupos_geradores_transferencia_ats',
         moduleId: 'elec_mod_6_industriais',
-        moduleTitle: 'Módulo 6: Instalações Elétricas Industriais & Redes de Potência',
+        moduleTitle: 'Módulo 9: Instalações Elétricas Industriais & Redes de Potência',
         order: 5,
         code: 'EC 6.5',
         title: 'Grupos Geradores a Diesel e Painéis de Transferência Automática (ATS)',
@@ -807,8 +807,8 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
   {
     id: 'elec_mod_7_manutencao_ensaios',
     area: 'eletrotecnica',
-    order: 7,
-    title: 'Módulo 7: Manutenção, Inspeção Técnica & Ensaios Normativos',
+    order: 10,
+    title: 'Módulo 10: Manutenção, Inspeção Técnica & Ensaios Normativos',
     description: 'Manutenção Preditiva, Preventiva e Corretiva, ensaios com Megóhmetro (Riso ≥ 1 MΩ), Telurômetro, ensaio de RCDs e termografia infravermelha.',
     icon: 'Wrench',
     normasReferencia: ['IEC 60364-6', 'EN 50110-1', 'ISO 18434-1'],
@@ -816,7 +816,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m7_ec1_tipologias_manutencao',
         moduleId: 'elec_mod_7_manutencao_ensaios',
-        moduleTitle: 'Módulo 7: Manutenção, Inspeção Técnica & Ensaios Normativos',
+        moduleTitle: 'Módulo 10: Manutenção, Inspeção Técnica & Ensaios Normativos',
         order: 1,
         code: 'EC 7.1',
         title: 'Tipologias de Manutenção: Corretiva, Preventiva e Preditiva',
@@ -863,7 +863,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m7_ec2_ensaios_eletricos_normativos',
         moduleId: 'elec_mod_7_manutencao_ensaios',
-        moduleTitle: 'Módulo 7: Manutenção, Inspeção Técnica & Ensaios Normativos',
+        moduleTitle: 'Módulo 10: Manutenção, Inspeção Técnica & Ensaios Normativos',
         order: 2,
         code: 'EC 7.2',
         title: 'Ensaios Elétricos Normativos: Megóhmetro (Riso), Telurômetro e Ensaio de RCDs',
@@ -911,7 +911,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m7_ec3_termografia_infravermelha',
         moduleId: 'elec_mod_7_manutencao_ensaios',
-        moduleTitle: 'Módulo 7: Manutenção, Inspeção Técnica & Ensaios Normativos',
+        moduleTitle: 'Módulo 10: Manutenção, Inspeção Técnica & Ensaios Normativos',
         order: 3,
         code: 'EC 7.3',
         title: 'Termografia Infravermelha e Avaliação de Gradiente Térmico (ΔT)',
@@ -960,7 +960,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m7_ec4_analise_qualidade_energia_harmonicos',
         moduleId: 'elec_mod_7_manutencao_ensaios',
-        moduleTitle: 'Módulo 7: Manutenção, Inspeção Técnica & Ensaios Normativos',
+        moduleTitle: 'Módulo 10: Manutenção, Inspeção Técnica & Ensaios Normativos',
         order: 4,
         code: 'EC 7.4',
         title: 'Qualidade da Energia: Harmônicos THD, Desbalanço de Tensão e Fator K',
@@ -1007,7 +1007,7 @@ export const ELECTRICAL_MODULES_PART2: AcademyModule[] = [
       {
         id: 'elec_m7_ec5_bloqueio_loto_cinco_regras_ouro',
         moduleId: 'elec_mod_7_manutencao_ensaios',
-        moduleTitle: 'Módulo 7: Manutenção, Inspeção Técnica & Ensaios Normativos',
+        moduleTitle: 'Módulo 10: Manutenção, Inspeção Técnica & Ensaios Normativos',
         order: 5,
         code: 'EC 7.5',
         title: 'Procedimento LOTO (Lockout/Tagout) e as 5 Regras de Ouro da Eletricidade',

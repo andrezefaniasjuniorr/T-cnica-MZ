@@ -7,8 +7,8 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
   {
     id: 'elec_mod_8_media_tensao_pt',
     area: 'eletrotecnica',
-    order: 8,
-    title: 'Módulo 8: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
+    order: 11,
+    title: 'Módulo 11: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
     description: 'Postos de transformação cabinados e aéreos padrão EDM (11kV, 22kV, 33kV), transformadores a óleo/seco, celas MT, fusíveis HH e as 5 Regras de Ouro (EN 50110).',
     icon: 'Radio',
     normasReferencia: ['IEC 60076-1', 'IEC 62271-200', 'EN 50110-1'],
@@ -16,7 +16,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m8_ec1_pt_transformadores_edm',
         moduleId: 'elec_mod_8_media_tensao_pt',
-        moduleTitle: 'Módulo 8: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
+        moduleTitle: 'Módulo 11: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
         order: 1,
         code: 'EC 8.1',
         title: 'Postos de Transformação (PT) e Transformadores de Distribuição EDM',
@@ -63,7 +63,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m8_ec2_celas_regras_ouro_en50110',
         moduleId: 'elec_mod_8_media_tensao_pt',
-        moduleTitle: 'Módulo 8: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
+        moduleTitle: 'Módulo 11: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
         order: 2,
         code: 'EC 8.2',
         title: 'Celas de Média Tensão, Fusíveis HH e as 5 Regras de Ouro (EN 50110)',
@@ -112,7 +112,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m8_ec4_reles_protecao_ansi',
         moduleId: 'elec_mod_8_media_tensao_pt',
-        moduleTitle: 'Módulo 8: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
+        moduleTitle: 'Módulo 11: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
         order: 4,
         code: 'EC 8.4',
         title: 'Proteção Secundária em MT: Relés ANSI 50/51/50N/51N e Transformadores de Corrente',
@@ -160,7 +160,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m8_ec5_cabos_subterraneos_mt_muflas',
         moduleId: 'elec_mod_8_media_tensao_pt',
-        moduleTitle: 'Módulo 8: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
+        moduleTitle: 'Módulo 11: Média Tensão, Redes de Distribuição & Postos de Transformação (PT)',
         order: 5,
         code: 'EC 8.5',
         title: 'Cabos Subterrâneos de Média Tensão, Terminações Muflas e Ensaio VLF',
@@ -213,8 +213,8 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
   {
     id: 'elec_mod_9_climatizacao_hvac',
     area: 'eletrotecnica',
-    order: 9,
-    title: 'Módulo 9: Climatização, HVAC & Refrigeração (Norma EN 378)',
+    order: 12,
+    title: 'Módulo 12: Climatização, HVAC & Refrigeração (Norma EN 378)',
     description: 'Ciclo frigorífico fundamental, superaquecimento, sub-resfriamento, fluidos ecológicos A2L (R32) e diagnóstico eletromecânico em compressores Inverter e VRF.',
     icon: 'Wind',
     normasReferencia: ['EN 378-1', 'EN 378-2', 'IEC 60335-2-40', 'ISO 5149'],
@@ -222,7 +222,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m9_ec1_ciclo_superaquecimento',
         moduleId: 'elec_mod_9_climatizacao_hvac',
-        moduleTitle: 'Módulo 9: Climatização, HVAC & Refrigeração (Norma EN 378)',
+        moduleTitle: 'Módulo 12: Climatização, HVAC & Refrigeração (Norma EN 378)',
         order: 1,
         code: 'EC 9.1',
         title: 'Ciclo Frigorífico por Compressão de Vapor, Superaquecimento e Sub-resfriamento',
@@ -270,7 +270,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m9_ec2_fluidos_ecologicos_en378',
         moduleId: 'elec_mod_9_climatizacao_hvac',
-        moduleTitle: 'Módulo 9: Climatização, HVAC & Refrigeração (Norma EN 378)',
+        moduleTitle: 'Módulo 12: Climatização, HVAC & Refrigeração (Norma EN 378)',
         order: 2,
         code: 'EC 9.2',
         title: 'Fluidos Refrigerantes Ecológicos (R32, R290) e Protocolos EN 378',
@@ -317,7 +317,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m9_ec3_vrf_inverter_bldc',
         moduleId: 'elec_mod_9_climatizacao_hvac',
-        moduleTitle: 'Módulo 9: Climatização, HVAC & Refrigeração (Norma EN 378)',
+        moduleTitle: 'Módulo 12: Climatização, HVAC & Refrigeração (Norma EN 378)',
         order: 3,
         code: 'EC 9.3',
         title: 'Diagnóstico Eletromecânico em Compressores Inverter BLDC e Sistemas VRF',
@@ -364,7 +364,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m9_ec4_sistemas_chillers_fancoil',
         moduleId: 'elec_mod_9_climatizacao_hvac',
-        moduleTitle: 'Módulo 9: Climatização, HVAC & Refrigeração (Norma EN 378)',
+        moduleTitle: 'Módulo 12: Climatização, HVAC & Refrigeração (Norma EN 378)',
         order: 4,
         code: 'EC 9.4',
         title: 'Sistemas Centrais de Água Gelada: Chillers, Torres de Resfriamento e Fancoils',
@@ -412,7 +412,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m9_ec5_compressores_parafuso_oleo',
         moduleId: 'elec_mod_9_climatizacao_hvac',
-        moduleTitle: 'Módulo 9: Climatização, HVAC & Refrigeração (Norma EN 378)',
+        moduleTitle: 'Módulo 12: Climatização, HVAC & Refrigeração (Norma EN 378)',
         order: 5,
         code: 'EC 9.5',
         title: 'Compressores Parafuso Industriais: Válvula Slide de Capacidade e Análise de Óleo',
@@ -466,8 +466,8 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
   {
     id: 'elec_mod_10_seguranca_cctv',
     area: 'eletrotecnica',
-    order: 10,
-    title: 'Módulo 10: Segurança Eletrônica, CCTV & Controle de Acesso',
+    order: 13,
+    title: 'Módulo 13: Segurança Eletrônica, CCTV & Controle de Acesso',
     description: 'Infraestrutura de CCTV IP (PoE 802.3af/at/bt), cercas elétricas normatizadas (IEC 60335-2-76) com aterramento dedicado e sistemas de controle de acesso Fail-Safe.',
     icon: 'ShieldCheck',
     normasReferencia: ['IEC 60335-2-76', 'IEEE 802.3af/at/bt', 'ISO/IEC 11801'],
@@ -475,7 +475,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m10_ec1_cctv_ip_poe',
         moduleId: 'elec_mod_10_seguranca_cctv',
-        moduleTitle: 'Módulo 10: Segurança Eletrônica, CCTV & Controle de Acesso',
+        moduleTitle: 'Módulo 13: Segurança Eletrônica, CCTV & Controle de Acesso',
         order: 1,
         code: 'EC 10.1',
         title: 'Infraestrutura de CCTV IP, Padrões PoE e Cabeamento Estruturado',
@@ -523,7 +523,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m10_ec2_cerca_eletrica_normas',
         moduleId: 'elec_mod_10_seguranca_cctv',
-        moduleTitle: 'Módulo 10: Segurança Eletrônica, CCTV & Controle de Acesso',
+        moduleTitle: 'Módulo 13: Segurança Eletrônica, CCTV & Controle de Acesso',
         order: 2,
         code: 'EC 10.2',
         title: 'Cercas Elétricas Normatizadas (IEC 60335-2-76) e Aterramento Dedicado',
@@ -571,7 +571,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m10_ec3_controle_acesso_failsafe',
         moduleId: 'elec_mod_10_seguranca_cctv',
-        moduleTitle: 'Módulo 10: Segurança Eletrônica, CCTV & Controle de Acesso',
+        moduleTitle: 'Módulo 13: Segurança Eletrônica, CCTV & Controle de Acesso',
         order: 3,
         code: 'EC 10.3',
         title: 'Sistemas de Controle de Acesso, Eletroímãs Fail-Safe vs Fail-Secure',
@@ -618,7 +618,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m10_ec4_centrais_alarme_resistor_eol',
         moduleId: 'elec_mod_10_seguranca_cctv',
-        moduleTitle: 'Módulo 10: Segurança Eletrônica, CCTV & Controle de Acesso',
+        moduleTitle: 'Módulo 13: Segurança Eletrônica, CCTV & Controle de Acesso',
         order: 4,
         code: 'EC 10.4',
         title: 'Centrais de Alarme: Zonas Balanceadas com Resistor EOL e Sensores PIR/MW',
@@ -666,7 +666,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m10_ec5_interfonia_ip_videoporteiro',
         moduleId: 'elec_mod_10_seguranca_cctv',
-        moduleTitle: 'Módulo 10: Segurança Eletrônica, CCTV & Controle de Acesso',
+        moduleTitle: 'Módulo 13: Segurança Eletrônica, CCTV & Controle de Acesso',
         order: 5,
         code: 'EC 10.5',
         title: 'Interfonia IP SIP e Automação de Portões com Sensores Anti-Esmagamento',
@@ -719,8 +719,8 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
   {
     id: 'elec_mod_11_energia_solar',
     area: 'eletrotecnica',
-    order: 11,
-    title: 'Módulo 11: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
+    order: 14,
+    title: 'Módulo 14: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
     description: 'Dimensionamento de arranjos FV, janela de tensão MPPT, coeficientes térmicos, proteções CC (fusíveis gPV, chaves DC-PV2, SPDs CC) e bancos LiFePO4.',
     icon: 'Sun',
     normasReferencia: ['IEC 61215', 'IEC 61730', 'IEC 62548', 'IEC 62109'],
@@ -728,7 +728,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m11_ec1_dimensionamento_mppt_voc',
         moduleId: 'elec_mod_11_energia_solar',
-        moduleTitle: 'Módulo 11: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
+        moduleTitle: 'Módulo 14: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
         order: 1,
         code: 'EC 11.1',
         title: 'Dimensionamento de Arranjos Fotovoltaicos, Janela MPPT e Correção de Voc',
@@ -776,7 +776,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m11_ec2_protecoes_dc_gpv',
         moduleId: 'elec_mod_11_energia_solar',
-        moduleTitle: 'Módulo 11: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
+        moduleTitle: 'Módulo 14: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
         order: 2,
         code: 'EC 11.2',
         title: 'Proteção em Corrente Contínua: Fusíveis gPV, Chaves DC-PV2 e SPDs CC',
@@ -824,7 +824,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m11_ec3_baterias_lifepo4_offgrid',
         moduleId: 'elec_mod_11_energia_solar',
-        moduleTitle: 'Módulo 11: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
+        moduleTitle: 'Módulo 14: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
         order: 3,
         code: 'EC 11.3',
         title: 'Sistemas Off-Grid e Híbridos: Dimensionamento de Baterias LiFePO4 e Cabos CC',
@@ -872,7 +872,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m11_ec4_bombeamento_solar_direto',
         moduleId: 'elec_mod_11_energia_solar',
-        moduleTitle: 'Módulo 11: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
+        moduleTitle: 'Módulo 14: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
         order: 4,
         code: 'EC 11.4',
         title: 'Bombeamento Solar Direto: VFD Solar para Bombas Submersas sem Baterias',
@@ -920,7 +920,7 @@ export const ELECTRICAL_MODULES_PART3: AcademyModule[] = [
       {
         id: 'elec_m11_ec5_comissionamento_iec62446',
         moduleId: 'elec_mod_11_energia_solar',
-        moduleTitle: 'Módulo 11: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
+        moduleTitle: 'Módulo 14: Energia Solar Fotovoltaica (IEC 61730 / IEC 61215)',
         order: 5,
         code: 'EC 11.5',
         title: 'Comissionamento e Ensaios Normativos Fotovoltaicos (Norma IEC 62446)',
